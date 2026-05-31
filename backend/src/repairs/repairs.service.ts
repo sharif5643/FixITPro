@@ -132,6 +132,8 @@ export class RepairsService {
       where.receivedAt = { gte: start, lt: end };
     }
 
+    // N-2 FIX: cap list at 200 rows to prevent unbounded queries when a branch
+    // has a large backlog. Pagination can be added in a future phase if needed.
     return this.prisma.repair.findMany({
       where,
       include: {
@@ -141,6 +143,7 @@ export class RepairsService {
         parts: { include: { product: { select: { name: true } } } },
       },
       orderBy: { receivedAt: 'desc' },
+      take: 200,
     });
   }
 

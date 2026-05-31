@@ -89,20 +89,44 @@ export class StockService {
         },
       });
 
-      // Generate stockCode only when creating a new BranchStock row
-      const stockCode = !bs ? await this.generateStockCode(dto.branchId!, tx) : null;
-
-      await (tx as any).branchStock.upsert({
-        where: { branchId_productId: { branchId: dto.branchId, productId: dto.productId } },
-        create: {
-          branchId:  dto.branchId,
-          productId: dto.productId,
-          quantity:  Math.max(0, dto.quantity),
-          minStock:  0,
-          ...(stockCode ? { stockCode } : {}),
-        },
-        update: { quantity: { increment: quantityChange } },
-      });
+      if (isDeduction) {
+        // N-3 FIX: atomic conditional decrement prevents concurrent adjustments
+        // from both passing the pre-transaction check and together depleting
+        // stock below zero.  updateMany with quantity >= demand only writes if
+        // stock is still sufficient at write time; count=0 means a concurrent
+        // adjustment beat us and the transaction rolls back.
+        const result = await (tx as any).branchStock.updateMany({
+          where: {
+            branchId:  dto.branchId,
+            productId: dto.productId,
+            quantity:  { gte: dto.quantity },
+          },
+          data: { quantity: { decrement: dto.quantity } },
+        });
+        if (result.count === 0) {
+          const current = await (tx as any).branchStock.findUnique({
+            where: { branchId_productId: { branchId: dto.branchId, productId: dto.productId } },
+            select: { quantity: true },
+          });
+          throw new BadRequestException(
+            `สต็อกสาขาไม่พอ คงเหลือ: ${current?.quantity ?? 0} ชิ้น`,
+          );
+        }
+      } else {
+        // IN adjustment: upsert creates the BranchStock row if it doesn't exist
+        const stockCode = !bs ? await this.generateStockCode(dto.branchId!, tx) : null;
+        await (tx as any).branchStock.upsert({
+          where: { branchId_productId: { branchId: dto.branchId, productId: dto.productId } },
+          create: {
+            branchId:  dto.branchId,
+            productId: dto.productId,
+            quantity:  Math.max(0, dto.quantity),
+            minStock:  0,
+            ...(stockCode ? { stockCode } : {}),
+          },
+          update: { quantity: { increment: quantityChange } },
+        });
+      }
 
       // Recalculate Product.stock = SUM of all BranchStock quantities
       await this.syncProductShadowStock(dto.productId, tx);

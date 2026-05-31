@@ -212,8 +212,6 @@ describe('M-3 · repair part stock error — null-safe product name', () => {
 
   it('shows product ID fallback when product name is empty string', () => {
     const msg = buildStockErrorMessage({ name: '' }, 'prod-abc', 1, 2)
-    // empty string is falsy — falls back to ID
-    const name = ('' || null)?.toString() ?? `[ID: prod-abc]`
     // In production code: product?.name ?? fallback — empty string passes through
     // because empty string IS a valid (if odd) name.  Just ensure no crash.
     expect(msg).not.toContain('undefined')

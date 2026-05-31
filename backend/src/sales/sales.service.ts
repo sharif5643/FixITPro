@@ -91,7 +91,10 @@ export class SalesService {
       for (const r of bsRows) branchStockMap.set(r.productId, r.quantity);
     }
 
-    // Validate aggregated demand against available stock
+    // N-1 NOTE: these pre-transaction checks are optimistic fast-fails using a
+    // snapshot taken before the tx. The authoritative race-safe guard is the
+    // in-transaction atomic updateMany (C-1 fix) that prevents oversell even
+    // when two concurrent requests both pass this pre-check.
     for (const [pid, totalQty] of demandMap) {
       const product = products.find((p) => p.id === pid);
       if (branchId) {

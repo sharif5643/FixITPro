@@ -371,7 +371,7 @@ function DebtPaymentModal({
             </div>
             {numAmount > 0 && !isFullPay && isValid && (
               <p className="text-xs text-amber-600">
-                ชำระบางส่วน — คงเหลือหลังชำระ {money(outstanding - numAmount)}
+                ชำระบางส่วน — คงเหลือหลังชำระ {money(Math.round((outstanding - numAmount) * 100) / 100)}
               </p>
             )}
             {numAmount > 0 && isFullPay && (

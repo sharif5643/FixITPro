@@ -26,6 +26,11 @@ export class WarrantiesService {
     actorId?: string,
     actorName?: string,
   ) {
+    // N-4 FIX: warranty must cover at least 1 day
+    if (!warrantyDays || warrantyDays < 1) {
+      throw new BadRequestException('Warranty duration must be at least 1 day');
+    }
+
     const repair = await this.prisma.repair.findUnique({
       where: { id: repairId },
       select: { id: true, ticketNumber: true, customerId: true },
@@ -71,6 +76,11 @@ export class WarrantiesService {
     actorId?: string,
     actorName?: string,
   ) {
+    // N-4 FIX: warranty must cover at least 1 day
+    if (!warrantyDays || warrantyDays < 1) {
+      throw new BadRequestException('Warranty duration must be at least 1 day');
+    }
+
     const saleItem = await this.prisma.saleItem.findUnique({
       where: { id: saleItemId },
       include: { sale: { select: { customerId: true, receiptNumber: true } }, product: { select: { name: true } } },
@@ -182,7 +192,14 @@ export class WarrantiesService {
 
     const data: any = {};
     if (dto.notes !== undefined)       data.notes       = dto.notes;
-    if (dto.endDate !== undefined)     data.endDate     = new Date(dto.endDate);
+    if (dto.endDate !== undefined) {
+      const newEnd = new Date(dto.endDate);
+      // N-4 FIX: new endDate must be strictly after the warranty's startDate
+      if (newEnd <= existing.startDate) {
+        throw new BadRequestException('Warranty end date must be after its start date');
+      }
+      data.endDate = newEnd;
+    }
     if (dto.description !== undefined) data.description = dto.description;
 
     const updated = await this.prisma.warranty.update({ where: { id }, data });
