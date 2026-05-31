@@ -1,86 +1,62 @@
 # Phase Summary
 
-**Phase:** 16.10 — MAJOR Fixes (M-1 through M-4)
+**Phase:** 16.11 — MINOR Fixes (N-1 through N-5)
 **Date:** 2026-06-01
-**Status:** Complete. All 4 MAJOR issues resolved. Awaiting Phase 16.11 approval.
+**Status:** Complete. All 5 MINOR issues resolved. Awaiting Phase 16.12 approval.
 
 ---
 
 ## Completed
 
-* ✅ M-1 — `POST /sales` now requires `sales.create` permission
-* ✅ M-2 — Repair status transitions enforce explicit allowed-transitions map
-* ✅ M-3 — Null product name in repair part stock error replaced with ID fallback
-* ✅ M-4 — File upload validates both MIME + extension; stored filename uses MIME-derived extension
-* ✅ Regression tests: `major-fixes.test.ts` — 54 new tests
-* ✅ `docs/qa/phase-16.8-audit-report.md` updated — all 4 MAJOR items marked ✅ RESOLVED
-* ✅ Commit: `e53a209` — "phase 16.10: fix M-1…M-4"
+* ✅ N-1 — Pre-tx global stock check documented as optimistic fast-fail (in-tx C-1 guard is authoritative)
+* ✅ N-2 — Repair list `findAll` capped at `take: 200` (prevents unbounded query on large backlogs)
+* ✅ N-3 — Stock adjust OUT uses conditional `updateMany(WHERE quantity >= demand)` inside tx
+* ✅ N-4 — Warranty `warrantyDays < 1` throws; `update` validates `endDate > startDate`
+* ✅ N-5 — Debt partial payment preview uses `Math.round(x * 100) / 100` (integer-cent arithmetic)
+* ✅ Regression tests: `minor-fixes.test.ts` — 33 new tests
+* ✅ TypeScript error in `major-fixes.test.ts` (line 216, dead code) also fixed
+* ✅ Audit report: all 5 MINOR items marked ✅ RESOLVED
+* ✅ Commit: `4a7c115`
 
 ---
 
 ## Changed Files
 
 **Backend**
-* `backend/src/sales/sales.controller.ts`
-  - Added `@UseGuards(PermissionGuard)` + `@RequirePermission('sales.create')` to `@Post()`
-* `backend/src/repairs/repairs.service.ts`
-  - Replaced open-ended forward-skip guard with `ALLOWED` transitions map
-  - `product?.name` → `productName = product?.name ?? \`[ID: ${part.productId}]\``
-  - Error message now includes `(ต้องการ: N)` quantity for clarity
-* `backend/src/repairs/repairs.controller.ts`
-  - Added `ALLOWED_IMAGE_EXTS` Set and `MIME_TO_EXT` map
-  - `fileFilter` now checks MIME **and** extension
-  - `filename` callback now derives extension from `MIME_TO_EXT` (not `extname(originalname)`)
+* `backend/src/sales/sales.service.ts` — N-1: clarifying comment on pre-tx optimistic check
+* `backend/src/repairs/repairs.service.ts` — N-2: `take: 200` limit on `findAll`
+* `backend/src/stock/stock.service.ts` — N-3: OUT path → `updateMany(WHERE quantity >= qty)` inside tx; IN path keeps upsert
+* `backend/src/warranties/warranties.service.ts` — N-4: `warrantyDays < 1` guard in `createForRepair` + `createForSaleItem`; `endDate > startDate` guard in `update`
+
+**Frontend**
+* `web-app/src/app/(dashboard)/debt/page.tsx` — N-5: `money(Math.round((outstanding - numAmount) * 100) / 100)`
 
 **Tests**
-* `web-app/src/__tests__/major-fixes.test.ts` — 54 new tests
+* `web-app/src/__tests__/minor-fixes.test.ts` — NEW, 33 tests
+* `web-app/src/__tests__/major-fixes.test.ts` — removed dead TypeScript expression (line 216 fix)
 
 **Docs**
-* `docs/qa/phase-16.8-audit-report.md` — M-1…M-4 marked ✅ RESOLVED
+* `docs/qa/phase-16.8-audit-report.md` — N-1…N-5 marked ✅ RESOLVED
 
 ---
 
 ## Fix Details
 
-### M-1 — Sales Permission Guard
-```typescript
-@Post()
-@UseGuards(PermissionGuard)          // ← added
-@RequirePermission('sales.create')   // ← added
-create(...) { ... }
-```
-TECHNICIAN / STOCK_STAFF with valid JWT can no longer ring up sales via direct API call.
+### N-1 — Optimistic Pre-tx Comment
+The C-1 fix (Phase 16.9) already added in-tx `product.updateMany(WHERE stock >= qty)` as the authoritative check for both branch and global stock paths. N-1's pre-tx check is now documented as a fast-fail optimization only.
 
-### M-2 — Explicit Status Transitions
-```typescript
-const ALLOWED: Record<string, string[]> = {
-  'RECEIVED':         ['DIAGNOSING'],
-  'DIAGNOSING':       ['WAITING_APPROVAL', 'APPROVED', 'IN_PROGRESS'],
-  'WAITING_APPROVAL': ['APPROVED'],
-  'APPROVED':         ['WAITING_PARTS', 'IN_PROGRESS'],
-  'WAITING_PARTS':    ['IN_PROGRESS'],
-  'IN_PROGRESS':      ['COMPLETED', 'WAITING_PARTS'],
-  'COMPLETED':        [],
-}
-if (!allowed.includes(dto.status)) throw BadRequestException(...)
-```
-RECEIVED→COMPLETED (and all other multi-step skips) now throw.
+### N-2 — Repair List Cap
+`take: 200` added to `repairs.findAll`. Newest 200 repairs returned (ordered by `receivedAt desc`). Frontend uses `_count?.images ?? 0` with optional chaining — no UI change. Prevents loading thousands of rows on high-volume branches.
 
-### M-3 — Null-Safe Product Name
-```typescript
-const productName = product?.name ?? `[ID: ${part.productId}]`
-```
-Error message never shows "undefined" even if product was deleted after part was added.
+### N-3 — Stock Adjust Conditional Decrement
+OUT path: `branchStock.upsert update: { increment: -qty }` → `branchStock.updateMany(WHERE quantity >= qty, decrement)`. If `count=0`, reads current qty and throws with accurate message. Transaction rolls back. IN path unchanged (upsert is correct for additions).
 
-### M-4 — File Upload Dual Validation
-```typescript
-const ALLOWED_IMAGE_EXTS = new Set(['.jpg','.jpeg','.png','.webp','.gif'])
-const MIME_TO_EXT = { 'image/jpeg':'.jpg', 'image/png':'.png', ... }
+### N-4 — Warranty Date Validation
+- `createForRepair` + `createForSaleItem`: throw `BadRequestException` if `warrantyDays < 1`
+- `update`: throw `BadRequestException` if `new Date(dto.endDate) <= existing.startDate`
 
-fileFilter: check MIME startsWith('image/') AND ext in ALLOWED_IMAGE_EXTS
-filename:   safeExt = MIME_TO_EXT[mimetype] ?? '.jpg'  // never from originalname
-```
-`shell.jpg.php` → blocked (ext `.php` not in whitelist). Stored filename is always MIME-safe.
+### N-5 — Debt Preview Float Arithmetic
+`money(outstanding - numAmount)` → `money(Math.round((outstanding - numAmount) * 100) / 100)`. Eliminates `0.09999999999999998` residuals in displayed remaining balance. (Note: `isFullPay`/`isValid` comparison was already fixed in non-blocker phase N-3.)
 
 ---
 
@@ -92,49 +68,42 @@ filename:   safeExt = MIME_TO_EXT[mimetype] ?? '.jpg'  // never from originalnam
 | Backend `nest build` | ✅ PASS |
 | Frontend `tsc --noEmit` | ✅ PASS |
 | Frontend `next build` | ✅ PASS |
-| `major-fixes.test.ts` | ✅ 54 / 54 |
-| Vitest full suite | ✅ 672 / 672 (no regressions) |
+| `minor-fixes.test.ts` | ✅ 33 / 33 |
+| Vitest full suite | ✅ 705 / 705 (no regressions) |
 
-Previous baseline: 618 tests. +54 new regression tests.
-
----
-
-## Remaining Open Issues (from Phase 16.8 Audit)
-
-| # | Severity | Issue |
-|---|----------|-------|
-| N-1 | MINOR | Global stock path pre-tx check (no-branch sales race) |
-| N-2 | MINOR | N+1 query on repair list |
-| N-3 | MINOR | Stock adjust no in-tx re-validation |
-| N-4 | MINOR | Warranty expiry > issuance date not validated |
-| N-5 | MINOR | Debt partial payment preview float arithmetic |
-| UX-1 | UX | No confirm dialog before large POS checkout |
-| UX-2 | UX | No confirm before repair delivery payment |
-| UX-3 | UX | Single error for multiple stock failures |
-| UX-4 | UX | No "snooze all" in reminder popup |
+Previous baseline: 672 tests. +33 new regression tests.
 
 ---
 
-## PROD-Readiness Status
+## Audit Report — Current State
 
-| Category | Before 16.9–16.10 | Now |
-|---|---|---|
-| CRITICAL issues | 2 | 0 ✅ |
-| MAJOR issues | 4 | 0 ✅ |
-| MINOR issues | 5 | 5 (non-blocking) |
-| UX issues | 4 | 4 (non-blocking) |
+| Severity | Count | Status |
+|----------|-------|--------|
+| CRITICAL | 2 | ✅ RESOLVED (Phase 16.9) |
+| MAJOR | 4 | ✅ RESOLVED (Phase 16.10) |
+| MINOR | 5 | ✅ RESOLVED (Phase 16.11) |
+| UX | 4 | Open — awaiting Phase 16.12 |
+
+---
+
+## Remaining Open: 4 UX Findings
+
+| # | Finding |
+|---|---------|
+| UX-1 | No confirm dialog before large POS checkout (SUNMI) |
+| UX-2 | No confirm before repair delivery payment (SUNMI) |
+| UX-3 | Single error shown for multiple insufficient-stock parts |
+| UX-4 | No "snooze all" button in reminder popup |
 
 ---
 
 ## Review Questions
 
-* Approve Phase 16.11 — MINOR fixes (N-1 through N-5)?
 * Approve Phase 16.12 — UX fixes (UX-1 through UX-4)?
-* Or combine MINOR + UX into a single phase?
 
 ---
 
 ## Next Recommended Action
 
-**Phase 16.11 — MINOR fixes (awaiting approval)**  
-All 5 minor issues are low-risk, isolated changes. Can be done in one phase.
+**Phase 16.12 — UX fixes (awaiting approval)**
+All 4 UX issues are frontend-only, no backend changes needed.

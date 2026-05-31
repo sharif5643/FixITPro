@@ -13,7 +13,7 @@
 |----------|-------|--------|
 | CRITICAL | 2 | ✅ RESOLVED (Phase 16.9) |
 | MAJOR | 4 | ✅ RESOLVED (Phase 16.10) |
-| MINOR | 5 | Open — recommended |
+| MINOR | 5 | ✅ RESOLVED (Phase 16.11) |
 | UX | 4 | Open — recommended |
 | **Total** | **15** | |
 
@@ -204,7 +204,7 @@ The `FilesInterceptor` validates `mimetype.startsWith('image/')` but MIME types 
 
 ---
 
-### N-1 · Sales — Pre-Transaction Stock Snapshot May Be Stale (Global Stock Path)
+### N-1 · Sales — Pre-Transaction Stock Snapshot May Be Stale (Global Stock Path) ✅ RESOLVED
 
 **Module:** POS / Sales  
 **Severity:** MINOR  
@@ -219,7 +219,7 @@ When `branchId` is null (no-branch sale), stock is checked against `product.stoc
 
 ---
 
-### N-2 · Repairs — N+1 Query on Repair List
+### N-2 · Repairs — N+1 Query on Repair List ✅ RESOLVED
 
 **Module:** Repairs  
 **Severity:** MINOR  
@@ -234,7 +234,7 @@ When `branchId` is null (no-branch sale), stock is checked against `product.stoc
 
 ---
 
-### N-3 · Stock Adjust — No In-Transaction Re-Validation
+### N-3 · Stock Adjust — No In-Transaction Re-Validation ✅ RESOLVED
 
 **Module:** Inventory / Stock  
 **Severity:** MINOR  
@@ -249,7 +249,7 @@ When `branchId` is null (no-branch sale), stock is checked against `product.stoc
 
 ---
 
-### N-4 · Warranty — Expiry Date Not Validated Against Issue Date
+### N-4 · Warranty — Expiry Date Not Validated Against Issue Date ✅ RESOLVED
 
 **Module:** Warranty  
 **Severity:** MINOR  
@@ -262,7 +262,7 @@ Warranty creation does not validate that `expiresAt > issuedAt`. A warranty with
 
 ---
 
-### N-5 · Debt Page — Partial Payment Preview Uses Float Arithmetic
+### N-5 · Debt Page — Partial Payment Preview Uses Float Arithmetic ✅ RESOLVED
 
 **Module:** Debt  
 **Severity:** MINOR** (the `isFullPay`/`isValid` comparison was fixed in N-3, but the *preview text* was not)  
