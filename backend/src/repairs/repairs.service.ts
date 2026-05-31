@@ -605,11 +605,21 @@ export class RepairsService {
 
     const IS_ELEVATED = role === 'OWNER' || role === 'SUPER_ADMIN';
 
+    // C-2 FIX: tenantId is mandatory for every non-SUPER_ADMIN caller.
+    // A null tenantId on OWNER/MANAGER/etc. would silently expose all tenants'
+    // repair history for that IMEI — reject it immediately.
+    // SUPER_ADMIN is a platform role and may intentionally query cross-tenant.
+    if (role !== 'SUPER_ADMIN' && !tenantId) {
+      throw new ForbiddenException('Tenant context required');
+    }
+
     // B-3 FIX: scope results to caller's tenant/branch so cross-tenant data never leaks.
     const where: any = { deviceImei: imei };
     if (tenantId) {
+      // Apply tenant filter when we have context (always true for non-SUPER_ADMIN after above guard).
       where.branch = { tenantId };
     }
+    // SUPER_ADMIN with no tenantId: intentional cross-tenant search (no filter applied).
     if (!IS_ELEVATED && userBranchId) {
       where.branchId = userBranchId;
     }

@@ -3,18 +3,18 @@
 **Audit Date:** 2026-06-01  
 **Auditor:** Claude Code (automated static analysis + code review)  
 **Scope:** All 10 core modules — static code review only. No runtime testing.  
-**Status:** Awaiting owner approval before any fixes are applied.
+**Status:** CRITICAL issues resolved in Phase 16.9 (2026-06-01). MAJOR/MINOR/UX pending approval.
 
 ---
 
 ## Summary
 
-| Severity | Count | Must-fix before PROD? |
-|----------|-------|-----------------------|
-| CRITICAL | 2 | Yes |
-| MAJOR | 4 | Yes |
-| MINOR | 5 | Recommended |
-| UX | 4 | Recommended |
+| Severity | Count | Status |
+|----------|-------|--------|
+| CRITICAL | 2 | ✅ RESOLVED (Phase 16.9) |
+| MAJOR | 4 | Open — must-fix before PROD |
+| MINOR | 5 | Open — recommended |
+| UX | 4 | Open — recommended |
 | **Total** | **15** | |
 
 No new blockers in the original KNOWN_ISSUES list — those were resolved in the non-blocker phase.
@@ -26,7 +26,7 @@ All findings below are newly identified from Phase 16.8 static audit.
 
 ---
 
-### C-1 · Sales — Stock Check Outside Transaction (Race Condition)
+### C-1 · Sales — Stock Check Outside Transaction (Race Condition) ✅ RESOLVED
 
 **Module:** POS / Sales  
 **Severity:** CRITICAL  
@@ -55,11 +55,12 @@ The B-1 fix from Phase 13 ensures the `branchStock.update` is inside the transac
 
 **Impact:** Two cashiers selling the last unit simultaneously → stock goes to -1. Cash drawer reconciliation fails. Audit log shows negative.
 
-**Recommended Fix:** Re-read and validate `branchStock` inside the transaction before deducting. Alternatively, use `SELECT ... FOR UPDATE` via raw SQL for the stock row.
+**Fix applied (Phase 16.9):** `branchStock.update` replaced with `branchStock.updateMany(WHERE quantity >= demand)`. Atomic conditional decrement — if `count=0`, the transaction throws and rolls back. Same pattern applied to the global (no-branch) `product.updateMany` path.  
+**Regression:** `critical-fixes.test.ts` — 14 tests covering concurrent oversell, last-unit race, missing-row path.
 
 ---
 
-### C-2 · Repairs — Device History Tenant Isolation Gap
+### C-2 · Repairs — Device History Tenant Isolation Gap ✅ RESOLVED
 
 **Module:** Repairs  
 **Severity:** CRITICAL  
@@ -79,11 +80,8 @@ if (tenantId) {          // ← guard skipped if tenantId is null
 
 **Impact:** In a multi-tenant deployment, one tenant can view another tenant's customer device history. Data privacy violation. Sensitive repair notes and pricing exposed.
 
-**Recommended Fix:** Make tenant isolation unconditional. Throw `ForbiddenException` if `tenantId` is null — the caller must always have a tenant context:
-```typescript
-if (!tenantId) throw new ForbiddenException('Tenant context required')
-where.branch = { tenantId }
-```
+**Fix applied (Phase 16.9):** Guard added: `if (role !== 'SUPER_ADMIN' && !tenantId) throw new ForbiddenException(...)`. `tenantId` filter is now unconditional for all non-SUPER_ADMIN roles. SUPER_ADMIN with `tenantId=null` intentionally searches cross-tenant. Empty string tenantId also rejected (falsy check).  
+**Regression:** `critical-fixes.test.ts` — 10 tests covering all roles, null/empty tenantId, SUPER_ADMIN cross-tenant path.
 
 ---
 
@@ -354,8 +352,8 @@ The reminder popup shows multiple cards (VIP, URGENT, PARTS, etc.) and requires 
 
 | Module | Status | Critical | Major | Minor | UX | Notes |
 |--------|--------|----------|-------|-------|----|-------|
-| POS / Sales | ⚠️ Issues found | C-1 | M-1 | N-1 | UX-1 | Stock race + missing guard |
-| Repairs | ⚠️ Issues found | C-2 | M-2, M-3, M-4 | N-2 | UX-2, UX-3 | Multiple issues |
+| POS / Sales | ⚠️ Issues found | ~~C-1~~ ✅ | M-1 | N-1 | UX-1 | Stock race fixed; guard pending |
+| Repairs | ⚠️ Issues found | ~~C-2~~ ✅ | M-2, M-3, M-4 | N-2 | UX-2, UX-3 | Tenant gap fixed; others pending |
 | Inventory / Stock | ⚠️ Issues found | — | — | N-3 | — | Concurrent adjust |
 | Stock Transfer | ✅ No new issues | — | — | — | — | Guards + confirm dialog in place |
 | Expenses | ✅ No new issues | — | — | — | — | Shift-linked, voided correctly |

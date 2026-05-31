@@ -179,18 +179,44 @@ export class SalesService {
         const product = products.find((p) => p.id === item.productId);
 
         if (branchId) {
-          // Branch-scoped: deduct from BranchStock for this branch only.
-          // B-1 FIX: must use `tx` (not `this.prisma`) so deduction rolls back on failure.
-          await (tx as any).branchStock.update({
-            where: { branchId_productId: { branchId, productId: item.productId } },
+          // C-1 FIX: atomic conditional decrement prevents concurrent oversell.
+          // updateMany with `quantity >= demand` only writes if stock is still
+          // sufficient at write time. count=0 means a concurrent sale beat us —
+          // the transaction rolls back automatically on throw.
+          const bsResult = await (tx as any).branchStock.updateMany({
+            where: {
+              branchId,
+              productId: item.productId,
+              quantity: { gte: item.quantity },
+            },
             data: { quantity: { decrement: item.quantity } },
           });
+          if (bsResult.count === 0) {
+            const bs = await (tx as any).branchStock.findUnique({
+              where: { branchId_productId: { branchId, productId: item.productId } },
+              select: { quantity: true },
+            });
+            throw new BadRequestException(
+              `สต็อกสาขาไม่พอสำหรับ "${product.name}" คงเหลือ: ${bs?.quantity ?? 0} ชิ้น (ต้องการ: ${item.quantity})`,
+            );
+          }
+          // Shadow: keep Product.stock in sync for backward-compat display only.
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { decrement: item.quantity } },
+          });
+        } else {
+          // C-1 FIX: atomic conditional decrement for the global (no-branch) stock path.
+          const prodResult = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } },
+          });
+          if (prodResult.count === 0) {
+            throw new BadRequestException(
+              `Insufficient stock for "${product.name}". Stock was updated by a concurrent sale.`,
+            );
+          }
         }
-        // Shadow-update Product.stock for backward-compat display
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
-        });
 
         const saleItem = sale.items.find((si) => si.productId === item.productId);
         await tx.stockMovement.create({
