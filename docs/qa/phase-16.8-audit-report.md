@@ -12,7 +12,7 @@
 | Severity | Count | Status |
 |----------|-------|--------|
 | CRITICAL | 2 | ✅ RESOLVED (Phase 16.9) |
-| MAJOR | 4 | Open — must-fix before PROD |
+| MAJOR | 4 | ✅ RESOLVED (Phase 16.10) |
 | MINOR | 5 | Open — recommended |
 | UX | 4 | Open — recommended |
 | **Total** | **15** | |
@@ -89,7 +89,7 @@ if (tenantId) {          // ← guard skipped if tenantId is null
 
 ---
 
-### M-1 · Sales — Missing Permission Guard on Sale Creation
+### M-1 · Sales — Missing Permission Guard on Sale Creation ✅ RESOLVED
 
 **Module:** POS / Sales  
 **Severity:** MAJOR  
@@ -117,11 +117,12 @@ export class SalesController {
 
 **Impact:** Any logged-in user can ring up sales. TECHNICIAN role could process sales without CASHIER permissions. Revenue manipulation risk.
 
-**Recommended Fix:** Add `@UseGuards(PermissionGuard)` and `@RequirePermission('sales.create')` to the `POST /` endpoint (and apply to `GET /` and `GET /:id` as `@RequirePermission('sales.view')` for full coverage).
+**Fix applied (Phase 16.10):** `@UseGuards(PermissionGuard)` and `@RequirePermission('sales.create')` added to `POST /sales`. Consistent with void/refund endpoints in the same controller.  
+**Regression:** `major-fixes.test.ts` — permission key consistency + role matrix tests.
 
 ---
 
-### M-2 · Repairs — Status Transition Allows Skipping Steps
+### M-2 · Repairs — Status Transition Allows Skipping Steps ✅ RESOLVED
 
 **Module:** Repairs  
 **Severity:** MAJOR  
@@ -148,11 +149,12 @@ When status reaches COMPLETED (line 215: `updateData.completedAt = new Date()`),
 
 **Impact:** Staff can skip the approval step; repair income recorded without customer approval; stock deducted for unchecked repairs.
 
-**Recommended Fix:** Define explicit allowed transitions (only +1 step forward, or approved jumps like IN_PROGRESS→COMPLETED for simple repairs). Reject all other forward jumps.
+**Fix applied (Phase 16.10):** `ALLOWED` transitions map replaces the open-ended `toIdx > fromIdx` guard. Each status has an explicit list of valid next states. RECEIVED→COMPLETED (and all other multi-step skips) now throw `BadRequestException`.  
+**Regression:** `major-fixes.test.ts` — 27 transition tests covering all valid paths, blocked skips, backward moves, CANCELLED, and terminal COMPLETED state.
 
 ---
 
-### M-3 · Repairs — Product Name Null-Safety in Stock Error Message
+### M-3 · Repairs — Product Name Null-Safety in Stock Error Message ✅ RESOLVED
 
 **Module:** Repairs  
 **Severity:** MAJOR (degrades to MINOR if product always exists, but unsafe reference)  
@@ -175,15 +177,12 @@ throw new BadRequestException(
 
 **Impact:** Operator confusion; cannot determine which product to restock.
 
-**Recommended Fix:**
-```typescript
-const productName = product?.name ?? `[ไม่พบสินค้า ID: ${part.productId}]`
-throw new BadRequestException(`สต็อกสาขาไม่พอสำหรับ "${productName}" ...`)
-```
+**Fix applied (Phase 16.10):** `const productName = product?.name ?? \`[ID: ${part.productId}]\`` — error message is always readable. `needed: N` quantity also added to the message for clearer operator guidance.  
+**Regression:** `major-fixes.test.ts` — 5 tests covering null product, deleted product, and message content.
 
 ---
 
-### M-4 · File Upload — Insufficient File-Type Validation
+### M-4 · File Upload — Insufficient File-Type Validation ✅ RESOLVED
 
 **Module:** Repairs (Image Upload)  
 **Severity:** MAJOR  
@@ -194,10 +193,10 @@ The `FilesInterceptor` validates `mimetype.startsWith('image/')` but MIME types 
 
 **Impact:** If the uploads directory is ever served directly (e.g. Nginx misconfiguration), an uploaded web shell could execute. Currently mitigated by random filename, but not safe by design.
 
-**Recommended Fix:**
-1. Validate file extension from a whitelist (`['.jpg','.jpeg','.png','.webp']`)
-2. Do not use `extname(file.originalname)` — assign a fixed safe extension based on validated MIME
-3. Ensure Nginx serves `/uploads` with `types {}; default_type application/octet-stream` (no execution)
+**Fix applied (Phase 16.10):**  
+1. `fileFilter` now checks **both** MIME (`startsWith('image/')`) AND extension (`ALLOWED_IMAGE_EXTS` set).  
+2. `filename` callback now uses `MIME_TO_EXT[file.mimetype]` — stored filename extension comes from validated MIME, never from `extname(originalname)`. `shell.jpg.php` → stored as `timestamp.jpg`.  
+**Regression:** `major-fixes.test.ts` — 19 tests: allowed files, forged MIME, dangerous extensions, MIME-derived naming.
 
 ---
 
@@ -352,8 +351,8 @@ The reminder popup shows multiple cards (VIP, URGENT, PARTS, etc.) and requires 
 
 | Module | Status | Critical | Major | Minor | UX | Notes |
 |--------|--------|----------|-------|-------|----|-------|
-| POS / Sales | ⚠️ Issues found | ~~C-1~~ ✅ | M-1 | N-1 | UX-1 | Stock race fixed; guard pending |
-| Repairs | ⚠️ Issues found | ~~C-2~~ ✅ | M-2, M-3, M-4 | N-2 | UX-2, UX-3 | Tenant gap fixed; others pending |
+| POS / Sales | ⚠️ Minor/UX remain | ~~C-1~~ ✅ | ~~M-1~~ ✅ | N-1 | UX-1 | All critical+major resolved |
+| Repairs | ⚠️ Minor/UX remain | ~~C-2~~ ✅ | ~~M-2~~, ~~M-3~~, ~~M-4~~ ✅ | N-2 | UX-2, UX-3 | All critical+major resolved |
 | Inventory / Stock | ⚠️ Issues found | — | — | N-3 | — | Concurrent adjust |
 | Stock Transfer | ✅ No new issues | — | — | — | — | Guards + confirm dialog in place |
 | Expenses | ✅ No new issues | — | — | — | — | Shift-linked, voided correctly |

@@ -186,16 +186,29 @@ export class RepairsService {
       throw new BadRequestException('ไม่สามารถเปลี่ยนสถานะงานซ่อมที่ยกเลิกแล้ว');
     }
 
-    // Guard: prevent backward status transitions
+    // M-2 FIX: explicit allowed-transitions map replaces the open-ended
+    // "any forward move is valid" guard.  Prevents skipping diagnosis or
+    // approval (e.g. RECEIVED → COMPLETED which triggered stock deduction
+    // without an approval step).
     if (dto.status !== undefined && dto.status !== repair.status && dto.status !== 'CANCELLED') {
-      const STATUS_ORDER = [
-        'RECEIVED', 'DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED',
-        'WAITING_PARTS', 'IN_PROGRESS', 'COMPLETED',
-      ];
-      const fromIdx = STATUS_ORDER.indexOf(repair.status);
-      const toIdx   = STATUS_ORDER.indexOf(dto.status);
-      if (fromIdx !== -1 && toIdx !== -1 && toIdx < fromIdx) {
-        throw new BadRequestException('ไม่สามารถย้อนสถานะงานซ่อมได้');
+      const ALLOWED: Record<string, string[]> = {
+        'RECEIVED':         ['DIAGNOSING'],
+        'DIAGNOSING':       ['WAITING_APPROVAL', 'APPROVED', 'IN_PROGRESS'],
+        // DIAGNOSING→APPROVED: owner pre-approves without estimate (simple repair)
+        // DIAGNOSING→IN_PROGRESS: no estimate needed at all
+        'WAITING_APPROVAL': ['APPROVED'],
+        'APPROVED':         ['WAITING_PARTS', 'IN_PROGRESS'],
+        // APPROVED→IN_PROGRESS: skip parts wait if technician already has parts
+        'WAITING_PARTS':    ['IN_PROGRESS'],
+        'IN_PROGRESS':      ['COMPLETED', 'WAITING_PARTS'],
+        // IN_PROGRESS→WAITING_PARTS: more parts discovered during repair
+        'COMPLETED':        [],
+      };
+      const allowed = ALLOWED[repair.status] ?? [];
+      if (!allowed.includes(dto.status)) {
+        throw new BadRequestException(
+          `ไม่สามารถเปลี่ยนสถานะจาก ${repair.status} เป็น ${dto.status} ได้`,
+        );
       }
     }
 
@@ -242,9 +255,12 @@ export class RepairsService {
               });
               const available = bs?.quantity ?? 0;
               if (available < part.quantity) {
+                // M-3 FIX: product?.name with fallback — avoids "undefined" in error
+                // if product was deleted after part was added to the repair.
                 const product = await tx.product.findUnique({ where: { id: part.productId }, select: { name: true } });
+                const productName = product?.name ?? `[ID: ${part.productId}]`;
                 throw new BadRequestException(
-                  `สต็อกสาขาไม่พอสำหรับ "${product?.name}" มีอยู่ในสาขา: ${available} ชิ้น`,
+                  `สต็อกสาขาไม่พอสำหรับ "${productName}" มีอยู่ในสาขา: ${available} ชิ้น (ต้องการ: ${part.quantity})`,
                 );
               }
               await (tx as any).branchStock.update({

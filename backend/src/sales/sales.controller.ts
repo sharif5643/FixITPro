@@ -22,6 +22,8 @@ export class SalesController {
   constructor(private salesService: SalesService) {}
 
   @Post()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('sales.create')
   create(
     @Body() dto: CreateSaleDto,
     @CurrentUser('id') userId: string,

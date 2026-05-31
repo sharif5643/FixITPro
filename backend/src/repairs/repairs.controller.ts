@@ -31,11 +31,24 @@ const UPLOADS_DIR = process.env.UPLOADS_DIR ||
   (process.env.NODE_ENV === 'production' ? 'D:\\FixITPro_Prod_Uploads\\repairs' : 'uploads/repairs');
 if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
 
+// M-4 FIX: whitelist of allowed image extensions (lowercase).
+const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+
+// M-4 FIX: derive safe extension from MIME type rather than original filename
+// so a file named "shell.jpg.php" cannot smuggle in a .php extension.
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png':  '.png',
+  'image/webp': '.webp',
+  'image/gif':  '.gif',
+};
+
 const imageStorage = diskStorage({
   destination: UPLOADS_DIR,
   filename: (_req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    cb(null, `${unique}${extname(file.originalname)}`);
+    const unique  = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const safeExt = MIME_TO_EXT[file.mimetype] ?? '.jpg';
+    cb(null, `${unique}${safeExt}`);
   },
 });
 
@@ -118,8 +131,12 @@ export class RepairsController {
     FilesInterceptor('files', 6, {
       storage: imageStorage,
       fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.startsWith('image/')) {
-          cb(new BadRequestException('Only image files are allowed'), false);
+        const ext = extname(file.originalname).toLowerCase();
+        // M-4 FIX: validate both MIME type AND file extension.
+        // MIME alone is client-supplied and can be forged; combining with an
+        // extension whitelist blocks "shell.jpg.php" (ext=.php, fails whitelist).
+        if (!file.mimetype.startsWith('image/') || !ALLOWED_IMAGE_EXTS.has(ext)) {
+          cb(new BadRequestException('Only image files are allowed (.jpg, .jpeg, .png, .webp, .gif)'), false);
           return;
         }
         cb(null, true);
