@@ -1,71 +1,86 @@
 # Phase Summary
 
-**Phase:** 16.9 — Critical Fixes (C-1 + C-2)
+**Phase:** 16.10 — MAJOR Fixes (M-1 through M-4)
 **Date:** 2026-06-01
-**Status:** Complete. Both CRITICAL issues resolved. Awaiting Phase 16.10 approval.
+**Status:** Complete. All 4 MAJOR issues resolved. Awaiting Phase 16.11 approval.
 
 ---
 
 ## Completed
 
-* ✅ C-1 — Sales stock race condition fixed (atomic conditional decrement)
-* ✅ C-2 — Device history tenant isolation gap fixed (mandatory tenantId guard)
-* ✅ Regression tests: `critical-fixes.test.ts` — 24 new tests (14 for C-1, 10 for C-2)
-* ✅ `docs/qa/phase-16.8-audit-report.md` updated — both CRITICAL items marked ✅ RESOLVED
-* ✅ Commit: `755e58a` — "phase 16.9: fix C-1 stock race + C-2 tenant isolation gap"
+* ✅ M-1 — `POST /sales` now requires `sales.create` permission
+* ✅ M-2 — Repair status transitions enforce explicit allowed-transitions map
+* ✅ M-3 — Null product name in repair part stock error replaced with ID fallback
+* ✅ M-4 — File upload validates both MIME + extension; stored filename uses MIME-derived extension
+* ✅ Regression tests: `major-fixes.test.ts` — 54 new tests
+* ✅ `docs/qa/phase-16.8-audit-report.md` updated — all 4 MAJOR items marked ✅ RESOLVED
+* ✅ Commit: `e53a209` — "phase 16.10: fix M-1…M-4"
 
 ---
 
 ## Changed Files
 
-**Backend (source fixes)**
-* `backend/src/sales/sales.service.ts`
-  - `branchStock.update` → `branchStock.updateMany(WHERE quantity >= demand)` inside tx
-  - `product.update` (global path) → `product.updateMany(WHERE stock >= demand)` inside tx
-  - Shadow update for branchId path kept as-is (informational only, no guard needed)
+**Backend**
+* `backend/src/sales/sales.controller.ts`
+  - Added `@UseGuards(PermissionGuard)` + `@RequirePermission('sales.create')` to `@Post()`
 * `backend/src/repairs/repairs.service.ts`
-  - Added guard: `if (role !== 'SUPER_ADMIN' && !tenantId) throw ForbiddenException`
-  - Tenant filter now unconditional for all non-SUPER_ADMIN roles
-  - SUPER_ADMIN with `tenantId=null` → cross-tenant search (intentional, documented)
+  - Replaced open-ended forward-skip guard with `ALLOWED` transitions map
+  - `product?.name` → `productName = product?.name ?? \`[ID: ${part.productId}]\``
+  - Error message now includes `(ต้องการ: N)` quantity for clarity
+* `backend/src/repairs/repairs.controller.ts`
+  - Added `ALLOWED_IMAGE_EXTS` Set and `MIME_TO_EXT` map
+  - `fileFilter` now checks MIME **and** extension
+  - `filename` callback now derives extension from `MIME_TO_EXT` (not `extname(originalname)`)
 
-**Tests (new)**
-* `web-app/src/__tests__/critical-fixes.test.ts` — 24 tests
+**Tests**
+* `web-app/src/__tests__/major-fixes.test.ts` — 54 new tests
 
 **Docs**
-* `docs/qa/phase-16.8-audit-report.md` — C-1 and C-2 marked ✅ RESOLVED with fix details
+* `docs/qa/phase-16.8-audit-report.md` — M-1…M-4 marked ✅ RESOLVED
 
 ---
 
 ## Fix Details
 
-### C-1 — Atomic Conditional Decrement
-
-**Before:** `branchStock.update({ decrement: qty })` — always decrements, no stock check inside tx.  
-Two concurrent requests could both pass the pre-transaction stock check, then both decrement → negative stock.
-
-**After:**
+### M-1 — Sales Permission Guard
 ```typescript
-const bsResult = await tx.branchStock.updateMany({
-  where: { branchId, productId, quantity: { gte: item.quantity } },
-  data: { quantity: { decrement: item.quantity } },
-})
-if (bsResult.count === 0) throw BadRequestException(...)
+@Post()
+@UseGuards(PermissionGuard)          // ← added
+@RequirePermission('sales.create')   // ← added
+create(...) { ... }
 ```
-If stock is insufficient at write time, `count=0` → exception → full transaction rollback.
-Same pattern applied to the global `product.stock` path.
+TECHNICIAN / STOCK_STAFF with valid JWT can no longer ring up sales via direct API call.
 
-### C-2 — Mandatory Tenant Guard
-
-**Before:** `if (tenantId) { where.branch = { tenantId } }` — skipped silently when null.
-
-**After:**
+### M-2 — Explicit Status Transitions
 ```typescript
-if (role !== 'SUPER_ADMIN' && !tenantId) {
-  throw new ForbiddenException('Tenant context required')
+const ALLOWED: Record<string, string[]> = {
+  'RECEIVED':         ['DIAGNOSING'],
+  'DIAGNOSING':       ['WAITING_APPROVAL', 'APPROVED', 'IN_PROGRESS'],
+  'WAITING_APPROVAL': ['APPROVED'],
+  'APPROVED':         ['WAITING_PARTS', 'IN_PROGRESS'],
+  'WAITING_PARTS':    ['IN_PROGRESS'],
+  'IN_PROGRESS':      ['COMPLETED', 'WAITING_PARTS'],
+  'COMPLETED':        [],
 }
+if (!allowed.includes(dto.status)) throw BadRequestException(...)
 ```
-SUPER_ADMIN without tenantId is intentionally allowed for cross-tenant support queries.
-All other roles (OWNER, MANAGER, CASHIER, TECHNICIAN, STOCK_STAFF) must have tenantId.
+RECEIVED→COMPLETED (and all other multi-step skips) now throw.
+
+### M-3 — Null-Safe Product Name
+```typescript
+const productName = product?.name ?? `[ID: ${part.productId}]`
+```
+Error message never shows "undefined" even if product was deleted after part was added.
+
+### M-4 — File Upload Dual Validation
+```typescript
+const ALLOWED_IMAGE_EXTS = new Set(['.jpg','.jpeg','.png','.webp','.gif'])
+const MIME_TO_EXT = { 'image/jpeg':'.jpg', 'image/png':'.png', ... }
+
+fileFilter: check MIME startsWith('image/') AND ext in ALLOWED_IMAGE_EXTS
+filename:   safeExt = MIME_TO_EXT[mimetype] ?? '.jpg'  // never from originalname
+```
+`shell.jpg.php` → blocked (ext `.php` not in whitelist). Stored filename is always MIME-safe.
 
 ---
 
@@ -73,49 +88,53 @@ All other roles (OWNER, MANAGER, CASHIER, TECHNICIAN, STOCK_STAFF) must have ten
 
 | Check | Result |
 |---|---|
-| Backend `tsc --noEmit` | ✅ PASS — 0 errors |
-| Backend `nest build` | ✅ PASS — exit 0 |
-| Frontend `tsc --noEmit` | ✅ PASS — 0 errors |
-| Frontend `next build` | ✅ PASS — exit 0 |
-| `critical-fixes.test.ts` | ✅ 24 / 24 passed |
-| Vitest full suite | ✅ 618 / 618 passed (no regressions) |
+| Backend `tsc --noEmit` | ✅ PASS |
+| Backend `nest build` | ✅ PASS |
+| Frontend `tsc --noEmit` | ✅ PASS |
+| Frontend `next build` | ✅ PASS |
+| `major-fixes.test.ts` | ✅ 54 / 54 |
+| Vitest full suite | ✅ 672 / 672 (no regressions) |
 
-Previous baseline: 594 tests. +24 new regression tests.
-
----
-
-## Remaining Issues (from Phase 16.8 Audit)
-
-| # | Severity | Issue | Status |
-|---|----------|-------|--------|
-| M-1 | MAJOR | `POST /sales` missing `@RequirePermission('sales.create')` | Open |
-| M-2 | MAJOR | Repair status allows skipping steps (RECEIVED → COMPLETED) | Open |
-| M-3 | MAJOR | `product?.name` null in repair stock error message | Open |
-| M-4 | MAJOR | File upload MIME-only validation (no extension whitelist) | Open |
-| N-1 | MINOR | Global stock pre-tx check (shadow of C-1 on no-branch path) | Open |
-| N-2 | MINOR | N+1 query on repair list | Open |
-| N-3 | MINOR | Stock adjust no in-tx re-validation | Open |
-| N-4 | MINOR | Warranty expiry > issuance date not validated | Open |
-| N-5 | MINOR | Debt partial payment preview float arithmetic | Open |
-| UX-1–4 | UX | Confirm dialogs, snooze-all, error batching | Open |
+Previous baseline: 618 tests. +54 new regression tests.
 
 ---
 
-## Risks
+## Remaining Open Issues (from Phase 16.8 Audit)
 
-* ⚠️ M-1 remains — any authenticated user can create sales via direct API call
-* ⚠️ Phase 16 migration still pending on PROD
+| # | Severity | Issue |
+|---|----------|-------|
+| N-1 | MINOR | Global stock path pre-tx check (no-branch sales race) |
+| N-2 | MINOR | N+1 query on repair list |
+| N-3 | MINOR | Stock adjust no in-tx re-validation |
+| N-4 | MINOR | Warranty expiry > issuance date not validated |
+| N-5 | MINOR | Debt partial payment preview float arithmetic |
+| UX-1 | UX | No confirm dialog before large POS checkout |
+| UX-2 | UX | No confirm before repair delivery payment |
+| UX-3 | UX | Single error for multiple stock failures |
+| UX-4 | UX | No "snooze all" in reminder popup |
+
+---
+
+## PROD-Readiness Status
+
+| Category | Before 16.9–16.10 | Now |
+|---|---|---|
+| CRITICAL issues | 2 | 0 ✅ |
+| MAJOR issues | 4 | 0 ✅ |
+| MINOR issues | 5 | 5 (non-blocking) |
+| UX issues | 4 | 4 (non-blocking) |
 
 ---
 
 ## Review Questions
 
-* Approve Phase 16.10 — MAJOR fixes (M-1 through M-4)?
-* Fix all 4 MAJOR issues in one phase, or split?
+* Approve Phase 16.11 — MINOR fixes (N-1 through N-5)?
+* Approve Phase 16.12 — UX fixes (UX-1 through UX-4)?
+* Or combine MINOR + UX into a single phase?
 
 ---
 
 ## Next Recommended Action
 
-**Phase 16.10 — MAJOR fixes (awaiting approval)**
-Priority order: M-1 (security), M-2 (data integrity), M-3 (UX/error quality), M-4 (security)
+**Phase 16.11 — MINOR fixes (awaiting approval)**  
+All 5 minor issues are low-risk, isolated changes. Can be done in one phase.
