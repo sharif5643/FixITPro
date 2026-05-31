@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Allows cleartext (HTTP) traffic to LAN IPs for development.
+  HTTPS connections are always allowed regardless of this config.
+  In production with a real HTTPS domain, this file can be removed.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

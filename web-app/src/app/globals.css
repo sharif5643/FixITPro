@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Color tokens (HSL) ─────────────────────────────────────── */
+    --background:         0 0% 100%;
+    --foreground:         222.2 84% 4.9%;
+    --card:               0 0% 100%;
+    --card-foreground:    222.2 84% 4.9%;
+    --popover:            0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary:            221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary:          210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted:              210 40% 96.1%;
+    --muted-foreground:   215.4 16.3% 46.9%;
+    --accent:             210 40% 96.1%;
+    --accent-foreground:  222.2 47.4% 11.2%;
+    --destructive:        0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border:             214.3 31.8% 91.4%;
+    --input:              214.3 31.8% 91.4%;
+    --ring:               221.2 83.2% 53.3%;
+    --radius:             0.625rem; /* 10 px — slightly more modern */
+
+    /* ── Shimmer gradient (light) ───────────────────────────────── */
+    --shimmer-from: #f1f5f9;
+    --shimmer-via:  #e2e8f0;
+    --shimmer-to:   #f1f5f9;
+  }
+
+  .dark {
+    /* ── Dark mode color tokens ─────────────────────────────────── */
+    --background:         222.2 84% 4.9%;
+    --foreground:         210 40% 98%;
+    --card:               222.2 47.4% 8.5%;
+    --card-foreground:    210 40% 98%;
+    --popover:            222.2 47.4% 8.5%;
+    --popover-foreground: 210 40% 98%;
+    --primary:            217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary:          217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted:              217.2 32.6% 17.5%;
+    --muted-foreground:   215 20.2% 65.1%;
+    --accent:             217.2 32.6% 17.5%;
+    --accent-foreground:  210 40% 98%;
+    --destructive:        0 62.8% 48%;
+    --destructive-foreground: 210 40% 98%;
+    --border:             217.2 32.6% 17.5%;
+    --input:              217.2 32.6% 17.5%;
+    --ring:               224.3 76.3% 48%;
+
+    /* ── Shimmer gradient (dark) ─────────────────────────────────── */
+    --shimmer-from: #1e293b;
+    --shimmer-via:  #334155;
+    --shimmer-to:   #1e293b;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-inter), var(--font-noto-thai), 'Noto Sans Thai', system-ui, sans-serif;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  /* Improved heading hierarchy */
+  h1 { @apply text-2xl font-bold tracking-tight; }
+  h2 { @apply text-xl font-bold; }
+  h3 { @apply text-base font-semibold; }
+
+  /* Money / tabular numbers */
+  .tabular-nums, .font-mono { font-variant-numeric: tabular-nums; }
+
+  /* Smooth scrolling */
+  html { scroll-behavior: smooth; }
+}
+
+@layer utilities {
+  /* ── Shimmer animation ────────────────────────────────────────── */
+  .shimmer-block {
+    background: linear-gradient(
+      90deg,
+      var(--shimmer-from) 25%,
+      var(--shimmer-via)  50%,
+      var(--shimmer-to)   75%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  /* ── Card hover lift ──────────────────────────────────────────── */
+  .card-lift {
+    @apply transition-all duration-200;
+  }
+  .card-lift:hover {
+    @apply -translate-y-0.5 shadow-card-hover;
+  }
+
+  /* ── Focus ring override for accessibility ──────────────────── */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* ── Print ──────────────────────────────────────────────────────────────────── */
+@media print {
+  .no-print { display: none !important; }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-block { animation: none; @apply bg-muted; }
+  .card-lift:hover { transform: none; }
+  *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ── Capacitor / APK optimisations ──────────────────────────────────────────── */
+.capacitor-android,
+[data-platform="android"] {
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+.capacitor-android input,
+.capacitor-android textarea,
+[data-platform="android"] input,
+[data-platform="android"] textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Larger tap targets for touchscreen POS (min 44 × 44 px) */
+.capacitor-android button,
+.capacitor-android [role="button"],
+[data-platform="android"] button,
+[data-platform="android"] [role="button"] {
+  min-height: 44px;
+}
+
+.capacitor-android *,
+[data-platform="android"] * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Barcode scanner overlay animation */
+@keyframes scanLine {
+  0%, 100% { top: 0; }
+  50%       { top: calc(100% - 2px); }
+}
+.animate-scan-line {
+  animation: scanLine 2s ease-in-out infinite;
+}
+
+/* Safe area insets for devices with notch / home indicator */
+.capacitor-android .safe-top    { padding-top: env(safe-area-inset-top); }
+.capacitor-android .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

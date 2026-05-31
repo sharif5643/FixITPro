@@ -1,0 +1,55 @@
+# FixITPro Development — docker-compose.dev.yml
+#
+# Spins up infrastructure only (postgres + redis).
+# Backend and frontend run locally with hot-reload:
+#   cd backend  && npm run start:dev
+#   cd web-app  && npm run dev
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml down
+
+services:
+
+  # ── PostgreSQL (DEV) ──────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: fixitpro_dev_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       fixitpro
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: "123456"
+      PGDATA:            /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"       # Exposed to host so local NestJS can connect
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fixitpro"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Redis (DEV) ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: fixitpro_dev_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"       # Exposed to host
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - dev_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dev_postgres_data:
+    driver: local
+  dev_redis_data:
+    driver: local

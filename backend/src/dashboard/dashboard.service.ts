@@ -1,0 +1,376 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../database/prisma.service';
+
+interface OverviewParams {
+  startDate?: string;
+  endDate?: string;
+  branchId?: string;
+  isOwner?: boolean;
+}
+
+@Injectable()
+export class DashboardService {
+  constructor(private prisma: PrismaService) {}
+
+  async getOverview(params: OverviewParams) {
+    const { isOwner = false } = params;
+    const now = new Date();
+    const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    const todayStr = thaiNow.toISOString().slice(0, 10);
+
+    const startDateStr = params.startDate || todayStr;
+    const endDateStr   = params.endDate   || todayStr;
+
+    const start = new Date(`${startDateStr}T00:00:00+07:00`);
+    const end   = new Date(`${endDateStr}T00:00:00+07:00`);
+    end.setTime(end.getTime() + 24 * 60 * 60 * 1000);
+
+    // Weekly chart always uses last 7 days from today
+    const todayStart   = new Date(`${todayStr}T00:00:00+07:00`);
+    const todayEnd     = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const weekAgoStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+
+    const toThaiDate = (d: Date) =>
+      new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const bFilter = params.branchId ? { branchId: params.branchId } : {};
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const notifWhere = params.branchId
+      ? { OR: [{ branchId: params.branchId }, { branchId: null as string | null }] }
+      : {};
+
+    const [
+      salesAgg,
+      salesByMethod,
+      repairPaymentsAgg,
+      repairsByMethod,
+      packageSalesAgg,
+      expensesAgg,
+      repairsByStatus,
+      overdueCount,
+      unpaidDebtRepairs,
+      outOfStockCount,
+      lowStockResult,
+      activeWarrantyCount,
+      expiringWarrantyCount,
+      unreadNotifCount,
+      latestNotifs,
+      topProductGroups,
+      techRepairGroups,
+      weeklySales,
+      weeklyRepairPmts,
+      weeklyPackageSales,
+      recentActivities,
+      activeShift,
+      pendingClaimsCount,
+      overdueSupplierPoCount,
+      apOutstandingAgg,
+      salesByBranch,
+      repairsByBranch,
+      branches,
+    ] = await Promise.all([
+      this.prisma.sale.aggregate({
+        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...bFilter },
+        _sum: { total: true },
+        _count: { id: true },
+      }),
+      this.prisma.sale.groupBy({
+        by: ['paymentMethod'],
+        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...bFilter },
+        _sum: { total: true },
+      }),
+      this.prisma.repair.aggregate({
+        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', ...bFilter },
+        _sum: { paidAmount: true },
+        _count: { id: true },
+      }),
+      this.prisma.repair.groupBy({
+        by: ['paymentMethod'],
+        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', ...bFilter },
+        _sum: { paidAmount: true },
+      }),
+      this.prisma.packageSale.aggregate({
+        where: { createdAt: { gte: start, lt: end } },
+        _sum: { profit: true },
+        _count: { id: true },
+      }),
+      this.prisma.expense.aggregate({
+        where: { expenseDate: { gte: start, lt: end }, voidedAt: null, ...bFilter },
+        _sum: { amount: true },
+      }),
+      // Current repair state (not date-filtered)
+      this.prisma.repair.groupBy({
+        by: ['status'],
+        where: { status: { notIn: ['DELIVERED', 'CANCELLED'] }, ...bFilter },
+        _count: { id: true },
+      }),
+      this.prisma.repair.count({
+        where: {
+          dueDate: { lt: now },
+          status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] },
+          ...bFilter,
+        },
+      }),
+      // Unpaid debt: completed but not paid
+      this.prisma.repair.findMany({
+        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' }, ...bFilter },
+        select: { finalCost: true, estimateCost: true, deposit: true },
+      }),
+      this.prisma.product.count({ where: { isActive: true, stock: 0 } }),
+      this.prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(*) as count FROM "Product"
+        WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"
+      `,
+      this.prisma.warranty.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.warranty.count({
+        where: { status: 'ACTIVE', endDate: { gte: now, lte: sevenDaysFromNow } },
+      }),
+      this.prisma.notification.count({ where: { isRead: false, ...notifWhere } }),
+      this.prisma.notification.findMany({
+        where: { isRead: false, ...notifWhere },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          id: true, type: true, title: true, message: true,
+          severity: true, createdAt: true, entityType: true, entityId: true,
+        },
+      }),
+      this.prisma.saleItem.groupBy({
+        by: ['productId'],
+        where: { sale: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...bFilter } },
+        _sum: { quantity: true, total: true },
+        orderBy: { _sum: { total: 'desc' } },
+        take: 5,
+      }),
+      this.prisma.repair.groupBy({
+        by: ['technicianId'],
+        where: {
+          paidAt: { gte: start, lt: end },
+          paymentStatus: 'PAID',
+          technicianId: { not: null },
+          ...bFilter,
+        },
+        _count: { id: true },
+        _sum: { paidAmount: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 3,
+      }),
+      // Weekly chart (always last 7 days)
+      this.prisma.sale.findMany({
+        where: { createdAt: { gte: weekAgoStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
+        select: { total: true, createdAt: true },
+      }),
+      this.prisma.repair.findMany({
+        where: { paidAt: { gte: weekAgoStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
+        select: { paidAmount: true, paidAt: true },
+      }),
+      this.prisma.packageSale.findMany({
+        where: { createdAt: { gte: weekAgoStart, lt: todayEnd } },
+        select: { profit: true, createdAt: true },
+      }),
+      this.prisma.auditLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+        select: { id: true, action: true, entityType: true, actorName: true, createdAt: true },
+      }),
+      this.prisma.shift.findFirst({
+        where: { isActive: true },
+        include: { user: { select: { name: true, role: true } } },
+        orderBy: { openedAt: 'desc' },
+      }),
+      this.prisma.claim.count({ where: { status: { notIn: ['CLOSED', 'CANCELLED'] } } }),
+      this.prisma.purchaseOrder.count({
+        where: { dueDate: { lt: now }, paymentStatus: { not: 'PAID' }, status: { not: 'CANCELLED' } },
+      }),
+      this.prisma.purchaseOrder.aggregate({
+        where: { paymentStatus: { not: 'PAID' }, status: { not: 'CANCELLED' } },
+        _sum: { total: true, paidTotal: true },
+      }),
+      // Branch performance (all branches, no bFilter — for comparison view)
+      this.prisma.sale.groupBy({
+        by: ['branchId'],
+        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' } },
+        _sum: { total: true },
+        _count: { id: true },
+      }),
+      this.prisma.repair.groupBy({
+        by: ['branchId'],
+        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID' },
+        _sum: { paidAmount: true },
+        _count: { id: true },
+      }),
+      this.prisma.branch.findMany({ select: { id: true, name: true } }),
+    ]);
+
+    // ── Financial ─────────────────────────────────────────────────────────────
+    const salesRevenue   = Number(salesAgg._sum.total ?? 0);
+    const repairRevenue  = Number(repairPaymentsAgg._sum.paidAmount ?? 0);
+    const packageRevenue = Number(packageSalesAgg._sum.profit ?? 0);
+    const totalRevenue   = salesRevenue + repairRevenue + packageRevenue;
+    const totalExpenses  = Number(expensesAgg._sum.amount ?? 0);
+
+    const cashIn =
+      Number(salesByMethod.find(r => r.paymentMethod === 'CASH')?._sum.total ?? 0) +
+      Number(repairsByMethod.find(r => r.paymentMethod === 'CASH')?._sum.paidAmount ?? 0);
+    const transferIn =
+      Number(salesByMethod.find(r => r.paymentMethod === 'TRANSFER')?._sum.total ?? 0) +
+      Number(repairsByMethod.find(r => r.paymentMethod === 'TRANSFER')?._sum.paidAmount ?? 0);
+
+    // ── Unpaid debt ────────────────────────────────────────────────────────────
+    const unpaidDebtTotal = unpaidDebtRepairs.reduce((sum, r) => {
+      const cost = Number(r.finalCost ?? r.estimateCost ?? 0);
+      const paid = Number(r.deposit ?? 0);
+      return sum + Math.max(0, cost - paid);
+    }, 0);
+    const unpaidDebtCount = unpaidDebtRepairs.length;
+
+    // ── Stock ─────────────────────────────────────────────────────────────────
+    const lowStockCount = Number((lowStockResult as [{ count: bigint }])[0]?.count ?? 0);
+
+    // ── Repair ops ────────────────────────────────────────────────────────────
+    const statusMap = Object.fromEntries(repairsByStatus.map(r => [r.status, r._count.id]));
+    const openRepairs = Object.values(statusMap).reduce((a, b) => a + b, 0);
+
+    // ── AP ────────────────────────────────────────────────────────────────────
+    const apOutstanding =
+      Number(apOutstandingAgg._sum.total ?? 0) - Number(apOutstandingAgg._sum.paidTotal ?? 0);
+
+    // ── Weekly chart ──────────────────────────────────────────────────────────
+    const weeklyMap = new Map<string, { sales: number; repairs: number; packages: number }>();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekAgoStart.getTime() + i * 24 * 60 * 60 * 1000);
+      weeklyMap.set(toThaiDate(d), { sales: 0, repairs: 0, packages: 0 });
+    }
+    weeklySales.forEach(s => {
+      const e = weeklyMap.get(toThaiDate(s.createdAt));
+      if (e) e.sales += Number(s.total);
+    });
+    weeklyRepairPmts.forEach(r => {
+      if (!r.paidAt) return;
+      const e = weeklyMap.get(toThaiDate(r.paidAt));
+      if (e) e.repairs += Number(r.paidAmount ?? 0);
+    });
+    weeklyPackageSales.forEach(p => {
+      const e = weeklyMap.get(toThaiDate(p.createdAt));
+      if (e) e.packages += Number(p.profit);
+    });
+    const weeklyRevenue = Array.from(weeklyMap.entries()).map(([date, v]) => ({
+      date,
+      sales: v.sales,
+      repairs: v.repairs,
+      packages: v.packages,
+      total: v.sales + v.repairs + v.packages,
+    }));
+
+    // ── Top products ──────────────────────────────────────────────────────────
+    const productIds = topProductGroups.map(p => p.productId);
+    const productRows = productIds.length > 0
+      ? await this.prisma.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, name: true, sku: true },
+        })
+      : [];
+    const productMap = new Map(productRows.map(p => [p.id, p]));
+    const topProducts = topProductGroups.map(p => ({
+      name: productMap.get(p.productId)?.name ?? 'Unknown',
+      sku:  productMap.get(p.productId)?.sku  ?? '',
+      qty:  Number(p._sum.quantity ?? 0),
+      revenue: Number(p._sum.total ?? 0),
+    }));
+
+    // ── Top technicians ───────────────────────────────────────────────────────
+    const techIds = techRepairGroups
+      .filter(r => r.technicianId)
+      .map(r => r.technicianId as string);
+    const techUsers = techIds.length > 0
+      ? await this.prisma.user.findMany({
+          where: { id: { in: techIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const techUserMap = new Map(techUsers.map(u => [u.id, u]));
+    const topTechnicians = techRepairGroups
+      .filter(r => r.technicianId)
+      .map(r => ({
+        id:            r.technicianId!,
+        name:          techUserMap.get(r.technicianId!)?.name ?? 'Unknown',
+        repairCount:   r._count.id,
+        repairRevenue: Number(r._sum.paidAmount ?? 0),
+      }));
+
+    // ── Branch performance ────────────────────────────────────────────────────
+    const branchMap      = new Map(branches.map(b => [b.id, b.name]));
+    const branchSalesMap = new Map(salesByBranch.map(s => [s.branchId ?? '', Number(s._sum.total ?? 0)]));
+    const branchRepMap   = new Map(repairsByBranch.map(r => [r.branchId ?? '', Number(r._sum.paidAmount ?? 0)]));
+    const allBranchIds   = new Set([
+      ...salesByBranch.map(s => s.branchId ?? ''),
+      ...repairsByBranch.map(r => r.branchId ?? ''),
+    ]);
+    const branchPerformance = isOwner
+      ? Array.from(allBranchIds)
+          .map(bid => ({
+            branchId:      bid,
+            name:          bid ? (branchMap.get(bid) ?? 'ไม่ระบุสาขา') : 'ไม่ระบุสาขา',
+            salesRevenue:  branchSalesMap.get(bid) ?? 0,
+            repairRevenue: branchRepMap.get(bid) ?? 0,
+            totalRevenue:  (branchSalesMap.get(bid) ?? 0) + (branchRepMap.get(bid) ?? 0),
+          }))
+          .sort((a, b) => b.totalRevenue - a.totalRevenue)
+      : [];
+
+    return {
+      period: { startDate: startDateStr, endDate: endDateStr },
+      finance: {
+        totalRevenue,
+        salesRevenue,
+        salesCount: salesAgg._count.id,
+        repairRevenue,
+        repairCount: repairPaymentsAgg._count.id,
+        packageRevenue,
+        packageCount: packageSalesAgg._count.id,
+        totalExpenses,
+        netProfit: totalRevenue - totalExpenses,
+        cashIn,
+        transferIn,
+      },
+      repairOps: {
+        openRepairs,
+        waitingApproval:       statusMap['WAITING_APPROVAL'] ?? 0,
+        waitingParts:          statusMap['WAITING_PARTS'] ?? 0,
+        inProgress:            (statusMap['IN_PROGRESS'] ?? 0) + (statusMap['APPROVED'] ?? 0),
+        completedNotDelivered: statusMap['COMPLETED'] ?? 0,
+        overdueRepairs:        overdueCount,
+        unpaidDebtTotal,
+        unpaidDebtCount,
+      },
+      stock: { outOfStock: outOfStockCount, lowStock: lowStockCount },
+      warranties: { active: activeWarrantyCount, expiringSoon: expiringWarrantyCount },
+      notifications: { unreadCount: unreadNotifCount, latest: latestNotifs },
+      topProducts,
+      topTechnicians,
+      branchPerformance,
+      weeklyRevenue,
+      recentActivities,
+      currentShift: activeShift
+        ? {
+            isOpen:      true,
+            openedAt:    activeShift.openedAt,
+            userName:    activeShift.user.name,
+            userRole:    activeShift.user.role,
+            openBalance: Number(activeShift.openBalance),
+          }
+        : { isOpen: false, openedAt: null, userName: null, userRole: null, openBalance: 0 },
+      alerts: {
+        overdueRepairs:      overdueCount,
+        unpaidRepairs:       statusMap['COMPLETED'] ?? 0,
+        unpaidDebt:          unpaidDebtTotal,
+        outOfStock:          outOfStockCount,
+        lowStock:            lowStockCount,
+        expiringWarranties:  expiringWarrantyCount,
+        pendingClaims:       pendingClaimsCount,
+        overdueSuppliers:    overdueSupplierPoCount,
+        apOutstanding,
+      },
+    };
+  }
+}

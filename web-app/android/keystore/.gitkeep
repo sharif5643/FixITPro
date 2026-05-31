@@ -1,0 +1,3 @@
+# This folder holds the release keystore (fixitpro-release.jks).
+# The .jks file is gitignored -- back it up separately to a USB drive or password manager.
+# See key.properties.example in the android/ folder for setup instructions.

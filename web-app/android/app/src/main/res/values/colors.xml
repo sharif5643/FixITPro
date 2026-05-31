@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FixITPro brand colours -->
+    <color name="colorPrimary">#2563EB</color>      <!-- blue-600 -->
+    <color name="colorPrimaryDark">#1D4ED8</color>  <!-- blue-700 -->
+    <color name="colorAccent">#3B82F6</color>        <!-- blue-500 -->
+
+    <!-- Splash / status bar background -->
+    <color name="splashBackground">#0F172A</color>  <!-- slate-900 -->
+</resources>

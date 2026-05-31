@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FixITPro POS</string>
+    <string name="title_activity_main">FixITPro POS</string>
+    <string name="package_name">com.fixitpro.pos</string>
+    <string name="custom_url_scheme">com.fixitpro.pos</string>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FixITPro DEV</string>
+    <string name="title_activity_main">FixITPro DEV</string>
+    <string name="package_name">com.fixitpro.dev</string>
+    <string name="custom_url_scheme">com.fixitpro.dev</string>
+</resources>

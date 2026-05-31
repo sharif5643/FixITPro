@@ -1,0 +1,14 @@
+# FixITPro Android Release Signing
+# -----------------------------------
+# Copy this file to key.properties and fill in your real values.
+# key.properties is gitignored -- never commit it.
+# Back up your .jks file and this file in a safe location (USB drive, password manager).
+#
+# Generate the keystore once with:
+#   keytool -genkey -v -keystore fixitpro-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias fixitpro
+#   (Run from D:\FixITPro\web-app\android\keystore\)
+
+storeFile=keystore/fixitpro-release.jks
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyAlias=fixitpro
+keyPassword=YOUR_KEY_PASSWORD

@@ -1,0 +1,24 @@
+# ============================================================
+# FixITPro — Nginx Init Config (HTTP-only)
+# Used ONLY during initial SSL certificate generation.
+# init-ssl.sh temporarily copies this over app.conf.template,
+# obtains the Let's Encrypt cert, then restores the real config.
+# ============================================================
+
+server {
+    listen      80;
+    listen      [::]:80;
+    server_name ${APP_DOMAIN} ${API_DOMAIN} ${ADMIN_DOMAIN};
+
+    # Certbot webroot challenge — must be reachable over plain HTTP
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        try_files $uri =404;
+    }
+
+    # Acknowledge other requests so DNS validation can confirm nginx is up
+    location / {
+        return 200 '{"status":"initializing","message":"SSL setup in progress"}';
+        add_header Content-Type application/json;
+    }
+}

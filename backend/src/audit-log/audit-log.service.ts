@@ -1,0 +1,77 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../database/prisma.service';
+
+export interface AuditLogEntry {
+  actorId?: string | null;
+  actorName?: string | null;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  beforeData?: Record<string, any> | null;
+  afterData?: Record<string, any> | null;
+  metadata?: Record<string, any> | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
+@Injectable()
+export class AuditLogService {
+  constructor(private prisma: PrismaService) {}
+
+  async log(entry: AuditLogEntry): Promise<void> {
+    try {
+      await this.prisma.auditLog.create({ data: entry as any });
+    } catch (err) {
+      console.warn('[AuditLog] Failed to write audit log:', err);
+    }
+  }
+
+  async findMany(query: {
+    actorId?: string;
+    action?: string;
+    entityType?: string;
+    entityId?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: string;
+    limit?: string;
+  }) {
+    const page  = Math.max(1, parseInt(query.page  ?? '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '50')));
+    const skip  = (page - 1) * limit;
+
+    const where: Record<string, any> = {};
+    if (query.actorId)    where.actorId    = query.actorId;
+    if (query.action)     where.action     = { contains: query.action, mode: 'insensitive' };
+    if (query.entityType) where.entityType = query.entityType;
+    if (query.entityId)   where.entityId   = query.entityId;
+
+    if (query.startDate || query.endDate) {
+      where.createdAt = {};
+      if (query.startDate) {
+        where.createdAt.gte = new Date(`${query.startDate}T00:00:00+07:00`);
+      }
+      if (query.endDate) {
+        where.createdAt.lt = new Date(
+          new Date(`${query.endDate}T00:00:00+07:00`).getTime() + 86_400_000,
+        );
+      }
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return { items, total, page, limit };
+  }
+
+  async findOne(id: string) {
+    return this.prisma.auditLog.findUnique({ where: { id } });
+  }
+}

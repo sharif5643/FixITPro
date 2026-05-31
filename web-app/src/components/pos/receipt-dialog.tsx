@@ -1,0 +1,199 @@
+'use client'
+
+import { useState } from 'react'
+import { CheckCircle2, Printer, Loader2 } from 'lucide-react'
+import { format } from 'date-fns'
+import { th } from 'date-fns/locale'
+import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { formatThaiMoney } from '@/lib/utils'
+import { Platform } from '@/lib/platform'
+import { printReceipt } from '@/lib/printer'
+import { SaleReceiptPreviewDialog } from '@/components/receipt/receipt-preview-dialog'
+import { useAuthStore } from '@/store/auth.store'
+import api from '@/lib/api'
+import type { Sale, ShopSettings } from '@/types'
+
+const PAYMENT_LABEL: Record<string, string> = {
+  CASH:     'เงินสด',
+  TRANSFER: 'โอนเงิน',
+  CARD:     'บัตรเครดิต',
+}
+
+interface ReceiptDialogProps {
+  open: boolean
+  sale: Sale | null
+  onClose: () => void
+}
+
+export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [isPrinting,  setIsPrinting]  = useState(false)
+  const user = useAuthStore((s) => s.user)
+
+  const { data: settings } = useQuery<ShopSettings>({
+    queryKey: ['settings'],
+    queryFn: async () => (await api.get('/settings')).data,
+    staleTime: 60_000,
+  })
+
+  if (!sale) return null
+
+  const saleDate = (() => {
+    try {
+      return format(new Date(sale.createdAt), 'dd MMM yyyy HH:mm', { locale: th })
+    } catch {
+      return sale.createdAt
+    }
+  })()
+
+  // ── Native print handler (SUNMI thermal / browser popup) ────────────────
+  const handlePrint = async () => {
+    if (Platform.isSunmi()) {
+      setIsPrinting(true)
+      try {
+        await printReceipt({
+          shopName:      settings?.shopName    ?? 'FixITPro',
+          shopAddress:   settings?.shopAddress ?? undefined,
+          shopPhone:     settings?.shopPhone   ?? undefined,
+          receiptNumber: sale.receiptNumber,
+          date:          saleDate,
+          cashierName:   user?.name ?? '—',
+          items: sale.items.map((it) => ({
+            name:  (it as any).product?.name ?? 'สินค้า',
+            qty:   it.quantity,
+            price: Number(it.price),
+            total: Number(it.total),
+          })),
+          subtotal:      Number(sale.subtotal),
+          discount:      Number(sale.discount),
+          total:         Number(sale.total),
+          paymentMethod: sale.paymentMethod,
+          amountPaid:    Number(sale.amountPaid),
+          change:        Number(sale.change),
+          customerName:  sale.customer?.name,
+          footer:        settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
+        })
+        toast.success('พิมพ์ใบเสร็จแล้ว')
+      } catch {
+        toast.error('พิมพ์ไม่สำเร็จ')
+      } finally {
+        setIsPrinting(false)
+      }
+    } else {
+      // Browser → open the full preview/print dialog
+      setPreviewOpen(true)
+    }
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+        <DialogContent className="max-w-sm">
+          {/* Success header */}
+          <div className="flex flex-col items-center gap-1.5 pt-2">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+              <CheckCircle2 className="h-10 w-10 text-green-500" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mt-1">ชำระเงินสำเร็จ!</h2>
+            <p className="text-sm text-muted-foreground">ขอบคุณที่ใช้บริการ</p>
+          </div>
+
+          {/* Receipt preview */}
+          <div className="rounded-xl border bg-gray-50 p-4 font-mono text-sm space-y-3">
+            {/* Shop header */}
+            <div className="text-center space-y-0.5 border-b border-dashed pb-3">
+              <p className="font-bold text-base tracking-wide">{settings?.shopName ?? 'FixITPro'}</p>
+              <p className="text-xs text-muted-foreground">{saleDate}</p>
+              <p className="text-xs font-semibold bg-white border rounded px-2 py-0.5 inline-block mt-1">
+                {sale.receiptNumber}
+              </p>
+            </div>
+
+            {/* Items */}
+            <div className="space-y-1.5">
+              {sale.items.map((item) => {
+                const name = (item as any).product?.name ?? 'สินค้า'
+                return (
+                  <div key={item.id} className="flex gap-1 text-xs">
+                    <span className="flex-1 truncate">{name}</span>
+                    <span className="text-muted-foreground shrink-0">×{item.quantity}</span>
+                    <span className="shrink-0 tabular-nums w-20 text-right">
+                      {formatThaiMoney(Number(item.total))}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Totals */}
+            <div className="border-t border-dashed pt-2.5 space-y-1.5">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>ยอดรวม</span>
+                <span className="tabular-nums">{formatThaiMoney(Number(sale.subtotal))}</span>
+              </div>
+              {Number(sale.discount) > 0 && (
+                <div className="flex justify-between text-xs text-red-600">
+                  <span>ส่วนลด</span>
+                  <span className="tabular-nums">- {formatThaiMoney(Number(sale.discount))}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-base border-t border-dashed pt-2">
+                <span>ยอดสุทธิ</span>
+                <span className="tabular-nums">{formatThaiMoney(Number(sale.total))}</span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{PAYMENT_LABEL[sale.paymentMethod] ?? sale.paymentMethod}</span>
+                <span className="tabular-nums">{formatThaiMoney(Number(sale.amountPaid))}</span>
+              </div>
+              {Number(sale.change) > 0 && (
+                <div className="flex justify-between text-xs font-medium text-green-700">
+                  <span>เงินทอน</span>
+                  <span className="tabular-nums">{formatThaiMoney(Number(sale.change))}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Customer info */}
+            {sale.customer && (
+              <div className="border-t border-dashed pt-2 text-xs text-muted-foreground space-y-0.5">
+                <p>ลูกค้า: {sale.customer.name}</p>
+                {sale.customer.phone && <p>โทร: {sale.customer.phone}</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 gap-1.5"
+              onClick={handlePrint}
+              disabled={isPrinting}
+            >
+              {isPrinting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4" />
+              )}
+              พิมพ์ใบเสร็จ
+            </Button>
+            <Button onClick={onClose} className="flex-1 font-semibold">
+              ขายต่อ
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print preview dialog */}
+      <SaleReceiptPreviewDialog
+        open={previewOpen}
+        saleId={sale.id}
+        initialData={sale}
+        onClose={() => setPreviewOpen(false)}
+      />
+    </>
+  )
+}

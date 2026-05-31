@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.next/
+out/
+
+# Logs
+logs/
+*.log
+
+# Backups
+backups/
+
+# Environment secrets — NEVER commit
+.env
+.env.*
+
+# Keep example/template files
+!.env.example
+!.env.production.example
+!.env.apk
+!.env.apk.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Upload directory (runtime data, not source)
+backend/uploads/
+
+# Claude project settings (local only)
+.claude/settings.local.json
