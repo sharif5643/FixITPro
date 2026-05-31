@@ -8,6 +8,7 @@ import { th } from 'date-fns/locale'
 import { Search, X, ChevronRight, Printer, Banknote, Smartphone, CreditCard, Info, RefreshCw, Wrench, Package, Plus, Minus, Trash2, Camera, ChevronLeft } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
 import { useAuthStore } from '@/store/auth.store'
 import {
   buildRepairDeliveryHtml, buildRepairDeliveryPreviewData, shareRepairDelivery,
@@ -113,11 +114,13 @@ interface ActionPanelProps {
 function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: ActionPanelProps) {
   useEffect(() => pushBackHandler(onClose), [onClose])
 
-  const [panelTab, setPanelTab]         = useState<PanelTab>('info')
-  const [previewImg, setPreviewImg]     = useState<string | null>(null)
-  const [previewIdx, setPreviewIdx]     = useState(0)
+  const [panelTab, setPanelTab]           = useState<PanelTab>('info')
+  const [previewImg, setPreviewImg]       = useState<string | null>(null)
+  const [previewIdx, setPreviewIdx]       = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
   const [finalCost, setFinalCost]         = useState(String(repair.estimateCost ?? 0))
+  // UX-2: confirm dialog state before irreversible delivery + payment
+  const [confirmDeliverOpen, setConfirmDeliverOpen] = useState(false)
   const [amountPaid, setAmountPaid]       = useState('')
   const [deliveryPreview, setDeliveryPreview] = useState<PrintRepairDeliveryOptions | null>(null)
   const [addPayAmount, setAddPayAmount]   = useState('')
@@ -535,8 +538,9 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   </div>
                 )}
 
+                {/* UX-2: open confirm dialog instead of mutating directly */}
                 <button
-                  onClick={() => deliverMutation.mutate()}
+                  onClick={() => setConfirmDeliverOpen(true)}
                   disabled={isPending || currentShift === null || (paymentMethod === 'CASH' && paidNum < remaining)}
                   className="w-full h-16 rounded-2xl bg-green-600 text-white text-xl font-bold active:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2"
                 >
@@ -544,6 +548,18 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                     ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
                     : 'ส่งมอบ + ดูใบเสร็จ'}
                 </button>
+
+                <ConfirmActionDialog
+                  open={confirmDeliverOpen}
+                  onClose={() => setConfirmDeliverOpen(false)}
+                  onConfirm={() => { setConfirmDeliverOpen(false); deliverMutation.mutate() }}
+                  loading={deliverMutation.isPending}
+                  buttonSize="lg"
+                  variant="success"
+                  title="ยืนยันส่งมอบและรับชำระ"
+                  description={`รับชำระ ${formatThaiMoney(remaining)} · ${paymentMethod === 'CASH' ? `เงินสด (ทอน ${formatThaiMoney(change)})` : paymentMethod} — ดำเนินการไม่สามารถย้อนกลับได้`}
+                  confirmLabel="ยืนยันส่งมอบ"
+                />
               </div>
             )}
 

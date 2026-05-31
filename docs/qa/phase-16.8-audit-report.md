@@ -14,7 +14,7 @@
 | CRITICAL | 2 | ✅ RESOLVED (Phase 16.9) |
 | MAJOR | 4 | ✅ RESOLVED (Phase 16.10) |
 | MINOR | 5 | ✅ RESOLVED (Phase 16.11) |
-| UX | 4 | Open — recommended |
+| UX | 4 | ✅ RESOLVED (Phase 16.12) |
 | **Total** | **15** | |
 
 No new blockers in the original KNOWN_ISSUES list — those were resolved in the non-blocker phase.
@@ -286,7 +286,7 @@ money(Math.round((outstanding - numAmount) * 100) / 100)
 
 ---
 
-### UX-1 · SUNMI Sales — No Confirmation Before Large Checkout
+### UX-1 · SUNMI Sales — No Confirmation Before Large Checkout ✅ RESOLVED
 
 **Module:** POS / Sales (SUNMI)  
 **Severity:** UX  
@@ -299,7 +299,7 @@ The checkout confirmation button completes the transaction on a single tap with 
 
 ---
 
-### UX-2 · Repair Delivery — No Confirmation Before Payment Commit
+### UX-2 · Repair Delivery — No Confirmation Before Payment Commit ✅ RESOLVED
 
 **Module:** Repairs (SUNMI)  
 **Severity:** UX  
@@ -312,7 +312,7 @@ The "รับชำระ + ส่งมอบ" button triggers `deliverMutatio
 
 ---
 
-### UX-3 · Stock Error — Only First Failing Part Named in Error
+### UX-3 · Stock Error — Only First Failing Part Named in Error ✅ RESOLVED
 
 **Module:** Repairs  
 **Severity:** UX  
@@ -334,7 +334,7 @@ if (shortages.length > 0) throw new BadRequestException(
 
 ---
 
-### UX-4 · Reminder Popup — No "Dismiss All" Option
+### UX-4 · Reminder Popup — No "Dismiss All" Option ✅ RESOLVED
 
 **Module:** Reminder System  
 **Severity:** UX  

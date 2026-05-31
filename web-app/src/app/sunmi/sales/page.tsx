@@ -14,6 +14,7 @@ import {
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
 import { BarcodeScannerDialog } from '@/components/sunmi/barcode-scanner-dialog'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
+import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
 import { useAuthStore } from '@/store/auth.store'
 import { useCartStore } from '@/store/cart.store'
 import {
@@ -477,8 +478,12 @@ export default function SunmiSalesPage() {
   // Per-item discounts (local state, productId → amount)
   const [itemDiscounts, setItemDiscounts] = useState<Map<string, number>>(new Map())
 
+  // UX-1: threshold (THB) above which a confirm dialog appears before checkout
+  const LARGE_CHECKOUT_THRESHOLD = 5000
+
   // UI state
-  const [checkoutOpen, setCheckoutOpen]     = useState(false)
+  const [checkoutOpen, setCheckoutOpen]                 = useState(false)
+  const [confirmLargeCheckoutOpen, setConfirmLargeCheckoutOpen] = useState(false)
   const [scannerOpen, setScannerOpen]       = useState(false)
   const [nativeScanning, setNativeScanning] = useState(false)
   const [receiptPreview, setReceiptPreview] = useState<PrintReceiptOptions | null>(null)
@@ -812,7 +817,9 @@ export default function SunmiSalesPage() {
                   <Trash2 className="h-5 w-5" />
                 </button>
                 <button
-                  onClick={() => setCheckoutOpen(true)}
+                  onClick={() => total >= LARGE_CHECKOUT_THRESHOLD
+                    ? setConfirmLargeCheckoutOpen(true)
+                    : setCheckoutOpen(true)}
                   disabled={currentShift === null}
                   className="flex-1 h-12 rounded-2xl bg-blue-600 text-white font-bold text-lg active:bg-blue-700 disabled:opacity-60 flex items-center justify-center gap-2"
                 >
@@ -928,6 +935,18 @@ export default function SunmiSalesPage() {
           onSuccess={handleSuccess}
         />
       )}
+
+      {/* UX-1: confirm dialog for large checkout (>= 5000 THB) */}
+      <ConfirmActionDialog
+        open={confirmLargeCheckoutOpen}
+        onClose={() => setConfirmLargeCheckoutOpen(false)}
+        onConfirm={() => { setConfirmLargeCheckoutOpen(false); setCheckoutOpen(true) }}
+        buttonSize="lg"
+        variant="warning"
+        title="ยืนยันรายการขนาดใหญ่"
+        description={`ยอดรวม ${formatThaiMoney(total)} — กรุณาตรวจสอบสินค้าในตะกร้าก่อนดำเนินการ`}
+        confirmLabel="ดำเนินการชำระเงิน"
+      />
 
       {receiptPreview && (
         <PrinterFlowSheet

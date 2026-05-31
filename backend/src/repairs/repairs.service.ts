@@ -247,25 +247,43 @@ export class RepairsService {
             repairId: id,
             stockMovements: { none: {} },
           },
-          include: { product: { select: { name: true } } },
+          // Include stock for global-path check in first pass (avoids extra queries)
+          include: { product: { select: { name: true, stock: true } } },
         });
 
+        // UX-3 FIX: First pass — collect ALL insufficient parts before throwing.
+        // Previously failed on the first short part; now the technician sees every
+        // shortage in a single message ("Battery (have 0, need 1), Screen (have 1, need 2)").
+        const shortages: Array<{ productName: string; available: number; needed: number }> = [];
+
+        for (const part of freshParts) {
+          const productName = part.product?.name ?? `[ID: ${part.productId}]`;
+          if (repairBranchId) {
+            const bs = await (tx as any).branchStock.findUnique({
+              where: { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
+            });
+            const available = bs?.quantity ?? 0;
+            if (available < part.quantity) {
+              shortages.push({ productName, available, needed: part.quantity });
+            }
+          } else {
+            const available = part.product?.stock ?? 0;
+            if (available < part.quantity) {
+              shortages.push({ productName, available, needed: part.quantity });
+            }
+          }
+        }
+
+        if (shortages.length > 0) {
+          const detail = shortages
+            .map(s => `"${s.productName}" (มี ${s.available} ต้องการ ${s.needed})`)
+            .join(', ');
+          throw new BadRequestException(`สต็อกไม่พอ: ${detail}`);
+        }
+
+        // Second pass — deduct (only reached when all parts have sufficient stock)
         for (const part of freshParts) {
             if (repairBranchId) {
-              // Branch-scoped: check and deduct from BranchStock only
-              const bs = await (tx as any).branchStock.findUnique({
-                where: { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
-              });
-              const available = bs?.quantity ?? 0;
-              if (available < part.quantity) {
-                // M-3 FIX: product?.name with fallback — avoids "undefined" in error
-                // if product was deleted after part was added to the repair.
-                const product = await tx.product.findUnique({ where: { id: part.productId }, select: { name: true } });
-                const productName = product?.name ?? `[ID: ${part.productId}]`;
-                throw new BadRequestException(
-                  `สต็อกสาขาไม่พอสำหรับ "${productName}" มีอยู่ในสาขา: ${available} ชิ้น (ต้องการ: ${part.quantity})`,
-                );
-              }
               await (tx as any).branchStock.update({
                 where: { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
                 data: { quantity: { decrement: part.quantity } },
@@ -273,11 +291,6 @@ export class RepairsService {
             } else {
               const product = await tx.product.findUnique({ where: { id: part.productId } });
               if (!product) throw new NotFoundException(`Product not found`);
-              if (product.stock < part.quantity) {
-                throw new BadRequestException(
-                  `สต็อกไม่พอสำหรับ "${product.name}" มีอยู่: ${product.stock} ชิ้น`,
-                );
-              }
             }
 
             await tx.product.update({
@@ -287,12 +300,12 @@ export class RepairsService {
 
             await tx.stockMovement.create({
               data: {
-                productId:   part.productId,
-                type:        'REPAIR_USE',
-                quantity:    part.quantity,
+                productId:    part.productId,
+                type:         'REPAIR_USE',
+                quantity:     part.quantity,
                 repairPartId: part.id,
-                branchId:    repairBranchId,
-                note:        `Repair ${repair.ticketNumber}`,
+                branchId:     repairBranchId,
+                note:         `Repair ${repair.ticketNumber}`,
               },
             });
           }

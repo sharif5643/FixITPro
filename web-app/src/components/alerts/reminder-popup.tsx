@@ -116,6 +116,7 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
   const [settings, setSettings]           = useState<ReminderSettings | null>(null)
   const [dismissed, setDismissed]         = useState<Set<string>>(new Set())
   const [quickAction, setQuickAction]     = useState<QuickAction>(null)
+  const [snoozeAllPending, setSnoozeAllPending] = useState(false)
   const playedRef   = useRef<Set<string>>(new Set())
   const now         = useRef(new Date())
 
@@ -280,6 +281,29 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
 
   const hasAnything = visibleAlerts.length > 0 || visibleReminderItems.length > 0
   if (!mounted || !settings?.enabled || !hasAnything) return null
+
+  // UX-4: non-CRITICAL items that can be bulk-snoozed
+  const snoozableItems = visibleReminderItems.filter(i => i.severity !== 'CRITICAL')
+  const showSnoozeAll  = snoozableItems.length >= 2
+
+  async function snoozeAll() {
+    if (snoozeAllPending || snoozableItems.length === 0) return
+    setSnoozeAllPending(true)
+    try {
+      await Promise.all(
+        snoozableItems.map(item =>
+          api.post('/reminders/snooze', { entityType: item.entityType, entityId: item.entityId, minutes: 15 }),
+        ),
+      )
+      qc.invalidateQueries({ queryKey: ['reminders', 'active'] })
+      setLocalDismissed(prev => new Set([...Array.from(prev), ...snoozableItems.map(i => i.entityId)]))
+      toast.success(`เลื่อนทั้งหมด 15 นาที (${snoozableItems.length} รายการ)`)
+    } catch {
+      toast.error('เลื่อนการแจ้งเตือนไม่สำเร็จ')
+    } finally {
+      setSnoozeAllPending(false)
+    }
+  }
 
   const isMutating = approveMut.isPending || receiveMut.isPending
 
@@ -466,6 +490,17 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
           </AnimatePresence>
         </div>
 
+        {/* UX-4: Snooze-all button (desktop) — appears when 2+ non-CRITICAL items visible */}
+        {showSnoozeAll && (
+          <button
+            onClick={snoozeAll}
+            disabled={snoozeAllPending}
+            className="w-80 mt-1 h-9 rounded-xl bg-slate-700 text-white text-xs font-semibold hover:bg-slate-800 active:bg-slate-900 disabled:opacity-50 transition-colors shadow-lg"
+          >
+            {snoozeAllPending ? 'กำลังเลื่อน...' : `เลื่อนทั้งหมด 15 นาที (${snoozableItems.length} รายการ)`}
+          </button>
+        )}
+
         {/* Quick-action confirm dialog */}
         {quickAction && (
           <ConfirmActionDialog
@@ -586,6 +621,19 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
           })}
         </AnimatePresence>
       </div>
+
+      {/* UX-4: Snooze-all button (SUNMI) */}
+      {showSnoozeAll && (
+        <div className="fixed top-[56px] left-0 right-0 z-50 flex justify-center px-3 pt-1">
+          <button
+            onClick={snoozeAll}
+            disabled={snoozeAllPending}
+            className="pointer-events-auto w-full max-w-sm h-10 rounded-xl bg-slate-800/90 text-slate-200 text-sm font-semibold active:bg-slate-700 disabled:opacity-50 transition-colors shadow-xl"
+          >
+            {snoozeAllPending ? 'กำลังเลื่อน...' : `เลื่อนทั้งหมด 15 น. (${snoozableItems.length})`}
+          </button>
+        </div>
+      )}
 
       {quickAction && (
         <ConfirmActionDialog
