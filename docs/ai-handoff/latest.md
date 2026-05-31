@@ -1,84 +1,121 @@
 # Phase Summary
 
-**Phase:** 16.8 — SUNMI QA Checklist + Code Audit Report
+**Phase:** 16.9 — Critical Fixes (C-1 + C-2)
 **Date:** 2026-06-01
-**Status:** QA docs produced. No code changed. Awaiting owner approval before fixes.
+**Status:** Complete. Both CRITICAL issues resolved. Awaiting Phase 16.10 approval.
 
 ---
 
 ## Completed
 
-* ✅ Git branch renamed: `master` → `main`
-* ✅ `docs/qa/phase-16.8-sunmi-qa.md` — SUNMI device testing checklist (15 sections, 100+ test cases)
-* ✅ `docs/qa/phase-16.8-audit-report.md` — static code audit, 15 findings identified
-* ✅ Committed: `ee89f4c` — "phase 16.8: sunmi QA checklist + code audit report"
-
----
-
-## Audit Findings Summary
-
-| Severity | Count | Must-fix before PROD |
-|----------|-------|----------------------|
-| CRITICAL | 2 | Yes |
-| MAJOR | 4 | Yes |
-| MINOR | 5 | Recommended |
-| UX | 4 | Recommended |
-
-### CRITICAL
-* **C-1** `backend/src/sales/sales.service.ts:86–108` — Stock check outside transaction; concurrent sales can oversell
-* **C-2** `backend/src/repairs/repairs.service.ts:610` — Tenant isolation in `getDeviceHistory` skipped when `tenantId` is null
-
-### MAJOR
-* **M-1** `backend/src/sales/sales.controller.ts:24` — `POST /sales` missing `@RequirePermission('sales.create')`
-* **M-2** `backend/src/repairs/repairs.service.ts:189–200` — Status transition allows skipping steps (RECEIVED → COMPLETED)
-* **M-3** `backend/src/repairs/repairs.service.ts:247` — `product?.name` null → "undefined" in error message
-* **M-4** `backend/src/repairs/repairs.controller.ts` — File upload MIME only; no extension whitelist
-
-### MINOR (5) & UX (4)
-See `docs/qa/phase-16.8-audit-report.md` for full details.
+* ✅ C-1 — Sales stock race condition fixed (atomic conditional decrement)
+* ✅ C-2 — Device history tenant isolation gap fixed (mandatory tenantId guard)
+* ✅ Regression tests: `critical-fixes.test.ts` — 24 new tests (14 for C-1, 10 for C-2)
+* ✅ `docs/qa/phase-16.8-audit-report.md` updated — both CRITICAL items marked ✅ RESOLVED
+* ✅ Commit: `755e58a` — "phase 16.9: fix C-1 stock race + C-2 tenant isolation gap"
 
 ---
 
 ## Changed Files
 
-**New files (QA docs only — no source code changed)**
-* `docs/qa/phase-16.8-sunmi-qa.md`
-* `docs/qa/phase-16.8-audit-report.md`
+**Backend (source fixes)**
+* `backend/src/sales/sales.service.ts`
+  - `branchStock.update` → `branchStock.updateMany(WHERE quantity >= demand)` inside tx
+  - `product.update` (global path) → `product.updateMany(WHERE stock >= demand)` inside tx
+  - Shadow update for branchId path kept as-is (informational only, no guard needed)
+* `backend/src/repairs/repairs.service.ts`
+  - Added guard: `if (role !== 'SUPER_ADMIN' && !tenantId) throw ForbiddenException`
+  - Tenant filter now unconditional for all non-SUPER_ADMIN roles
+  - SUPER_ADMIN with `tenantId=null` → cross-tenant search (intentional, documented)
 
-**Git**
-* Branch: `main` (renamed from master)
-* Commit: `ee89f4c` — phase 16.8 QA docs
+**Tests (new)**
+* `web-app/src/__tests__/critical-fixes.test.ts` — 24 tests
+
+**Docs**
+* `docs/qa/phase-16.8-audit-report.md` — C-1 and C-2 marked ✅ RESOLVED with fix details
 
 ---
 
-## Build / Test Status
+## Fix Details
 
-Not re-run in this phase (no source changes). Last verified result:
-* ✅ Backend tsc + nest build — PASS (from recovery verification)
-* ✅ Frontend tsc + next build — PASS
-* ✅ Vitest 594 / 594 — PASS
+### C-1 — Atomic Conditional Decrement
+
+**Before:** `branchStock.update({ decrement: qty })` — always decrements, no stock check inside tx.  
+Two concurrent requests could both pass the pre-transaction stock check, then both decrement → negative stock.
+
+**After:**
+```typescript
+const bsResult = await tx.branchStock.updateMany({
+  where: { branchId, productId, quantity: { gte: item.quantity } },
+  data: { quantity: { decrement: item.quantity } },
+})
+if (bsResult.count === 0) throw BadRequestException(...)
+```
+If stock is insufficient at write time, `count=0` → exception → full transaction rollback.
+Same pattern applied to the global `product.stock` path.
+
+### C-2 — Mandatory Tenant Guard
+
+**Before:** `if (tenantId) { where.branch = { tenantId } }` — skipped silently when null.
+
+**After:**
+```typescript
+if (role !== 'SUPER_ADMIN' && !tenantId) {
+  throw new ForbiddenException('Tenant context required')
+}
+```
+SUPER_ADMIN without tenantId is intentionally allowed for cross-tenant support queries.
+All other roles (OWNER, MANAGER, CASHIER, TECHNICIAN, STOCK_STAFF) must have tenantId.
+
+---
+
+## Build / Test Results
+
+| Check | Result |
+|---|---|
+| Backend `tsc --noEmit` | ✅ PASS — 0 errors |
+| Backend `nest build` | ✅ PASS — exit 0 |
+| Frontend `tsc --noEmit` | ✅ PASS — 0 errors |
+| Frontend `next build` | ✅ PASS — exit 0 |
+| `critical-fixes.test.ts` | ✅ 24 / 24 passed |
+| Vitest full suite | ✅ 618 / 618 passed (no regressions) |
+
+Previous baseline: 594 tests. +24 new regression tests.
+
+---
+
+## Remaining Issues (from Phase 16.8 Audit)
+
+| # | Severity | Issue | Status |
+|---|----------|-------|--------|
+| M-1 | MAJOR | `POST /sales` missing `@RequirePermission('sales.create')` | Open |
+| M-2 | MAJOR | Repair status allows skipping steps (RECEIVED → COMPLETED) | Open |
+| M-3 | MAJOR | `product?.name` null in repair stock error message | Open |
+| M-4 | MAJOR | File upload MIME-only validation (no extension whitelist) | Open |
+| N-1 | MINOR | Global stock pre-tx check (shadow of C-1 on no-branch path) | Open |
+| N-2 | MINOR | N+1 query on repair list | Open |
+| N-3 | MINOR | Stock adjust no in-tx re-validation | Open |
+| N-4 | MINOR | Warranty expiry > issuance date not validated | Open |
+| N-5 | MINOR | Debt partial payment preview float arithmetic | Open |
+| UX-1–4 | UX | Confirm dialogs, snooze-all, error batching | Open |
 
 ---
 
 ## Risks
 
-* ⚠️ C-1 and C-2 are PROD-blocking — must be fixed before going live
-* ⚠️ M-1 is a security gap — any authenticated user can ring up sales via API
+* ⚠️ M-1 remains — any authenticated user can create sales via direct API call
 * ⚠️ Phase 16 migration still pending on PROD
 
 ---
 
 ## Review Questions
 
-* Approve fixing CRITICAL + MAJOR issues (C-1, C-2, M-1, M-2, M-3, M-4)?
-* Include MINOR and UX fixes in same batch, or separate PR?
-* Approve physical SUNMI QA testing (use `docs/qa/phase-16.8-sunmi-qa.md`)?
+* Approve Phase 16.10 — MAJOR fixes (M-1 through M-4)?
+* Fix all 4 MAJOR issues in one phase, or split?
 
 ---
 
 ## Next Recommended Action
 
-**Awaiting approval for one of:**
-1. Fix C-1 + C-2 + M-1 + M-2 (PROD-blockers) first, then MINOR/UX
-2. Fix all 15 issues in one batch
-3. Conduct physical SUNMI testing first, then fix what's found
+**Phase 16.10 — MAJOR fixes (awaiting approval)**
+Priority order: M-1 (security), M-2 (data integrity), M-3 (UX/error quality), M-4 (security)
