@@ -1,119 +1,95 @@
 # Phase Summary
 
-**Phase:** 16.12 — UX Improvements
+**Phase:** Commercial Hardening Plan
 **Date:** 2026-06-01
-**Status:** Complete. All 15 audit findings resolved. Awaiting Production Readiness Review.
+**Status:** Plan complete. No code modified. Awaiting approval to begin implementation.
 
 ---
 
 ## Completed
 
-* ✅ UX-4 — Snooze-all button in reminder popup (≥2 non-CRITICAL items; 15 min; both variants)
-* ✅ UX-2 — Confirm dialog before repair delivery payment (SUNMI)
-* ✅ UX-1 — Confirm dialog before large POS checkout (≥5,000 THB threshold)
-* ✅ UX-3 — Batch stock shortage error (all short parts listed in one message)
-* ✅ Regression tests: `ux-improvements.test.ts` — 28 new tests
-* ✅ `docs/release-notes/v1.0.0-rc1.md` created
-* ✅ Audit report: all 4 UX items marked ✅ RESOLVED
+* ✅ Full commercial hardening audit completed across all 52 modules/pages/flows
+* ✅ `docs/commercial-readiness/commercial-hardening-plan.md` created (980 lines)
+* ✅ Commit: `7f9a259`
 
 ---
 
-## Changed Files
+## Summary of Findings
 
-**Backend**
-* `backend/src/repairs/repairs.service.ts` — UX-3: two-pass stock check (collect all shortages, throw once)
-
-**Frontend**
-* `web-app/src/components/alerts/reminder-popup.tsx` — UX-4: snooze-all state + function + button (desktop + SUNMI)
-* `web-app/src/app/sunmi/repairs/page.tsx` — UX-2: import + `confirmDeliverOpen` state + ConfirmActionDialog
-* `web-app/src/app/sunmi/sales/page.tsx` — UX-1: import + `confirmLargeCheckoutOpen` + 5000 THB threshold
-
-**Tests**
-* `web-app/src/__tests__/ux-improvements.test.ts` — NEW, 28 tests
-
-**Docs**
-* `docs/qa/phase-16.8-audit-report.md` — UX-1…UX-4 marked ✅ RESOLVED; summary updated
-* `docs/release-notes/v1.0.0-rc1.md` — NEW: full RC1 release notes
+| Severity | Count | Blocks Selling |
+|----------|-------|----------------|
+| BLOCKER | 11 | YES |
+| HIGH | 14 | YES (before first customer) |
+| MEDIUM | 13 | No |
+| LOW | 8 | No |
+| UX | 4 | No |
+| DOCUMENTATION | 2 | Legal risk |
+| **Total** | **52** | |
 
 ---
 
-## UX Implementation Details
+## Top 11 BLOCKERs (CHB-01 through CHB-11)
 
-### UX-4 — Snooze All
-```
-Condition: visibleReminderItems.filter(i => severity !== 'CRITICAL').length >= 2
-Action:    Promise.all → POST /reminders/snooze × N (minutes=15 each)
-Result:    localDismissed updated; toast "เลื่อนทั้งหมด 15 นาที (N รายการ)"
-CRITICAL:  excluded — must be individually snoozed
-```
-
-### UX-2 — Repair Delivery Confirm
-```
-onClick: setConfirmDeliverOpen(true)   ← was: deliverMutation.mutate()
-Dialog:  ConfirmActionDialog variant="success" buttonSize="lg"
-Shows:   "รับชำระ ฿X · CASH (ทอน ฿Y) — ไม่สามารถย้อนกลับ"
-```
-
-### UX-1 — Large Checkout Confirm
-```
-Threshold: LARGE_CHECKOUT_THRESHOLD = 5000 THB (configurable constant)
-Below:     setCheckoutOpen(true)  ← direct (no dialog)
-At/above:  setConfirmLargeCheckoutOpen(true)  → on confirm → setCheckoutOpen(true)
-```
-
-### UX-3 — Batch Stock Errors
-```
-Before: throw on first short part → user sees one error, fixes, gets next
-After:  first pass collects all shortages → single throw with all parts listed
-Format: สต็อกไม่พอ: "Battery" (มี 0 ต้องการ 1), "Screen" (มี 1 ต้องการ 2)
-```
+| ID | Issue | File |
+|----|-------|------|
+| CHB-01 | JWT in localStorage (XSS → token theft) | `web-app/src/store/auth.store.ts:56-57` |
+| CHB-02 | Notifications not tenant/user scoped | `backend/src/notifications/notifications.controller.ts` |
+| CHB-03 | Debt payment NOT in `$transaction` | `backend/src/debt-payments/debt-payments.service.ts:58-74` |
+| CHB-04 | `findOne(id)` no tenant check — ID enumeration | 6 modules |
+| CHB-05 | Financial fields no `@Max()` — unlimited amounts | DTOs in 4 modules |
+| CHB-06 | Missing `@UseGuards(PermissionGuard)` on 6 modules | notifications, customers, serials, claims, debt-payments, subscription |
+| CHB-07 | JWT missing `tenantId` (already in BLK-3) | `backend/src/auth/auth.service.ts:35` |
+| CHB-08 | API client falls back to HTTP localhost | `web-app/src/lib/api.ts:10` |
+| CHB-09 | No Helmet middleware (already in BLK-1) | `backend/src/main.ts` |
+| CHB-10 | Stock transfer/PO receive not atomic | `branches.service.ts`, `purchase-orders.service.ts` |
+| CHB-11 | No CSP header (already in production review H-6) | `nginx/templates/app.conf.template` |
 
 ---
 
-## Build / Test Results
+## Key High Findings
 
-| Check | Result |
-|---|---|
-| Backend `tsc --noEmit` | ✅ PASS |
-| Backend `nest build` | ✅ PASS |
-| Frontend `tsc --noEmit` | ✅ PASS |
-| Frontend `next build` | ✅ PASS |
-| `ux-improvements.test.ts` | ✅ 28 / 28 |
-| Vitest full suite | ✅ 733 / 733 (no regressions) |
-
-Previous baseline: 705 tests. +28 new regression tests.
-
----
-
-## Audit Report — Final State
-
-| Severity | Count | Status |
-|----------|-------|--------|
-| CRITICAL | 2 | ✅ RESOLVED (Phase 16.9) |
-| MAJOR | 4 | ✅ RESOLVED (Phase 16.10) |
-| MINOR | 5 | ✅ RESOLVED (Phase 16.11) |
-| UX | 4 | ✅ RESOLVED (Phase 16.12) |
-| **Total** | **15 / 15** | ✅ ALL CLEAR |
+| ID | Issue |
+|----|-------|
+| CHH-01 | Carrier wallet balance race condition |
+| CHH-02 | Missing audit logs on carrier, serials, notifications |
+| CHH-03 | Exception filter exposes validation schema |
+| CHH-04 | Permission guard queries DB every request |
+| CHH-05 | SUNMI repair status transitions out-of-sync with backend M-2 fix |
+| CHH-06 | `X-Branch-Id` custom header not validated server-side |
+| CHH-11 | No off-site backup |
+| CHH-13 | No password policy enforcement |
 
 ---
 
-## Release Notes
+## Estimated Effort
 
-See `docs/release-notes/v1.0.0-rc1.md` for full release documentation including:
-- All 20+ completed modules
-- Security fixes summary
-- Test count (733 tests)
-- Known limitations
-- Pre-PROD checklist
+| Sprint | Scope | Hours |
+|--------|-------|-------|
+| Sprint 1 (Weeks 1-2) | All 11 BLOCKERs | 72h |
+| Sprint 2 (Weeks 3-4) | HIGH severity | 39h |
+| Sprint 3 (Weeks 5-6) | MEDIUM severity | 80h |
+| Sprint 4 (Weeks 7-8) | LOW + UX + tests | 72h |
+| **Total** | | **~283h (7–8 weeks)** |
 
 ---
 
-## Next Steps for PROD Readiness
+## No Code Changes
 
-1. Physical SUNMI QA using `docs/qa/phase-16.8-sunmi-qa.md`
-2. `npx prisma migrate deploy` on PROD (Phase 16 reminder tables)
-3. Set production `JWT_SECRET`, DB credentials, API URL
-4. Build PROD APK (`com.fixitpro`) with production API URL
-5. Final UAT sign-off
+This phase was documentation and analysis only.  
+All existing code is unchanged.  
+All prior build/test results still valid: 733/733 vitest.
 
-**Awaiting approval before Production Readiness Review.**
+---
+
+## Review Questions
+
+* Approve Sprint 1 (BLOCKER fixes: CHB-01 through CHB-11)?
+* Prioritise a specific BLOCKER to implement first?
+* Should CHB-01 (localStorage → HTTP cookie) be tackled separately given its scope?
+
+---
+
+## Next Recommended Action
+
+**Sprint 1 — Commercial BLOCKER Fixes (awaiting approval)**  
+Suggested order: CHB-07 (JWT tenantId) → CHB-04 (tenant findOne) → CHB-02 (notification scoping) → CHB-06 (permission guards) → CHB-03 (debt transaction) → CHB-05 (financial @Max) → CHB-10 (stock transfer atomic) → CHB-08 (API baseURL fail-loud) → CHB-09 (Helmet) → CHB-11 (CSP) → CHB-01 (localStorage to cookie — largest scope, do last in sprint 1)
