@@ -67,41 +67,49 @@ export class DebtPaymentsService {
       );
     }
 
-    const payment = await this.prisma.repairAdditionalPayment.create({
-      data: {
-        repairId:      dto.repairId,
-        amount:        dto.amount,
-        paymentMethod: dto.paymentMethod as any,
-        note:          dto.note,
-        createdById:   userId,
-      },
-    });
-
+    // Compute derived values before the transaction (pure — no DB state changes here)
     const newRemaining     = remaining - dto.amount;
     const newPaymentStatus = newRemaining <= 0.005 ? 'PAID' : 'PARTIAL';
+    const receiptNumber    = this.generateReceiptNumber();
+    const customerName     = repair.customer?.name ?? 'ลูกค้า';
+    const remainingAfter   = Math.max(0, newRemaining);
 
-    await this.prisma.repair.update({
-      where: { id: dto.repairId },
-      data:  { paymentStatus: newPaymentStatus },
-    });
+    // Atomic: create payment record + update repair status + write audit log.
+    // All three must commit together — if repair.update fails the payment is rolled back.
+    const payment = await this.prisma.$transaction(async (tx) => {
+      const pmt = await tx.repairAdditionalPayment.create({
+        data: {
+          repairId:      dto.repairId,
+          amount:        dto.amount,
+          paymentMethod: dto.paymentMethod as any,
+          note:          dto.note,
+          createdById:   userId,
+        },
+      });
 
-    const receiptNumber  = this.generateReceiptNumber();
-    const customerName   = repair.customer?.name ?? 'ลูกค้า';
-    const remainingAfter = Math.max(0, newRemaining);
+      await tx.repair.update({
+        where: { id: dto.repairId },
+        data:  { paymentStatus: newPaymentStatus },
+      });
 
-    await this.auditLog.log({
-      actorId:   userId,
-      actorName: userName,
-      action:    'DEBT_PAYMENT_RECEIVED',
-      entityType: 'Repair',
-      entityId:   dto.repairId,
-      afterData: {
-        amount:         dto.amount,
-        paymentMethod:  dto.paymentMethod,
-        remainingAfter,
-        paymentStatus:  newPaymentStatus,
-        receiptNumber,
-      },
+      await tx.auditLog.create({
+        data: {
+          actorId:    userId,
+          actorName:  userName ?? null,
+          action:     'DEBT_PAYMENT_RECEIVED',
+          entityType: 'Repair',
+          entityId:   dto.repairId,
+          afterData: {
+            amount:         dto.amount,
+            paymentMethod:  dto.paymentMethod,
+            remainingAfter,
+            paymentStatus:  newPaymentStatus,
+            receiptNumber,
+          } as any,
+        },
+      });
+
+      return pmt;
     });
 
     if (newPaymentStatus === 'PAID') {

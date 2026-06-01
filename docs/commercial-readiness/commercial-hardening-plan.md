@@ -74,7 +74,7 @@ In a commercial multi-tenant deployment, Tenant A's cashier can read Tenant B's 
 
 ---
 
-### CHB-03 · Debt payment creates records outside a transaction
+### CHB-03 · Debt payment creates records outside a transaction ✅ RESOLVED (S1.3)
 
 **File/Module:** `backend/src/debt-payments/debt-payments.service.ts:58-74`
 
@@ -266,7 +266,7 @@ Add CSP header to nginx template (see production readiness H-6).
 
 ---
 
-### CHB-10 · `SELECT` used for lock-sensitive stock operations — phantom reads possible
+### CHB-10 · `SELECT` used for lock-sensitive stock operations — phantom reads possible ✅ RESOLVED (S1.3)
 
 **File/Module:** `backend/src/branches/branches.service.ts` (stock transfer receive), `backend/src/purchase-orders/purchase-orders.service.ts` (receiveGoods)
 
@@ -942,9 +942,9 @@ SECURITY
 [ ] CHB-11: CSP header in nginx
 
 FINANCIAL INTEGRITY
-[ ] CHB-03: Debt payment in transaction
+[x] CHB-03: Debt payment in transaction ✅ S1.3
 [ ] CHB-05: @Max() on all financial DTOs
-[ ] CHB-10: Atomic stock transfer/PO receive
+[x] CHB-10: Atomic stock transfer/PO receive ✅ S1.3
 [ ] CHH-01: Carrier wallet race condition fixed
 [ ] CHH-02: Audit logs on all financial mutations
 
@@ -963,7 +963,7 @@ OPERATIONS
 [ ] CHH-11: Off-site backup configured and tested
 [ ] CHH-14: smoke-test-prod.ps1 created and passing
 [ ] validate-prod-env.ps1 runs to exit 0
-[ ] Full vitest suite passes (762/762)
+[ ] Full vitest suite passes (783/783)
 [ ] External penetration test completed
 ```
 

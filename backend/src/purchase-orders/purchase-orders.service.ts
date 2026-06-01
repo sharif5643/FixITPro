@@ -199,6 +199,22 @@ export class PurchaseOrdersService {
       for (const recv of itemsToReceive) {
         const poItem = po.items.find((i) => i.id === recv.purchaseOrderItemId)!;
 
+        // Re-read receivedQty inside the transaction so concurrent receives cannot
+        // both see stale data and double-count the same items.
+        const freshItem = await tx.purchaseOrderItem.findUnique({
+          where: { id: recv.purchaseOrderItemId },
+          select: { quantity: true, receivedQty: true },
+        });
+        if (!freshItem) {
+          throw new BadRequestException(`ไม่พบรายการสินค้า ID: ${recv.purchaseOrderItemId}`);
+        }
+        const remainingQty = freshItem.quantity - freshItem.receivedQty;
+        if (recv.quantity > remainingQty) {
+          throw new BadRequestException(
+            `สินค้า "${poItem.product.name}" รับได้อีกสูงสุด ${remainingQty} ชิ้น (อาจมีการรับพร้อมกัน)`,
+          );
+        }
+
         await tx.purchaseOrderItem.update({
           where: { id: recv.purchaseOrderItemId },
           data: { receivedQty: { increment: recv.quantity } },

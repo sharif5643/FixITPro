@@ -542,11 +542,20 @@ export class BranchesService implements OnModuleInit {
     });
 
     await this.prisma.$transaction(async (tx) => {
-      // Debit source branch
-      await (tx as any).branchStock.update({
-        where: { branchId_productId: { branchId: transfer.fromBranchId, productId: transfer.productId } },
+      // Atomic debit: guard against negative inventory under concurrent completes
+      const deducted = await (tx as any).branchStock.updateMany({
+        where: {
+          branchId:  transfer.fromBranchId,
+          productId: transfer.productId,
+          quantity:  { gte: transfer.quantity },
+        },
         data: { quantity: { decrement: transfer.quantity } },
       });
+      if (deducted.count === 0) {
+        throw new BadRequestException(
+          `สต็อกสาขาต้นทางไม่เพียงพอ ไม่สามารถโอนได้ (อาจมีการโอนพร้อมกัน)`,
+        );
+      }
 
       // Credit destination branch — generate stock code if this is a new BranchStock
       const toStockCode = !toStockExisting
@@ -830,11 +839,21 @@ export class BranchesService implements OnModuleInit {
     });
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      // Debit source
-      await (tx as any).branchStock.update({
-        where: { branchId_productId: { branchId: transfer.fromBranchId, productId: transfer.productId } },
+      // Atomic debit: only succeeds when source has sufficient stock.
+      // Using updateMany+WHERE guard prevents negative inventory under concurrent receives.
+      const deducted = await (tx as any).branchStock.updateMany({
+        where: {
+          branchId:  transfer.fromBranchId,
+          productId: transfer.productId,
+          quantity:  { gte: transfer.quantity },
+        },
         data: { quantity: { decrement: transfer.quantity } },
       });
+      if (deducted.count === 0) {
+        throw new BadRequestException(
+          `สต็อกสาขาต้นทางไม่เพียงพอ ไม่สามารถโอนได้ (อาจมีการโอนพร้อมกัน)`,
+        );
+      }
 
       // Credit destination
       const toStockCode = !toStockExisting
