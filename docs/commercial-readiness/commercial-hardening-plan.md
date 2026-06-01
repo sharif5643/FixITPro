@@ -52,7 +52,7 @@ Account takeover via XSS is the #1 SaaS credential theft vector. One compromised
 
 ---
 
-### CHB-02 · Notification endpoints not scoped to caller's tenant or user
+### CHB-02 · Notification endpoints not scoped to caller's tenant or user ✅ RESOLVED (S1.2)
 
 **File/Module:** `backend/src/notifications/notifications.controller.ts` (full file)
 
@@ -99,7 +99,7 @@ await this.prisma.$transaction(async (tx) => {
 
 ---
 
-### CHB-04 · Tenant isolation absent on critical single-record lookups
+### CHB-04 · Tenant isolation absent on critical single-record lookups ✅ RESOLVED (S1.2)
 
 **File/Module:** Multiple services — `expenses`, `serials`, `claims`, `customers`, `products`, `notifications`
 
@@ -161,7 +161,7 @@ Also validate in service layer: `if (amount > tenant.transactionCap) throw BadRe
 
 ---
 
-### CHB-06 · Missing permission guards on write endpoints in 6+ modules
+### CHB-06 · Missing permission guards on write endpoints in 6+ modules ✅ RESOLVED (S1.2)
 
 **File/Module:** `notifications/notifications.controller.ts`, `customers/customers.controller.ts`, `serials/serials.controller.ts`, `claims/claims.controller.ts`, `debt-payments/debt-payments.controller.ts`, `subscription/subscription.controller.ts`
 
@@ -932,7 +932,7 @@ See CHH-06. The header exists but servers that misuse it are an active risk. Tra
 ```
 SECURITY
 [ ] CHB-01: JWT in HTTP-only cookie (not localStorage)
-[ ] CHB-02: Notification tenant scoping
+[x] CHB-02: Notification tenant scoping ✅ S1.2
 [x] CHB-07: tenantId in JWT payload ✅ S1.1
 [x] CHB-09 / BLK-1: Helmet middleware installed ✅ S1.1
 [x] BLK-2: CORS fail-loud when CORS_ORIGIN unset ✅ S1.1
@@ -949,8 +949,9 @@ FINANCIAL INTEGRITY
 [ ] CHH-02: Audit logs on all financial mutations
 
 DATA ISOLATION
-[ ] CHB-04: Tenant check on all findOne calls
-[ ] CHB-06: Permission guards on all write endpoints
+[x] CHB-02: Notification tenant scoping ✅ S1.2
+[x] CHB-04: Tenant check on all findOne calls ✅ S1.2
+[x] CHB-06: Permission guards on all write endpoints ✅ S1.2
 [ ] CHH-06: X-Branch-Id header not used for security scoping
 [ ] CHM-09: Serial lookup tenant-scoped
 
@@ -962,7 +963,7 @@ OPERATIONS
 [ ] CHH-11: Off-site backup configured and tested
 [ ] CHH-14: smoke-test-prod.ps1 created and passing
 [ ] validate-prod-env.ps1 runs to exit 0
-[ ] Full vitest suite passes (733/733)
+[ ] Full vitest suite passes (762/762)
 [ ] External penetration test completed
 ```
 

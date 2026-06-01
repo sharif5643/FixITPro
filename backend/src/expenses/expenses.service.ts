@@ -5,6 +5,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
@@ -189,7 +190,7 @@ export class ExpensesService implements OnModuleInit {
     return { items, total, page, limit };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, branchId?: string | null, isElevated: boolean = true) {
     const expense = await this.prisma.expense.findUnique({
       where: { id },
       include: {
@@ -199,6 +200,9 @@ export class ExpensesService implements OnModuleInit {
       },
     });
     if (!expense) throw new NotFoundException('ไม่พบรายการค่าใช้จ่าย');
+    if (!isElevated && branchId !== undefined && expense.branchId !== branchId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงรายการนี้');
+    }
     return expense;
   }
 

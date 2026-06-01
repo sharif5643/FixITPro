@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreateClaimDto } from './dto/create-claim.dto';
@@ -163,12 +164,15 @@ export class ClaimsService {
 
   // ─── Find one ────────────────────────────────────────────────────────────────
 
-  async findOne(id: string) {
+  async findOne(id: string, userId?: string, isElevated: boolean = true) {
     const claim = await this.prisma.claim.findUnique({
       where: { id },
       include: CLAIM_DETAIL_INCLUDE,
     });
     if (!claim) throw new NotFoundException('ไม่พบเคลม');
+    if (!isElevated && userId && claim.createdById !== userId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงรายการนี้');
+    }
     return claim;
   }
 

@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto';
 import {
   Injectable,
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
@@ -23,7 +24,13 @@ export class DebtPaymentsService {
     return `DP-${dateStr}-${suffix}`;
   }
 
-  async create(dto: CreateDebtPaymentDto, userId: string, userName?: string) {
+  async create(
+    dto: CreateDebtPaymentDto,
+    userId: string,
+    userName?: string,
+    branchId?: string | null,
+    role?: string,
+  ) {
     const repair = await this.prisma.repair.findUnique({
       where: { id: dto.repairId },
       include: {
@@ -33,6 +40,11 @@ export class DebtPaymentsService {
     });
 
     if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
+
+    const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
+    if (!isElevated && branchId !== undefined && repair.branchId !== branchId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงงานซ่อมนี้');
+    }
 
     if (repair.status !== 'DELIVERED') {
       throw new BadRequestException('สามารถรับชำระได้เฉพาะงานซ่อมที่ส่งมอบแล้ว');

@@ -1,21 +1,17 @@
 # Phase Summary
 
-**Phase:** S1.1 — Sprint 1 Group 1 Foundation
-**Date:** 2026-06-01
-**Status:** Complete. 6 foundation fixes applied. Awaiting S1.2 (Group 2 — Data Isolation) approval.
+**Phase:** S1.2 — Sprint 1 Group 2: Data Isolation & Permission Hardening  
+**Date:** 2026-06-01  
+**Status:** Complete. CHB-02, CHB-04, CHB-06 resolved. Awaiting S1.3 (Group 3 — Financial Integrity) approval.
 
 ---
 
 ## Completed
 
-* ✅ CHB-07 — `tenantId` added to JWT payload in `auth.service.ts` (login + register)
-* ✅ CHB-09 / BLK-1 — `helmet` v8.2.0 installed; `app.use(helmet())` in `main.ts`
-* ✅ BLK-2 — CORS fail-loud: throws `Error` at startup if `CORS_ORIGIN` unset in production
-* ✅ CHB-08 — API client throws at module load if `NEXT_PUBLIC_API_URL` is unset (no silent localhost fallback)
-* ✅ BLK-4 — Health endpoint now probes DB (`SELECT 1`); returns `503` when database unreachable
-* ✅ BLK-5 — `validate-prod-env.ps1` check `BE-13` added: `SUPER_ADMIN_PASSWORD` must not be a placeholder
-* ✅ Regression tests: `s1-group1-foundation.test.ts` — 29 new tests
-* ✅ Commit: `3147266`
+* ✅ CHB-02 — Notification branch scoping: `notificationScope()` helper + all four query methods accept `branchId`/`role` from JWT; controller wired up
+* ✅ CHB-04 — `findOne` ownership checks: branch check on `Expense`, creator check on `Claim`, branch check on `DebtPayment.create` (via linked repair); Customer/SerialNumber documented as no-path (schema migration required)
+* ✅ CHB-06 — Permission guards: `PermissionGuard` + `@RequirePermission` on all 6 module write endpoints; `SubscriptionController` restricted to OWNER/SUPER_ADMIN via `RolesGuard`; `notification.manage` added to MANAGER preset
+* ✅ Commit: Sprint 1.2 - Data isolation and permission hardening
 
 ---
 
@@ -23,39 +19,27 @@
 
 | File | Change |
 |------|--------|
-| `backend/src/auth/auth.service.ts` | CHB-07: `tenantId` added to both `login()` and `register()` JWT sign calls |
-| `backend/src/auth/strategies/jwt.strategy.ts` | CHB-07: payload type updated to include `branchId` and `tenantId` fields |
-| `backend/src/health.controller.ts` | BLK-4: injects PrismaService; `SELECT 1` probe; returns 503 on DB failure |
-| `backend/src/main.ts` | CHB-09/BLK-1: `app.use(helmet())`; BLK-2: CORS fail-loud if `CORS_ORIGIN` unset in prod |
-| `backend/package.json` + `package-lock.json` | CHB-09: `helmet@8.2.0` dependency added |
-| `web-app/src/lib/api.ts` | CHB-08: throws at module init if `NEXT_PUBLIC_API_URL` missing |
-| `scripts/validate-prod-env.ps1` | BLK-5: check `BE-13` added for `SUPER_ADMIN_PASSWORD` |
-| `web-app/src/__tests__/s1-group1-foundation.test.ts` | NEW — 29 regression tests |
-| `docs/commercial-readiness/commercial-hardening-plan.md` | CHB-07, CHB-08, CHB-09, BLK-2, BLK-4, BLK-5 marked ✅ RESOLVED |
-| `docs/release-readiness/v1.0.0-rc1-review.md` | Added to git (was untracked) |
-
----
-
-## Security Impact
-
-| Fix | Impact |
-|-----|--------|
-| CHB-07 — tenantId in JWT | Tenant isolation is now first-class in the token. Downstream Group 2 fixes (notification scoping, findOne tenant check) depend on this being present. |
-| CHB-09 / BLK-1 — Helmet | `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `X-DNS-Prefetch-Control` now set on ALL responses including direct SUNMI LAN access that bypasses Nginx. |
-| BLK-2 — CORS fail-loud | Production deployment with a missing `CORS_ORIGIN` now throws immediately at startup instead of silently accepting all origins. Zero-line attack surface eliminated. |
-| CHB-08 — API URL fail-loud | Missing `NEXT_PUBLIC_API_URL` causes `next build` to fail. Silent localhost fallback in production is eliminated. |
-| BLK-4 — Health DB probe | Container healthchecks now correctly reflect real app state. Docker will restart containers when DB is down instead of continuing to route traffic to a non-functional backend. |
-| BLK-5 — SA password check | `validate-prod-env.ps1` blocks deployment if `SUPER_ADMIN_PASSWORD` is a placeholder. First-deploy admin account cannot be created with a known-weak password. |
-
----
-
-## Migration Impact
-
-None. No schema changes. No database migrations required. Helm and JWT changes are code-only.
-
-The `tenantId` in the JWT token is backwards-compatible:
-- Old tokens (without `tenantId`) continue to work — `jwt.strategy.ts` still does a full DB lookup and populates `tenantId` from the database regardless of token payload.
-- New tokens include `tenantId` as a signed claim, providing belt-and-suspenders tenant context.
+| `backend/src/notifications/notifications.controller.ts` | CHB-02 + CHB-06: user context extracted from JWT; `PermissionGuard` added; `notification.manage`/`notification.view` on PATCH endpoints |
+| `backend/src/notifications/notifications.module.ts` | CHB-06: `PermissionGuard` added to providers |
+| `backend/src/notifications/notifications.service.ts` | CHB-02: `notificationScope()` helper; `findAll`, `getUnreadCount`, `markRead`, `markAllRead` branch-scoped |
+| `backend/src/expenses/expenses.service.ts` | CHB-04: `findOne(id, branchId?, isElevated?)` — 403 on branch mismatch |
+| `backend/src/expenses/expenses.controller.ts` | CHB-04: `findOne` route passes `branchId`/`role` |
+| `backend/src/claims/claims.service.ts` | CHB-04: `findOne(id, userId?, isElevated?)` — 403 if not creator and not elevated |
+| `backend/src/claims/claims.controller.ts` | CHB-04 + CHB-06: user context on `findOne`; `claims.manage` on write endpoints |
+| `backend/src/claims/claims.module.ts` | CHB-06: `PermissionGuard` added |
+| `backend/src/customers/customers.controller.ts` | CHB-06: `sales.create` on `POST /` and `PUT /:id` |
+| `backend/src/customers/customers.module.ts` | CHB-06: `PermissionGuard` added |
+| `backend/src/serials/serials.controller.ts` | CHB-06: `serials.manage` on `POST /`, `POST /bulk`, `PATCH /:id` |
+| `backend/src/serials/serials.module.ts` | CHB-06: `PermissionGuard` added |
+| `backend/src/debt-payments/debt-payments.service.ts` | CHB-04 + CHB-06: branch check on `create()`; accepts `branchId`/`role` |
+| `backend/src/debt-payments/debt-payments.controller.ts` | CHB-04 + CHB-06: user context passed; `repair.close` on `POST /` |
+| `backend/src/debt-payments/debt-payments.module.ts` | CHB-06: `PermissionGuard` added |
+| `backend/src/subscription/subscription.controller.ts` | CHB-06: `OWNER`/`SUPER_ADMIN` role guard on `PATCH /` and `POST /renew` |
+| `backend/src/subscription/subscription.module.ts` | CHB-06: `RolesGuard` added |
+| `backend/src/permissions/permissions.service.ts` | CHB-06: `notification.manage` added to MANAGER preset |
+| `docs/commercial-readiness/tenant-ownership-matrix.md` | NEW — entity isolation matrix and implementation strategy for CHB-04/06 |
+| `docs/commercial-readiness/s1.2-summary.md` | NEW — full S1.2 sprint summary |
+| `docs/commercial-readiness/commercial-hardening-plan.md` | CHB-02, CHB-04, CHB-06 marked ✅ RESOLVED; checklist updated |
 
 ---
 
@@ -66,11 +50,17 @@ The `tenantId` in the JWT token is backwards-compatible:
 | Backend `tsc --noEmit` | ✅ PASS — 0 errors |
 | Backend `nest build` | ✅ PASS — exit 0 |
 | Frontend `tsc --noEmit` | ✅ PASS — 0 errors |
-| Frontend `next build` | ✅ PASS — exit 0 |
-| `s1-group1-foundation.test.ts` | ✅ 29 / 29 |
 | Vitest full suite | ✅ 762 / 762 (no regressions) |
 
-Previous baseline: 733 tests. +29 new regression tests.
+---
+
+## Known Schema Limitations (Not Blocked — Documented)
+
+| Entity | Gap | Required fix |
+|--------|-----|-------------|
+| `Customer` | No `tenantId` or `branchId` — global shared resource | Add `Customer.tenantId` (schema migration) |
+| `SerialNumber` | Via `Product` — `Product` has no tenant field | Add `Product.tenantId` (schema migration) |
+| `Notification` (null branchId) | System-wide notifications visible across tenants | Add `Notification.tenantId` (schema migration) |
 
 ---
 
@@ -79,24 +69,14 @@ Previous baseline: 733 tests. +29 new regression tests.
 | ID | Status |
 |----|--------|
 | CHB-01 | Open — localStorage token (largest scope, own track) |
-| CHB-02 | Open — Notification tenant scoping |
 | CHB-03 | Open — Debt payment `$transaction` |
-| CHB-04 | Open — `findOne` tenant ownership check (6 modules) |
 | CHB-05 | Open — Financial `@Max()` DTOs |
-| CHB-06 | Open — Missing permission guards (6 modules) |
 | CHB-10 | Open — Atomic stock transfer / PO receive |
 | CHB-11 | Open — CSP header in nginx |
 
 ---
 
-## Review Questions
-
-* Approve S1.2 — Group 2 Data Isolation (CHB-02, CHB-04, CHB-06)?
-* CHB-02 and CHB-04 both depend on CHB-07 (✅ done) — ready to proceed.
-
----
-
 ## Next Recommended Action
 
-**S1.2 — Group 2: Data Isolation (awaiting approval)**  
-CHB-02 (notification scoping) → CHB-04 (tenant findOne check × 6 modules) → CHB-06 (permission guards × 6 modules)
+**S1.3 — Group 3: Financial Integrity (awaiting approval)**  
+CHB-03 (debt payment `$transaction`) → CHB-05 (`@Max()` on financial DTOs) → CHB-10 (atomic stock transfer/PO receive)

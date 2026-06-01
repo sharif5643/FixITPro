@@ -96,8 +96,13 @@ export class ExpensesController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.expensesService.findOne(id);
+  findOne(
+    @Param('id')             id: string,
+    @CurrentUser('branchId') branchId: string | null,
+    @CurrentUser('role')     role: string,
+  ) {
+    const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
+    return this.expensesService.findOne(id, branchId, isElevated);
   }
 
   @Post(':id/void')

@@ -199,18 +199,25 @@ export class NotificationsService implements OnModuleInit {
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
-  async findAll(query: {
-    isRead?:   string;
-    severity?: string;
-    type?:     string;
-    page?:     string;
-    limit?:    string;
-  }) {
+  // CHB-02: build a branch-scoped WHERE clause for notification queries.
+  // Non-elevated users see only their branch's notifications plus system-wide
+  // (branchId IS NULL) ones. Elevated users (OWNER, SUPER_ADMIN) see everything.
+  private notificationScope(branchId: string | null, role: string): Record<string, any> {
+    const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
+    if (isElevated) return {};
+    return { OR: [{ branchId }, { branchId: null }] };
+  }
+
+  async findAll(
+    query: { isRead?: string; severity?: string; type?: string; page?: string; limit?: string },
+    branchId: string | null,
+    role: string,
+  ) {
     const page  = Math.max(1, parseInt(query.page  ?? '1'));
     const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20')));
     const skip  = (page - 1) * limit;
 
-    const where: Record<string, any> = {};
+    const where: Record<string, any> = { ...this.notificationScope(branchId, role) };
     if (query.isRead === 'true')  where.isRead = true;
     if (query.isRead === 'false') where.isRead = false;
     if (query.severity) where.severity = query.severity;
@@ -229,13 +236,22 @@ export class NotificationsService implements OnModuleInit {
     return { items, total, page, limit };
   }
 
-  async getUnreadCount() {
-    const count = await this.prisma.notification.count({ where: { isRead: false } });
+  async getUnreadCount(branchId: string | null, role: string) {
+    const where = { isRead: false, ...this.notificationScope(branchId, role) };
+    const count = await this.prisma.notification.count({ where });
     return { count };
   }
 
-  async markRead(id: string) {
+  async markRead(id: string, branchId: string | null, role: string) {
     try {
+      // CHB-02: verify the notification belongs to the caller's scope before marking
+      const notif = await this.prisma.notification.findUnique({ where: { id }, select: { branchId: true } });
+      if (!notif) return null;
+      const scope = this.notificationScope(branchId, role);
+      if (Object.keys(scope).length > 0) {
+        const isOwn = notif.branchId === branchId || notif.branchId === null;
+        if (!isOwn) return null;
+      }
       return await this.prisma.notification.update({
         where: { id },
         data: { isRead: true, readAt: new Date() },
@@ -245,9 +261,10 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
-  async markAllRead() {
+  async markAllRead(branchId: string | null, role: string) {
+    const where = { isRead: false, ...this.notificationScope(branchId, role) };
     const { count } = await this.prisma.notification.updateMany({
-      where: { isRead: false },
+      where,
       data:  { isRead: true, readAt: new Date() },
     });
     return { count };

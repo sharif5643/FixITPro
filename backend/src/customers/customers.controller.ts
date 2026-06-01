@@ -13,6 +13,8 @@ import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateTagsDto } from './dto/update-tags.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { IsString, IsNotEmpty } from 'class-validator';
 
@@ -22,11 +24,12 @@ class AddNoteDto {
   note: string;
 }
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('customers')
 export class CustomersController {
   constructor(private customersService: CustomersService) {}
 
+  @RequirePermission('sales.create')
   @Post()
   create(
     @Body()              dto: CreateCustomerDto,
@@ -51,6 +54,7 @@ export class CustomersController {
     return this.customersService.findOne(id);
   }
 
+  @RequirePermission('sales.create')
   @Put(':id')
   update(
     @Param('id')         id: string,

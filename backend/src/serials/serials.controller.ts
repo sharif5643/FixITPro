@@ -13,8 +13,10 @@ import { CreateSerialDto } from './dto/create-serial.dto';
 import { CreateBulkSerialDto } from './dto/create-bulk-serial.dto';
 import { UpdateSerialDto } from './dto/update-serial.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('serials')
 export class SerialsController {
   constructor(private service: SerialsService) {}
@@ -38,16 +40,19 @@ export class SerialsController {
     return this.service.findOne(id);
   }
 
+  @RequirePermission('serials.manage')
   @Post()
   create(@Body() dto: CreateSerialDto) {
     return this.service.create(dto);
   }
 
+  @RequirePermission('serials.manage')
   @Post('bulk')
   createBulk(@Body() dto: CreateBulkSerialDto) {
     return this.service.createBulk(dto);
   }
 
+  @RequirePermission('serials.manage')
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateSerialDto) {
     return this.service.update(id, dto);

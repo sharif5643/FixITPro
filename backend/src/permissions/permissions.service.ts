@@ -22,7 +22,7 @@ export const ROLE_PRESETS: Record<string, string[]> = {
     'expenses.manage',
     'warranty.view', 'warranty.manage',
     'technician.view',
-    'notification.view',
+    'notification.view', 'notification.manage',
     'data.export',
   ],
   CASHIER: [
