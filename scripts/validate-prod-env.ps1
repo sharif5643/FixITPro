@@ -133,6 +133,15 @@ Check "BE-12" "DB_PASSWORD is not default 123456" ($dbPw -ne "123456") `
     "$(if ($dbPw -eq '123456') {'WARNING: Using DEV DB password in PROD. Change before go-live.'})" `
     -Warning ($dbPw -eq "123456")
 
+# BLK-5: SUPER_ADMIN_PASSWORD must not be a placeholder
+# The seed script uses this to create the platform super-admin account.
+# Shipping with "REPLACE_WITH_STRONG_PASSWORD" creates a trivially-guessable admin.
+$saPass = $be["SUPER_ADMIN_PASSWORD"]
+$saIsPlaceholder = ($saPass -match "REPLACE|CHANGE_ME|STRONG_PASSWORD|placeholder|example") -or
+                   ($saPass.Length -lt 12)
+Check "BE-13" "SUPER_ADMIN_PASSWORD not a placeholder (>=12 chars)" (-not $saIsPlaceholder) `
+    "$(if ($saIsPlaceholder) {'SUPER_ADMIN_PASSWORD is a placeholder or too short. Set a strong password before seeding.'})"
+
 # ── 3. Frontend env checks ────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "[ Frontend .env.production ]" -ForegroundColor Yellow

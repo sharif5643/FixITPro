@@ -184,7 +184,7 @@ Read-only GET endpoints may use class-level JwtAuthGuard only (with tenant-scope
 
 ---
 
-### CHB-07 · JWT payload missing `tenantId` — tenant isolation relies on fragile lookups
+### CHB-07 · JWT payload missing `tenantId` — tenant isolation relies on fragile lookups ✅ RESOLVED (S1.1)
 
 **File/Module:** `backend/src/auth/auth.service.ts:35`
 
@@ -211,7 +211,7 @@ Update `jwt.strategy.ts` to include `tenantId` in the user payload. Add `validat
 
 ---
 
-### CHB-08 · API client falls back to HTTP localhost when env var unset
+### CHB-08 · API client falls back to HTTP localhost when env var unset ✅ RESOLVED (S1.1)
 
 **File/Module:** `web-app/src/lib/api.ts:10`
 
@@ -240,7 +240,7 @@ const api = axios.create({ baseURL: API_URL, ... });
 
 ---
 
-### CHB-09 · Helmet middleware absent — critical security headers missing
+### CHB-09 · Helmet middleware absent — critical security headers missing ✅ RESOLVED (S1.1)
 
 **File/Module:** `backend/src/main.ts` (omission)
 
@@ -933,8 +933,12 @@ See CHH-06. The header exists but servers that misuse it are an active risk. Tra
 SECURITY
 [ ] CHB-01: JWT in HTTP-only cookie (not localStorage)
 [ ] CHB-02: Notification tenant scoping
-[ ] CHB-07: tenantId in JWT payload
-[ ] CHB-09: Helmet middleware installed
+[x] CHB-07: tenantId in JWT payload ✅ S1.1
+[x] CHB-09 / BLK-1: Helmet middleware installed ✅ S1.1
+[x] BLK-2: CORS fail-loud when CORS_ORIGIN unset ✅ S1.1
+[x] CHB-08: API baseURL fail-loud at build time ✅ S1.1
+[x] BLK-4: Health endpoint probes database ✅ S1.1
+[x] BLK-5: SUPER_ADMIN_PASSWORD validator check ✅ S1.1
 [ ] CHB-11: CSP header in nginx
 
 FINANCIAL INTEGRITY

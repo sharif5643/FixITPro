@@ -32,7 +32,10 @@ export class AuthService {
     });
 
     const branchId = (user as any).branchId ?? null;
-    const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role, branchId });
+    const tenantId = (user as any).tenantId ?? null;
+    // CHB-07: tenantId added to payload — downstream guards can scope tenant
+    // isolation from the token without an extra DB round-trip.
+    const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role, branchId, tenantId });
 
     let permissions: string[];
     if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') {
@@ -93,9 +96,10 @@ export class AuthService {
       },
     });
 
-    // B-6: Use identical JWT payload shape as login() — include branchId
+    // B-6: Use identical JWT payload shape as login() — include branchId + tenantId (CHB-07)
     const branchId = (user as any).branchId ?? null;
-    const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role, branchId });
+    const tenantId = (user as any).tenantId ?? null;
+    const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role, branchId, tenantId });
     return {
       accessToken: token,
       user: { id: user.id, email: user.email, name: user.name, role: user.role, tenantId: null, branchId },

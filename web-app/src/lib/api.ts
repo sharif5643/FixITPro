@@ -6,8 +6,19 @@ interface RetryConfig extends AxiosRequestConfig {
   _retryCount?: number
 }
 
+// CHB-08: NEXT_PUBLIC_API_URL is substituted at build time by Next.js.
+// If it is missing, every API call would silently fall back to localhost and
+// fail in production. Throw immediately so the build fails loud and clear.
+const _apiUrl = process.env.NEXT_PUBLIC_API_URL
+if (!_apiUrl) {
+  throw new Error(
+    '[FixITPro] NEXT_PUBLIC_API_URL is not set. ' +
+    'Add it to .env.production before running "next build".',
+  )
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1',
+  baseURL: _apiUrl,
   headers: { 'Content-Type': 'application/json' },
   timeout: 30_000,
 })
