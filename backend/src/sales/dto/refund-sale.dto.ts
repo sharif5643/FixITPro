@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, IsIn, Min, IsInt } from 'class-validator';
+import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, IsIn, Max, Min, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class RefundSaleItemDto {
@@ -7,10 +7,12 @@ export class RefundSaleItemDto {
 
   @IsInt()
   @Min(1)
+  @Max(10_000)
   quantity: number;
 
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   refundPrice: number;
 }
 

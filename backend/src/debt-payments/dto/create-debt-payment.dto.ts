@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsIn, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsIn, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateDebtPaymentDto {
@@ -8,6 +8,7 @@ export class CreateDebtPaymentDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0.01)
+  @Max(10_000_000)
   amount: number;
 
   @IsIn(['CASH', 'TRANSFER', 'CARD'])

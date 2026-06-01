@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CarrierEnum } from './package-sale.dto';
 
@@ -9,6 +9,7 @@ export class TopupDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
+  @Max(100_000)
   amount: number;
 
   @IsOptional()

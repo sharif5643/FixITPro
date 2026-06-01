@@ -1,4 +1,4 @@
-import { IsString, IsInt, IsOptional, Min } from 'class-validator';
+import { IsString, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class SetBranchStockDto {
   @IsString()
@@ -6,10 +6,12 @@ export class SetBranchStockDto {
 
   @IsInt()
   @Min(0)
+  @Max(100_000)
   quantity: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(100_000)
   minStock?: number;
 }

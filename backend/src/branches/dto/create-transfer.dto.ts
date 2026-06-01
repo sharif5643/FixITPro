@@ -1,4 +1,4 @@
-import { IsString, IsInt, IsOptional, Min } from 'class-validator';
+import { IsString, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class CreateTransferDto {
   @IsString()
@@ -12,6 +12,7 @@ export class CreateTransferDto {
 
   @IsInt()
   @Min(1)
+  @Max(10_000)
   quantity: number;
 
   @IsOptional()

@@ -2,6 +2,7 @@ import {
   IsString,
   IsNumber,
   IsOptional,
+  Max,
   Min,
   IsIn,
 } from 'class-validator';
@@ -30,18 +31,21 @@ export class UpdateRepairDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   estimateCost?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   finalCost?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   deposit?: number;
 
   @IsOptional()
@@ -52,18 +56,21 @@ export class UpdateRepairDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   estimatedLaborCost?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   estimatedPartsCost?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   estimatedTotal?: number;
 
   @IsOptional()
@@ -74,5 +81,6 @@ export class UpdateRepairDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   actualLaborCost?: number;
 }

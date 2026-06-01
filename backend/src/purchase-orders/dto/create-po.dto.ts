@@ -4,6 +4,7 @@ import {
   IsArray,
   IsNumber,
   IsIn,
+  Max,
   ValidateNested,
   Min,
 } from 'class-validator';
@@ -16,17 +17,20 @@ export class CreatePOItemDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
+  @Max(10_000)
   quantity: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   unitCost: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   discount?: number;
 }
 
@@ -42,12 +46,14 @@ export class CreatePurchaseOrderDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   discount?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(100)
   vatPercent?: number;
 
   @IsOptional()

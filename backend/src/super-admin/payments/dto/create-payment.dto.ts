@@ -1,4 +1,4 @@
-import { IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { TenantPlan } from '@prisma/client';
 
 export class CreatePaymentDto {
@@ -28,6 +28,7 @@ export class CreatePaymentDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   paymentAmount?: number;
 
   @IsOptional()

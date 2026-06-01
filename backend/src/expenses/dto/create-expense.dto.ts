@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -17,6 +18,7 @@ export class CreateExpenseDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01, { message: 'จำนวนเงินต้องมากกว่า 0' })
+  @Max(10_000_000, { message: 'จำนวนเงินต้องไม่เกิน 10,000,000 บาท' })
   amount: number;
 
   @IsString()

@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsBoolean,
   IsInt,
+  Max,
   Min,
   IsIn,
 } from 'class-validator';
@@ -27,23 +28,27 @@ export class CreateProductDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   price: number;
 
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(1_000_000)
   costPrice: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(100_000)
   stock?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(100_000)
   minStock?: number;
 
   @IsOptional()
@@ -66,6 +71,7 @@ export class CreateProductDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(3_650)
   warrantyDays?: number;
 
   @IsOptional()

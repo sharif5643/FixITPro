@@ -1,94 +1,69 @@
 # Phase Summary
 
-**Phase:** S1.3 — Sprint 1 Group 3: Money & Stock Integrity  
+**Phase:** S1.4 — Sprint 1 Group 4: Validation & CSP Hardening  
 **Date:** 2026-06-01  
-**Status:** Complete. CHB-03 and CHB-10 resolved. Awaiting S1.4 approval.
+**Status:** Complete. CHB-05 and CHB-11 resolved. CHB-01 remains open (own track).
 
 ---
 
 ## Completed
 
-* ✅ CHB-03 — Debt payment `$transaction`: `repairAdditionalPayment.create`, `repair.update`, and `auditLog.create` now execute atomically in one Prisma transaction; notifications remain fire-and-forget outside
-* ✅ CHB-10 — Atomic stock transfer receive: replaced unconditional `{ decrement }` with `updateMany WHERE quantity >= transferQty` in both `receiveTransfer` and `completeTransfer`; rejected transfers (`count === 0`) throw `BadRequestException`
-* ✅ CHB-10 — Atomic PO goods receive: re-reads each `PurchaseOrderItem.receivedQty` inside the existing `$transaction` to prevent concurrent requests from double-counting with stale pre-read data
-* ✅ Regression tests: `s1.3-money-stock.test.ts` — 21 new tests across CHB-03 and CHB-10
+* ✅ CHB-05 — `@Max()` bounds on all financial DTOs: 16 DTO files updated; covers money amounts, unit prices, quantities, stock counts, VAT %, warranty days, carrier wallet amounts, shift cash balances
+* ✅ CHB-11 — CSP header in nginx: three server blocks in `app.conf.template` now emit `Content-Security-Policy` on every response
+* ✅ Regression tests: `s1.4-validation-csp.test.ts` — 84 new tests
 
 ---
 
 ## Changed Files
 
-| File | Change |
-|------|--------|
-| `backend/src/debt-payments/debt-payments.service.ts` | CHB-03: three DB writes wrapped in single `$transaction`; `auditLog.create` moved inside tx; notifications remain outside |
-| `backend/src/branches/branches.service.ts` | CHB-10: `receiveTransfer` + `completeTransfer` — `branchStock.update({ decrement })` replaced with `branchStock.updateMany WHERE quantity >= transferQty` |
-| `backend/src/purchase-orders/purchase-orders.service.ts` | CHB-10: `receiveGoods` — re-reads `purchaseOrderItem.receivedQty` inside `$transaction` before validating and incrementing |
-| `web-app/src/__tests__/s1.3-money-stock.test.ts` | NEW — 21 regression tests for CHB-03 atomicity and CHB-10 concurrent stock safety |
-| `docs/commercial-readiness/commercial-hardening-plan.md` | CHB-03, CHB-10 marked ✅ RESOLVED; checklist updated to 783/783 |
+### CHB-05 — Financial DTO `@Max()` bounds (16 files)
+
+| File | Fields capped |
+|------|--------------|
+| `debt-payments/dto/create-debt-payment.dto.ts` | `amount` → `@Max(10_000_000)` |
+| `expenses/dto/create-expense.dto.ts` | `amount` → `@Max(10_000_000)` |
+| `carrier-wallet/dto/topup.dto.ts` | `amount` → `@Max(100_000)` |
+| `carrier-wallet/dto/package-sale.dto.ts` | `packageAmount`, `amountPaid` → `@Max(100_000)` |
+| `purchase-orders/dto/create-po.dto.ts` | `quantity` → `@Max(10_000)`, `unitCost` → `@Max(1_000_000)`, `discount` → `@Max(10_000_000)`, `vatPercent` → `@Max(100)` |
+| `purchase-orders/dto/create-payment.dto.ts` | `amount` → `@Max(10_000_000)` |
+| `repairs/dto/create-repair.dto.ts` | `estimateCost`, `deposit` → `@Max(10_000_000)` |
+| `repairs/dto/update-repair.dto.ts` | `estimateCost`, `finalCost`, `deposit`, `estimatedLaborCost`, `estimatedPartsCost`, `estimatedTotal`, `actualLaborCost` → `@Max(10_000_000)` |
+| `repairs/dto/repair-payment.dto.ts` | `amountPaid`, `finalCost` → `@Max(10_000_000)`, `warrantyDays` → `@Max(3_650)` |
+| `repairs/dto/additional-payment.dto.ts` | `amount` → `@Max(10_000_000)` (+ added `@Type(() => Number)`) |
+| `repairs/dto/add-repair-part.dto.ts` | `quantity` → `@Max(10_000)`, `price` → `@Max(1_000_000)` |
+| `sales/dto/create-sale.dto.ts` | `quantity` → `@Max(10_000)`, `price`, `discount` → `@Max(1_000_000)`, `amountPaid`, `discount` → `@Max(10_000_000)` |
+| `sales/dto/refund-sale.dto.ts` | `quantity` → `@Max(10_000)`, `refundPrice` → `@Max(1_000_000)` |
+| `products/dto/create-product.dto.ts` | `price`, `costPrice` → `@Max(1_000_000)`, `stock`, `minStock` → `@Max(100_000)`, `warrantyDays` → `@Max(3_650)` |
+| `shifts/dto/open-shift.dto.ts` | `openBalance`, all carrier balances → `@Max(1_000_000)` |
+| `shifts/dto/close-shift.dto.ts` | `closeBalance` → `@Max(1_000_000)` |
+| `branches/dto/create-transfer.dto.ts` | `quantity` → `@Max(10_000)` |
+| `branches/dto/set-branch-stock.dto.ts` | `quantity`, `minStock` → `@Max(100_000)` |
+| `stock/dto/adjust-stock.dto.ts` | `quantity` → `@Min(-100_000) @Max(100_000)` |
+| `super-admin/payments/dto/create-payment.dto.ts` | `paymentAmount` → `@Max(10_000_000)` |
+
+### CHB-11 — CSP header in nginx (1 file, 3 server blocks)
+
+| Server block | CSP added |
+|---|---|
+| `api.fixitpro.app` | `default-src 'none'; frame-ancestors 'none'; object-src 'none'` |
+| `app.fixitpro.app` | `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none'; object-src 'none'` |
+| `admin.fixitpro.app` | Same as app dashboard |
 
 ---
 
-## Exact Fixes
+## DTO Limit Reference
 
-### CHB-03 — Debt payment `$transaction`
-
-**Before (non-atomic):**
-```typescript
-// Three separate DB calls — if repair.update fails, payment record orphans
-const payment = await this.prisma.repairAdditionalPayment.create({ ... });
-await this.prisma.repair.update({ data: { paymentStatus } });
-await this.auditLog.log({ ... });  // silent try/catch — could also fail
-```
-
-**After (atomic):**
-```typescript
-const payment = await this.prisma.$transaction(async (tx) => {
-  const pmt = await tx.repairAdditionalPayment.create({ ... });
-  await tx.repair.update({ data: { paymentStatus } });
-  await tx.auditLog.create({ data: { ... } });  // throws on failure → rollback
-  return pmt;
-});
-// Notifications remain outside — fire-and-forget, safe to miss
-```
-
-### CHB-10 — Stock transfer deduction guard
-
-**Before (race condition):**
-```typescript
-// Pre-check outside tx (TOCTOU window)
-if (fromStock.quantity < transfer.quantity) throw ...;
-// Inside tx — unconditional; concurrent tx can push stock negative
-await branchStock.update({ data: { quantity: { decrement: transfer.quantity } } });
-```
-
-**After (atomic):**
-```typescript
-// Inside tx — updateMany with WHERE guard; count=0 means guard failed
-const deducted = await branchStock.updateMany({
-  where: { branchId, productId, quantity: { gte: transfer.quantity } },
-  data:  { quantity: { decrement: transfer.quantity } },
-});
-if (deducted.count === 0) throw new BadRequestException('สต็อกไม่เพียงพอ (อาจมีการโอนพร้อมกัน)');
-```
-
-Applied to: `receiveTransfer` and `completeTransfer`.
-
-### CHB-10 — PO receive double-receive prevention
-
-**Before (stale read):**
-```typescript
-// pre-flight check reads po.items outside the tx
-// Inside tx: increment without re-checking — concurrent calls both pass
-await tx.purchaseOrderItem.update({ data: { receivedQty: { increment } } });
-```
-
-**After (fresh read inside tx):**
-```typescript
-// Inside $transaction — re-read to get current receivedQty
-const freshItem = await tx.purchaseOrderItem.findUnique({ where: { id } });
-const remainingQty = freshItem.quantity - freshItem.receivedQty;
-if (recv.quantity > remainingQty) throw new BadRequestException('รับเกินจำนวน (อาจมีการรับพร้อมกัน)');
-await tx.purchaseOrderItem.update({ data: { receivedQty: { increment } } });
-```
+| Limit constant | Value | Applied to |
+|---|---|---|
+| `MAX_MONEY` | 10,000,000 | Transaction-level amounts (expenses, payments, repair costs, sale totals) |
+| `MAX_UNIT_PRICE` | 1,000,000 | Per-item price / cost (products, sale items, repair parts) |
+| `MAX_QUANTITY` | 10,000 | Items per transaction / transfer |
+| `MAX_STOCK_QTY` | 100,000 | Inventory / branch stock quantity |
+| `MAX_CARRIER` | 100,000 | Carrier wallet topup / package sale |
+| `MAX_SHIFT_CASH` | 1,000,000 | Cash drawer opening / closing balance |
+| `MAX_VAT_PERCENT` | 100 | VAT percentage |
+| `MAX_WARRANTY_DAYS` | 3,650 | Warranty duration (10 years) |
+| `MAX_STOCK_ADJ` | ±100,000 | Stock adjustment (negative allowed for OUT type) |
 
 ---
 
@@ -98,9 +73,9 @@ await tx.purchaseOrderItem.update({ data: { receivedQty: { increment } } });
 |---|---|
 | Backend `tsc --noEmit` | ✅ PASS — 0 errors |
 | Backend `nest build` | ✅ PASS — exit 0 |
-| Vitest full suite | ✅ 783 / 783 (25 test files, +21 new) |
+| Vitest full suite | ✅ 867 / 867 (26 test files, +84 new) |
 
-Previous baseline: 762 tests. +21 regression tests for CHB-03 and CHB-10.
+Previous baseline: 783 tests. +84 regression tests for CHB-05 and CHB-11.
 
 ---
 
@@ -108,13 +83,24 @@ Previous baseline: 762 tests. +21 regression tests for CHB-03 and CHB-10.
 
 | ID | Status |
 |----|--------|
-| CHB-01 | Open — localStorage token (own track) |
-| CHB-05 | Open — Financial `@Max()` DTOs |
-| CHB-11 | Open — CSP header in nginx |
+| **CHB-01** | Open — localStorage token (own track — requires frontend auth architecture change) |
 
 ---
 
-## Next Recommended Action
+## Sprint 1 Blocker Resolution Summary
 
-**S1.4 — Group 4: Input Validation (awaiting approval)**  
-CHB-05 — `@Max()` bounds on all financial DTOs (`debt-payments`, `expenses`, `carrier-wallet`, `purchase-orders`)
+| ID | Sprint | Status |
+|----|--------|--------|
+| CHB-01 | Own track | ⏳ Open |
+| CHB-02 | S1.2 | ✅ Resolved |
+| CHB-03 | S1.3 | ✅ Resolved |
+| CHB-04 | S1.2 | ✅ Resolved |
+| CHB-05 | S1.4 | ✅ Resolved |
+| CHB-06 | S1.2 | ✅ Resolved |
+| CHB-07 | S1.1 | ✅ Resolved |
+| CHB-08 | S1.1 | ✅ Resolved |
+| CHB-09 | S1.1 | ✅ Resolved |
+| CHB-10 | S1.3 | ✅ Resolved |
+| CHB-11 | S1.4 | ✅ Resolved |
+
+10 of 11 blockers resolved. Only CHB-01 (localStorage token) remains open.

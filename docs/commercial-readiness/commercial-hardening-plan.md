@@ -134,7 +134,7 @@ Controllers must extract `tenantId` from `@CurrentUser('tenantId')` and pass to 
 
 ---
 
-### CHB-05 · Financial amount fields lack maximum bounds
+### CHB-05 · Financial amount fields lack maximum bounds ✅ RESOLVED (S1.4)
 
 **File/Module:** DTOs in `debt-payments`, `expenses`, `carrier-wallet`, `purchase-orders`
 
@@ -294,7 +294,7 @@ if (result.count === 0) throw new BadRequestException('Insufficient stock in sou
 
 ---
 
-### CHB-11 · No CSP header — XSS has no fallback restriction
+### CHB-11 · No CSP header — XSS has no fallback restriction ✅ RESOLVED (S1.4)
 
 **File/Module:** `nginx/templates/app.conf.template` (omission)
 
@@ -939,11 +939,11 @@ SECURITY
 [x] CHB-08: API baseURL fail-loud at build time ✅ S1.1
 [x] BLK-4: Health endpoint probes database ✅ S1.1
 [x] BLK-5: SUPER_ADMIN_PASSWORD validator check ✅ S1.1
-[ ] CHB-11: CSP header in nginx
+[x] CHB-11: CSP header in nginx ✅ S1.4
 
 FINANCIAL INTEGRITY
 [x] CHB-03: Debt payment in transaction ✅ S1.3
-[ ] CHB-05: @Max() on all financial DTOs
+[x] CHB-05: @Max() on all financial DTOs ✅ S1.4
 [x] CHB-10: Atomic stock transfer/PO receive ✅ S1.3
 [ ] CHH-01: Carrier wallet race condition fixed
 [ ] CHH-02: Audit logs on all financial mutations
@@ -963,7 +963,7 @@ OPERATIONS
 [ ] CHH-11: Off-site backup configured and tested
 [ ] CHH-14: smoke-test-prod.ps1 created and passing
 [ ] validate-prod-env.ps1 runs to exit 0
-[ ] Full vitest suite passes (783/783)
+[ ] Full vitest suite passes (867/867)
 [ ] External penetration test completed
 ```
 

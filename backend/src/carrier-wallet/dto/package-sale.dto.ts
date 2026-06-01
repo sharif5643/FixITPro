@@ -1,5 +1,5 @@
 import {
-  IsEnum, IsNumber, IsOptional, IsString, Min,
+  IsEnum, IsNumber, IsOptional, IsString, Max, Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -17,6 +17,7 @@ export class PackageSaleDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
+  @Max(100_000)
   packageAmount: number;
 
   @IsString()
@@ -25,6 +26,7 @@ export class PackageSaleDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(100_000)
   amountPaid: number;
 
   @IsOptional()

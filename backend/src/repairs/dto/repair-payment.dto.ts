@@ -1,4 +1,4 @@
-import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class RepairPaymentDto {
@@ -8,12 +8,14 @@ export class RepairPaymentDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   amountPaid: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(10_000_000)
   finalCost?: number;
 
   @IsOptional()
@@ -24,5 +26,6 @@ export class RepairPaymentDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(3_650)
   warrantyDays?: number;
 }

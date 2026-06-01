@@ -40,6 +40,8 @@ server {
     add_header X-Content-Type-Options    "nosniff"                                       always;
     add_header X-Frame-Options           "DENY"                                          always;
     add_header Referrer-Policy           "strict-origin-when-cross-origin"               always;
+    # CHB-11: CSP — API server returns JSON only; restrict everything else
+    add_header Content-Security-Policy   "default-src 'none'; frame-ancestors 'none'; object-src 'none'" always;
 
     # Repair images — served by nginx directly from shared uploads volume.
     # Backend writes to /app/uploads; nginx reads the same volume read-only.
@@ -97,6 +99,10 @@ server {
     add_header X-Content-Type-Options    "nosniff"                                       always;
     add_header X-Frame-Options           "SAMEORIGIN"                                    always;
     add_header Referrer-Policy           "strict-origin-when-cross-origin"               always;
+    # CHB-11: CSP — Next.js dashboard app
+    # script-src 'self': no inline scripts; style-src allows Next.js CSS-in-JS;
+    # connect-src allows HTTPS API and WebSocket; frame-ancestors blocks clickjacking
+    add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none'; object-src 'none'" always;
 
     # Next.js immutable hashed bundles — safe to cache 1 year
     location /_next/static/ {
@@ -136,6 +142,8 @@ server {
 
     add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
     add_header X-Content-Type-Options    "nosniff"                                       always;
+    # CHB-11: CSP — Super admin panel (same Next.js app as dashboard)
+    add_header Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none'; object-src 'none'" always;
 
     # IP allowlist — only the configured admin IP may reach this subdomain.
     # Set ADMIN_ALLOWED_IP in .env.prod to your static office/home IP.
