@@ -7,6 +7,9 @@ const nextConfig = {
 
   compress: true,
 
+  // Skip ESLint during Docker/CI builds — lint runs separately in dev
+  eslint: { ignoreDuringBuilds: true },
+
   images: {
     remotePatterns: [],
   },
