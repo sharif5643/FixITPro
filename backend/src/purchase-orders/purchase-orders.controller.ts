@@ -14,9 +14,13 @@ import { UpdatePurchaseOrderDto } from './dto/update-po.dto';
 import { ReceiveGoodsDto } from './dto/receive-goods.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
+import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+@RequireModule('finance')
+@UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
 @Controller('purchase-orders')
 export class PurchaseOrdersController {
   constructor(private poService: PurchaseOrdersService) {}

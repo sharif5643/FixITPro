@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -528,29 +529,28 @@ export default function EmployeesPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">จัดการพนักงาน</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            ทั้งหมด {users.length} คน · ใช้งาน {activeCount} · ปิด {inactiveCount}
-          </p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">เพิ่มพนักงาน</span>
-          <span className="sm:hidden">เพิ่ม</span>
-        </Button>
-      </div>
+      <PageHeader
+        title="จัดการพนักงาน"
+        icon={Users}
+        subtitle={`ทั้งหมด ${users.length} คน · ใช้งาน ${activeCount} · ปิด ${inactiveCount}`}
+        primaryAction={
+          <Button onClick={() => setCreateOpen(true)} className="gap-2 shrink-0">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">เพิ่มพนักงาน</span>
+            <span className="sm:hidden">เพิ่ม</span>
+          </Button>
+        }
+      />
 
       {/* List */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-48 gap-2 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" /> <span>กำลังโหลด...</span>
+        <div className="flex items-center justify-center h-48 gap-2 text-slate-400">
+          <div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+          <span className="text-sm">กำลังโหลด...</span>
         </div>
       ) : users.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 gap-2 rounded-xl border bg-gray-50 text-muted-foreground">
-          <Users className="h-12 w-12 text-gray-200" />
+        <div className="flex flex-col items-center justify-center h-48 gap-2 rounded-xl border bg-slate-50 text-slate-400">
+          <Users className="h-12 w-12 opacity-30" />
           <p className="text-sm font-medium">ยังไม่มีพนักงาน</p>
         </div>
       ) : (

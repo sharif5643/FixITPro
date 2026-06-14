@@ -14,7 +14,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 5 * 60 * 1000,
             gcTime: 10 * 60 * 1000,
-            retry: 1,
+            // Don't retry 4xx client errors — they'll fail again with identical params.
+            // Retrying 400/401/403/404 also causes double-rejection noise in the
+            // Next.js dev overlay.  Only retry network failures and 5xx.
+            retry: (failureCount: number, error: unknown) => {
+              const status = (error as any)?.response?.status as number | undefined
+              if (status !== undefined && status >= 400 && status < 500) return false
+              return failureCount < 1
+            },
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,
           },

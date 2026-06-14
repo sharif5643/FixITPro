@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 
 export interface AuditLogEntry {
@@ -16,13 +16,15 @@ export interface AuditLogEntry {
 
 @Injectable()
 export class AuditLogService {
+  private readonly logger = new Logger(AuditLogService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async log(entry: AuditLogEntry): Promise<void> {
     try {
       await this.prisma.auditLog.create({ data: entry as any });
     } catch (err) {
-      console.warn('[AuditLog] Failed to write audit log:', err);
+      this.logger.warn(`Failed to write audit log: ${(err as Error).message}`);
     }
   }
 

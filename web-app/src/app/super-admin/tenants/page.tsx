@@ -6,10 +6,11 @@ import { toast } from 'sonner'
 import {
   Building2, Plus, RefreshCw, Ban, CheckCircle, Zap,
   Users, Calendar, KeyRound, Copy, Check,
-  ChevronDown, Loader2, Search,
+  ChevronDown, Loader2, Search, Eye,
 } from 'lucide-react'
 import { format, differenceInDays } from 'date-fns'
 import { th } from 'date-fns/locale'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,6 +27,70 @@ import { Textarea } from '@/components/ui/textarea'
 import api from '@/lib/api'
 import { Tenant, TenantPlan, TenantStatus, TENANT_PLAN_LABEL, TENANT_STATUS_LABEL } from '@/types'
 import { cn } from '@/lib/utils'
+
+// ── Change Plan Dialog ────────────────────────────────────────
+
+function ChangePlanDialog({
+  open, onClose, tenant,
+}: {
+  open: boolean; onClose: () => void; tenant: Tenant | null
+}) {
+  const qc = useQueryClient()
+  const [plan, setPlan] = useState<TenantPlan>('BASIC')
+
+  const mutation = useMutation({
+    mutationFn: () => api.patch(`/super-admin/tenants/${tenant?.id}/change-plan`, { plan }),
+    onSuccess: () => {
+      toast.success('เปลี่ยนแพ็กเกจสำเร็จ')
+      qc.invalidateQueries({ queryKey: ['sa-tenants'] })
+      qc.invalidateQueries({ queryKey: ['sa-stats'] })
+      onClose()
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
+  })
+
+  if (!tenant) return null
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-sm">
+        <DialogHeader>
+          <DialogTitle>เปลี่ยนแพ็กเกจ — {tenant.shopName}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-slate-400 text-xs">แพ็กเกจปัจจุบัน: <span className="text-slate-200 font-medium">{TENANT_PLAN_LABEL[tenant.plan]}</span></p>
+          <div className="space-y-1.5">
+            <Label className="text-slate-300 text-xs">แพ็กเกจใหม่</Label>
+            <Select value={plan} onValueChange={(v: string) => setPlan(v as TenantPlan)}>
+              <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                {(['TRIAL', 'BASIC', 'PRO', 'ENTERPRISE'] as TenantPlan[]).map((p) => (
+                  <SelectItem key={p} value={p} className="focus:bg-slate-700 focus:text-white">
+                    {TENANT_PLAN_LABEL[p]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-slate-600 text-xs">การเปลี่ยนแพ็กเกจจะมีผลทันที แต่ไม่เปลี่ยนวันหมดอายุ</p>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} className="text-slate-400 hover:text-white">ยกเลิก</Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || plan === tenant.plan}
+            className="bg-violet-600 hover:bg-violet-700"
+          >
+            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            เปลี่ยนแพ็กเกจ
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -373,6 +438,9 @@ export default function TenantsPage() {
   const [planDialog, setPlanDialog] = useState<{ open: boolean; tenant: Tenant | null; action: PlanAction }>({
     open: false, tenant: null, action: 'activate',
   })
+  const [changePlanDialog, setChangePlanDialog] = useState<{ open: boolean; tenant: Tenant | null }>({
+    open: false, tenant: null,
+  })
   const [resetOwnerResult, setResetOwnerResult] = useState<{ tempPassword: string; userName: string; shopName: string } | null>(null)
 
   const { data: statsData } = useQuery<Stats>({
@@ -577,6 +645,16 @@ export default function TenantsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="bg-slate-800 border-slate-700 text-white min-w-40">
+                          <DropdownMenuItem
+                            className="focus:bg-slate-700 cursor-pointer"
+                            asChild
+                          >
+                            <Link href={`/super-admin/tenants/${tenant.id}`} className="flex items-center">
+                              <Eye className="h-4 w-4 mr-2" />
+                              ดูรายละเอียด
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-slate-700" />
                           {tenant.status === 'PENDING' && (
                             <DropdownMenuItem
                               className="focus:bg-slate-700 cursor-pointer text-emerald-400 focus:text-emerald-400"
@@ -600,7 +678,7 @@ export default function TenantsPage() {
                           {tenant.status === 'ACTIVE' && (
                             <DropdownMenuItem
                               className="focus:bg-slate-700 cursor-pointer"
-                              onClick={() => setPlanDialog({ open: true, tenant, action: 'activate' })}
+                              onClick={() => setChangePlanDialog({ open: true, tenant })}
                             >
                               <Calendar className="h-4 w-4 mr-2" />
                               เปลี่ยนแพ็กเกจ
@@ -657,6 +735,11 @@ export default function TenantsPage() {
         onClose={() => setPlanDialog((d) => ({ ...d, open: false }))}
         tenant={planDialog.tenant}
         action={planDialog.action}
+      />
+      <ChangePlanDialog
+        open={changePlanDialog.open}
+        onClose={() => setChangePlanDialog((d) => ({ ...d, open: false }))}
+        tenant={changePlanDialog.tenant}
       />
       <ResetOwnerPasswordResultDialog
         result={resetOwnerResult}

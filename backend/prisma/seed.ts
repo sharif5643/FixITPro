@@ -17,8 +17,11 @@ const ROLE_PERMISSIONS: Partial<Record<Role, string[]>> = {
     'expenses.manage',
     'warranty.view', 'warranty.manage',
     'technician.view',
-    'notification.view',
-    'data.export',
+    'notification.view', 'notification.manage',
+    'data.export', 'data.import',
+    'audit.view',
+    'settings.manage',
+    'branches.manage',
   ],
   CASHIER: [
     'products.view',
@@ -107,15 +110,12 @@ async function main() {
     }),
   ]);
 
-  // Seed default role permissions (skip roles that already have rows — preserves manual config)
+  // Seed default role permissions — additive (skipDuplicates keeps existing manual config)
   for (const [role, permissions] of Object.entries(ROLE_PERMISSIONS) as [Role, string[]][]) {
-    const existing = await prisma.rolePermission.count({ where: { role } });
-    if (existing === 0) {
-      await prisma.rolePermission.createMany({
-        data: permissions.map((permission) => ({ role, permission })),
-        skipDuplicates: true,
-      });
-    }
+    await prisma.rolePermission.createMany({
+      data: permissions.map((permission) => ({ role, permission })),
+      skipDuplicates: true,
+    });
   }
 
   console.log('Seed completed:');

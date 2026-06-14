@@ -230,6 +230,12 @@ export class TenantsService {
     return { tempPassword, userName: owner.name };
   }
 
+  async changePlan(id: string, plan: TenantPlan) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+    if (!tenant) throw new NotFoundException('ไม่พบข้อมูลร้าน');
+    return this.prisma.tenant.update({ where: { id }, data: { plan } });
+  }
+
   async stats() {
     const now = new Date();
     const sevenDaysLater = new Date(Date.now() + 7 * DAY_MS);

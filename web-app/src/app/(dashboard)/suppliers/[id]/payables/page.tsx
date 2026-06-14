@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight, Building2, AlertTriangle,
   TrendingDown, ArrowUpRight, ArrowDownLeft, Wallet,
 } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn, formatThaiMoney } from '@/lib/utils'
@@ -118,37 +119,29 @@ export default function SupplierPayablesPage() {
         </Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-            <Building2 className="h-5 w-5 text-blue-600" />
+      <PageHeader
+        title={supplier.name}
+        icon={Building2}
+        subtitle={`บัญชีเจ้าหนี้${supplier.creditDays > 0 ? ` · เครดิต ${supplier.creditDays} วัน` : ''}`}
+        breadcrumbs={[{ label: 'ซัพพลายเออร์', href: '/suppliers' }, { label: supplier.name }]}
+        secondaryActions={
+          <div className="flex items-center gap-2 border rounded-lg px-3 py-1.5 bg-white w-fit">
+            <button onClick={() => setRefMonth((m) => subMonths(m, 1))} className="p-1 hover:bg-slate-100 rounded">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-medium w-28 text-center">
+              {format(refMonth, 'MMMM yyyy', { locale: th })}
+            </span>
+            <button
+              onClick={() => setRefMonth((m) => addMonths(m, 1))}
+              disabled={format(addMonths(refMonth, 1), 'yyyy-MM') > format(new Date(), 'yyyy-MM')}
+              className="p-1 hover:bg-slate-100 rounded disabled:opacity-30"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">{supplier.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              บัญชีเจ้าหนี้
-              {supplier.creditDays > 0 && ` · เครดิต ${supplier.creditDays} วัน`}
-            </p>
-          </div>
-        </div>
-
-        {/* Month selector */}
-        <div className="flex items-center gap-2 border rounded-lg px-3 py-1.5 bg-white w-fit">
-          <button onClick={() => setRefMonth((m) => subMonths(m, 1))} className="p-1 hover:bg-slate-100 rounded">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-sm font-medium w-28 text-center">
-            {format(refMonth, 'MMMM yyyy', { locale: th })}
-          </span>
-          <button
-            onClick={() => setRefMonth((m) => addMonths(m, 1))}
-            disabled={format(addMonths(refMonth, 1), 'yyyy-MM') > format(new Date(), 'yyyy-MM')}
-            className="p-1 hover:bg-slate-100 rounded disabled:opacity-30"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

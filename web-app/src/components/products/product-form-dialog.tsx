@@ -181,7 +181,7 @@ export function ProductFormDialog({
           {!isEditing && isOwnerGlobalMode && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mt-1">
               <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>คุณอยู่ในโหมด "ทุกสาขา" — สินค้าจะถูกสร้างเป็น Master แต่ยังไม่มีสต๊อกในสาขาใด กรุณาเพิ่มสต๊อกในสาขาหลังจากสร้างสินค้า</span>
+              <span>คุณอยู่ในโหมด &ldquo;ทุกสาขา&rdquo; — สินค้าจะถูกสร้างเป็น Master แต่ยังไม่มีสต๊อกในสาขาใด กรุณาเพิ่มสต๊อกในสาขาหลังจากสร้างสินค้า</span>
             </div>
           )}
           {!isEditing && !isOwnerGlobalMode && effectiveBranchName && (

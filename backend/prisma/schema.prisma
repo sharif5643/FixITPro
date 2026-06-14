@@ -156,6 +156,12 @@ enum BranchStatus {
   REJECTED
 }
 
+enum RepairPaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
 model Branch {
   id           String       @id @default(cuid())
   name         String
@@ -261,9 +267,10 @@ model Tenant {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  users    User[]
-  renewals TenantRenewal[]
-  payments TenantPayment[]
+  users           User[]
+  renewals        TenantRenewal[]
+  payments        TenantPayment[]
+  moduleOverrides TenantModule[]
 
   @@index([status])
   @@index([expiryDate])
@@ -650,7 +657,7 @@ model Repair {
   technicianId String?
   technician   User?   @relation(fields: [technicianId], references: [id])
 
-  paymentStatus   String          @default("PENDING")
+  paymentStatus   RepairPaymentStatus @default(PENDING)
   paymentMethod   PaymentMethod?
   paidAmount      Decimal?        @db.Decimal(10, 2)
   paidAt          DateTime?
@@ -1201,4 +1208,56 @@ model ReminderSnooze {
   @@unique([userId, entityType, entityId])
   @@index([userId, snoozeUntil])
   @@index([snoozeUntil])
+}
+
+// ── SaaS Module System ────────────────────────────────────────────────────────
+
+model AppModule {
+  key         String  @id
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+
+  packageModules PackageModule[]
+  tenantModules  TenantModule[]
+}
+
+model Package {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  price       Decimal? @db.Decimal(10, 2)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  modules PackageModule[]
+}
+
+model PackageModule {
+  packageKey String
+  moduleKey  String
+
+  package Package   @relation(fields: [packageKey], references: [key])
+  module  AppModule @relation(fields: [moduleKey],  references: [key])
+
+  @@id([packageKey, moduleKey])
+  @@index([packageKey])
+}
+
+model TenantModule {
+  tenantId  String
+  moduleKey String
+  enabled   Boolean
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenant Tenant    @relation(fields: [tenantId],  references: [id], onDelete: Cascade)
+  module AppModule @relation(fields: [moduleKey], references: [key])
+
+  @@id([tenantId, moduleKey])
+  @@index([tenantId])
 }

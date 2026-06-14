@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -37,6 +38,8 @@ const REPAIR_INCLUDE = {
 
 @Injectable()
 export class RepairsService {
+  private readonly logger = new Logger(RepairsService.name);
+
   constructor(
     private prisma: PrismaService,
     private auditLog: AuditLogService,
@@ -507,7 +510,7 @@ export class RepairsService {
     if (dto.warrantyDays && dto.warrantyDays > 0) {
       this.warranties
         .createForRepair(repairId, dto.warrantyDays, undefined, userId)
-        .catch((e) => console.warn('[Repairs] warranty creation failed:', e));
+        .catch((e) => this.logger.warn(`warranty creation failed: ${(e as Error).message}`));
     }
 
     return paid;

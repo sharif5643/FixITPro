@@ -211,7 +211,111 @@ describe('Action buttons: terminal statuses (view-only)', () => {
   }
 })
 
-// ── 4. Notification deep-link routing ────────────────────────────────────────
+// ── 4. Deep-link action handling (?action=approve|receive) ───────────────────
+
+type DeepAction = 'approve' | 'receive' | null
+
+function resolveDeepAction(raw: string | null): DeepAction {
+  return raw === 'approve' || raw === 'receive' ? raw : null
+}
+
+function canTriggerDeepAction(
+  action:    DeepAction,
+  transfer:  StockTransfer,
+  isOwner:   boolean,
+  branchId:  string | null,
+): boolean {
+  if (!action) return false
+  const src = isOwner || branchId === transfer.fromBranchId
+  const dst = isOwner || branchId === transfer.toBranchId
+  if (action === 'approve') return transfer.status === 'PENDING'    && src
+  if (action === 'receive') return transfer.status === 'IN_TRANSIT' && dst
+  return false
+}
+
+describe('Deep-link: ?action=approve', () => {
+  const pending    = makeTransfer({ status: 'PENDING' })
+  const inTransit  = makeTransfer({ status: 'IN_TRANSIT' })
+  const approved   = makeTransfer({ status: 'APPROVED' })
+
+  it('resolves "approve" string → DeepAction', () => {
+    expect(resolveDeepAction('approve')).toBe('approve')
+  })
+
+  it('source branch + PENDING → modal opens', () => {
+    expect(canTriggerDeepAction('approve', pending, false, BRANCH_A)).toBe(true)
+  })
+
+  it('OWNER + PENDING → modal opens (any branch)', () => {
+    expect(canTriggerDeepAction('approve', pending, true, null)).toBe(true)
+  })
+
+  it('wrong branch + PENDING → no modal', () => {
+    expect(canTriggerDeepAction('approve', pending, false, BRANCH_B)).toBe(false)
+  })
+
+  it('source branch + IN_TRANSIT → no modal (wrong status for approve)', () => {
+    expect(canTriggerDeepAction('approve', inTransit, false, BRANCH_A)).toBe(false)
+  })
+
+  it('source branch + APPROVED → no modal (wrong status)', () => {
+    expect(canTriggerDeepAction('approve', approved, false, BRANCH_A)).toBe(false)
+  })
+
+  it('no highlight → no trigger (no transfer found)', () => {
+    const found = [pending].find(t => t.id === 'nonexistent')
+    expect(found).toBeUndefined()
+  })
+})
+
+describe('Deep-link: ?action=receive', () => {
+  const inTransit = makeTransfer({ status: 'IN_TRANSIT' })
+  const pending   = makeTransfer({ status: 'PENDING' })
+
+  it('resolves "receive" string → DeepAction', () => {
+    expect(resolveDeepAction('receive')).toBe('receive')
+  })
+
+  it('dest branch + IN_TRANSIT → modal opens', () => {
+    expect(canTriggerDeepAction('receive', inTransit, false, BRANCH_B)).toBe(true)
+  })
+
+  it('OWNER + IN_TRANSIT → modal opens (any branch)', () => {
+    expect(canTriggerDeepAction('receive', inTransit, true, null)).toBe(true)
+  })
+
+  it('wrong branch + IN_TRANSIT → no modal', () => {
+    expect(canTriggerDeepAction('receive', inTransit, false, BRANCH_A)).toBe(false)
+  })
+
+  it('dest branch + PENDING → no modal (wrong status for receive)', () => {
+    expect(canTriggerDeepAction('receive', pending, false, BRANCH_B)).toBe(false)
+  })
+
+  it('source-only branch + IN_TRANSIT → no modal (src ≠ dst)', () => {
+    // BRANCH_A is source, not dest — cannot receive its own outgoing transfer
+    expect(canTriggerDeepAction('receive', inTransit, false, BRANCH_A)).toBe(false)
+  })
+})
+
+describe('Deep-link: invalid or missing ?action', () => {
+  it('null → no action', () => expect(resolveDeepAction(null)).toBeNull())
+  it('"reject" → not a valid deep-link action (not emitted by UX-01)', () => {
+    expect(resolveDeepAction('reject')).toBeNull()
+  })
+  it('"dispatch" → not a valid deep-link action', () => {
+    expect(resolveDeepAction('dispatch')).toBeNull()
+  })
+  it('empty string → no action', () => expect(resolveDeepAction('')).toBeNull())
+  it('arbitrary string → no action', () => expect(resolveDeepAction('hack')).toBeNull())
+
+  it('null action → canTriggerDeepAction returns false', () => {
+    const t = makeTransfer({ status: 'PENDING' })
+    expect(canTriggerDeepAction(null, t, true, null)).toBe(false)
+  })
+})
+
+// ── 5. Notification type → /transfers routing ─────────────────────────────────
 
 describe('Notification deep-link: transfer types route to /transfers', () => {
   it('STOCK_TRANSFER_PENDING is a transfer notification', () => {

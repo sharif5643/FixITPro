@@ -12,36 +12,43 @@ import {
   XCircle,
   Clock,
   RefreshCw,
+  GitBranch,
 } from 'lucide-react'
 import { formatThaiMoney } from '@/lib/utils'
+import { PageHeader } from '@/components/ui/page-header'
 import api from '@/lib/api'
 
 interface SubscriptionRenewal {
   id: string
   action: string
+  plan?: string
+  duration?: number
   expiryDate: string
-  amount?: number
-  note?: string
+  amount?: number | null
+  note?: string | null
   createdAt: string
 }
 
 interface SubscriptionData {
-  id: number
+  id: number | string
   planName: string
+  plan?: string
+  branchLimit?: string
   status: string
   effectiveStatus: string
   daysRemaining: number
-  startDate: string
+  startDate: string | null
   expiryDate: string
-  notes?: string
+  notes?: string | null
   renewals: SubscriptionRenewal[]
 }
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
-  TRIAL:     { label: 'ทดลองใช้',     cls: 'bg-blue-50 text-blue-700 border-blue-200',   icon: Clock },
+  TRIAL:     { label: 'ทดลองใช้',     cls: 'bg-blue-50 text-blue-700 border-blue-200',    icon: Clock },
   ACTIVE:    { label: 'ใช้งานอยู่',   cls: 'bg-green-50 text-green-700 border-green-200', icon: CheckCircle2 },
-  EXPIRED:   { label: 'หมดอายุแล้ว', cls: 'bg-red-50 text-red-700 border-red-200',       icon: XCircle },
-  SUSPENDED: { label: 'ถูกระงับ',     cls: 'bg-gray-50 text-gray-500 border-gray-200',   icon: AlertTriangle },
+  EXPIRED:   { label: 'หมดอายุแล้ว', cls: 'bg-red-50 text-red-700 border-red-200',        icon: XCircle },
+  SUSPENDED: { label: 'ถูกระงับ',     cls: 'bg-gray-50 text-gray-500 border-gray-200',    icon: AlertTriangle },
+  PENDING:   { label: 'รอเปิดใช้งาน', cls: 'bg-blue-50 text-blue-600 border-blue-200',   icon: Clock },
 }
 
 const ACTION_LABEL: Record<string, string> = {
@@ -50,9 +57,11 @@ const ACTION_LABEL: Record<string, string> = {
   EXTENDED:  'ขยายเวลา',
   SUSPENDED: 'ระงับ',
   TRIAL:     'ทดลองใช้',
+  RENEW:     'ต่ออายุ',
 }
 
-function fmtDate(d: string) {
+function fmtDate(d: string | null | undefined) {
+  if (!d) return '—'
   try { return format(new Date(d), 'dd MMMM yyyy', { locale: th }) } catch { return d }
 }
 
@@ -74,18 +83,19 @@ export default function SubscriptionPage() {
 
   if (!sub) return null
 
-  const cfg             = STATUS_CONFIG[sub.effectiveStatus] ?? STATUS_CONFIG['TRIAL']
-  const StatusIcon      = cfg.icon
-  const isExpired       = sub.effectiveStatus === 'EXPIRED'
-  const isWarning       = !isExpired && sub.daysRemaining <= 7 && sub.daysRemaining > 0
-  const isNearExpiry    = !isExpired && sub.daysRemaining <= 30 && sub.daysRemaining > 7
+  const cfg          = STATUS_CONFIG[sub.effectiveStatus] ?? STATUS_CONFIG['TRIAL']
+  const StatusIcon   = cfg.icon
+  const isExpired    = sub.effectiveStatus === 'EXPIRED'
+  const isWarning    = !isExpired && sub.daysRemaining <= 7 && sub.daysRemaining > 0
+  const isNearExpiry = !isExpired && sub.daysRemaining <= 30 && sub.daysRemaining > 7
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">สถานะ Subscription</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">ดูสถานะแพ็กเกจและประวัติการต่ออายุ</p>
-      </div>
+      <PageHeader
+        title="สถานะ Subscription"
+        icon={Crown}
+        subtitle="ดูสถานะแพ็กเกจและประวัติการต่ออายุ"
+      />
 
       {/* Expiry Alert Banners */}
       {isExpired && (
@@ -166,6 +176,15 @@ export default function SubscriptionPage() {
               </p>
             </div>
           </div>
+          {sub.branchLimit && (
+            <div className="flex items-center gap-3">
+              <GitBranch className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">จำนวนสาขา</p>
+                <p className="text-sm font-semibold text-gray-900">{sub.branchLimit}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {sub.notes && (

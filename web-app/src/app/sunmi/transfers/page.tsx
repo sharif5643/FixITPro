@@ -213,7 +213,7 @@ export default function SunmiTransfersPage() {
           ))}
           {pendingOutgoing.length > 3 && (
             <p className="text-amber-400 text-xs text-center">
-              และอีก {pendingOutgoing.length - 3} รายการ — ดูใน "ขาออก"
+              และอีก {pendingOutgoing.length - 3} รายการ — ดูใน &ldquo;ขาออก&rdquo;
             </p>
           )}
         </div>

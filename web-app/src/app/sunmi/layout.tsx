@@ -69,16 +69,16 @@ function SunmiLayoutWithSync({ children }: { children: React.ReactNode }) {
 export default function SunmiLayout({ children }: { children: React.ReactNode }) {
   const router      = useRouter()
   const hasHydrated = useAuthStore((s) => s._hasHydrated)
-  const accessToken = useAuthStore((s) => s.accessToken)
   const user        = useAuthStore((s) => s.user)
 
   useEffect(() => {
     if (!hasHydrated) return
-    if (!accessToken) { router.replace('/login'); return }
-    if (user?.forcePasswordChange) router.replace('/change-password')
-  }, [hasHydrated, accessToken, user, router])
+    // CHB-01: guard on user presence — middleware handles unauthenticated redirect
+    if (!user) { router.replace('/login'); return }
+    if (user.forcePasswordChange) router.replace('/change-password')
+  }, [hasHydrated, user, router])
 
-  if (!hasHydrated || !accessToken) return <Spinner />
+  if (!hasHydrated || !user) return <Spinner />
 
   return (
     <SunmiErrorBoundary>

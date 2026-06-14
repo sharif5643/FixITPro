@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   Dialog,
   DialogContent,
@@ -378,19 +379,17 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">หมวดหมู่สินค้า</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {types.length} ประเภท · {totalCategories} หมวดหมู่
-          </p>
-        </div>
-        <Button onClick={openAddType} className="gap-2">
-          <Plus className="h-4 w-4" />
-          เพิ่มประเภท
-        </Button>
-      </div>
+      <PageHeader
+        title="หมวดหมู่สินค้า"
+        icon={Layers}
+        subtitle={`${types.length} ประเภท · ${totalCategories} หมวดหมู่`}
+        primaryAction={
+          <Button onClick={openAddType} className="gap-2">
+            <Plus className="h-4 w-4" />
+            เพิ่มประเภท
+          </Button>
+        }
+      />
 
       {/* Content */}
       {isLoading ? (
@@ -403,7 +402,7 @@ export default function CategoriesPage() {
           <Layers className="h-12 w-12 text-gray-200" />
           <div className="text-center">
             <p className="text-sm font-medium">ยังไม่มีประเภทสินค้า</p>
-            <p className="text-xs mt-0.5">เริ่มต้นด้วยการเพิ่มประเภท เช่น "มือถือ", "อะไหล่"</p>
+            <p className="text-xs mt-0.5">เริ่มต้นด้วยการเพิ่มประเภท เช่น &ldquo;มือถือ&rdquo;, &ldquo;อะไหล่&rdquo;</p>
           </div>
           <Button size="sm" variant="outline" onClick={openAddType}>
             <Plus className="h-4 w-4 mr-1.5" />
@@ -448,7 +447,7 @@ export default function CategoriesPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>ยืนยันการลบประเภท</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-700 py-2">
-            ต้องการลบประเภท <span className="font-semibold">"{deleteTypeTarget?.name}"</span> ใช่หรือไม่?
+            ต้องการลบประเภท <span className="font-semibold">&ldquo;{deleteTypeTarget?.name}&rdquo;</span> ใช่หรือไม่?
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTypeTarget(null)} disabled={deleteTypeMutation.isPending}>
@@ -471,7 +470,7 @@ export default function CategoriesPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>ยืนยันการลบหมวดหมู่</DialogTitle></DialogHeader>
           <p className="text-sm text-gray-700 py-2">
-            ต้องการลบหมวดหมู่ <span className="font-semibold">"{deleteCatTarget?.name}"</span> ใช่หรือไม่?
+            ต้องการลบหมวดหมู่ <span className="font-semibold">&ldquo;{deleteCatTarget?.name}&rdquo;</span> ใช่หรือไม่?
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteCatTarget(null)} disabled={deleteCatMutation.isPending}>

@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import api from '@/lib/api'
 import type { StockTransfer } from '@/types'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
+import { PageHeader } from '@/components/ui/page-header'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -114,11 +115,14 @@ function TransfersContent() {
   const isOwner         = user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN'
   const currentBranchId = user?.branchId ?? null
   const highlightRef    = useRef<HTMLDivElement | null>(null)
+  const actionFiredRef  = useRef(false)
 
-  if (!hasPerm('stock.transfer')) {
-    router.replace('/403')
-    return null
-  }
+  // Validate ?action= — only 'approve' and 'receive' are handled
+  const rawAction = searchParams.get('action')
+  const deepAction: 'approve' | 'receive' | null =
+    rawAction === 'approve' || rawAction === 'receive' ? rawAction : null
+
+  const authorized = hasPerm('stock.transfer')
 
   const { data: transfers = [], isLoading } = useQuery<StockTransfer[]>({
     queryKey: ['stock-transfers', filter, currentBranchId],
@@ -129,6 +133,7 @@ function TransfersContent() {
       return (await api.get(`/branches/transfers/list?${params}`)).data
     },
     staleTime: 20_000,
+    enabled: authorized,
   })
 
   const { data: pendingSource = [] } = useQuery<StockTransfer[]>({
@@ -138,7 +143,7 @@ function TransfersContent() {
       const params = new URLSearchParams({ status: 'PENDING', branchId: currentBranchId })
       return (await api.get(`/branches/transfers/list?${params}`)).data
     },
-    enabled: !isOwner && !!currentBranchId,
+    enabled: authorized && !isOwner && !!currentBranchId,
     staleTime: 30_000,
     refetchInterval: 60_000,
   })
@@ -150,6 +155,31 @@ function TransfersContent() {
       highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [highlight, transfers])
+
+  // Deep-link: auto-open confirmation modal for ?action=approve|receive
+  useEffect(() => {
+    if (!deepAction || !highlight || actionFiredRef.current || isLoading) return
+    const transfer = transfers.find(t => t.id === highlight)
+    if (!transfer) return
+
+    const src = isOwner || currentBranchId === transfer.fromBranchId
+    const dst = isOwner || currentBranchId === transfer.toBranchId
+
+    const permitted =
+      (deepAction === 'approve' && transfer.status === 'PENDING'    && src) ||
+      (deepAction === 'receive' && transfer.status === 'IN_TRANSIT' && dst)
+
+    if (!permitted) return
+
+    actionFiredRef.current = true
+    setPendingAction({ kind: deepAction, transfer })
+
+    // Strip ?action from URL so refetches don't re-trigger the modal
+    const p = new URLSearchParams(searchParams.toString())
+    p.delete('action')
+    router.replace(`/transfers?${p.toString()}`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transfers, isLoading])
 
   // ── Mutations ────────────────────────────────────────────────────────────────
 
@@ -197,6 +227,11 @@ function TransfersContent() {
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
   })
 
+  if (!authorized) {
+    router.replace('/403')
+    return null
+  }
+
   // ── Action dispatch ───────────────────────────────────────────────────────
 
   const isMutating = approveMut.isPending || rejectMut.isPending ||
@@ -228,21 +263,18 @@ function TransfersContent() {
   const dialogCfg = pendingAction ? getDialogConfig(pendingAction.kind) : null
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <ArrowRightLeft className="h-6 w-6 text-blue-600" />
-          โอนสต๊อก
-        </h1>
-        <p className="text-sm text-slate-500 mt-0.5">จัดการคำขอโอนสินค้าระหว่างสาขา</p>
-      </div>
+    <div className="max-w-5xl space-y-5">
+      <PageHeader
+        title="โอนสต๊อก"
+        icon={ArrowRightLeft}
+        subtitle="จัดการคำขอโอนสินค้าระหว่างสาขา"
+      />
 
       {/* Source branch pending alert */}
       {!isOwner && pendingSourceCount > 0 && (
-        <div className="flex items-center gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
           <Bell className="h-5 w-5 text-amber-600 shrink-0" />
-          <p className="text-sm font-medium text-amber-800 flex-1">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300 flex-1">
             มี {pendingSourceCount} คำขอโอนสินค้ารออนุมัติจากสาขาของคุณ
           </p>
           <button
@@ -264,7 +296,7 @@ function TransfersContent() {
               'rounded-full px-3 py-1 text-xs font-medium border transition-colors',
               filter === f.val
                 ? 'bg-blue-600 border-blue-600 text-white'
-                : 'border-slate-300 text-slate-600 hover:border-blue-400',
+                : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-blue-400',
             )}
           >
             {f.label}
@@ -297,17 +329,17 @@ function TransfersContent() {
                 id={`transfer-${t.id}`}
                 ref={isHighlighted ? highlightRef : null}
                 className={cn(
-                  'rounded-xl border bg-white p-4 shadow-sm transition-all',
+                  'rounded-xl border bg-white dark:bg-slate-900 p-4 shadow-sm transition-all',
                   isHighlighted
-                    ? 'border-blue-500 ring-2 ring-blue-200 shadow-blue-100'
-                    : 'border-slate-200',
+                    ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-700 shadow-blue-100'
+                    : 'border-slate-200 dark:border-slate-800',
                 )}
               >
                 <div className="flex items-start justify-between gap-4">
                   {/* Info */}
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs text-slate-500">{t.transferNumber}</span>
+                      <span className="font-mono text-xs text-slate-500 dark:text-slate-400">{t.transferNumber}</span>
                       <TransferStatusBadge status={t.status} />
                       {!isOwner && (
                         <span className={cn(
@@ -321,7 +353,7 @@ function TransfersContent() {
                       )}
                     </div>
 
-                    <p className="text-sm font-semibold text-slate-800">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
                       {t.product?.name ?? '—'}
                       {t.product?.sku && (
                         <span className="ml-1.5 font-normal text-xs text-slate-400">({t.product.sku})</span>
@@ -329,21 +361,21 @@ function TransfersContent() {
                       <span className="ml-1.5 text-blue-700 font-bold">×{t.quantity}</span>
                     </p>
 
-                    <div className="flex items-center gap-1.5 text-sm text-slate-600 flex-wrap">
+                    <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 flex-wrap">
                       <span className="font-medium truncate max-w-[150px]">{t.fromBranch?.name ?? '—'}</span>
                       <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                       <span className="font-medium truncate max-w-[150px]">{t.toBranch?.name ?? '—'}</span>
                     </div>
 
-                    {t.note && <p className="text-xs text-slate-400 italic">{t.note}</p>}
+                    {t.note && <p className="text-xs text-slate-400 dark:text-slate-500 italic">{t.note}</p>}
                     {t.rejectReason && (
                       <p className="flex items-center gap-1 text-xs text-red-500">
                         <AlertCircle className="h-3 w-3 shrink-0" />
                         เหตุผล: {t.rejectReason}
                       </p>
                     )}
-                    {t.cancelReason && <p className="text-xs text-slate-400">ยกเลิก: {t.cancelReason}</p>}
-                    <p className="text-xs text-slate-400">
+                    {t.cancelReason && <p className="text-xs text-slate-400 dark:text-slate-500">ยกเลิก: {t.cancelReason}</p>}
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
                       {new Date(t.createdAt).toLocaleString('th-TH')}
                       {t.requestedByName ? ` โดย ${t.requestedByName}` : ''}
                     </p>
@@ -419,7 +451,7 @@ function TransfersContent() {
                           </button>
                         )}
                         {src && !dst && (
-                          <span className="text-xs text-slate-400 italic">รอสาขาปลายทางรับ</span>
+                          <span className="text-xs text-slate-400 dark:text-slate-500 italic">รอสาขาปลายทางรับ</span>
                         )}
                         {isOwner && (
                           <button

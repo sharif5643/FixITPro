@@ -25,7 +25,9 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 # Runtime dependencies
-RUN apk add --no-cache openssl dumb-init
+# postgresql-client: provides pg_dump for the admin-triggered backup API endpoint.
+# Version must be >= the postgres server (15). Alpine's postgresql15-client matches exactly.
+RUN apk add --no-cache openssl dumb-init postgresql15-client
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
@@ -39,10 +41,10 @@ COPY --from=builder --chown=nestjs:nodejs /app/package.json  ./
 COPY --chown=nestjs:nodejs docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-# Create uploads directory before switching to non-root user.
+# Create uploads and backups directories before switching to non-root user.
 # Named volumes inherit ownership from the image directory on first mount,
-# so this ensures the nestjs user can write repair images.
-RUN mkdir -p /app/uploads/repairs && chown -R nestjs:nodejs /app/uploads
+# so this ensures the nestjs user can write repair images and backup files.
+RUN mkdir -p /app/uploads/repairs /app/backups && chown -R nestjs:nodejs /app/uploads /app/backups
 
 USER nestjs
 EXPOSE 3000

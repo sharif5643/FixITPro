@@ -297,6 +297,8 @@ export class SalesService {
     customerId?: string;
     shiftId?: string;
     branchId?: string;
+    limit?: number;
+    cursor?: string;
   }) {
     const where: any = {};
 
@@ -311,7 +313,9 @@ export class SalesService {
     if (query.shiftId)    where.shiftId    = query.shiftId;
     if (query.branchId)   where.branchId   = query.branchId;
 
-    return this.prisma.sale.findMany({
+    const take = Math.min(query.limit ?? 50, 200);
+
+    const findManyArgs: Parameters<typeof this.prisma.sale.findMany>[0] = {
       where,
       include: {
         items: { include: { product: { select: { name: true, sku: true } } } },
@@ -319,7 +323,24 @@ export class SalesService {
         user: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
-    });
+      take: take + 1,
+    };
+
+    if (query.cursor) {
+      findManyArgs.cursor = { id: query.cursor };
+      findManyArgs.skip   = 1;
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.sale.findMany(findManyArgs),
+      this.prisma.sale.count({ where }),
+    ]);
+
+    const hasNext  = rows.length > take;
+    const items    = hasNext ? rows.slice(0, take) : rows;
+    const nextCursor = hasNext ? items[items.length - 1].id : null;
+
+    return { items, nextCursor, total };
   }
 
   async findOne(id: string) {

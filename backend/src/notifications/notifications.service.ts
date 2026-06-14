@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 
 export interface CreateNotifData {
@@ -17,19 +17,21 @@ export const HIGH_VALUE_CUSTOMER_THRESHOLD = 50_000;
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(private prisma: PrismaService) {}
 
   onModuleInit() {
     // Check overdue alerts + expiring warranties 10s after startup, then every 30 minutes
     setTimeout(() => {
-      this.checkOverdueAlerts().catch((e) => console.warn('[Notifications] overdue check error:', e));
-      this.checkExpiringWarranties().catch((e) => console.warn('[Notifications] warranty check error:', e));
-      this.checkTechnicianAlerts().catch((e) => console.warn('[Notifications] technician check error:', e));
+      this.checkOverdueAlerts().catch((e) => this.logger.warn(`overdue check error: ${(e as Error).message}`));
+      this.checkExpiringWarranties().catch((e) => this.logger.warn(`warranty check error: ${(e as Error).message}`));
+      this.checkTechnicianAlerts().catch((e) => this.logger.warn(`technician check error: ${(e as Error).message}`));
     }, 10_000);
     setInterval(() => {
-      this.checkOverdueAlerts().catch((e) => console.warn('[Notifications] overdue check error:', e));
-      this.checkExpiringWarranties().catch((e) => console.warn('[Notifications] warranty check error:', e));
-      this.checkTechnicianAlerts().catch((e) => console.warn('[Notifications] technician check error:', e));
+      this.checkOverdueAlerts().catch((e) => this.logger.warn(`overdue check error: ${(e as Error).message}`));
+      this.checkExpiringWarranties().catch((e) => this.logger.warn(`warranty check error: ${(e as Error).message}`));
+      this.checkTechnicianAlerts().catch((e) => this.logger.warn(`technician check error: ${(e as Error).message}`));
     }, 30 * 60 * 1000);
   }
 
@@ -55,7 +57,7 @@ export class NotificationsService implements OnModuleInit {
         },
       });
     } catch (err) {
-      console.warn('[Notifications] Failed to create:', err);
+      this.logger.warn(`Failed to create notification: ${(err as Error).message}`);
     }
   }
 
@@ -166,8 +168,8 @@ export class NotificationsService implements OnModuleInit {
     // Customers with unpaid balance (DELIVERED repairs still pending payment)
     const unpaidRepairs = await this.prisma.repair.findMany({
       where: {
-        status:        'DELIVERED' as any,
-        paymentStatus: 'PENDING'   as any,
+        status:        'DELIVERED',
+        paymentStatus: 'PENDING',
         customerId:    { not: null },
       },
       include: {
@@ -348,7 +350,7 @@ export class NotificationsService implements OnModuleInit {
     await (this.prisma as any).warranty.updateMany({
       where: { status: 'ACTIVE', endDate: { lt: now } },
       data:  { status: 'EXPIRED' },
-    }).catch((e: any) => console.warn('[Notifications] warranty expire update error:', e));
+    }).catch((e: any) => this.logger.warn(`warranty expire update error: ${(e as Error).message}`));
 
     // Notify warranties expiring within 7 days
     const expiring = await (this.prisma as any).warranty.findMany({

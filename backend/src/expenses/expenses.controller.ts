@@ -14,9 +14,13 @@ import { UpdateExpenseCategoryDto } from './dto/update-expense-category.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { VoidExpenseDto } from './dto/void-expense.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
+import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+@RequireModule('finance')
+@UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
 @Controller('expenses')
 export class ExpensesController {
   constructor(private expensesService: ExpensesService) {}

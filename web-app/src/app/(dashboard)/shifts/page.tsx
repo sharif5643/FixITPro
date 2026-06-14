@@ -26,7 +26,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/ui/page-header'
+import { SectionCard } from '@/components/ui/section-card'
+import {
+  DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
+  DataTableRow, DataTableCell,
+} from '@/components/ui/data-table'
 import {
   Dialog,
   DialogContent,
@@ -217,39 +222,35 @@ export default function ShiftsPage() {
 
   return (
     <div className="space-y-5">
-      {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">เปิด / ปิดกะ</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">จัดการกะพนักงานประจำวัน</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <BranchContextBar className="hidden sm:flex" />
+      <PageHeader
+        title="เปิด / ปิดกะ"
+        icon={Clock}
+        subtitle="จัดการกะพนักงานประจำวัน"
+        secondaryActions={<BranchContextBar className="hidden sm:flex" />}
+        primaryAction={
           <Button variant="outline" size="sm" onClick={refresh} className="gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">รีเฟรช</span>
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── Current Shift Block ── */}
       {loadingCurrent ? (
-        <Card>
-          <CardContent className="flex items-center justify-center h-44 gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
+        <SectionCard>
+          <div className="flex items-center justify-center h-44 gap-2 text-slate-400">
+            <div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
             <span>กำลังโหลดสถานะกะ...</span>
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
       ) : currentShift ? (
         /* Active shift */
-        <Card className="border-green-300 bg-green-50/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold flex items-center gap-2 text-green-700">
-              <CheckCircle2 className="h-4 w-4" />
-              กะปัจจุบัน — กำลังดำเนินการ
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="rounded-xl border border-green-300 bg-green-50/40 p-5 space-y-4">
+          <div className="flex items-center gap-2 text-green-700 font-semibold text-sm">
+            <CheckCircle2 className="h-4 w-4" />
+            กะปัจจุบัน — กำลังดำเนินการ
+          </div>
+          <div className="space-y-4">
             {/* Meta */}
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-gray-700">
               <span className="flex items-center gap-1.5">
@@ -318,108 +319,71 @@ export default function ShiftsPage() {
                 ปิดกะ
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : isGlobalMode ? (
         /* Global mode — cannot open shift without a branch */
-        <Card className="border-blue-200 bg-blue-50/30">
-          <CardContent className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 border-2 border-blue-200">
-              <AlertTriangle className="h-6 w-6 text-blue-500" />
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900">กรุณาเลือกสาขาก่อนเปิดกะ</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                ใช้เมนูสาขาที่มุมขวาบนเพื่อเลือกสาขาที่ต้องการ
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-8 flex flex-col items-center justify-center gap-3 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 border-2 border-blue-200">
+            <AlertTriangle className="h-6 w-6 text-blue-500" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-900">กรุณาเลือกสาขาก่อนเปิดกะ</p>
+            <p className="text-sm text-slate-500 mt-1">ใช้เมนูสาขาที่มุมขวาบนเพื่อเลือกสาขาที่ต้องการ</p>
+          </div>
+        </div>
       ) : (
         /* No active shift — open form */
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-600" />
-              เปิดกะใหม่
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={openForm.handleSubmit((data) => openMutation.mutate(data))}
-              className="space-y-4 max-w-sm"
-            >
-              <div className="space-y-1.5">
-                <Label htmlFor="openBalance">เงินสดเริ่มต้น (บาท)</Label>
-                <Input
-                  id="openBalance"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  placeholder="0.00"
-                  autoFocus
-                  {...openForm.register('openBalance')}
-                  className={
-                    openForm.formState.errors.openBalance ? 'border-red-400 focus-visible:ring-red-400' : ''
-                  }
-                />
-                {openForm.formState.errors.openBalance && (
-                  <p className="text-xs text-red-500">
-                    {openForm.formState.errors.openBalance.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="openNote">หมายเหตุ (ไม่บังคับ)</Label>
-                <Input
-                  id="openNote"
-                  placeholder="เช่น กะเช้า, กะบ่าย..."
-                  {...openForm.register('note')}
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={openMutation.isPending}
-                className="gap-2"
-              >
-                {openMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Clock className="h-4 w-4" />
-                )}
-                เปิดกะ
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <SectionCard title="เปิดกะใหม่" icon={Clock}>
+          <form
+            onSubmit={openForm.handleSubmit((data) => openMutation.mutate(data))}
+            className="space-y-4 max-w-sm"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="openBalance">เงินสดเริ่มต้น (บาท)</Label>
+              <Input
+                id="openBalance"
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="0.00"
+                autoFocus
+                {...openForm.register('openBalance')}
+                className={openForm.formState.errors.openBalance ? 'border-red-400 focus-visible:ring-red-400' : ''}
+              />
+              {openForm.formState.errors.openBalance && (
+                <p className="text-xs text-red-500">{openForm.formState.errors.openBalance.message}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="openNote">หมายเหตุ (ไม่บังคับ)</Label>
+              <Input id="openNote" placeholder="เช่น กะเช้า, กะบ่าย..." {...openForm.register('note')} />
+            </div>
+            <Button type="submit" disabled={openMutation.isPending} className="gap-2">
+              {openMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
+              เปิดกะ
+            </Button>
+          </form>
+        </SectionCard>
       )}
 
       {/* ── Close Shift Result Card ── */}
       {closeResult && (
-        <Card className="border-blue-200 bg-blue-50/30">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold flex items-center gap-2 text-blue-700">
-                <CheckCircle2 className="h-4 w-4" />
-                ผลการปิดกะ
-              </CardTitle>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 w-7 p-0 text-muted-foreground hover:text-gray-900"
-                onClick={() => setCloseResult(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+        <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-blue-700 font-semibold text-sm">
+              <CheckCircle2 className="h-4 w-4" />
+              ผลการปิดกะ
             </div>
-            <p className="text-xs text-muted-foreground ml-6">
-              ปิดเมื่อ {fmtDateTime(closeResult.closedAt)} · พนักงาน: {closeResult.user.name}
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Summary stats */}
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-900" onClick={() => setCloseResult(null)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-slate-500">
+            ปิดเมื่อ {fmtDateTime(closeResult.closedAt)} · พนักงาน: {closeResult.user.name}
+          </p>
+
+          {/* Summary stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="rounded-xl border bg-white text-center py-3 px-2">
                 <p className="text-[10px] text-muted-foreground mb-1">ยอดขายรวม</p>
@@ -513,8 +477,7 @@ export default function ShiftsPage() {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+        </div>
       )}
 
       {/* ── Close Shift Dialog ── */}
@@ -653,127 +616,81 @@ export default function ShiftsPage() {
       </Dialog>
 
       {/* ── Shift History ── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-blue-600" />
-            ประวัติกะทั้งหมด
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loadingHistory ? (
-            <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm">กำลังโหลด...</span>
+      {/* ── Shift History ── */}
+      <SectionCard title="ประวัติกะทั้งหมด" icon={CalendarDays} noPadding>
+        {loadingHistory ? (
+          <div className="flex items-center justify-center h-32 gap-2 text-slate-400">
+            <div className="h-4 w-4 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+            <span className="text-sm">กำลังโหลด...</span>
+          </div>
+        ) : history.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-8 px-4">ยังไม่มีประวัติกะ</p>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <DataTable>
+                <DataTableHead>
+                  <DataTableHeadCell>วันที่เปิด</DataTableHeadCell>
+                  <DataTableHeadCell>วันที่ปิด</DataTableHeadCell>
+                  <DataTableHeadCell>พนักงาน</DataTableHeadCell>
+                  <DataTableHeadCell right>ยอดเริ่มต้น</DataTableHeadCell>
+                  <DataTableHeadCell right>ยอดปิด</DataTableHeadCell>
+                  <DataTableHeadCell>หมายเหตุ</DataTableHeadCell>
+                  <DataTableHeadCell className="text-center">สถานะ</DataTableHeadCell>
+                </DataTableHead>
+                <DataTableBody>
+                  {history.map((shift) => (
+                    <DataTableRow key={shift.id}>
+                      <DataTableCell className="whitespace-nowrap text-slate-700 text-xs">{fmtDate(shift.openedAt)}</DataTableCell>
+                      <DataTableCell muted className="whitespace-nowrap text-xs">{shift.closedAt ? fmtDate(shift.closedAt) : '—'}</DataTableCell>
+                      <DataTableCell className="text-slate-700 text-xs">{shift.user.name}</DataTableCell>
+                      <DataTableCell right className="tabular-nums font-medium text-xs">{formatThaiMoney(Number(shift.openBalance))}</DataTableCell>
+                      <DataTableCell right className="tabular-nums font-medium text-xs">{shift.closeBalance != null ? formatThaiMoney(Number(shift.closeBalance)) : '—'}</DataTableCell>
+                      <DataTableCell muted className="max-w-[140px] truncate text-xs">{shift.note ?? '—'}</DataTableCell>
+                      <DataTableCell className="text-center">
+                        {shift.isActive
+                          ? <span className="rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-semibold">กำลังเปิด</span>
+                          : <span className="rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-0.5 text-[10px] font-semibold">ปิดแล้ว</span>
+                        }
+                      </DataTableCell>
+                    </DataTableRow>
+                  ))}
+                </DataTableBody>
+              </DataTable>
             </div>
-          ) : history.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8 px-4">
-              ยังไม่มีประวัติกะ
-            </p>
-          ) : (
-            <>
-              {/* Desktop table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b bg-gray-50 text-gray-500">
-                      <th className="text-left px-4 py-2.5 font-medium">วันที่เปิด</th>
-                      <th className="text-left px-4 py-2.5 font-medium">วันที่ปิด</th>
-                      <th className="text-left px-4 py-2.5 font-medium">พนักงาน</th>
-                      <th className="text-right px-4 py-2.5 font-medium">ยอดเริ่มต้น</th>
-                      <th className="text-right px-4 py-2.5 font-medium">ยอดปิด</th>
-                      <th className="text-left px-4 py-2.5 font-medium">หมายเหตุ</th>
-                      <th className="text-center px-4 py-2.5 font-medium">สถานะ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((shift) => (
-                      <tr
-                        key={shift.id}
-                        className="border-b last:border-0 hover:bg-gray-50/60 transition-colors"
-                      >
-                        <td className="px-4 py-2.5 whitespace-nowrap text-gray-700">
-                          {fmtDate(shift.openedAt)}
-                        </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground">
-                          {shift.closedAt ? fmtDate(shift.closedAt) : '—'}
-                        </td>
-                        <td className="px-4 py-2.5 text-gray-700">{shift.user.name}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900">
-                          {formatThaiMoney(Number(shift.openBalance))}
-                        </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-medium text-gray-900">
-                          {shift.closeBalance != null
-                            ? formatThaiMoney(Number(shift.closeBalance))
-                            : '—'}
-                        </td>
-                        <td className="px-4 py-2.5 text-muted-foreground max-w-[140px] truncate">
-                          {shift.note ?? '—'}
-                        </td>
-                        <td className="px-4 py-2.5 text-center">
-                          {shift.isActive ? (
-                            <span className="rounded-full bg-green-100 text-green-700 border border-green-200 px-2.5 py-0.5 text-[10px] font-semibold">
-                              กำลังเปิด
-                            </span>
-                          ) : (
-                            <span className="rounded-full bg-gray-100 text-gray-600 border border-gray-200 px-2.5 py-0.5 text-[10px] font-semibold">
-                              ปิดแล้ว
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
 
-              {/* Mobile cards */}
-              <div className="md:hidden divide-y">
-                {history.map((shift) => (
-                  <div key={shift.id} className="px-4 py-3 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{shift.user.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {fmtDate(shift.openedAt)}
-                        </p>
-                      </div>
-                      {shift.isActive ? (
-                        <span className="rounded-full bg-green-100 text-green-700 border border-green-200 px-2.5 py-0.5 text-[10px] font-semibold shrink-0">
-                          กำลังเปิด
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-gray-100 text-gray-600 border border-gray-200 px-2.5 py-0.5 text-[10px] font-semibold shrink-0">
-                          ปิดแล้ว
-                        </span>
-                      )}
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y">
+              {history.map((shift) => (
+                <div key={shift.id} className="px-4 py-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{shift.user.name}</p>
+                      <p className="text-xs text-slate-400">{fmtDate(shift.openedAt)}</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-lg bg-gray-50 p-2">
-                        <p className="text-muted-foreground mb-0.5">ยอดเริ่มต้น</p>
-                        <p className="font-semibold tabular-nums">
-                          {formatThaiMoney(Number(shift.openBalance))}
-                        </p>
-                      </div>
-                      <div className="rounded-lg bg-gray-50 p-2">
-                        <p className="text-muted-foreground mb-0.5">ยอดปิด</p>
-                        <p className="font-semibold tabular-nums">
-                          {shift.closeBalance != null
-                            ? formatThaiMoney(Number(shift.closeBalance))
-                            : '—'}
-                        </p>
-                      </div>
-                    </div>
-                    {shift.note && (
-                      <p className="text-xs text-muted-foreground">{shift.note}</p>
-                    )}
+                    {shift.isActive
+                      ? <span className="rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-semibold shrink-0">กำลังเปิด</span>
+                      : <span className="rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-0.5 text-[10px] font-semibold shrink-0">ปิดแล้ว</span>
+                    }
                   </div>
-                ))}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg bg-slate-50 p-2">
+                      <p className="text-slate-400 mb-0.5">ยอดเริ่มต้น</p>
+                      <p className="font-semibold tabular-nums">{formatThaiMoney(Number(shift.openBalance))}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-2">
+                      <p className="text-slate-400 mb-0.5">ยอดปิด</p>
+                      <p className="font-semibold tabular-nums">{shift.closeBalance != null ? formatThaiMoney(Number(shift.closeBalance)) : '—'}</p>
+                    </div>
+                  </div>
+                  {shift.note && <p className="text-xs text-slate-400">{shift.note}</p>}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </SectionCard>
     </div>
   )
 }

@@ -6,11 +6,21 @@ import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bell, X, ChevronRight, AlertTriangle, AlertCircle,
-  ArrowRightLeft, Wrench, Package, Info,
+  ArrowRightLeft, Wrench, Package, Info, Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
+import {
+  loadReminderSettings,
+  DEFAULT_REMINDER_SETTINGS,
+  isSnoozeActive,
+  persistSnooze,
+  SNOOZE_DURATIONS,
+  type ReminderSettings,
+  type SnoozeDuration,
+} from '@/lib/reminder-settings'
+import { playAlertSound, triggerHaptic } from '@/lib/alert-sound'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -83,16 +93,16 @@ const SEV: Record<AlertSeverity, {
 }
 
 const TYPE_ICON: Record<AlertType, React.ElementType> = {
-  TRANSFER_PENDING:   ArrowRightLeft,
+  TRANSFER_PENDING:    ArrowRightLeft,
   TRANSFER_IN_TRANSIT: ArrowRightLeft,
-  REPAIR_OVERDUE:     Wrench,
-  LOW_STOCK:          Package,
-  OVERDUE_DEBT:       AlertCircle,
+  REPAIR_OVERDUE:      Wrench,
+  LOW_STOCK:           Package,
+  OVERDUE_DEBT:        AlertCircle,
 }
 
 // ── Dismiss helpers ───────────────────────────────────────────────────────────
 
-const CRITICAL_DISMISS_TTL = 60 * 60 * 1000  // 1 hour
+const CRITICAL_DISMISS_TTL = 60 * 60 * 1000
 
 function isDismissed(id: string, severity: AlertSeverity): boolean {
   if (typeof window === 'undefined') return false
@@ -121,29 +131,22 @@ function persistDismiss(id: string, severity: AlertSeverity): void {
   } catch { /* storage unavailable */ }
 }
 
-// ── Audio helper (SUNMI only) ─────────────────────────────────────────────────
+// ── Permission helpers (exported for tests) ───────────────────────────────────
 
-function playAlertBeep(): void {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-    const osc  = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.type = 'sine'
-    osc.frequency.value = 880
-    gain.gain.setValueAtTime(0.25, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.35)
-  } catch { /* audio unavailable */ }
+export function canApproveTransfer(role: string): boolean {
+  return ['OWNER', 'MANAGER', 'STOCK_STAFF'].includes(role)
 }
 
-async function triggerHaptic(): Promise<void> {
-  try {
-    const { Haptics, ImpactStyle } = await import('@capacitor/haptics')
-    await Haptics.impact({ style: ImpactStyle.Medium })
-  } catch { /* haptics unavailable */ }
+export function canReceiveTransfer(role: string): boolean {
+  return ['OWNER', 'MANAGER', 'STOCK_STAFF', 'CASHIER'].includes(role)
+}
+
+// ── Snooze label map ──────────────────────────────────────────────────────────
+
+const SNOOZE_LABELS: Record<SnoozeDuration, string> = {
+  15: '15 นาที',
+  30: '30 นาที',
+  60: '1 ชั่วโมง',
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -153,20 +156,26 @@ interface OperationalAlertCenterProps {
 }
 
 export function OperationalAlertCenter({ variant = 'desktop' }: OperationalAlertCenterProps) {
-  const router   = useRouter()
-  const user     = useAuthStore((s) => s.user)
-  const hasPerm  = useAuthStore((s) => s.hasPermission)
+  const router  = useRouter()
+  const user    = useAuthStore((s) => s.user)
+  const hasPerm = useAuthStore((s) => s.hasPermission)
 
-  const [collapsed, setCollapsed]           = useState(false)
-  const [dismissed, setDismissed]           = useState<Set<string>>(new Set())
-  const [mounted, setMounted]               = useState(false)
-  const playedRef = useRef<Set<string>>(new Set())
+  const [collapsed, setCollapsed]     = useState(false)
+  const [dismissed, setDismissed]     = useState<Set<string>>(new Set())
+  const [snoozed, setSnoozed]         = useState<Set<string>>(new Set())
+  const [snoozeOpen, setSnoozeOpen]   = useState<string | null>(null)
+  const [mounted, setMounted]         = useState(false)
+  const [settings, setSettings]       = useState<ReminderSettings>({ ...DEFAULT_REMINDER_SETTINGS })
+  const hapticRef = useRef<Set<string>>(new Set())
 
-  // SSR guard — session/local storage only available on client
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+    if (user?.id) setSettings(loadReminderSettings(user.id))
+  }, [user?.id])
 
   const isPrivileged = user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN'
   const canSeeAlerts = hasPerm('notification.view')
+  const intervalMs   = settings.intervalMinutes * 60_000
 
   const { data: alerts = [] } = useQuery<OperationalAlert[]>({
     queryKey: ['operational-alerts', user?.branchId],
@@ -177,35 +186,49 @@ export function OperationalAlertCenter({ variant = 'desktop' }: OperationalAlert
       return r.data
     },
     enabled:         mounted && canSeeAlerts,
-    staleTime:       25_000,
-    refetchInterval: 30_000,
+    staleTime:       Math.max(intervalMs - 5_000, 10_000),
+    refetchInterval: intervalMs,
   })
 
-  // Filter out dismissed alerts
+  // Apply type-filter, dismiss, and snooze
   const visibleAlerts = mounted
-    ? alerts.filter((a) => !dismissed.has(a.id) && !isDismissed(a.id, a.severity))
+    ? alerts.filter(a => {
+        if (dismissed.has(a.id) || isDismissed(a.id, a.severity)) return false
+        if (snoozed.has(a.id) || isSnoozeActive(a.id))            return false
+        if (a.type === 'REPAIR_OVERDUE'      && !settings.repairOverdue)     return false
+        if (a.type === 'TRANSFER_PENDING'    && !settings.transferPending)   return false
+        if (a.type === 'TRANSFER_IN_TRANSIT' && !settings.transferInTransit) return false
+        return true
+      })
     : []
 
-  // Play sound + haptic for new CRITICAL / TRANSFER_PENDING on SUNMI
+  // Sound (desktop + SUNMI) and haptic (SUNMI only) for new critical/pending alerts
   useEffect(() => {
-    if (variant !== 'sunmi' || !mounted) return
-    let triggered = false
+    if (!mounted || !settings.enabled) return
+    let needsHaptic = false
     for (const a of visibleAlerts) {
-      if (!playedRef.current.has(a.id) &&
-          (a.severity === 'CRITICAL' || a.type === 'TRANSFER_PENDING')) {
-        playedRef.current.add(a.id)
-        if (!triggered) {
-          triggered = true
-          playAlertBeep()
-          triggerHaptic()
+      if (a.severity === 'CRITICAL' || a.type === 'TRANSFER_PENDING') {
+        // playAlertSound has module-level session dedup — safe to call each render
+        playAlertSound(a.id, a.severity === 'CRITICAL' ? 'critical' : 'soft', settings.sound)
+        if (variant === 'sunmi' && settings.sunmi && !hapticRef.current.has(a.id)) {
+          hapticRef.current.add(a.id)
+          needsHaptic = true
         }
       }
     }
-  }, [visibleAlerts, variant, mounted])
+    if (needsHaptic) triggerHaptic()
+  }, [visibleAlerts, variant, mounted, settings.enabled, settings.sound, settings.sunmi])
 
   const dismiss = useCallback((id: string, severity: AlertSeverity) => {
     persistDismiss(id, severity)
-    setDismissed((prev) => { const next = new Set(Array.from(prev)); next.add(id); return next })
+    setDismissed(prev => { const next = new Set(Array.from(prev)); next.add(id); return next })
+    if (snoozeOpen === id) setSnoozeOpen(null)
+  }, [snoozeOpen])
+
+  const snooze = useCallback((id: string, minutes: SnoozeDuration) => {
+    persistSnooze(id, minutes)
+    setSnoozed(prev => { const next = new Set(Array.from(prev)); next.add(id); return next })
+    setSnoozeOpen(null)
   }, [])
 
   const navigate = useCallback((alert: OperationalAlert) => {
@@ -235,7 +258,6 @@ export function OperationalAlertCenter({ variant = 'desktop' }: OperationalAlert
               {visibleAlerts.slice(0, 6).map((a) => {
                 const scfg   = SEV[a.severity] ?? SEV.INFO
                 const TypeIc = TYPE_ICON[a.type] ?? Info
-                const SevIc  = scfg.icon
                 return (
                   <motion.div
                     key={a.id}
@@ -244,32 +266,107 @@ export function OperationalAlertCenter({ variant = 'desktop' }: OperationalAlert
                     exit={{ opacity: 0, x: 16 }}
                     transition={{ duration: 0.2 }}
                     className={cn(
-                      'rounded-2xl border shadow-lg px-3.5 py-3 flex items-start gap-3 cursor-pointer',
+                      'rounded-2xl border shadow-lg px-3.5 py-3 flex flex-col gap-2 cursor-pointer',
                       'hover:shadow-xl transition-shadow',
                       scfg.bg, scfg.border,
                     )}
                     onClick={() => navigate(a)}
                   >
-                    <div className={cn('mt-0.5 shrink-0 rounded-xl p-1.5', scfg.bg)}>
-                      <TypeIc className={cn('h-4 w-4', scfg.text)} />
+                    {/* Top row: type icon + title + snooze + dismiss */}
+                    <div className="flex items-start gap-3">
+                      <div className={cn('mt-0.5 shrink-0 rounded-xl p-1.5', scfg.bg)}>
+                        <TypeIc className={cn('h-4 w-4', scfg.text)} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn('text-xs font-semibold leading-tight', scfg.text)}>
+                          {a.title}
+                        </p>
+                        <p className="text-xs text-slate-600 mt-0.5 leading-snug line-clamp-2">
+                          {a.message}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {/* Snooze dropdown */}
+                        <div className="relative">
+                          <button
+                            onClick={e => {
+                              e.stopPropagation()
+                              setSnoozeOpen(snoozeOpen === a.id ? null : a.id)
+                            }}
+                            className="p-0.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-white/60 transition-colors"
+                            title="เลื่อนการแจ้งเตือน"
+                          >
+                            <Clock className="h-3.5 w-3.5" />
+                          </button>
+                          <AnimatePresence>
+                            {snoozeOpen === a.id && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, y: -4 }}
+                                transition={{ duration: 0.12 }}
+                                className="absolute right-0 top-7 z-20 bg-white rounded-xl shadow-xl border border-slate-200 py-1 min-w-[110px]"
+                              >
+                                {SNOOZE_DURATIONS.map(dur => (
+                                  <button
+                                    key={dur}
+                                    onClick={e => { e.stopPropagation(); snooze(a.id, dur) }}
+                                    className="w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 text-slate-700"
+                                  >
+                                    {SNOOZE_LABELS[dur]}
+                                  </button>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        {/* Dismiss */}
+                        <button
+                          onClick={e => { e.stopPropagation(); dismiss(a.id, a.severity) }}
+                          className="p-0.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-white/60 transition-colors"
+                          aria-label="ปิด"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn('text-xs font-semibold leading-tight', scfg.text)}>
-                        {a.title}
-                      </p>
-                      <p className="text-xs text-slate-600 mt-0.5 leading-snug line-clamp-2">
-                        {a.message}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
+
+                    {/* Bottom row: role-gated quick actions + view */}
+                    <div
+                      className="flex items-center gap-1.5 pl-[30px]"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {a.type === 'TRANSFER_PENDING' &&
+                       user?.role && canApproveTransfer(user.role) && (
+                        <button
+                          onClick={() => navigate({ ...a, actionUrl: `${a.actionUrl}&action=approve` })}
+                          className={cn(
+                            'text-[11px] font-semibold px-2 py-1 rounded-lg border transition-colors hover:opacity-80',
+                            scfg.bg, scfg.text, scfg.border,
+                          )}
+                        >
+                          อนุมัติ
+                        </button>
+                      )}
+                      {a.type === 'TRANSFER_IN_TRANSIT' &&
+                       user?.role && canReceiveTransfer(user.role) && (
+                        <button
+                          onClick={() => navigate({ ...a, actionUrl: `${a.actionUrl}&action=receive` })}
+                          className={cn(
+                            'text-[11px] font-semibold px-2 py-1 rounded-lg border transition-colors hover:opacity-80',
+                            scfg.bg, scfg.text, scfg.border,
+                          )}
+                        >
+                          รับสินค้า
+                        </button>
+                      )}
                       <button
-                        onClick={(e) => { e.stopPropagation(); dismiss(a.id, a.severity) }}
-                        className="p-0.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-white/60 transition-colors"
-                        aria-label="ปิด"
+                        onClick={() => navigate(a)}
+                        className="ml-auto text-[11px] font-medium px-2 py-1 rounded-lg bg-white/70 text-slate-600 hover:bg-white border border-slate-200 flex items-center gap-1"
                       >
-                        <X className="h-3.5 w-3.5" />
+                        ดูรายการ
+                        <ChevronRight className="h-3 w-3" />
                       </button>
-                      <ChevronRight className={cn('h-3.5 w-3.5', scfg.text)} />
                     </div>
                   </motion.div>
                 )
@@ -285,7 +382,7 @@ export function OperationalAlertCenter({ variant = 'desktop' }: OperationalAlert
 
         {/* Toggle badge */}
         <button
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => setCollapsed(c => !c)}
           className={cn(
             'self-end flex items-center gap-2 rounded-2xl px-4 py-2.5 shadow-lg',
             'text-white font-semibold text-sm transition-all hover:shadow-xl',
@@ -329,8 +426,16 @@ export function OperationalAlertCenter({ variant = 'desktop' }: OperationalAlert
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className={cn('text-xs font-semibold', scfg.sunmiText)}>ดูรายการ</span>
+                {/* Quick 15-min snooze for SUNMI */}
                 <button
-                  onClick={(e) => { e.stopPropagation(); dismiss(a.id, a.severity) }}
+                  onClick={e => { e.stopPropagation(); snooze(a.id, 15) }}
+                  className="p-1 rounded-xl text-slate-500 hover:text-slate-300"
+                  title="เลื่อน 15 นาที"
+                >
+                  <Clock className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); dismiss(a.id, a.severity) }}
                   className="p-1 rounded-xl text-slate-500 hover:text-slate-300"
                   aria-label="ปิด"
                 >

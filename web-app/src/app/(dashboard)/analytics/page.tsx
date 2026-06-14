@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 import { formatThaiMoney } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
@@ -741,31 +742,21 @@ export default function AnalyticsPage() {
     <div className="flex flex-col min-h-full bg-slate-50">
       <BranchContextBar />
 
-      {/* Page header */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <BarChart2 className="h-5 w-5 text-blue-600" />
-            <h1 className="text-lg font-bold text-slate-900">วิเคราะห์เชิงลึก</h1>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <DateRangePicker
-              startDate={startDate}
-              endDate={endDate}
-              onStartChange={setStartDate}
-              onEndChange={setEndDate}
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={refetchAll}
-              className="flex items-center gap-1.5"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              รีเฟรช
-            </Button>
-          </div>
-        </div>
+      <div className="bg-white border-b border-slate-200 px-4 pb-2">
+        <PageHeader
+          title="วิเคราะห์เชิงลึก"
+          icon={BarChart2}
+          subtitle="ภาพรวมธุรกิจ · สต็อก · งานซ่อม · ผลกำไร"
+          primaryAction={
+            <div className="flex items-center gap-2">
+              <DateRangePicker startDate={startDate} endDate={endDate} onStartChange={setStartDate} onEndChange={setEndDate} />
+              <Button size="sm" variant="outline" onClick={refetchAll} className="gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" />
+                รีเฟรช
+              </Button>
+            </div>
+          }
+        />
       </div>
 
       {/* Content */}

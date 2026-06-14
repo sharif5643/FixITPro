@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { RefreshCw, Building2, AlertTriangle, ChevronRight } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn, formatThaiMoney } from '@/lib/utils'
@@ -47,17 +48,17 @@ export default function SupplierAgingPage() {
 
   return (
     <div className="space-y-5 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">รายงานเจ้าหนี้ (AP Aging)</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">ยอดค้างชำระแยกตามอายุหนี้ของซัพพลายเออร์</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching} className="gap-2 shrink-0">
-          <RefreshCw className={cn('h-3.5 w-3.5', isRefetching && 'animate-spin')} />
-          รีเฟรช
-        </Button>
-      </div>
+      <PageHeader
+        title="รายงานเจ้าหนี้ (AP Aging)"
+        icon={Building2}
+        subtitle="ยอดค้างชำระแยกตามอายุหนี้ของซัพพลายเออร์"
+        primaryAction={
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching} className="gap-2">
+            <RefreshCw className={cn('h-3.5 w-3.5', isRefetching && 'animate-spin')} />
+            รีเฟรช
+          </Button>
+        }
+      />
 
       {/* Global overdue alert */}
       {hasOverdue90 && (

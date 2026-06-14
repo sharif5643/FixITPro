@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -131,18 +132,18 @@ export default function ClaimsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">จัดการเคลม</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">ติดตามและจัดการเคลมประกันสินค้า</p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)} className="shrink-0 gap-2">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">สร้างเคลมใหม่</span>
-          <span className="sm:hidden">สร้าง</span>
-        </Button>
-      </div>
+      <PageHeader
+        title="จัดการเคลม"
+        icon={ShieldCheck}
+        subtitle="ติดตามและจัดการเคลมประกันสินค้า"
+        primaryAction={
+          <Button onClick={() => setCreateOpen(true)} className="shrink-0 gap-2">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">สร้างเคลมใหม่</span>
+            <span className="sm:hidden">สร้าง</span>
+          </Button>
+        }
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

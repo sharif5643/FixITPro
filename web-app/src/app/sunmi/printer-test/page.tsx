@@ -148,7 +148,7 @@ export default function PrinterTestPage() {
           {/* Instructions */}
           <div className="bg-slate-50 rounded-2xl p-4 space-y-1.5 text-xs text-slate-500">
             <p className="font-semibold text-slate-600 text-sm mb-2">วิธีใช้งาน</p>
-            <p>1. กด "พิมพ์ทดสอบ" → เลือกเครื่องพิมพ์</p>
+            <p>1. กด &ldquo;พิมพ์ทดสอบ&rdquo; → เลือกเครื่องพิมพ์</p>
             <p>2. InnerPrinter: ใช้กับ SUNMI ROM เท่านั้น</p>
             <p>3. Bluetooth: จับคู่เครื่องพิมพ์ใน Android ก่อน</p>
             <p>4. ตั้งค่าเริ่มต้นเพื่อข้ามขั้นตอนเลือกเครื่องพิมพ์</p>

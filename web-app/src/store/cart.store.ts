@@ -24,18 +24,19 @@ export const useCartStore = create<CartStore>()(
       discount: 0,
 
       addItem: (product) => {
-        const items = get().items
-        const existing = items.find((i) => i.product.id === product.id)
+        const items     = get().items
+        const available = product.branchQuantity ?? product.stock
+        const existing  = items.find((i) => i.product.id === product.id)
         if (existing) {
           const newQty = existing.quantity + 1
-          if (newQty > product.stock) return
+          if (newQty > available) return
           set({
             items: items.map((i) =>
               i.product.id === product.id ? { ...i, quantity: newQty } : i,
             ),
           })
         } else {
-          if (product.stock < 1) return
+          if (available < 1) return
           set({ items: [...items, { product, quantity: 1 }] })
         }
       },
@@ -49,7 +50,9 @@ export const useCartStore = create<CartStore>()(
           return
         }
         const item = get().items.find((i) => i.product.id === productId)
-        if (item && quantity > item.product.stock) return
+        if (!item) return
+        const available = item.product.branchQuantity ?? item.product.stock
+        if (quantity > available) return
         set({
           items: get().items.map((i) =>
             i.product.id === productId ? { ...i, quantity } : i,

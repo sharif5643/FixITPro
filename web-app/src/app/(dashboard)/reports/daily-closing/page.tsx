@@ -14,6 +14,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
+import { ModuleGate } from '@/components/auth/module-gate'
+import { PageHeader } from '@/components/ui/page-header'
 import api from '@/lib/api'
 import { DrillDrawer, MetricCard } from '@/components/reports/drill-drawer'
 
@@ -95,10 +97,10 @@ const PM_ICON: Record<string, React.ElementType> = { CASH: Banknote, TRANSFER: S
 function SectionHeader({ icon: Icon, title, badge }: { icon: React.ElementType; title: string; badge?: string | number }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-        <Icon className="h-4 w-4 text-slate-600" />
+      <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+        <Icon className="h-4 w-4 text-slate-600 dark:text-slate-400" />
       </div>
-      <h2 className="font-bold text-gray-900">{title}</h2>
+      <h2 className="font-bold text-gray-900 dark:text-white">{title}</h2>
       {badge !== undefined && badge !== 0 && (
         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
           {badge}
@@ -171,7 +173,7 @@ function exportCSV(data: DailyClosingReport, date: string) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function DailyClosingReportPage() {
-  const { user, hasPermission } = useAuthStore()
+  const { user, hasPermission, hasModule } = useAuthStore()
   const isOwnerOrManager = user?.role === 'OWNER' || user?.role === 'MANAGER' || hasPermission('reports.view')
 
   const [dateStr, setDateStr] = useState(todayStr)
@@ -414,6 +416,8 @@ export default function DailyClosingReportPage() {
     )
   }, [data])
 
+  if (!hasModule('report')) return <ModuleGate module="report">{null}</ModuleGate>
+
   if (!isOwnerOrManager) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-2 text-muted-foreground">
@@ -428,12 +432,12 @@ export default function DailyClosingReportPage() {
       <div className="space-y-5 pb-12 print:space-y-3">
 
         {/* ── Header ── */}
-        <div className="flex items-start justify-between gap-3 print:hidden">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">รายงานปิดวัน</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">สรุปรายได้ · การซ่อม · กะ · แจ้งเตือน</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
+        <PageHeader
+          title="รายงานปิดวัน"
+          icon={BarChart2}
+          subtitle="สรุปรายได้ · การซ่อม · กะ · แจ้งเตือน"
+          className="print:hidden"
+          secondaryActions={
             <input
               type="date"
               value={dateStr}
@@ -441,21 +445,23 @@ export default function DailyClosingReportPage() {
               onChange={(e) => setDateStr(e.target.value)}
               className="h-9 px-3 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isRefetching} className="gap-1.5">
-              <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5">
-              <Printer className="h-3.5 w-3.5" />
-              พิมพ์
-            </Button>
-            {data && (
-              <Button size="sm" variant="outline" onClick={() => exportCSV(data, dateStr)} className="gap-1.5">
-                <Download className="h-3.5 w-3.5" />
-                CSV
+          }
+          primaryAction={
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isRefetching} className="gap-1.5">
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
               </Button>
-            )}
-          </div>
-        </div>
+              <Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5">
+                <Printer className="h-3.5 w-3.5" />พิมพ์
+              </Button>
+              {data && (
+                <Button size="sm" variant="outline" onClick={() => exportCSV(data, dateStr)} className="gap-1.5">
+                  <Download className="h-3.5 w-3.5" />CSV
+                </Button>
+              )}
+            </div>
+          }
+        />
 
         {/* Print header */}
         <div className="hidden print:block border-b pb-3 mb-4">
@@ -466,7 +472,7 @@ export default function DailyClosingReportPage() {
         {isLoading && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-24 bg-white rounded-xl border animate-pulse" />
+              <div key={i} className="h-24 bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 animate-pulse" />
             ))}
           </div>
         )}
@@ -552,11 +558,11 @@ export default function DailyClosingReportPage() {
             {/* ── 2. Sales Transactions ── */}
             <section className="print:break-inside-avoid">
               <SectionHeader icon={ShoppingCart} title="รายการขาย POS" badge={data.sales.count} />
-              <div className="bg-white rounded-xl border overflow-hidden">
+              <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                         <th className="text-left px-4 py-2.5 font-medium">เวลา</th>
                         <th className="text-left px-4 py-2.5 font-medium">ใบเสร็จ</th>
                         <th className="text-left px-4 py-2.5 font-medium">ลูกค้า</th>
@@ -569,7 +575,7 @@ export default function DailyClosingReportPage() {
                       {data.sales.items.map((s: any) => {
                         const PMIcon = PM_ICON[s.paymentMethod] ?? PM_ICON.CASH
                         return (
-                          <tr key={s.id} className="border-b last:border-0 hover:bg-gray-50/60">
+                          <tr key={s.id} className="border-b dark:border-slate-800 last:border-0 hover:bg-gray-50/60 dark:hover:bg-slate-800/40 transition-colors">
                             <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
                               {format(new Date(s.createdAt), 'HH:mm', { locale: th })}
                             </td>
@@ -618,7 +624,7 @@ export default function DailyClosingReportPage() {
                         openDrawer(`งาน: ${label}`, repairStatusDrawer(key))
                       }
                     }}
-                    className="bg-white rounded-xl border p-3 text-center hover:border-blue-300 hover:shadow-sm transition-all group"
+                    className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-3 text-center hover:border-blue-300 hover:shadow-sm transition-all group"
                   >
                     <p className={`text-2xl font-bold tabular-nums ${key === 'OVERDUE' ? 'text-red-600' : 'text-gray-900'}`}>{val}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
@@ -633,13 +639,13 @@ export default function DailyClosingReportPage() {
               <SectionHeader icon={Clock} title="สรุปกะ" badge={data.shifts.items.length} />
               <div className="space-y-3">
                 {data.shifts.items.length === 0 && (
-                  <div className="bg-white rounded-xl border p-4 text-center text-sm text-muted-foreground">ไม่มีข้อมูลกะ</div>
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4 text-center text-sm text-muted-foreground">ไม่มีข้อมูลกะ</div>
                 )}
                 {data.shifts.items.map((shift) => (
-                  <div key={shift.id} className="bg-white rounded-xl border p-4 space-y-3">
+                  <div key={shift.id} className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-bold text-gray-900">{shift.user.name}</p>
+                        <p className="font-bold text-gray-900 dark:text-white">{shift.user.name}</p>
                         <p className="text-xs text-muted-foreground">
                           เปิด {format(new Date(shift.openedAt), 'HH:mm', { locale: th })}
                           {shift.closedAt && ` · ปิด ${format(new Date(shift.closedAt), 'HH:mm', { locale: th })}`}
@@ -690,7 +696,7 @@ export default function DailyClosingReportPage() {
             <section className="print:break-inside-avoid">
               <SectionHeader icon={Receipt} title="ค่าใช้จ่ายวันนี้" badge={data.expenses.count} />
               {data.expenses.byCategory.length > 0 ? (
-                <div className="bg-white rounded-xl border p-4 space-y-3">
+                <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4 space-y-3">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {data.expenses.byCategory.slice(0, 4).map((c) => (
                       <button
@@ -704,8 +710,8 @@ export default function DailyClosingReportPage() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t">
-                    <span className="text-sm font-medium text-gray-700">รวมค่าใช้จ่ายทั้งหมด</span>
+                  <div className="flex items-center justify-between pt-1 border-t dark:border-slate-700">
+                    <span className="text-sm font-medium text-gray-700 dark:text-slate-200">รวมค่าใช้จ่ายทั้งหมด</span>
                     <button
                       onClick={() => openDrawer('ค่าใช้จ่ายวันนี้', expenseDrawer)}
                       className="flex items-center gap-1 font-bold text-orange-700 tabular-nums hover:underline"
@@ -716,7 +722,7 @@ export default function DailyClosingReportPage() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border p-4 text-center text-sm text-muted-foreground">
+                <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4 text-center text-sm text-muted-foreground">
                   ไม่มีค่าใช้จ่ายที่บันทึกในวันนี้
                 </div>
               )}
@@ -761,7 +767,7 @@ export default function DailyClosingReportPage() {
               <SectionHeader icon={Award} title="ผลงานวันนี้" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Top products */}
-                <div className="bg-white rounded-xl border p-4">
+                <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">สินค้าขายดี</p>
                   <div className="space-y-2">
                     {data.performance.topProducts.slice(0, 5).map((p, idx) => (
@@ -783,7 +789,7 @@ export default function DailyClosingReportPage() {
                 </div>
 
                 {/* Staff performance */}
-                <div className="bg-white rounded-xl border p-4">
+                <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">ผลงานพนักงาน</p>
                   <div className="space-y-2">
                     {data.performance.topStaff.slice(0, 5).map((s, idx) => (

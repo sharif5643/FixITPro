@@ -11,6 +11,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
 import { DrillDrawer } from '@/components/reports/drill-drawer'
+import { PageHeader } from '@/components/ui/page-header'
+import { useAuthStore } from '@/store/auth.store'
+import { ModuleGate } from '@/components/auth/module-gate'
 import api from '@/lib/api'
 import type {
   ProfitReport,
@@ -204,6 +207,7 @@ function ProfitBar({
 type DrawerKey = 'pos' | 'repair' | 'package' | 'expense' | 'net' | null
 
 export default function ProfitReportPage() {
+  const hasModule = useAuthStore((s) => s.hasModule)
   const [refMonth, setRefMonth]     = useState(() => new Date())
   const [mode, setMode]             = useState<'month' | 'custom'>('month')
   const [customStart, setCustomStart] = useState(() => format(new Date(), 'yyyy-MM-dd'))
@@ -385,70 +389,55 @@ export default function ProfitReportPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
+  if (!hasModule('report')) return <ModuleGate module="report">{null}</ModuleGate>
+
   return (
     <>
-      <div className="space-y-6 p-4 md:p-6 print:space-y-4">
+      <div className="space-y-6 print:space-y-4">
 
         {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-blue-600" />
-              รายงานกำไร
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              คลิกที่การ์ดเพื่อดูรายละเอียด &nbsp;|&nbsp; Net Profit = Gross − ค่าใช้จ่าย
-            </p>
-          </div>
-
-          {/* Period selector */}
-          <div className="flex items-center gap-2 flex-wrap print:hidden">
-            <div className="flex rounded-lg border overflow-hidden text-sm">
-              <button
-                onClick={() => setMode('month')}
-                className={`px-3 py-1.5 ${mode === 'month' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-              >
-                รายเดือน
-              </button>
-              <button
-                onClick={() => setMode('custom')}
-                className={`px-3 py-1.5 ${mode === 'custom' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-              >
-                กำหนดเอง
-              </button>
+        <PageHeader
+          title="รายงานกำไร"
+          icon={TrendingUp}
+          subtitle="คลิกที่การ์ดเพื่อดูรายละเอียด · Net Profit = Gross − ค่าใช้จ่าย"
+          primaryAction={
+            <div className="flex items-center gap-2 flex-wrap print:hidden">
+              <div className="flex rounded-lg border overflow-hidden text-sm">
+                <button
+                  onClick={() => setMode('month')}
+                  className={`px-3 py-1.5 ${mode === 'month' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                >
+                  รายเดือน
+                </button>
+                <button
+                  onClick={() => setMode('custom')}
+                  className={`px-3 py-1.5 ${mode === 'custom' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                >
+                  กำหนดเอง
+                </button>
+              </div>
+              {mode === 'month' ? (
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setRefMonth((d) => subMonths(d, 1))}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm font-medium w-28 text-center">
+                    {format(refMonth, 'MMMM yyyy', { locale: th })}
+                  </span>
+                  <Button variant="outline" size="sm" onClick={() => setRefMonth((d) => addMonths(d, 1))}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm">
+                  <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                  <span className="text-slate-400">—</span>
+                  <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                </div>
+              )}
             </div>
-
-            {mode === 'month' ? (
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" onClick={() => setRefMonth((d) => subMonths(d, 1))}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium w-28 text-center">
-                  {format(refMonth, 'MMMM yyyy', { locale: th })}
-                </span>
-                <Button variant="outline" size="sm" onClick={() => setRefMonth((d) => addMonths(d, 1))}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-sm">
-                <input
-                  type="date"
-                  value={customStart}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  className="rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <span className="text-slate-400">—</span>
-                <input
-                  type="date"
-                  value={customEnd}
-                  onChange={(e) => setCustomEnd(e.target.value)}
-                  className="rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            )}
-          </div>
-        </div>
+          }
+        />
 
         {isLoading && <div className="flex items-center justify-center py-20 text-slate-400">กำลังโหลด...</div>}
         {isError  && <div className="flex items-center justify-center py-20 text-red-500">เกิดข้อผิดพลาด ลองใหม่อีกครั้ง</div>}

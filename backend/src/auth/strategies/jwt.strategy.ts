@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -35,8 +35,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     private prisma: PrismaService,
   ) {
+    // CHB-01: capture logger in constructor scope for use inside the extractor closure
+    const logger = new Logger(JwtStrategy.name);
+
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        // Primary: HttpOnly cookie (CHB-01)
+        (req: any) => req?.cookies?.access_token ?? null,
+        // Fallback: Bearer header — kept for 30-day APK transition window.
+        // Remove this extractor after all SUNMI APKs are confirmed on cookie auth.
+        (req: any) => {
+          const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+          if (token) {
+            logger.warn(`[CHB-01] Bearer fallback used — IP: ${req?.ip ?? 'unknown'}, path: ${req?.url ?? 'unknown'}`);
+          }
+          return token;
+        },
+      ]),
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET'),
     });

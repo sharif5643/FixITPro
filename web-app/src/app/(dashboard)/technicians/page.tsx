@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/page-header'
 import { formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
 import type { TechnicianSummary } from '@/types'
@@ -92,13 +93,11 @@ export default function TechniciansPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">ประสิทธิภาพช่างซ่อม</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          KPI และสถิติการทำงานของช่างซ่อมทุกคน
-        </p>
-      </div>
+      <PageHeader
+        title="ประสิทธิภาพช่างซ่อม"
+        icon={Wrench}
+        subtitle="KPI และสถิติการทำงานของช่างซ่อมทุกคน"
+      />
 
       {/* Date filter */}
       <div className="bg-white rounded-xl border p-4 space-y-3">

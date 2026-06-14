@@ -11,7 +11,9 @@ import {
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { IsEmail, IsOptional, IsString, IsIn, MinLength } from 'class-validator';
 
@@ -37,7 +39,8 @@ class AssignBranchDto {
 }
 
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@RequireModule('user_management')
+@UseGuards(JwtAuthGuard, RolesGuard, ModuleGuard)
 @Roles('OWNER', 'MANAGER')
 @Controller('users')
 export class UsersController {

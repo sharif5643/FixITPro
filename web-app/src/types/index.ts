@@ -915,3 +915,130 @@ export interface ProfitReport {
     grossProfit: number; netProfit: number; totalRevenue: number; grossMargin: number; netMargin: number
   }
 }
+
+// ── Super Admin V2 types ──────────────────────────────────────────────────────
+
+export interface SuperAdminBranch {
+  id: string
+  name: string
+  address?: string | null
+  phone?: string | null
+  isActive: boolean
+  isDefault: boolean
+  branchNumber?: number | null
+  status: BranchStatus
+  createdAt: string
+  updatedAt: string
+  tenantId?: string | null
+  tenant?: { id: string; shopName: string } | null
+  _count: { users: number }
+}
+
+export interface SuperAdminUser {
+  id: string
+  email: string
+  name: string
+  phone?: string | null
+  role: string
+  isActive: boolean
+  lastLoginAt?: string | null
+  createdAt: string
+  tenantId?: string | null
+  branchId?: string | null
+  tenant?: { id: string; shopName: string } | null
+  branch?: { id: string; name: string } | null
+}
+
+export interface SAAnalytics {
+  mrr: number
+  arr: number
+  totalRevenue: number
+  revenueByMonth: { month: string; revenue: number }[]
+  tenantsByMonth: { month: string; count: number }[]
+  planDistribution: { plan: TenantPlan; count: number }[]
+  tenantStatusCounts: Record<string, number>
+}
+
+export interface AuditLogEntry {
+  id: string
+  action: string
+  target: string
+  tenantId?: string | null
+  tenantName?: string | null
+  actor: string
+  time: string
+  note?: string | null
+}
+
+export interface SystemSettingsShop {
+  shopName: string
+  shopSubtitle?: string | null
+  shopPhone?: string | null
+  shopEmail?: string | null
+  shopAddress?: string | null
+  taxId?: string | null
+  receiptFooter?: string | null
+  paperWidth: string
+  paymentQrUrl?: string | null
+  vatPercent: number
+  defaultDeposit: number
+  lowStockAlert: number
+  autoGenerateSku: boolean
+  autoGenerateBarcode: boolean
+  autoPrint: boolean
+  showTaxId: boolean
+  showLogo: boolean
+}
+
+export interface SystemSettings {
+  platform: {
+    name: string
+    version: string
+    environment: string
+    timezone: string
+    language: string
+  }
+  security: {
+    jwtExpiresIn: string
+    cookieMode: string
+    cookieSameSite: string
+    cookieSecure: boolean
+    corsOrigins: string
+  }
+  database: {
+    provider: string
+    orm: string
+    host: string
+    name: string
+  }
+  shop: SystemSettingsShop | null
+}
+
+// ── Module System ─────────────────────────────────────────────────────────────
+
+export interface AppModule {
+  key: string
+  name: string
+  description?: string | null
+  isActive: boolean
+}
+
+export interface PackageWithModules {
+  id: string
+  key: string
+  name: string
+  description?: string | null
+  price?: number | null
+  isActive: boolean
+  sortOrder: number
+  modules: { moduleKey: string; module: AppModule }[]
+}
+
+export interface TenantModuleStatus {
+  key: string
+  name: string
+  fromPackage: boolean
+  override: boolean | null
+  effectiveEnabled: boolean
+  expiresAt?: string | null
+}

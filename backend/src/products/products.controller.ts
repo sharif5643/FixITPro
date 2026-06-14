@@ -14,9 +14,12 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { EnrollBranchDto } from './dto/enroll-branch.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
+import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+@RequireModule('stock')
+@UseGuards(JwtAuthGuard, ModuleGuard)
 @Controller('products')
 export class ProductsController {
   constructor(private productsService: ProductsService) {}

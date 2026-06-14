@@ -8,6 +8,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, Loader2, X,
   FileUp, RefreshCw,
 } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
@@ -473,12 +474,11 @@ function ImportSection() {
 export default function DataToolsPage() {
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">เครื่องมือข้อมูล</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          ส่งออกข้อมูลเป็น CSV และนำเข้าข้อมูลจากไฟล์ CSV
-        </p>
-      </div>
+      <PageHeader
+        title="เครื่องมือข้อมูล"
+        icon={FileText}
+        subtitle="ส่งออกข้อมูลเป็น CSV และนำเข้าข้อมูลจากไฟล์ CSV"
+      />
 
       <ExportSection />
       <ImportSection />

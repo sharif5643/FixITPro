@@ -9,6 +9,7 @@ import {
 import { formatDistanceToNow, format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
+import { PageHeader } from '@/components/ui/page-header'
 import {
   Select,
   SelectContent,
@@ -119,10 +120,7 @@ export default function NotificationsPage() {
   const [severity, setSeverity] = useState<string>('all')
   const [type, setType]         = useState<string>('all')
 
-  if (!hasPerm('notification.view')) {
-    router.replace('/403')
-    return null
-  }
+  const authorized = hasPerm('notification.view')
 
   const params = new URLSearchParams()
   params.set('page',  String(page))
@@ -135,6 +133,7 @@ export default function NotificationsPage() {
     queryKey: ['notifications', 'list', page, isRead, severity, type],
     queryFn:  async () => (await api.get(`/notifications?${params}`)).data,
     staleTime: 15_000,
+    enabled:  authorized,
   })
 
   const markRead = useMutation({
@@ -146,6 +145,11 @@ export default function NotificationsPage() {
     mutationFn: () => api.patch('/notifications/read-all'),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   })
+
+  if (!authorized) {
+    router.replace('/403')
+    return null
+  }
 
   const items      = data?.items ?? []
   const total      = data?.total ?? 0
@@ -161,28 +165,19 @@ export default function NotificationsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 space-y-5">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-blue-600" />
-          <h1 className="text-lg font-bold text-slate-900">การแจ้งเตือน</h1>
-          {total > 0 && (
-            <span className="text-sm text-slate-500">({total} รายการ)</span>
-          )}
-        </div>
-        {unreadCount > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => markAll.mutate()}
-            disabled={markAll.isPending}
-            className="gap-1.5 text-xs"
-          >
-            <CheckCheck className="h-3.5 w-3.5" />
-            อ่านทั้งหมด
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="การแจ้งเตือน"
+        icon={Bell}
+        subtitle={total > 0 ? `${total} รายการ` : 'ไม่มีการแจ้งเตือน'}
+        primaryAction={
+          unreadCount > 0 ? (
+            <Button size="sm" variant="outline" onClick={() => markAll.mutate()} disabled={markAll.isPending} className="gap-1.5 text-xs">
+              <CheckCheck className="h-3.5 w-3.5" />
+              อ่านทั้งหมด
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">

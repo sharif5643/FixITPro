@@ -13,6 +13,9 @@ import { SuppliersService } from './suppliers.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
+import { RequireModule } from '../common/decorators/require-module.decorator';
 
 function defaultMonthRange(): { startDate: string; endDate: string } {
   const now = new Date();
@@ -22,7 +25,8 @@ function defaultMonthRange(): { startDate: string; endDate: string } {
   return { startDate: `${y}-${m}-01`, endDate: `${y}-${m}-${String(lastDay).padStart(2, '0')}` };
 }
 
-@UseGuards(JwtAuthGuard)
+@RequireModule('finance')
+@UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
 @Controller('suppliers')
 export class SuppliersController {
   constructor(private suppliersService: SuppliersService) {}

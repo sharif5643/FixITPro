@@ -7,6 +7,8 @@ import {
   Param,
   Query,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -16,6 +18,7 @@ import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { ActivateTenantDto } from './dto/activate-tenant.dto';
 import { RenewTenantDto } from './dto/renew-tenant.dto';
+import { TenantPlan } from '@prisma/client';
 
 @Controller('super-admin/tenants')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -61,6 +64,15 @@ export class TenantsController {
   @Patch(':id/reactivate')
   reactivate(@Param('id') id: string) {
     return this.tenantsService.reactivate(id);
+  }
+
+  @Patch(':id/change-plan')
+  @HttpCode(HttpStatus.OK)
+  changePlan(
+    @Param('id') id: string,
+    @Body() body: { plan: TenantPlan },
+  ) {
+    return this.tenantsService.changePlan(id, body.plan);
   }
 
   @Post(':id/reset-owner-password')

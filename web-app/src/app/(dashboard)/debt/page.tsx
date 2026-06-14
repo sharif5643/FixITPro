@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/page-header'
 import { formatThaiMoney } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
@@ -676,24 +677,20 @@ export default function DebtPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">หนี้ค้างชำระ</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            งานซ่อมที่ส่งมอบแล้วแต่ยังไม่ได้รับเงิน
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <BranchContextBar className="hidden sm:flex" />
-          {repairs.length > 0 && (
+      <PageHeader
+        title="หนี้ค้างชำระ"
+        icon={AlertCircle}
+        subtitle="งานซ่อมที่ส่งมอบแล้วแต่ยังไม่ได้รับเงิน"
+        secondaryActions={<BranchContextBar className="hidden sm:flex" />}
+        primaryAction={
+          repairs.length > 0 ? (
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">รวมยอดค้าง</p>
+              <p className="text-xs text-slate-400">รวมยอดค้าง</p>
               <p className="text-xl font-bold text-red-600 tabular-nums">{money(totalDebt)}</p>
             </div>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
       {/* Summary chips */}
       {!isLoading && repairs.length > 0 && (

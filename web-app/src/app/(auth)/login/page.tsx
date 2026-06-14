@@ -26,24 +26,17 @@ export default function LoginPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const { setAuth, accessToken, user } = useAuthStore()
+  const { setAuth, user } = useAuthStore()
 
   useEffect(() => {
-    if (accessToken && user) {
+    if (user) {
       if (user.role === 'SUPER_ADMIN') {
-        router.replace('/super-admin/tenants')
+        router.replace('/super-admin')
       } else {
-        router.replace(Platform.isNative() ? '/sunmi' : '/')
+        router.replace(Platform.isNative() ? '/sunmi' : '/dashboard')
       }
     }
-  }, [accessToken, user, router])
-
-  // Debug: log API base URL on dev
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[FixITPro] API URL:', process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1')
-    }
-  }, [])
+  }, [user, router])
 
   const {
     register,
@@ -52,31 +45,33 @@ export default function LoginPage() {
   } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'owner@fixitpro.com',
-      password: 'admin1234',
+      email: '',
+      password: '',
     },
   })
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true)
+    const normalizedEmail = data.email.trim().toLowerCase()
     try {
       const response = await api.post('/auth/login', {
-        email: data.email,
+        email: normalizedEmail,
         password: data.password,
       })
-      const { accessToken, user, permissions = [], redirectTo } = response.data
-      if (!accessToken || !user) {
+      // CHB-01: accessToken no longer in body — JWT is set as HttpOnly cookie by server
+      const { user, permissions = [], enabledModules = [], redirectTo } = response.data
+      if (!user) {
         toast.error('รูปแบบข้อมูลจาก server ไม่ถูกต้อง')
         return
       }
-      setAuth(user, accessToken, permissions)
+      setAuth(user, permissions, enabledModules)
       toast.success(`ยินดีต้อนรับกลับมา, ${user.name}!`)
       if (user.forcePasswordChange) {
         router.push('/change-password')
       } else if (Platform.isNative()) {
         router.push('/sunmi')
       } else {
-        router.push(redirectTo ?? '/')
+        router.push(redirectTo ?? '/dashboard')
       }
     } catch (error: any) {
       if (error.response) {
@@ -85,7 +80,8 @@ export default function LoginPage() {
         toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'))
       } else {
         // Network error — server unreachable / CORS
-        toast.error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่า Backend รันอยู่ที่ port 3000')
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
+        toast.error(`ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่า Backend รันอยู่ที่ ${apiUrl}`)
       }
     } finally {
       setIsLoading(false)

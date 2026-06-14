@@ -14,7 +14,9 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateTagsDto } from './dto/update-tags.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
+import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { IsString, IsNotEmpty } from 'class-validator';
 
@@ -24,7 +26,8 @@ class AddNoteDto {
   note: string;
 }
 
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@RequireModule('crm')
+@UseGuards(JwtAuthGuard, PermissionGuard, ModuleGuard)
 @Controller('customers')
 export class CustomersController {
   constructor(private customersService: CustomersService) {}

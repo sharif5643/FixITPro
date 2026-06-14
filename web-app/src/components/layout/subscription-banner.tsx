@@ -8,6 +8,7 @@ import api from '@/lib/api'
 interface SubscriptionData {
   effectiveStatus: string
   daysRemaining: number
+  graceDaysRemaining: number
   expiryDate: string
 }
 
@@ -21,26 +22,28 @@ export function SubscriptionBanner() {
 
   if (!data) return null
 
-  const { effectiveStatus, daysRemaining } = data
+  const { effectiveStatus, daysRemaining, graceDaysRemaining } = data
 
-  if (effectiveStatus === 'EXPIRED') {
+  if (effectiveStatus === 'GRACE') {
     return (
       <div className="flex items-center justify-between gap-2 bg-red-600 px-3 sm:px-5 py-2 text-white text-xs sm:text-sm">
         <div className="flex items-center gap-2 min-w-0">
           <XCircle className="h-4 w-4 shrink-0" />
-          <span className="font-medium truncate">แพ็กเกจหมดอายุแล้ว — ระบบถูกจำกัดการใช้งาน</span>
+          <span className="font-medium truncate">
+            แพ็กเกจของคุณหมดอายุแล้ว กรุณาต่ออายุภายใน {graceDaysRemaining} วัน
+          </span>
         </div>
         <Link
-          href="/subscription"
+          href="/billing"
           className="shrink-0 rounded-md bg-white/20 hover:bg-white/30 px-2 sm:px-3 py-1 text-xs font-semibold transition-colors"
         >
-          ดูรายละเอียด
+          ต่ออายุ
         </Link>
       </div>
     )
   }
 
-  if (daysRemaining <= 7 && daysRemaining > 0) {
+  if (daysRemaining <= 7 && daysRemaining > 0 && effectiveStatus !== 'EXPIRED') {
     return (
       <div className="flex items-center justify-between gap-2 bg-amber-500 px-3 sm:px-5 py-2 text-white text-xs sm:text-sm">
         <div className="flex items-center gap-2 min-w-0">
@@ -48,7 +51,7 @@ export function SubscriptionBanner() {
           <span className="font-medium truncate">แพ็กเกจจะหมดอายุในอีก {daysRemaining} วัน</span>
         </div>
         <Link
-          href="/subscription"
+          href="/billing"
           className="shrink-0 rounded-md bg-white/20 hover:bg-white/30 px-2 sm:px-3 py-1 text-xs font-semibold transition-colors"
         >
           ต่ออายุ

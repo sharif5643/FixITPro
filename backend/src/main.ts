@@ -1,8 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe, Logger } from '@nestjs/common';
-import { join } from 'path';
 import helmet from 'helmet';
+import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { createWinstonLogger } from './common/logger/winston.config';
@@ -10,6 +10,34 @@ import { createWinstonLogger } from './common/logger/winston.config';
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const isProd = process.env.NODE_ENV === 'production';
+
+  // P0-1: Fail fast on missing or insecure JWT_SECRET before any module loads.
+  const jwtSecret = process.env.JWT_SECRET;
+  const KNOWN_WEAK_JWT_SECRETS = new Set([
+    'your_secret_key',
+    'your-super-secret-jwt-key-change-this-in-production',
+    'REPLACE_WITH_96_CHAR_HEX_SECRET',
+    'dev_jwt_secret_not_for_production',
+    'dev_placeholder_not_secure_replace_before_any_deployment',
+    'secret',
+    'changeme',
+  ]);
+  if (!jwtSecret) {
+    throw new Error('FATAL: JWT_SECRET is not set. App startup aborted.');
+  }
+  if (jwtSecret.length < 32) {
+    throw new Error(
+      `FATAL: JWT_SECRET is too short (${jwtSecret.length} chars, minimum 32). ` +
+      `Generate one: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`,
+    );
+  }
+  if (isProd && KNOWN_WEAK_JWT_SECRETS.has(jwtSecret)) {
+    throw new Error(
+      `FATAL: JWT_SECRET is a known placeholder value. ` +
+      `Generate a real secret: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))" ` +
+      `then set it in .env.production. App startup aborted.`,
+    );
+  }
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: createWinstonLogger(),
@@ -19,12 +47,10 @@ async function bootstrap() {
   // access from the SUNMI APK that bypasses Nginx.
   app.use(helmet());
 
-  app.setGlobalPrefix('api/v1');
+  // CHB-01: parse cookies so req.cookies.access_token is available in JwtStrategy
+  app.use(cookieParser());
 
-  // Serve uploaded repair images as static assets at /uploads/...
-  // UPLOADS_BASE_DIR env var allows PROD and DEV to use separate folders.
-  const uploadsBase = process.env.UPLOADS_BASE_DIR || join(__dirname, '..', 'uploads');
-  app.useStaticAssets(uploadsBase, { prefix: '/uploads' });
+  app.setGlobalPrefix('api/v1');
 
   app.useGlobalPipes(
     new ValidationPipe({

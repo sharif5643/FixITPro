@@ -11,7 +11,7 @@ export interface ReminderSettings {
   transferInTransit: boolean
   sound:             boolean
   sunmi:             boolean
-  intervalMinutes:   1 | 5 | 10
+  intervalMinutes:   1 | 5 | 10 | 30
   // Phase 16 additions
   vipRepair:         boolean   // VIP_REPAIR type from /reminders/active
   partsRequest:      boolean   // PARTS_REQUEST_PENDING type
@@ -116,5 +116,30 @@ export function persistReminderDismiss(
     } else {
       sessionStorage.setItem(k, '1')
     }
+  } catch { /* storage unavailable */ }
+}
+
+// ── Snooze helpers ───────────────────────────────────────────────────────────
+
+export const SNOOZE_DURATIONS = [15, 30, 60] as const
+export type SnoozeDuration = typeof SNOOZE_DURATIONS[number]
+
+const SNOOZE_KEY_PREFIX = 'alert_snooze_'
+
+export function isSnoozeActive(id: string, now = Date.now()): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const raw = localStorage.getItem(`${SNOOZE_KEY_PREFIX}${id}`)
+    if (!raw) return false
+    const until = parseInt(raw, 10)
+    return now < until
+  } catch { return false }
+}
+
+export function persistSnooze(id: string, minutes: SnoozeDuration, now = Date.now()): void {
+  if (typeof window === 'undefined') return
+  try {
+    const until = now + minutes * 60_000
+    localStorage.setItem(`${SNOOZE_KEY_PREFIX}${id}`, until.toString())
   } catch { /* storage unavailable */ }
 }

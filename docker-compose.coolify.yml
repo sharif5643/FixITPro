@@ -1,0 +1,122 @@
+version: '3.8'
+
+# FixITPro — Coolify Deployment
+# ─────────────────────────────────────────────────────────────────────────────
+# Coolify manages SSL termination and reverse proxy (Traefik) automatically.
+# Do NOT add ports 80 or 443 here — Coolify's Traefik handles those.
+#
+# After deploying, configure domain routing in Coolify UI:
+#   frontend service → your app domain  (container port 3000)
+#   backend  service → your api domain  (container port 3000)
+#
+# Required environment variables (set in Coolify UI → Environment Variables):
+#   POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+#   JWT_SECRET          — min 32 chars random string
+#   JWT_EXPIRES_IN      — e.g. 8h  (optional, defaults to 8h)
+#   CORS_ORIGIN         — comma-separated frontend origin(s), e.g. https://app.yourshop.com
+#   NEXT_PUBLIC_API_URL — full backend URL, e.g. https://api.yourshop.com/api/v1
+#                         (baked into the frontend image at BUILD TIME — must be set before building)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: fixitpro_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB}
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA:            /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # DB is NOT exposed to host — internal network only
+
+  # ── Backend (NestJS) ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fixitpro_backend
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV:       production
+      PORT:           3000
+      DATABASE_URL:   postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public&connection_limit=10&pool_timeout=30
+      JWT_SECRET:     ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      CORS_ORIGIN:    ${CORS_ORIGIN}
+      BACKUP_DIR:     /app/backups
+    volumes:
+      - uploads_data:/app/uploads
+      - backups_data:/app/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ── Frontend (Next.js) ──────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./web-app
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_API_URL is embedded into the JS bundle at build time.
+        # Changing the API domain requires rebuilding this image.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    container_name: fixitpro_frontend
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      PORT:     3000
+    depends_on:
+      - backend
+    networks:
+      - app_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+# ── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  # Repair images written by backend — persist across deploys
+  uploads_data:
+    driver: local
+  # pg_dump backups created by the backup API endpoint
+  backups_data:
+    driver: local
+
+# ── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  app_network:
+    driver: bridge

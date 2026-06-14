@@ -4,7 +4,9 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
+import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { WarrantiesService } from './warranties.service';
 
@@ -31,7 +33,8 @@ class VoidWarrantyDto {
   reason!: string;
 }
 
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@RequireModule('repair')
+@UseGuards(JwtAuthGuard, PermissionGuard, ModuleGuard)
 @Controller('warranties')
 export class WarrantiesController {
   constructor(private readonly svc: WarrantiesService) {}

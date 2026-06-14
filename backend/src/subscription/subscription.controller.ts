@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { SubscriptionService } from './subscription.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -33,7 +33,11 @@ export class SubscriptionController {
   constructor(private subscriptionService: SubscriptionService) {}
 
   @Get()
-  getSubscription() {
+  getSubscription(@Req() req: any) {
+    const tenantId: string | undefined = req.user?.tenantId;
+    if (tenantId) {
+      return this.subscriptionService.getSubscriptionForTenant(tenantId);
+    }
     return this.subscriptionService.getSubscription();
   }
 

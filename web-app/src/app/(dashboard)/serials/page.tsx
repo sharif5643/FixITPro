@@ -16,6 +16,7 @@ import {
   RotateCcw,
   PackageX,
 } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -103,23 +104,23 @@ export default function SerialsPage() {
 
   return (
     <div className="space-y-6 max-w-6xl">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">จัดการ Serial / IMEI</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">ติดตาม Serial และ IMEI ของสินค้า</p>
-        </div>
-        <div className="flex gap-2 shrink-0">
+      <PageHeader
+        title="จัดการ Serial / IMEI"
+        icon={ShieldCheck}
+        subtitle="ติดตาม Serial และ IMEI ของสินค้า"
+        secondaryActions={
           <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)} className="gap-1.5">
             <Layers className="h-4 w-4" />
             <span className="hidden sm:inline">เพิ่มหลายรายการ</span>
           </Button>
+        }
+        primaryAction={
           <Button onClick={() => setAddOpen(true)} size="sm" className="gap-1.5">
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">เพิ่ม Serial</span>
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Status summary */}
       <div className="flex flex-wrap gap-2">

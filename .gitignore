@@ -17,11 +17,12 @@ backups/
 .env
 .env.*
 
-# Keep example/template files
+# Keep example/template files (no secrets inside)
 !.env.example
 !.env.production.example
+# .env.apk is a template with no secrets — intentionally tracked
 !.env.apk
-!.env.apk.local
+# .env.apk.local contains LAN IPs and local paths — gitignored (covered by .env.* above)
 
 # OS
 .DS_Store

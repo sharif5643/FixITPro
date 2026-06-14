@@ -10,8 +10,16 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/page-header'
+import { SectionCard } from '@/components/ui/section-card'
+import { EmptyState } from '@/components/ui/empty-state'
+import {
+  DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
+  DataTableRow, DataTableCell, DataTableLoadingRows,
+} from '@/components/ui/data-table'
 import { formatThaiMoney } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
+import { ModuleGate } from '@/components/auth/module-gate'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar, GlobalModeBanner } from '@/components/layout/branch-context-bar'
 import api from '@/lib/api'
@@ -21,7 +29,7 @@ import type { Expense, ExpenseCategory } from '@/types'
 
 const PM_LABEL: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอน', CARD: 'บัตร' }
 const PM_COLOR: Record<string, string> = {
-  CASH:     'bg-green-100 text-green-700',
+  CASH:     'bg-emerald-100 text-emerald-700',
   TRANSFER: 'bg-blue-100 text-blue-700',
   CARD:     'bg-purple-100 text-purple-700',
 }
@@ -78,18 +86,17 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-bold text-gray-900">บันทึกค่าใช้จ่าย</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+          <h2 className="font-bold text-slate-900">บันทึกค่าใช้จ่าย</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <form onSubmit={submit} className="px-5 py-4 space-y-4">
-          {/* Date + Category */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">วันที่</label>
+              <label className="text-xs font-medium text-slate-700">วันที่</label>
               <input
                 type="date"
                 value={form.expenseDate}
@@ -100,7 +107,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">หมวดหมู่</label>
+              <label className="text-xs font-medium text-slate-700">หมวดหมู่</label>
               <select
                 value={form.categoryId}
                 onChange={(e) => set('categoryId', e.target.value)}
@@ -115,9 +122,8 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
             </div>
           </div>
 
-          {/* Description */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-700">รายการ</label>
+            <label className="text-xs font-medium text-slate-700">รายการ</label>
             <Input
               placeholder="เช่น ค่าเช่าเดือนพฤษภาคม 2568"
               value={form.description}
@@ -127,10 +133,9 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
             />
           </div>
 
-          {/* Amount + Method */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">จำนวนเงิน (บาท)</label>
+              <label className="text-xs font-medium text-slate-700">จำนวนเงิน (บาท)</label>
               <Input
                 type="number"
                 placeholder="0.00"
@@ -142,7 +147,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">วิธีชำระ</label>
+              <label className="text-xs font-medium text-slate-700">วิธีชำระ</label>
               <select
                 value={form.paymentMethod}
                 onChange={(e) => set('paymentMethod', e.target.value as any)}
@@ -155,10 +160,9 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
             </div>
           </div>
 
-          {/* Reference + Note (optional) */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">เลขอ้างอิง (ถ้ามี)</label>
+              <label className="text-xs font-medium text-slate-700">เลขอ้างอิง (ถ้ามี)</label>
               <Input
                 placeholder="เลขใบเสร็จ..."
                 value={form.referenceNo}
@@ -167,7 +171,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">หมายเหตุ</label>
+              <label className="text-xs font-medium text-slate-700">หมายเหตุ</label>
               <Input
                 placeholder="—"
                 value={form.note}
@@ -224,15 +228,15 @@ function VoidExpenseDialog({ expense, onClose, onSuccess }: VoidDialogProps) {
               <AlertTriangle className="h-5 w-5 text-red-600" />
             </div>
             <div>
-              <h3 className="font-bold text-gray-900">ยกเลิกรายการ</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">
+              <h3 className="font-bold text-slate-900">ยกเลิกรายการ</h3>
+              <p className="text-sm text-slate-500 mt-0.5">
                 {expense.description} · {formatThaiMoney(expense.amount)}
               </p>
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-700">เหตุผลที่ยกเลิก</label>
+            <label className="text-xs font-medium text-slate-700">เหตุผลที่ยกเลิก</label>
             <Input
               placeholder="ระบุเหตุผล..."
               value={reason}
@@ -267,15 +271,15 @@ function VoidExpenseDialog({ expense, onClose, onSuccess }: VoidDialogProps) {
 
 export default function ExpensesPage() {
   const queryClient = useQueryClient()
-  const { user, hasPermission } = useAuthStore()
+  const { user, hasPermission, hasModule } = useAuthStore()
   const canManage = user?.role === 'OWNER' || user?.role === 'MANAGER' || hasPermission('expenses.manage')
   const { branchId, isGlobalMode } = useBranchContext()
 
-  const [viewMonth, setViewMonth]       = useState(() => startOfMonth(new Date()))
+  const [viewMonth, setViewMonth]           = useState(() => startOfMonth(new Date()))
   const [categoryFilter, setCategoryFilter] = useState('')
-  const [showVoided, setShowVoided]     = useState(false)
-  const [createOpen, setCreateOpen]     = useState(false)
-  const [voidTarget, setVoidTarget]     = useState<Expense | null>(null)
+  const [showVoided, setShowVoided]         = useState(false)
+  const [createOpen, setCreateOpen]         = useState(false)
+  const [voidTarget, setVoidTarget]         = useState<Expense | null>(null)
 
   const startDate = format(viewMonth, 'yyyy-MM-dd')
   const endDate   = format(endOfMonth(viewMonth), 'yyyy-MM-dd')
@@ -314,10 +318,10 @@ export default function ExpensesPage() {
   )
 
   const byCategorySummary = useMemo(() => {
-    const map: Record<string, { name: string; total: number; count: number }> = {}
+    const map: Record<string, { name: string; total: number; count: number; id: string }> = {}
     for (const e of expenses) {
       if (e.voidedAt) continue
-      if (!map[e.categoryId]) map[e.categoryId] = { name: e.category.name, total: 0, count: 0 }
+      if (!map[e.categoryId]) map[e.categoryId] = { id: e.categoryId, name: e.category.name, total: 0, count: 0 }
       map[e.categoryId].total += Number(e.amount)
       map[e.categoryId].count++
     }
@@ -328,10 +332,12 @@ export default function ExpensesPage() {
     queryClient.invalidateQueries({ queryKey: ['expenses'] })
   }
 
+  if (!hasModule('finance')) return <ModuleGate module="finance">{null}</ModuleGate>
+
   if (!canManage) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-2 text-muted-foreground">
-        <AlertTriangle className="h-10 w-10 text-gray-200" />
+      <div className="flex flex-col items-center justify-center h-64 gap-2 text-slate-400">
+        <AlertTriangle className="h-10 w-10 text-slate-200" />
         <p className="font-medium">ต้องการสิทธิ์เจ้าของร้านหรือผู้จัดการ</p>
       </div>
     )
@@ -340,16 +346,12 @@ export default function ExpensesPage() {
   return (
     <div className="space-y-4 sm:space-y-5">
 
-      {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">ค่าใช้จ่าย</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {format(viewMonth, 'MMMM yyyy', { locale: th })} · รวม {formatThaiMoney(monthlyTotal)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <BranchContextBar className="hidden sm:flex" />
+      <PageHeader
+        title="ค่าใช้จ่าย"
+        icon={Receipt}
+        subtitle={`${format(viewMonth, 'MMMM yyyy', { locale: th })} · รวม ${formatThaiMoney(monthlyTotal)}`}
+        secondaryActions={<BranchContextBar className="hidden sm:flex" />}
+        primaryAction={
           <Button
             onClick={() => !isGlobalMode && setCreateOpen(true)}
             disabled={isGlobalMode}
@@ -360,34 +362,36 @@ export default function ExpensesPage() {
             <span className="hidden sm:inline">บันทึกค่าใช้จ่าย</span>
             <span className="sm:hidden">เพิ่ม</span>
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── Month navigation + filters ── */}
+      {isGlobalMode && <GlobalModeBanner action="ไม่สามารถบันทึกค่าใช้จ่ายในโหมดทุกสาขา" />}
+
+      {/* Month navigation + filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 bg-white border rounded-lg px-1 py-1">
+        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1">
           <button
             onClick={() => setViewMonth((m) => subMonths(m, 1))}
-            className="p-1.5 rounded hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded hover:bg-slate-100 transition-colors"
           >
-            <ChevronLeft className="h-4 w-4 text-gray-600" />
+            <ChevronLeft className="h-4 w-4 text-slate-600" />
           </button>
-          <span className="text-sm font-medium px-2 min-w-[120px] text-center">
+          <span className="text-sm font-medium px-2 min-w-[120px] text-center text-slate-700">
             {format(viewMonth, 'MMMM yyyy', { locale: th })}
           </span>
           <button
             onClick={() => setViewMonth((m) => addMonths(m, 1))}
             disabled={viewMonth >= startOfMonth(new Date())}
-            className="p-1.5 rounded hover:bg-gray-100 transition-colors disabled:opacity-30"
+            className="p-1.5 rounded hover:bg-slate-100 transition-colors disabled:opacity-30"
           >
-            <ChevronRight className="h-4 w-4 text-gray-600" />
+            <ChevronRight className="h-4 w-4 text-slate-600" />
           </button>
         </div>
 
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="h-9 px-3 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="h-9 px-3 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
         >
           <option value="">ทุกหมวดหมู่</option>
           {categories.filter((c) => c.isActive).map((c) => (
@@ -395,7 +399,7 @@ export default function ExpensesPage() {
           ))}
         </select>
 
-        <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
+        <label className="flex items-center gap-1.5 text-sm text-slate-500 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={showVoided}
@@ -406,150 +410,123 @@ export default function ExpensesPage() {
         </label>
       </div>
 
-      {/* ── Category summary chips ── */}
+      {/* Category summary chips */}
       {byCategorySummary.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {byCategorySummary.map((c) => (
             <button
               key={c.name}
-              onClick={() => {
-                const cat = categories.find((x) => x.name === c.name)
-                if (cat) setCategoryFilter(cat.id === categoryFilter ? '' : cat.id)
-              }}
-              className="px-3 py-1.5 rounded-full text-xs font-medium border bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600 transition-colors"
+              onClick={() => setCategoryFilter(c.id === categoryFilter ? '' : c.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                c.id === categoryFilter
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600'
+              }`}
             >
               {c.name}
-              <span className="ml-1.5 opacity-60 tabular-nums">{formatThaiMoney(c.total)}</span>
+              <span className="ml-1.5 opacity-70 tabular-nums">{formatThaiMoney(c.total)}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* ── Table ── */}
-      <div className="bg-white rounded-xl border overflow-hidden">
-        {isLoading ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                  <th className="text-left px-4 py-3 font-medium">วันที่</th>
-                  <th className="text-left px-4 py-3 font-medium">หมวดหมู่</th>
-                  <th className="text-left px-4 py-3 font-medium">รายการ</th>
-                  <th className="text-left px-4 py-3 font-medium">ช่องทาง</th>
-                  <th className="text-right px-4 py-3 font-medium">จำนวน</th>
-                  <th className="text-left px-4 py-3 font-medium">ผู้บันทึก</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="animate-pulse">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b">
-                    <td className="px-4 py-3"><div className="h-4 w-20 bg-gray-100 rounded" /></td>
-                    <td className="px-4 py-3"><div className="h-4 w-28 bg-gray-100 rounded" /></td>
-                    <td className="px-4 py-3"><div className="h-4 w-40 bg-gray-100 rounded" /></td>
-                    <td className="px-4 py-3"><div className="h-5 w-16 bg-gray-100 rounded-full" /></td>
-                    <td className="px-4 py-3"><div className="h-4 w-20 bg-gray-100 rounded ml-auto" /></td>
-                    <td className="px-4 py-3"><div className="h-4 w-20 bg-gray-100 rounded" /></td>
-                    <td className="px-4 py-3" />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : expenses.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
-            <Receipt className="h-10 w-10 text-gray-200" />
-            <p className="text-sm font-medium">ไม่มีรายการค่าใช้จ่าย</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                  <th className="text-left px-4 py-3 font-medium">วันที่</th>
-                  <th className="text-left px-4 py-3 font-medium">หมวดหมู่</th>
-                  <th className="text-left px-4 py-3 font-medium">รายการ</th>
-                  <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">ช่องทาง</th>
-                  <th className="text-left px-4 py-3 font-medium hidden md:table-cell">อ้างอิง</th>
-                  <th className="text-right px-4 py-3 font-medium">จำนวน</th>
-                  <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">ผู้บันทึก</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {expenses.map((expense) => {
-                  const PMIcon = PM_ICON[expense.paymentMethod] ?? PM_ICON.CASH
-                  const isVoided = !!expense.voidedAt
-                  return (
-                    <tr
-                      key={expense.id}
-                      className={`border-b last:border-0 transition-colors ${
-                        isVoided ? 'bg-gray-50 opacity-60' : 'hover:bg-blue-50/30'
-                      }`}
-                    >
-                      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+      {/* Table */}
+      <SectionCard noPadding>
+        <DataTable>
+          <DataTableHead>
+            <DataTableHeadCell>วันที่</DataTableHeadCell>
+            <DataTableHeadCell hidden>หมวดหมู่</DataTableHeadCell>
+            <DataTableHeadCell>รายการ</DataTableHeadCell>
+            <DataTableHeadCell hidden>ช่องทาง</DataTableHeadCell>
+            <DataTableHeadCell hidden>อ้างอิง</DataTableHeadCell>
+            <DataTableHeadCell right>จำนวน</DataTableHeadCell>
+            <DataTableHeadCell hidden>ผู้บันทึก</DataTableHeadCell>
+            <DataTableHeadCell className="w-16" />
+          </DataTableHead>
+          <DataTableBody>
+            {isLoading ? (
+              <DataTableLoadingRows rows={5} cols={8} />
+            ) : expenses.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="py-0">
+                  <EmptyState preset="default" size="md" title="ไม่มีรายการค่าใช้จ่าย" />
+                </td>
+              </tr>
+            ) : (
+              expenses.map((expense) => {
+                const PMIcon   = PM_ICON[expense.paymentMethod] ?? PM_ICON.CASH
+                const isVoided = !!expense.voidedAt
+                return (
+                  <DataTableRow
+                    key={expense.id}
+                    className={isVoided ? 'opacity-50' : ''}
+                  >
+                    <DataTableCell muted>
+                      <span className="text-xs whitespace-nowrap">
                         {format(new Date(expense.expenseDate), 'dd MMM yy', { locale: th })}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-medium text-gray-700">
-                          {expense.category.name}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 max-w-[200px]">
-                        <p className={`text-sm truncate ${isVoided ? 'line-through text-gray-400' : 'text-gray-900 font-medium'}`}>
-                          {expense.description}
-                        </p>
-                        {isVoided && (
-                          <p className="text-xs text-red-500 mt-0.5">ยกเลิก: {expense.voidReason}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 hidden sm:table-cell">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${PM_COLOR[expense.paymentMethod]}`}>
-                          <PMIcon className="h-3 w-3" />
-                          {PM_LABEL[expense.paymentMethod]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell text-xs text-muted-foreground">
-                        {expense.referenceNo ?? '—'}
-                      </td>
-                      <td className={`px-4 py-3 text-right tabular-nums font-bold ${isVoided ? 'text-gray-400' : 'text-gray-900'}`}>
+                      </span>
+                    </DataTableCell>
+                    <DataTableCell hidden>
+                      <span className="text-xs font-medium text-slate-700">
+                        {expense.category.name}
+                      </span>
+                    </DataTableCell>
+                    <DataTableCell className="max-w-[200px]">
+                      <p className={`text-sm truncate ${isVoided ? 'line-through text-slate-400' : 'text-slate-900 font-medium'}`}>
+                        {expense.description}
+                      </p>
+                      {isVoided && (
+                        <p className="text-xs text-red-500 mt-0.5">ยกเลิก: {expense.voidReason}</p>
+                      )}
+                    </DataTableCell>
+                    <DataTableCell hidden>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${PM_COLOR[expense.paymentMethod]}`}>
+                        <PMIcon className="h-3 w-3" />
+                        {PM_LABEL[expense.paymentMethod]}
+                      </span>
+                    </DataTableCell>
+                    <DataTableCell hidden muted>
+                      <span className="text-xs">{expense.referenceNo ?? '—'}</span>
+                    </DataTableCell>
+                    <DataTableCell right>
+                      <span className={`tabular-nums font-bold ${isVoided ? 'text-slate-400' : 'text-slate-900'}`}>
                         {formatThaiMoney(Number(expense.amount))}
-                      </td>
-                      <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">
-                        {expense.createdBy.name}
-                      </td>
-                      <td className="px-4 py-3">
-                        {!isVoided && (
-                          <button
-                            onClick={() => setVoidTarget(expense)}
-                            className="text-xs text-red-400 hover:text-red-600 transition-colors px-2 py-1 rounded hover:bg-red-50"
-                          >
-                            ยกเลิก
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              {/* Totals footer */}
-              <tfoot>
-                <tr className="border-t bg-gray-50">
-                  <td colSpan={5} className="px-4 py-3 text-sm font-semibold text-gray-700">
-                    รวม {expenses.filter((e) => !e.voidedAt).length} รายการ
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-gray-900 tabular-nums">
-                    {formatThaiMoney(monthlyTotal)}
-                  </td>
-                  <td colSpan={2} />
-                </tr>
-              </tfoot>
-            </table>
+                      </span>
+                    </DataTableCell>
+                    <DataTableCell hidden muted>
+                      <span className="text-xs">{expense.createdBy.name}</span>
+                    </DataTableCell>
+                    <DataTableCell className="text-right">
+                      {!isVoided && (
+                        <button
+                          onClick={() => setVoidTarget(expense)}
+                          className="text-xs text-red-400 hover:text-red-600 transition-colors px-2 py-1 rounded hover:bg-red-50"
+                        >
+                          ยกเลิก
+                        </button>
+                      )}
+                    </DataTableCell>
+                  </DataTableRow>
+                )
+              })
+            )}
+          </DataTableBody>
+        </DataTable>
+
+        {/* Totals footer */}
+        {expenses.length > 0 && (
+          <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3 flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700">
+              รวม {expenses.filter((e) => !e.voidedAt).length} รายการ
+            </span>
+            <span className="font-bold text-slate-900 tabular-nums">
+              {formatThaiMoney(monthlyTotal)}
+            </span>
           </div>
         )}
-      </div>
+      </SectionCard>
 
-      {/* ── Dialogs ── */}
+      {/* Dialogs */}
       {createOpen && (
         <CreateExpenseDialog
           categories={categories}

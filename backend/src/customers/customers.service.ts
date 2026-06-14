@@ -109,7 +109,7 @@ export class CustomersService {
           where: {
             customerId:    id,
             status:        'DELIVERED',
-            paymentStatus: 'PENDING' as any,
+            paymentStatus: 'PENDING',
           },
           include: { additionalPayments: { select: { amount: true } } },
         }),

@@ -11,12 +11,14 @@ import { PrismaService } from '../database/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ALL_PERMISSIONS } from './strategies/jwt.strategy';
+import { ModulesService } from '../modules/modules.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private modulesService: ModulesService,
   ) {}
 
   async login(dto: LoginDto) {
@@ -48,7 +50,19 @@ export class AuthService {
       permissions = rows.map((r) => r.permission);
     }
 
-    const redirectTo = user.role === 'SUPER_ADMIN' ? '/super-admin/tenants' : '/';
+    let tenantExpiryDate: string | null = null;
+    let shopName: string | null = null;
+    if (tenantId) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { expiryDate: true, shopName: true },
+      });
+      tenantExpiryDate = tenant?.expiryDate?.toISOString() ?? null;
+      shopName = tenant?.shopName ?? null;
+    }
+
+    const enabledModules = await this.modulesService.getEnabledModules(tenantId);
+    const redirectTo = user.role === 'SUPER_ADMIN' ? '/super-admin/tenants' : '/dashboard';
 
     return {
       accessToken: token,
@@ -60,8 +74,11 @@ export class AuthService {
         tenantId: user.tenantId,
         branchId,
         forcePasswordChange: user.forcePasswordChange,
+        tenantExpiryDate,
+        shopName,
       },
       permissions,
+      enabledModules,
       redirectTo,
     };
   }
@@ -133,23 +150,50 @@ export class AuthService {
       where: { id: userId },
       select: {
         id: true, email: true, name: true, phone: true,
-        role: true, tenantId: true, createdAt: true, lastLoginAt: true,
+        role: true, tenantId: true, branchId: true,
+        forcePasswordChange: true,
+        createdAt: true, lastLoginAt: true,
       },
     });
 
+    if (!user) return null;
+
     let permissions: string[] = [];
-    if (user) {
-      if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') {
-        permissions = ALL_PERMISSIONS;
-      } else {
-        const rows = await this.prisma.rolePermission.findMany({
-          where: { role: user.role as any },
-          select: { permission: true },
-        });
-        permissions = rows.map((r) => r.permission);
-      }
+    if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') {
+      permissions = ALL_PERMISSIONS;
+    } else {
+      const rows = await this.prisma.rolePermission.findMany({
+        where: { role: user.role as any },
+        select: { permission: true },
+      });
+      permissions = rows.map((r) => r.permission);
     }
 
-    return { ...user, permissions };
+    let tenantExpiryDate: string | null = null;
+    let shopName: string | null = null;
+    if (user.tenantId) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: { expiryDate: true, shopName: true },
+      });
+      tenantExpiryDate = tenant?.expiryDate?.toISOString() ?? null;
+      shopName = tenant?.shopName ?? null;
+    }
+
+    const enabledModules = await this.modulesService.getEnabledModules(user.tenantId ?? null);
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      tenantId: user.tenantId,
+      branchId: user.branchId,
+      forcePasswordChange: user.forcePasswordChange,
+      tenantExpiryDate,
+      shopName,
+      permissions,
+      enabledModules,
+    };
   }
 }

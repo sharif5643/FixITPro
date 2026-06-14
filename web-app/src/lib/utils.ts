@@ -20,6 +20,9 @@ export function formatNumber(num: number): string {
 
 export function getAssetUrl(path: string): string {
   if (!path || path.startsWith('http')) return path
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
-  return apiBase.replace(/\/api\/v1\/?$/, '') + path
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1').replace(/\/$/, '')
+  // /uploads/repairs/xxx.jpg  →  {apiBase}/files/repairs/xxx.jpg
+  // The backend serves this at GET /api/v1/files/* behind JwtAuthGuard.
+  const relative = path.replace(/^\/uploads\//, '')
+  return `${apiBase}/files/${relative}`
 }

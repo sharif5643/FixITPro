@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ShieldCheck, Loader2, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { PageHeader } from '@/components/ui/page-header'
 import api from '@/lib/api'
 import { AppRole, ROLE_LABEL, Permission, PERMISSION_LABEL, PERMISSION_GROUPS } from '@/types'
 import { useAuthStore } from '@/store/auth.store'
@@ -148,12 +149,11 @@ export default function RolesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">จัดการสิทธิ์</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">กำหนดสิทธิ์การใช้งานในแต่ละตำแหน่ง</p>
-        </div>
-      </div>
+      <PageHeader
+        title="จัดการสิทธิ์"
+        icon={ShieldCheck}
+        subtitle="กำหนดสิทธิ์การใช้งานในแต่ละตำแหน่ง"
+      />
 
       {/* Info banner */}
       <div className="flex items-start gap-2 rounded-lg border bg-blue-50 border-blue-200 p-3 text-sm text-blue-700">

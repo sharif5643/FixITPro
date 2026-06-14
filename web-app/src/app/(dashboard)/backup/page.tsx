@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import { th } from 'date-fns/locale'
+import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/store/auth.store'
@@ -39,16 +40,14 @@ export default function BackupPage() {
   const qc      = useQueryClient()
   const [lastCreated, setLastCreated] = useState<BackupFile | null>(null)
 
-  if (!hasPerm('system.backup')) {
-    router.replace('/403')
-    return null
-  }
+  const authorized = hasPerm('system.backup')
 
   const { data: status, isLoading: statusLoading, refetch: refetchStatus } =
     useQuery<BackupStatus>({
       queryKey: ['backup', 'status'],
       queryFn:  async () => (await api.get('/backup/status')).data,
       staleTime: 30_000,
+      enabled:  authorized,
     })
 
   const { data: files = [], isLoading: filesLoading, refetch: refetchFiles } =
@@ -56,6 +55,7 @@ export default function BackupPage() {
       queryKey: ['backup', 'list'],
       queryFn:  async () => (await api.get('/backup/list')).data,
       staleTime: 30_000,
+      enabled:  authorized,
     })
 
   const createBackup = useMutation({
@@ -65,6 +65,11 @@ export default function BackupPage() {
       qc.invalidateQueries({ queryKey: ['backup'] })
     },
   })
+
+  if (!authorized) {
+    router.replace('/403')
+    return null
+  }
 
   function handleRefresh() {
     refetchStatus()
@@ -80,23 +85,23 @@ export default function BackupPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Database className="h-5 w-5 text-blue-600" />
-          <h1 className="text-lg font-bold text-slate-900">Backup ข้อมูล</h1>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isLoading}
-          className="gap-1.5 text-xs"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          รีเฟรช
-        </Button>
-      </div>
+      <PageHeader
+        title="Backup ข้อมูล"
+        icon={Database}
+        subtitle="สำรองและกู้คืนข้อมูลระบบ"
+        primaryAction={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="gap-1.5 text-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            รีเฟรช
+          </Button>
+        }
+      />
 
       {/* Success banner */}
       {lastCreated && (
@@ -253,7 +258,7 @@ export default function BackupPage() {
           <div className="py-12 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl">
             <Database className="h-10 w-10 mx-auto mb-2 opacity-20" />
             <p className="text-sm">ยังไม่มีไฟล์ Backup</p>
-            <p className="text-xs mt-1">กดปุ่ม "สร้าง Backup" เพื่อเริ่มต้น</p>
+            <p className="text-xs mt-1">กดปุ่ม &ldquo;สร้าง Backup&rdquo; เพื่อเริ่มต้น</p>
           </div>
         ) : (
           <div className="space-y-2">

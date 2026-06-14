@@ -18,30 +18,23 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { formatThaiMoney } from '@/lib/utils'
+import { formatThaiMoney, cn } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Sale, SerialNumber } from '@/types'
 import type { CartItem } from '@/store/cart.store'
 
 const checkoutSchema = z.object({
-  customerName: z.string().optional(),
+  customerName:  z.string().optional(),
   customerPhone: z.string().optional(),
   paymentMethod: z.enum(['CASH', 'TRANSFER', 'CARD']),
-  amountPaid: z.coerce.number().min(0, 'กรุณากรอกจำนวนเงิน'),
-  note: z.string().optional(),
+  amountPaid:    z.coerce.number().min(0, 'กรุณากรอกจำนวนเงิน'),
+  note:          z.string().optional(),
 })
 
 type CheckoutFormData = z.infer<typeof checkoutSchema>
 
 const PAYMENT_OPTIONS = [
-  { value: 'CASH',     label: 'เงินสด',     icon: Banknote },
+  { value: 'CASH',     label: 'เงินสด',     icon: Banknote   },
   { value: 'TRANSFER', label: 'โอนเงิน',    icon: Smartphone },
   { value: 'CARD',     label: 'บัตรเครดิต', icon: CreditCard },
 ]
@@ -76,7 +69,7 @@ function SerialSelectionStep({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 rounded-xl px-4 py-3 border border-blue-100">
+      <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 rounded-xl px-4 py-3 border border-blue-100 dark:border-blue-800">
         <ShieldCheck className="h-4 w-4 shrink-0" />
         เลือก Serial / IMEI สำหรับสินค้าที่ติดตาม Serial
       </div>
@@ -116,7 +109,7 @@ function SerialPicker({
     staleTime: 0,
   })
 
-  const serials = data?.items ?? []
+  const serials  = data?.items ?? []
   const filtered = search
     ? serials.filter((s) => s.serial.toLowerCase().includes(search.toLowerCase()))
     : serials
@@ -132,13 +125,16 @@ function SerialPicker({
   const needed = item.quantity - selected.length
 
   return (
-    <div className="rounded-xl border p-4 space-y-3">
+    <div className="rounded-xl border dark:border-slate-700 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold text-sm">{item.product.name}</p>
           <p className="text-xs text-muted-foreground">{item.product.sku}</p>
         </div>
-        <Badge variant={selected.length === item.quantity ? 'default' : 'outline'} className="shrink-0">
+        <Badge
+          variant={selected.length === item.quantity ? 'default' : 'outline'}
+          className="shrink-0 dark:border-slate-700"
+        >
           {selected.length}/{item.quantity} serial
         </Badge>
       </div>
@@ -166,20 +162,21 @@ function SerialPicker({
         <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
           {filtered.map((s) => {
             const isSelected = selected.includes(s.id)
-            const disabled = !isSelected && selected.length >= item.quantity
+            const disabled   = !isSelected && selected.length >= item.quantity
             return (
               <button
                 key={s.id}
                 type="button"
                 disabled={disabled}
                 onClick={() => toggle(s.id)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono border transition-all
-                  ${isSelected
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono border transition-all',
+                  isSelected
                     ? 'bg-blue-600 text-white border-blue-600'
                     : disabled
-                      ? 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:bg-blue-50'
-                  }`}
+                      ? 'bg-gray-50 dark:bg-slate-800 text-gray-300 dark:text-slate-600 border-gray-200 dark:border-slate-700 cursor-not-allowed'
+                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
+                )}
               >
                 {isSelected
                   ? <CheckCircle2 className="h-3 w-3" />
@@ -208,11 +205,11 @@ export function CheckoutDialog({
 }: CheckoutDialogProps) {
   const queryClient = useQueryClient()
 
-  const serialItems = cartItems.filter((i) => i.product.hasSerial)
+  const serialItems    = cartItems.filter((i) => i.product.hasSerial)
   const hasSerialItems = serialItems.length > 0
 
   // step: 'serials' → 'payment'
-  const [step, setStep] = useState<'serials' | 'payment'>('payment')
+  const [step, setStep]                   = useState<'serials' | 'payment'>('payment')
   const [serialAssignments, setSerialAssignments] = useState<Record<string, string[]>>({})
 
   const {
@@ -228,8 +225,8 @@ export function CheckoutDialog({
   })
 
   const paymentMethod = watch('paymentMethod')
-  const amountPaid = Number(watch('amountPaid')) || 0
-  const change = amountPaid - total
+  const amountPaid    = Number(watch('amountPaid')) || 0
+  const change        = amountPaid - total
 
   useEffect(() => {
     if (open) {
@@ -279,8 +276,8 @@ export function CheckoutDialog({
     },
   })
 
-  const isCash     = paymentMethod === 'CASH'
-  const canSubmit  = !createSaleMutation.isPending && (!isCash || change >= 0)
+  const isCash    = paymentMethod === 'CASH'
+  const canSubmit = !createSaleMutation.isPending && (!isCash || change >= 0)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -304,7 +301,7 @@ export function CheckoutDialog({
             className="space-y-4 pt-1"
           >
             {/* Order Summary */}
-            <div className="rounded-xl bg-slate-50 border p-4 space-y-2 text-sm">
+            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-4 space-y-2 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>สินค้า {cartItems.length} รายการ ({cartItems.reduce((s, i) => s + i.quantity, 0)} ชิ้น)</span>
                 <span className="tabular-nums">{formatThaiMoney(subtotal)}</span>
@@ -315,31 +312,33 @@ export function CheckoutDialog({
                   <span className="tabular-nums">- {formatThaiMoney(discount)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold text-base border-t pt-2 mt-1">
+              <div className="flex justify-between font-bold text-base border-t dark:border-slate-700 pt-2 mt-1">
                 <span>ยอดสุทธิ</span>
                 <span className="text-blue-700 tabular-nums">{formatThaiMoney(total)}</span>
               </div>
             </div>
 
-            {/* Payment Method */}
+            {/* Payment Method — large tap buttons */}
             <div className="space-y-1.5">
               <Label>ช่องทางชำระเงิน <span className="text-red-500">*</span></Label>
-              <Select
-                value={paymentMethod}
-                onValueChange={(v) => setValue('paymentMethod', v as CheckoutFormData['paymentMethod'])}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <div className="flex items-center gap-2">
-                        <opt.icon className="h-4 w-4" />
-                        {opt.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setValue('paymentMethod', opt.value as CheckoutFormData['paymentMethod'])}
+                    className={cn(
+                      'flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 min-h-[68px] transition-all',
+                      paymentMethod === opt.value
+                        ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-500',
+                    )}
+                  >
+                    <opt.icon className="h-5 w-5" />
+                    <span className="text-sm font-medium">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Amount Paid */}
@@ -352,7 +351,7 @@ export function CheckoutDialog({
                 type="number" min={0} step={1}
                 readOnly={!isCash}
                 autoFocus={isCash}
-                className={!isCash ? 'bg-gray-50 text-muted-foreground' : ''}
+                className={cn('h-12 text-base text-right', !isCash ? 'bg-slate-50 dark:bg-slate-800/50 text-muted-foreground' : '')}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && canSubmit && !createSaleMutation.isPending) {
                     e.preventDefault()
@@ -368,9 +367,16 @@ export function CheckoutDialog({
 
             {/* Change */}
             {isCash && (
-              <div className={`flex justify-between items-center rounded-xl px-4 py-3 border ${change < 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-                <span className={`font-medium ${change < 0 ? 'text-red-700' : 'text-green-800'}`}>เงินทอน</span>
-                <span className={`text-xl font-bold tabular-nums ${change < 0 ? 'text-red-600' : 'text-green-700'}`}>
+              <div className={cn(
+                'flex justify-between items-center rounded-xl px-4 py-3.5 border',
+                change < 0
+                  ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
+                  : 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800',
+              )}>
+                <span className={cn('font-semibold', change < 0 ? 'text-red-700 dark:text-red-400' : 'text-green-800 dark:text-green-300')}>
+                  เงินทอน
+                </span>
+                <span className={cn('text-2xl font-bold tabular-nums', change < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300')}>
                   {change < 0 ? `ขาดอีก ${formatThaiMoney(Math.abs(change))}` : formatThaiMoney(change)}
                 </span>
               </div>
@@ -403,7 +409,7 @@ export function CheckoutDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={createSaleMutation.isPending}>
                 ยกเลิก
               </Button>
-              <Button type="submit" disabled={!canSubmit} className="min-w-[130px]">
+              <Button type="submit" disabled={!canSubmit} className="min-w-[140px] h-12 text-base font-bold">
                 {createSaleMutation.isPending
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />กำลังบันทึก...</>
                   : 'ยืนยันชำระเงิน'}

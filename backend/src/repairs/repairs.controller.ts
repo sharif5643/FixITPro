@@ -24,6 +24,9 @@ import { RepairPaymentDto } from './dto/repair-payment.dto';
 import { ReversePaymentDto } from './dto/reverse-payment.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
+import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 // UPLOADS_DIR env var allows PROD/DEV separation. Must be set before Node.js starts.
@@ -52,7 +55,8 @@ const imageStorage = diskStorage({
   },
 });
 
-@UseGuards(JwtAuthGuard)
+@RequireModule('repair')
+@UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
 @Controller('repairs')
 export class RepairsController {
   constructor(private repairsService: RepairsService) {}

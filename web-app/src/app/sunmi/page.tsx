@@ -87,7 +87,9 @@ export default function SunmiHomePage() {
     staleTime: 30_000,
   })
 
-  function handleLogout() {
+  async function handleLogout() {
+    // CHB-01: clear server-side cookie first, then local state
+    try { await api.post('/auth/logout') } catch { /* best-effort */ }
     clearAuth()
     router.replace('/login')
   }

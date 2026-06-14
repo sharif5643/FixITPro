@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { DatabaseModule } from './database/database.module';
 import { HealthController } from './health.controller';
 import { AuthModule } from './auth/auth.module';
@@ -35,6 +36,9 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AlertsModule }     from './alerts/alerts.module';
 import { RemindersModule }  from './reminders/reminders.module';
+import { PublicRegisterModule } from './public-register/public-register.module';
+import { FilesModule } from './files/files.module';
+import { ModulesModule } from './modules/modules.module';
 
 @Module({
   controllers: [HealthController],
@@ -44,6 +48,12 @@ import { RemindersModule }  from './reminders/reminders.module';
       // Load environment-specific .env file first, then fall back to .env
       envFilePath: [`.env.${process.env.NODE_ENV || 'development'}`, '.env'],
     }),
+    // P0-3: Named throttlers — each auth endpoint gets its own independent counter.
+    // No APP_GUARD registered: only routes that explicitly add @UseGuards(ThrottlerGuard) are affected.
+    ThrottlerModule.forRoot([
+      { name: 'auth_login',    ttl: 15 * 60 * 1000, limit: 5 },  // 5 per 15 min
+      { name: 'auth_register', ttl: 60 * 60 * 1000, limit: 3 },  // 3 per hour
+    ]),
     ScheduleModule.forRoot(),
     DatabaseModule,
     AuthModule,
@@ -78,6 +88,9 @@ import { RemindersModule }  from './reminders/reminders.module';
     AnalyticsModule,
     AlertsModule,
     RemindersModule,
+    PublicRegisterModule,
+    FilesModule,
+    ModulesModule,
   ],
 })
 export class AppModule {}

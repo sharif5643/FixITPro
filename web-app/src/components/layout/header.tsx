@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { NotificationBell } from '@/components/layout/notification-bell'
 import { BranchSelector } from '@/components/layout/branch-selector'
 import { SyncStatusIndicator } from '@/components/layout/sync-status-indicator'
+import { QuickSearch } from '@/components/layout/quick-search'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -47,7 +48,9 @@ export function Header({ onMenuToggle }: HeaderProps) {
     enabled: isShopUser,
   })
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // CHB-01: clear server-side cookie first, then local state
+    try { await api.post('/auth/logout') } catch { /* best-effort — always clear local state */ }
     clearAuth()
     router.push('/login')
   }
@@ -79,6 +82,8 @@ export function Header({ onMenuToggle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">
+        <QuickSearch />
+
         {isShopUser && !shiftLoading && !currentShift && (
           <Link href="/shifts">
             <Button

@@ -20,7 +20,14 @@ import {
   AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Card, CardContent } from '@/components/ui/card'
+import { PageHeader } from '@/components/ui/page-header'
+import { FilterBar } from '@/components/ui/filter-bar'
+import { SectionCard } from '@/components/ui/section-card'
+import { EmptyState } from '@/components/ui/empty-state'
+import {
+  DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
+  DataTableRow, DataTableCell, DataTableLoadingRows,
+} from '@/components/ui/data-table'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -304,169 +311,165 @@ export default function PurchaseOrdersPage() {
   // ═══════════════════════════════════════════════════════════
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">ใบสั่งซื้อ (PO)</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">จัดการใบสั่งซื้อและบัญชีเจ้าหนี้</p>
-        </div>
-        <Button onClick={openCreate} className="gap-2 shrink-0">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">สร้าง PO ใหม่</span>
-          <span className="sm:hidden">สร้าง</span>
-        </Button>
-      </div>
+      <PageHeader
+        title="ใบสั่งซื้อ (PO)"
+        icon={ClipboardList}
+        subtitle="จัดการใบสั่งซื้อและบัญชีเจ้าหนี้"
+        primaryAction={
+          <Button onClick={openCreate} className="gap-2 shrink-0">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">สร้าง PO ใหม่</span>
+            <span className="sm:hidden">สร้าง</span>
+          </Button>
+        }
+      />
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[160px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="ค้นหาเลข PO..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button size="sm" variant={statusFilter === '' ? 'default' : 'outline'} onClick={() => setStatusFilter('')} className="h-9">ทั้งหมด</Button>
-          {ALL_STATUSES.map((s) => (
-            <Button key={s} size="sm" variant={statusFilter === s ? 'default' : 'outline'} onClick={() => setStatusFilter(statusFilter === s ? '' : s)} className="h-9 text-xs">
-              {STATUS_CFG[s].label}
-            </Button>
+      <div className="flex flex-wrap gap-2">
+        <FilterBar
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="ค้นหาเลข PO..."
+          className="flex-1 min-w-[200px] py-0"
+        />
+        <div className="flex gap-2 flex-wrap items-center">
+          {['', ...ALL_STATUSES].map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s === statusFilter ? '' : s)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                statusFilter === s
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
+              }`}
+            >
+              {s === '' ? 'ทั้งหมด' : STATUS_CFG[s].label}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-40 gap-2 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" /><span className="text-sm">กำลังโหลด...</span>
-            </div>
-          ) : pos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
-              <ClipboardList className="h-8 w-8 opacity-30" />
-              <p className="text-sm">{search || statusFilter ? 'ไม่พบ PO ที่ค้นหา' : 'ยังไม่มี PO'}</p>
-            </div>
-          ) : (
-            <>
-              {/* Desktop */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-gray-50 text-gray-500 text-xs">
-                      <th className="text-left px-4 py-3 font-medium">เลข PO</th>
-                      <th className="text-left px-4 py-3 font-medium">ซัพพลายเออร์</th>
-                      <th className="text-center px-4 py-3 font-medium">สถานะรับ</th>
-                      <th className="text-center px-4 py-3 font-medium">สถานะจ่าย</th>
-                      <th className="text-right px-4 py-3 font-medium">ยอดรวม</th>
-                      <th className="text-right px-4 py-3 font-medium">คงเหลือ</th>
-                      <th className="text-center px-4 py-3 font-medium">จัดการ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pos.map((po) => {
-                      const cfg = STATUS_CFG[po.status]
-                      const pcfg = PAY_STATUS_CFG[po.paymentStatus ?? 'UNPAID']
-                      const canReceive = ['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)
-                      const canPay = !['CANCELLED', 'DRAFT'].includes(po.status) && po.paymentStatus !== 'PAID'
-                      const remaining = Number(po.total) - Number(po.paidTotal ?? 0)
-                      return (
-                        <tr key={po.id} className="border-b last:border-0 hover:bg-gray-50/60">
-                          <td className="px-4 py-3">
-                            <p className="font-mono font-semibold text-gray-900">{po.poNumber}</p>
-                            <p className="text-xs text-muted-foreground">{new Date(po.createdAt).toLocaleDateString('th-TH')}</p>
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="font-medium text-gray-800">{po.supplier.name}</p>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${cfg.cls}`}>{cfg.label}</span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${pcfg.cls}`}>{pcfg.label}</span>
-                          </td>
-                          <td className="px-4 py-3 text-right font-semibold text-gray-900">฿{fmt(Number(po.total))}</td>
-                          <td className="px-4 py-3 text-right">
-                            <span className={remaining > 0 ? 'text-red-600 font-semibold' : 'text-gray-400'}>
-                              {remaining > 0 ? `฿${fmt(remaining)}` : '—'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-center gap-1">
-                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="ดูรายละเอียด" onClick={() => setDetailId(po.id)}>
-                                <Eye className="h-3.5 w-3.5" />
-                              </Button>
-                              {canReceive && (
-                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600 hover:text-green-800" title="รับสินค้าเข้า" onClick={() => openReceive(po)}>
-                                  <PackageCheck className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                              {canPay && (
-                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800" title="บันทึกจ่ายเงิน" onClick={() => openPay(po)}>
-                                  <Banknote className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                              {['DRAFT', 'ORDERED'].includes(po.status) && (
-                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-700" title="ยกเลิก PO" onClick={() => setCancelTarget({ id: po.id, poNumber: po.poNumber })}>
-                                  <Ban className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile */}
-              <div className="md:hidden divide-y">
-                {pos.map((po) => {
-                  const cfg = STATUS_CFG[po.status]
-                  const pcfg = PAY_STATUS_CFG[po.paymentStatus ?? 'UNPAID']
-                  const canReceive = ['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)
-                  const canPay = !['CANCELLED', 'DRAFT'].includes(po.status) && po.paymentStatus !== 'PAID'
-                  const remaining = Number(po.total) - Number(po.paidTotal ?? 0)
-                  return (
-                    <div key={po.id} className="p-4 space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-mono font-semibold text-gray-900">{po.poNumber}</p>
-                          <p className="text-sm text-gray-700">{po.supplier.name}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cfg.cls}`}>{cfg.label}</span>
-                          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${pcfg.cls}`}>{pcfg.label}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">ยอด: <strong>฿{fmt(Number(po.total))}</strong></span>
-                        {remaining > 0 && <span className="text-red-600 font-semibold text-xs">ค้าง ฿{fmt(remaining)}</span>}
-                      </div>
-                      <div className="flex gap-2 pt-1 flex-wrap">
-                        <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setDetailId(po.id)}><Eye className="h-3 w-3" />ดู</Button>
+      {/* Desktop Table */}
+      <SectionCard noPadding className="hidden md:block">
+        <DataTable>
+          <DataTableHead>
+            <DataTableHeadCell>เลข PO</DataTableHeadCell>
+            <DataTableHeadCell>ซัพพลายเออร์</DataTableHeadCell>
+            <DataTableHeadCell className="text-center">สถานะรับ</DataTableHeadCell>
+            <DataTableHeadCell className="text-center">สถานะจ่าย</DataTableHeadCell>
+            <DataTableHeadCell right>ยอดรวม</DataTableHeadCell>
+            <DataTableHeadCell right>คงเหลือ</DataTableHeadCell>
+            <DataTableHeadCell className="text-center w-28">จัดการ</DataTableHeadCell>
+          </DataTableHead>
+          <DataTableBody>
+            {isLoading ? (
+              <DataTableLoadingRows rows={5} cols={7} />
+            ) : pos.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-0">
+                  <EmptyState preset={search || statusFilter ? 'search' : 'default'} size="md" title={search || statusFilter ? 'ไม่พบ PO ที่ค้นหา' : 'ยังไม่มี PO'} />
+                </td>
+              </tr>
+            ) : (
+              pos.map((po) => {
+                const cfg = STATUS_CFG[po.status]
+                const pcfg = PAY_STATUS_CFG[po.paymentStatus ?? 'UNPAID']
+                const canReceive = ['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)
+                const canPay = !['CANCELLED', 'DRAFT'].includes(po.status) && po.paymentStatus !== 'PAID'
+                const remaining = Number(po.total) - Number(po.paidTotal ?? 0)
+                return (
+                  <DataTableRow key={po.id}>
+                    <DataTableCell>
+                      <p className="font-mono font-semibold text-slate-900">{po.poNumber}</p>
+                      <p className="text-xs text-slate-400">{new Date(po.createdAt).toLocaleDateString('th-TH')}</p>
+                    </DataTableCell>
+                    <DataTableCell>
+                      <p className="font-medium text-slate-800">{po.supplier.name}</p>
+                    </DataTableCell>
+                    <DataTableCell className="text-center">
+                      <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${cfg.cls}`}>{cfg.label}</span>
+                    </DataTableCell>
+                    <DataTableCell className="text-center">
+                      <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${pcfg.cls}`}>{pcfg.label}</span>
+                    </DataTableCell>
+                    <DataTableCell right>
+                      <span className="font-semibold tabular-nums text-slate-900">฿{fmt(Number(po.total))}</span>
+                    </DataTableCell>
+                    <DataTableCell right>
+                      <span className={remaining > 0 ? 'text-red-600 font-semibold tabular-nums' : 'text-slate-400'}>
+                        {remaining > 0 ? `฿${fmt(remaining)}` : '—'}
+                      </span>
+                    </DataTableCell>
+                    <DataTableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" title="ดูรายละเอียด" onClick={() => setDetailId(po.id)}>
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
                         {canReceive && (
-                          <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs text-green-700 border-green-200 hover:bg-green-50" onClick={() => openReceive(po)}><PackageCheck className="h-3 w-3" />รับสินค้า</Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50" title="รับสินค้าเข้า" onClick={() => openReceive(po)}>
+                            <PackageCheck className="h-3.5 w-3.5" />
+                          </Button>
                         )}
                         {canPay && (
-                          <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 flex-1" onClick={() => openPay(po)}><Banknote className="h-3 w-3" />จ่ายเงิน</Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:text-blue-800 hover:bg-blue-50" title="บันทึกจ่ายเงิน" onClick={() => openPay(po)}>
+                            <Banknote className="h-3.5 w-3.5" />
+                          </Button>
                         )}
                         {['DRAFT', 'ORDERED'].includes(po.status) && (
-                          <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs text-red-500 border-red-200 hover:bg-red-50" onClick={() => setCancelTarget({ id: po.id, poNumber: po.poNumber })}><Ban className="h-3 w-3" />ยกเลิก</Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50" title="ยกเลิก PO" onClick={() => setCancelTarget({ id: po.id, poNumber: po.poNumber })}>
+                            <Ban className="h-3.5 w-3.5" />
+                          </Button>
                         )}
                       </div>
-                    </div>
-                  )
-                })}
+                    </DataTableCell>
+                  </DataTableRow>
+                )
+              })
+            )}
+          </DataTableBody>
+        </DataTable>
+      </SectionCard>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <SectionCard><div className="h-32 flex items-center justify-center"><div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" /></div></SectionCard>
+        ) : pos.length === 0 ? (
+          <SectionCard noPadding><EmptyState preset="default" size="md" title={search || statusFilter ? 'ไม่พบ PO' : 'ยังไม่มี PO'} /></SectionCard>
+        ) : (
+          pos.map((po) => {
+            const cfg = STATUS_CFG[po.status]
+            const pcfg = PAY_STATUS_CFG[po.paymentStatus ?? 'UNPAID']
+            const canReceive = ['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)
+            const canPay = !['CANCELLED', 'DRAFT'].includes(po.status) && po.paymentStatus !== 'PAID'
+            const remaining = Number(po.total) - Number(po.paidTotal ?? 0)
+            return (
+              <div key={po.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-mono font-semibold text-slate-900">{po.poNumber}</p>
+                    <p className="text-sm text-slate-600">{po.supplier.name}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cfg.cls}`}>{cfg.label}</span>
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${pcfg.cls}`}>{pcfg.label}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">ยอด: <strong className="text-slate-900">฿{fmt(Number(po.total))}</strong></span>
+                  {remaining > 0 && <span className="text-red-600 font-semibold text-xs">ค้าง ฿{fmt(remaining)}</span>}
+                </div>
+                <div className="flex gap-2 pt-1 flex-wrap">
+                  <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={() => setDetailId(po.id)}><Eye className="h-3 w-3" />ดู</Button>
+                  {canReceive && <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => openReceive(po)}><PackageCheck className="h-3 w-3" />รับสินค้า</Button>}
+                  {canPay && <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs text-blue-700 border-blue-200 hover:bg-blue-50 flex-1" onClick={() => openPay(po)}><Banknote className="h-3 w-3" />จ่ายเงิน</Button>}
+                  {['DRAFT', 'ORDERED'].includes(po.status) && <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs text-red-500 border-red-200 hover:bg-red-50" onClick={() => setCancelTarget({ id: po.id, poNumber: po.poNumber })}><Ban className="h-3 w-3" />ยกเลิก</Button>}
+                </div>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            )
+          })
+        )}
+      </div>
 
       {/* ═══════════════ CREATE DIALOG ═══════════════ */}
       <Dialog open={formOpen} onOpenChange={(v: boolean) => { if (!v) setFormOpen(false) }}>

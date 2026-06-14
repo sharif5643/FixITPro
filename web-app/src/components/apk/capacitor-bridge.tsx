@@ -19,7 +19,6 @@ export function CapacitorBridge() {
   const router      = useRouter()
   const pathname    = usePathname()
   const user        = useAuthStore((s) => s.user)
-  const accessToken = useAuthStore((s) => s.accessToken)
   const hasHydrated = useAuthStore((s) => s._hasHydrated)
 
   // Native app lifecycle (back button, status bar, etc.)
@@ -28,14 +27,15 @@ export function CapacitorBridge() {
   useEffect(() => {
     if (!Platform.isSunmiShell()) return
     if (!hasHydrated) return
-    if (!accessToken || !user) return
+    // CHB-01: guard on user presence — cookie carries the JWT
+    if (!user) return
     if (user.forcePasswordChange) return
 
     // APK or NEXT_PUBLIC_APP_MODE=sunmi: land on SUNMI POS home instead of the admin dashboard
     if (pathname === '/' || pathname === '') {
       router.replace('/sunmi')
     }
-  }, [hasHydrated, accessToken, user, pathname, router])
+  }, [hasHydrated, user, pathname, router])
 
   return null
 }

@@ -9,37 +9,37 @@ export interface AuthUser {
   tenantId?: string | null
   branchId?: string | null
   forcePasswordChange?: boolean
+  tenantExpiryDate?: string | null
+  shopName?: string | null
 }
 
 interface AuthState {
   user: AuthUser | null
-  accessToken: string | null
+  // CHB-01: accessToken removed — JWT lives in HttpOnly cookie, not client state
   permissions: string[]
+  enabledModules: string[]
   _hasHydrated: boolean
-  setAuth: (user: AuthUser, token: string, permissions: string[]) => void
+  setAuth: (user: AuthUser, permissions: string[], enabledModules?: string[]) => void
   clearAuth: () => void
   updateUser: (updates: Partial<AuthUser>) => void
   hasPermission: (permission: string) => boolean
+  hasModule: (moduleKey: string) => boolean
   isSuperAdmin: () => boolean
 }
 
-// `set` is captured from the factory so `onRehydrateStorage` can trigger
-// subscriber notifications without forward-referencing `useAuthStore`
-// (which would cause a TDZ error: "Cannot access before initialization").
 let _set: ((partial: Partial<AuthState>) => void) | null = null
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => {
-      _set = set // capture before returning — always runs synchronously
+      _set = set
       return {
         user: null,
-        accessToken: null,
         permissions: [],
+        enabledModules: [],
         _hasHydrated: false,
-        setAuth: (user, accessToken, permissions) =>
-          set({ user, accessToken, permissions }),
-        clearAuth: () => set({ user: null, accessToken: null, permissions: [] }),
+        setAuth: (user, permissions, enabledModules = []) => set({ user, permissions, enabledModules }),
+        clearAuth: () => set({ user: null, permissions: [], enabledModules: [] }),
         updateUser: (updates) =>
           set((state) => ({ user: state.user ? { ...state.user, ...updates } : null })),
         hasPermission: (permission: string) => {
@@ -47,6 +47,12 @@ export const useAuthStore = create<AuthState>()(
           if (!user) return false
           if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') return true
           return permissions.includes(permission)
+        },
+        hasModule: (moduleKey: string) => {
+          const { user, enabledModules } = get()
+          if (!user) return false
+          if (user.role === 'SUPER_ADMIN') return true
+          return enabledModules.includes(moduleKey)
         },
         isSuperAdmin: () => get().user?.role === 'SUPER_ADMIN',
       }
@@ -61,11 +67,11 @@ export const useAuthStore = create<AuthState>()(
           removeItem: () => {},
         }
       }),
-      // Only write these three fields to localStorage — _hasHydrated is transient
+      // CHB-01: accessToken excluded — cookie handles auth, not localStorage
       partialize: (state) => ({
         user: state.user,
-        accessToken: state.accessToken,
         permissions: state.permissions,
+        enabledModules: state.enabledModules,
       }),
       onRehydrateStorage: () => {
         return (state, error) => {
@@ -73,16 +79,11 @@ export const useAuthStore = create<AuthState>()(
             console.error('[Auth] Store rehydration failed:', error)
           }
           if (state) {
-            // Direct mutation so any synchronous reads after hydration see true
             state._hasHydrated = true
             console.log(
-              '[Auth] Store hydrated — token:',
-              state.accessToken ? 'present' : 'missing',
-              '| role:', state.user?.role ?? 'none',
+              '[Auth] Store hydrated — role:', state.user?.role ?? 'none',
             )
           }
-          // Call set() to notify all React subscribers (direct mutation alone
-          // does not trigger zustand's subscription system)
           _set?.({ _hasHydrated: true })
         }
       },

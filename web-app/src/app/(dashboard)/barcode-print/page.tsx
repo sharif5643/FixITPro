@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import { Search, Printer, Plus, Minus, X, Barcode as BarcodeIcon } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -166,18 +167,18 @@ export default function BarcodePrintPage() {
       `}</style>
 
       <div className="space-y-5 no-print">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">พิมพ์ Barcode</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">เลือกสินค้าและพิมพ์ label</p>
-          </div>
-          <Button onClick={handlePrint} disabled={allLabels.length === 0} className="gap-2 shrink-0">
-            <Printer className="h-4 w-4" />
-            <span className="hidden sm:inline">พิมพ์ ({allLabels.length} ดวง)</span>
-            <span className="sm:hidden">พิมพ์</span>
-          </Button>
-        </div>
+        <PageHeader
+          title="พิมพ์ Barcode"
+          icon={Printer}
+          subtitle="เลือกสินค้าและพิมพ์ label"
+          primaryAction={
+            <Button onClick={handlePrint} disabled={allLabels.length === 0} className="gap-2 shrink-0">
+              <Printer className="h-4 w-4" />
+              <span className="hidden sm:inline">พิมพ์ ({allLabels.length} ดวง)</span>
+              <span className="sm:hidden">พิมพ์</span>
+            </Button>
+          }
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: controls */}

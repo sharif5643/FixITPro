@@ -3,13 +3,16 @@ import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
+import { RequireModule } from '../common/decorators/require-module.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 const IS_ELEVATED = (role: string) => role === 'OWNER' || role === 'SUPER_ADMIN';
 
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@RequireModule('report')
+@UseGuards(JwtAuthGuard, PermissionGuard, ModuleGuard)
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}

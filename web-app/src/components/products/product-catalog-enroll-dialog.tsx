@@ -153,7 +153,7 @@ export function ProductCatalogEnrollDialog({
           {isOwnerGlobalMode && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 mt-1">
               <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span>คุณอยู่ในโหมด "ทุกสาขา" กรุณาเลือกสาขาก่อนเพิ่มสินค้า</span>
+              <span>คุณอยู่ในโหมด &ldquo;ทุกสาขา&rdquo; กรุณาเลือกสาขาก่อนเพิ่มสินค้า</span>
             </div>
           )}
           {!isOwnerGlobalMode && effectiveBranchName && (

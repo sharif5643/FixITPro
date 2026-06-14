@@ -7,15 +7,19 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { StockService } from './stock.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard)
 @Controller('stock')
 export class StockController {
+  private readonly logger = new Logger(StockController.name);
+
   constructor(private stockService: StockService) {}
 
   @Post('adjust')
@@ -40,16 +44,7 @@ export class StockController {
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('[StockController][adjust]', {
-        actorId,
-        actorRole,
-        jwtBranchId:       actorBranchId ?? null,
-        bodyBranchId:      dto.branchId ?? null,
-        effectiveBranchId: dto.branchId,
-        productId:         dto.productId,
-        type:              dto.type,
-        quantity:          dto.quantity,
-      });
+      this.logger.debug(`[adjust] actor=${actorId} role=${actorRole} jwtBranch=${actorBranchId ?? null} bodyBranch=${dto.branchId ?? null} product=${dto.productId} type=${dto.type} qty=${dto.quantity}`);
     }
 
     return this.stockService.adjustStock(dto, actorId, actorName);

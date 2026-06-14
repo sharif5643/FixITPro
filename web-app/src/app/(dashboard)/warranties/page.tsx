@@ -5,12 +5,17 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow, format, isPast } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
-  BadgeCheck, Search, X, Loader2, ShieldOff, ShieldAlert,
-  ShieldCheck, RefreshCw, ChevronLeft, ChevronRight,
+  BadgeCheck, Loader2, ShieldOff, ShieldAlert,
+  ShieldCheck, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/ui/page-header'
+import { FilterBar } from '@/components/ui/filter-bar'
+import { SectionCard } from '@/components/ui/section-card'
+import {
+  DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
+  DataTableRow, DataTableCell, DataTableLoadingRows,
+} from '@/components/ui/data-table'
 import api from '@/lib/api'
 import type { Warranty, WarrantyStatus } from '@/types'
 
@@ -125,30 +130,30 @@ export default function WarrantiesPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">การรับประกัน</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            ทั้งหมด {total} รายการ
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="การรับประกัน"
+        icon={BadgeCheck}
+        subtitle={`ทั้งหมด ${total} รายการ`}
+      />
 
-      {/* Stat chips */}
+      {/* Status filter chips */}
       {stats && (
         <div className="flex flex-wrap gap-2">
           {[
-            { key: '', label: 'ทั้งหมด', count: stats.active + stats.expired + stats.voided + stats.claimed, cls: 'bg-gray-100 text-gray-700' },
-            { key: 'ACTIVE',  label: 'ใช้งานได้',    count: stats.active,  cls: 'bg-green-50 text-green-700 border border-green-200' },
-            { key: 'EXPIRED', label: 'หมดอายุ',      count: stats.expired, cls: 'bg-gray-50 text-gray-500 border border-gray-200' },
-            { key: 'CLAIMED', label: 'ใช้สิทธิ์แล้ว', count: stats.claimed, cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
-            { key: 'VOIDED',  label: 'ยกเลิก',       count: stats.voided,  cls: 'bg-red-50 text-red-600 border border-red-200' },
-          ].map(({ key, label, count, cls }) => (
+            { key: '', label: 'ทั้งหมด', count: stats.active + stats.expired + stats.voided + stats.claimed },
+            { key: 'ACTIVE',  label: 'ใช้งานได้',    count: stats.active  },
+            { key: 'EXPIRED', label: 'หมดอายุ',      count: stats.expired },
+            { key: 'CLAIMED', label: 'ใช้สิทธิ์แล้ว', count: stats.claimed },
+            { key: 'VOIDED',  label: 'ยกเลิก',       count: stats.voided  },
+          ].map(({ key, label, count }) => (
             <button
               key={key}
               onClick={() => { setStatus(key); setPage(1) }}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${cls} ${statusFilter === key ? 'ring-2 ring-offset-1 ring-gray-400' : 'opacity-80 hover:opacity-100'}`}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-all ${
+                statusFilter === key
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
+              }`}
             >
               {label} ({count})
             </button>
@@ -156,205 +161,137 @@ export default function WarrantiesPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="ค้นหา: ชื่อ, เบอร์, หมายเลข ticket, ใบเสร็จ, serial..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            className="pl-9 pr-9"
-          />
-          {search && (
-            <button
-              onClick={() => { setSearch(''); setPage(1) }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
+      {/* Search + source filter */}
+      <FilterBar
+        searchValue={search}
+        onSearchChange={(v) => { setSearch(v); setPage(1) }}
+        searchPlaceholder="ค้นหา: ชื่อ, เบอร์, เลข ticket, ใบเสร็จ, serial..."
+      >
         <select
           value={sourceFilter}
           onChange={(e) => { setSource(e.target.value); setPage(1) }}
-          className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+          className="h-9 rounded-md border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">ทุกประเภท</option>
           <option value="REPAIR">งานซ่อม</option>
           <option value="PRODUCT">สินค้า</option>
         </select>
-      </div>
+      </FilterBar>
 
-      {/* Table */}
-      <div className="hidden md:block bg-white rounded-xl border overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-48 gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>กำลังโหลด...</span>
-          </div>
-        ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
-            <BadgeCheck className="h-10 w-10 text-gray-200" />
-            <p className="text-sm font-medium">ไม่พบข้อมูลการรับประกัน</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                  <th className="text-left px-4 py-3 font-medium">เลขที่</th>
-                  <th className="text-left px-4 py-3 font-medium">ลูกค้า</th>
-                  <th className="text-left px-4 py-3 font-medium">รายการ</th>
-                  <th className="text-left px-4 py-3 font-medium">ประเภท</th>
-                  <th className="text-left px-4 py-3 font-medium">หมดอายุ</th>
-                  <th className="text-center px-4 py-3 font-medium">สถานะ</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((w) => (
-                  <tr key={w.id} className="border-b last:border-0 hover:bg-blue-50/30 transition-colors">
-                    <td className="px-4 py-3">
-                      <p className="font-mono text-xs font-semibold text-gray-700">{w.warrantyNumber}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {format(new Date(w.startDate), 'dd/MM/yy', { locale: th })}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3">
-                      {w.customer ? (
-                        <>
-                          <p className="font-semibold text-gray-800">{w.customer.name}</p>
-                          <p className="text-xs text-muted-foreground">{w.customer.phone ?? '—'}</p>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 max-w-[200px]">
-                      {w.repair && (
-                        <p className="text-sm font-medium text-blue-700 truncate">{w.repair.ticketNumber}</p>
-                      )}
-                      {w.saleItem && (
-                        <>
-                          <p className="text-sm font-medium truncate">{w.saleItem.product.name}</p>
-                          <p className="text-xs text-muted-foreground">{w.saleItem.sale.receiptNumber}</p>
-                        </>
-                      )}
-                      {w.serialNumber && (
-                        <p className="text-xs font-mono text-gray-500">S/N: {w.serialNumber.serial}</p>
-                      )}
-                      {w.description && (
-                        <p className="text-xs text-muted-foreground truncate">{w.description}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs bg-blue-50 text-blue-700 border-blue-200">
-                        {SOURCE_LABEL[w.sourceType]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <EndDateCell endDate={w.endDate} status={w.status} />
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <WarrantyStatusBadge status={w.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {w.status === 'ACTIVE' && (
-                        <div className="flex items-center gap-1 justify-end">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                            onClick={() => setClaimId(w.id)}
-                          >
-                            ใช้สิทธิ์
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => setVoidId(w.id)}
-                          >
-                            ยกเลิก
-                          </Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      {/* Desktop table */}
+      <SectionCard noPadding className="hidden md:block">
+        <DataTable>
+          <DataTableHead>
+            <DataTableHeadCell>เลขที่</DataTableHeadCell>
+            <DataTableHeadCell>ลูกค้า</DataTableHeadCell>
+            <DataTableHeadCell>รายการ</DataTableHeadCell>
+            <DataTableHeadCell>ประเภท</DataTableHeadCell>
+            <DataTableHeadCell>หมดอายุ</DataTableHeadCell>
+            <DataTableHeadCell className="text-center">สถานะ</DataTableHeadCell>
+            <DataTableHeadCell className="w-24" />
+          </DataTableHead>
+          <DataTableBody>
+            {isLoading ? (
+              <DataTableLoadingRows rows={5} cols={7} />
+            ) : items.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-16 text-center">
+                  <div className="flex flex-col items-center gap-2 text-slate-400">
+                    <BadgeCheck className="h-10 w-10 opacity-30" />
+                    <p className="text-sm font-medium">ไม่พบข้อมูลการรับประกัน</p>
+                  </div>
+                </td>
+              </tr>
+            ) : items.map((w) => (
+              <DataTableRow key={w.id}>
+                <DataTableCell>
+                  <p className="font-mono text-xs font-semibold text-slate-700">{w.warrantyNumber}</p>
+                  <p className="text-[10px] text-slate-400">{format(new Date(w.startDate), 'dd/MM/yy', { locale: th })}</p>
+                </DataTableCell>
+                <DataTableCell>
+                  {w.customer ? (
+                    <>
+                      <p className="font-semibold text-slate-800">{w.customer.name}</p>
+                      <p className="text-xs text-slate-400">{w.customer.phone ?? '—'}</p>
+                    </>
+                  ) : <span className="text-slate-400">—</span>}
+                </DataTableCell>
+                <DataTableCell className="max-w-[200px]">
+                  {w.repair && <p className="text-sm font-medium text-blue-700 truncate">{w.repair.ticketNumber}</p>}
+                  {w.saleItem && (
+                    <>
+                      <p className="text-sm font-medium truncate">{w.saleItem.product.name}</p>
+                      <p className="text-xs text-slate-400">{w.saleItem.sale.receiptNumber}</p>
+                    </>
+                  )}
+                  {w.serialNumber && <p className="text-xs font-mono text-slate-500">S/N: {w.serialNumber.serial}</p>}
+                  {w.description && <p className="text-xs text-slate-400 truncate">{w.description}</p>}
+                </DataTableCell>
+                <DataTableCell>
+                  <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                    {SOURCE_LABEL[w.sourceType]}
+                  </span>
+                </DataTableCell>
+                <DataTableCell>
+                  <EndDateCell endDate={w.endDate} status={w.status} />
+                </DataTableCell>
+                <DataTableCell className="text-center">
+                  <WarrantyStatusBadge status={w.status} />
+                </DataTableCell>
+                <DataTableCell className="text-right">
+                  {w.status === 'ACTIVE' && (
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
+                    </div>
+                  )}
+                </DataTableCell>
+              </DataTableRow>
+            ))}
+          </DataTableBody>
+        </DataTable>
+      </SectionCard>
 
       {/* Mobile cards */}
       <div className="md:hidden space-y-3">
         {isLoading ? (
-          <div className="flex items-center justify-center h-40 gap-2 text-muted-foreground bg-white rounded-xl border">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>กำลังโหลด...</span>
+          <div className="flex items-center justify-center h-40 bg-white rounded-xl border">
+            <div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 gap-2 bg-white rounded-xl border text-muted-foreground">
-            <BadgeCheck className="h-10 w-10 text-gray-200" />
+          <div className="flex flex-col items-center justify-center h-48 gap-2 bg-white rounded-xl border text-slate-400">
+            <BadgeCheck className="h-10 w-10 opacity-30" />
             <p className="text-sm">ไม่พบข้อมูลการรับประกัน</p>
           </div>
-        ) : (
-          items.map((w) => (
-            <div key={w.id} className="bg-white rounded-xl border p-4 space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-mono text-xs font-semibold text-gray-600">{w.warrantyNumber}</p>
-                  {w.customer && (
-                    <p className="font-semibold text-gray-900">{w.customer.name}</p>
-                  )}
-                  {w.repair && (
-                    <p className="text-sm text-blue-700">{w.repair.ticketNumber}</p>
-                  )}
-                  {w.saleItem && (
-                    <p className="text-sm">{w.saleItem.product.name}</p>
-                  )}
-                </div>
-                <WarrantyStatusBadge status={w.status} />
+        ) : items.map((w) => (
+          <div key={w.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-mono text-xs font-semibold text-slate-600">{w.warrantyNumber}</p>
+                {w.customer && <p className="font-semibold text-slate-900">{w.customer.name}</p>}
+                {w.repair && <p className="text-sm text-blue-700">{w.repair.ticketNumber}</p>}
+                {w.saleItem && <p className="text-sm">{w.saleItem.product.name}</p>}
               </div>
-
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="rounded-lg bg-gray-50 px-3 py-2">
-                  <p className="text-[10px] text-muted-foreground">ประเภท</p>
-                  <p className="font-medium text-xs">{SOURCE_LABEL[w.sourceType]}</p>
-                </div>
-                <div className="rounded-lg bg-gray-50 px-3 py-2">
-                  <p className="text-[10px] text-muted-foreground">หมดอายุ</p>
-                  <p className="font-medium text-xs">{format(new Date(w.endDate), 'dd/MM/yy', { locale: th })}</p>
-                </div>
-              </div>
-
-              {w.status === 'ACTIVE' && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 h-8 text-xs text-amber-600 border-amber-200"
-                    onClick={() => setClaimId(w.id)}
-                  >
-                    ใช้สิทธิ์รับประกัน
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 h-8 text-xs text-red-500 border-red-200"
-                    onClick={() => setVoidId(w.id)}
-                  >
-                    ยกเลิก
-                  </Button>
-                </div>
-              )}
+              <WarrantyStatusBadge status={w.status} />
             </div>
-          ))
-        )}
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                <p className="text-[10px] text-slate-400">ประเภท</p>
+                <p className="font-medium text-xs">{SOURCE_LABEL[w.sourceType]}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                <p className="text-[10px] text-slate-400">หมดอายุ</p>
+                <p className="font-medium text-xs">{format(new Date(w.endDate), 'dd/MM/yy', { locale: th })}</p>
+              </div>
+            </div>
+            {w.status === 'ACTIVE' && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-amber-600 border-amber-200" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์รับประกัน</Button>
+                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-red-500 border-red-200" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* Pagination */}

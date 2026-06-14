@@ -373,4 +373,140 @@ export class DashboardService {
       },
     };
   }
+
+  // ── Owner Summary ─────────────────────────────────────────────────────────────
+  async getOwnerSummary() {
+    const now      = new Date();
+    const thaiNow  = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    const todayStr = thaiNow.toISOString().slice(0, 10);
+    const monthStr = todayStr.slice(0, 7) + '-01';
+
+    const todayStart   = new Date(`${todayStr}T00:00:00+07:00`);
+    const todayEnd     = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    const monthStart   = new Date(`${monthStr}T00:00:00+07:00`);
+    const weekAgoStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+
+    const [
+      todaySalesAgg, todayRepairAgg, todayExpensesAgg,
+      newCustomersCount,
+      monthlySalesAgg, monthlyRepairAgg, monthlyExpensesAgg,
+      openRepairCount, overdueRepairCount, unpaidDebtRepairs,
+      outOfStockCount, lowStockResult,
+      recentSales,
+      pastWeekSalesAgg,
+    ] = await Promise.all([
+      this.prisma.sale.aggregate({
+        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' } },
+        _sum: { total: true },
+      }),
+      this.prisma.repair.aggregate({
+        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID' },
+        _sum: { paidAmount: true },
+      }),
+      this.prisma.expense.aggregate({
+        where: { expenseDate: { gte: todayStart, lt: todayEnd }, voidedAt: null },
+        _sum: { amount: true },
+      }),
+      this.prisma.customer.count({
+        where: { createdAt: { gte: todayStart, lt: todayEnd } },
+      }),
+      this.prisma.sale.aggregate({
+        where: { createdAt: { gte: monthStart, lt: todayEnd }, status: { not: 'VOIDED' } },
+        _sum: { total: true },
+      }),
+      this.prisma.repair.aggregate({
+        where: { paidAt: { gte: monthStart, lt: todayEnd }, paymentStatus: 'PAID' },
+        _sum: { paidAmount: true },
+      }),
+      this.prisma.expense.aggregate({
+        where: { expenseDate: { gte: monthStart, lt: todayEnd }, voidedAt: null },
+        _sum: { amount: true },
+      }),
+      this.prisma.repair.count({
+        where: { status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+      }),
+      this.prisma.repair.count({
+        where: { dueDate: { lt: now }, status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] } },
+      }),
+      this.prisma.repair.findMany({
+        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' } },
+        select: { finalCost: true, estimateCost: true, deposit: true },
+      }),
+      this.prisma.product.count({ where: { isActive: true, stock: 0 } }),
+      this.prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(*) as count FROM "Product"
+        WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"
+      `,
+      this.prisma.sale.findMany({
+        where: { status: { not: 'VOIDED' } },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          id: true, receiptNumber: true, total: true,
+          paymentMethod: true, createdAt: true,
+          customer: { select: { name: true } },
+        },
+      }),
+      this.prisma.sale.aggregate({
+        where: { createdAt: { gte: weekAgoStart, lt: todayStart }, status: { not: 'VOIDED' } },
+        _sum: { total: true },
+      }),
+    ]);
+
+    const todaySalesRevenue  = Number(todaySalesAgg._sum.total ?? 0);
+    const todayRepairRevenue = Number(todayRepairAgg._sum.paidAmount ?? 0);
+    const todayRevenue       = todaySalesRevenue + todayRepairRevenue;
+    const todayExpenses      = Number(todayExpensesAgg._sum.amount ?? 0);
+
+    const monthlySalesRevenue  = Number(monthlySalesAgg._sum.total ?? 0);
+    const monthlyRepairRevenue = Number(monthlyRepairAgg._sum.paidAmount ?? 0);
+    const monthlyRevenue       = monthlySalesRevenue + monthlyRepairRevenue;
+    const monthlyExpenses      = Number(monthlyExpensesAgg._sum.amount ?? 0);
+
+    const unpaidDebtCount = unpaidDebtRepairs.length;
+    const lowStockCount   = Number((lowStockResult as [{ count: bigint }])[0]?.count ?? 0);
+
+    const past6DaysSalesTotal = Number(pastWeekSalesAgg._sum.total ?? 0);
+    const avgDailySales       = past6DaysSalesTotal / 6;
+
+    return {
+      today: {
+        salesRevenue: todaySalesRevenue,
+        repairRevenue: todayRepairRevenue,
+        totalRevenue: todayRevenue,
+        totalExpenses: todayExpenses,
+        netProfit: todayRevenue - todayExpenses,
+        newCustomers: newCustomersCount,
+      },
+      monthly: {
+        salesRevenue: monthlySalesRevenue,
+        repairRevenue: monthlyRepairRevenue,
+        totalRevenue: monthlyRevenue,
+        totalExpenses: monthlyExpenses,
+        netProfit: monthlyRevenue - monthlyExpenses,
+      },
+      recentSales: recentSales.map(s => ({
+        id:            s.id,
+        receiptNumber: s.receiptNumber,
+        total:         Number(s.total),
+        paymentMethod: s.paymentMethod,
+        createdAt:     s.createdAt,
+        customerName:  s.customer?.name ?? null,
+      })),
+      health: {
+        abnormalPendingRepairs: openRepairCount > 10 || overdueRepairCount > 0,
+        hasLowStock:            lowStockCount > 0 || outOfStockCount > 0,
+        highExpenses:           todayRevenue > 0 && todayExpenses > todayRevenue * 0.6,
+        belowAverageSales:      avgDailySales > 100 && todaySalesRevenue < avgDailySales * 0.7,
+        hasOutstandingDebt:     unpaidDebtCount > 0,
+      },
+      repairStats: {
+        openRepairs:    openRepairCount,
+        overdueRepairs: overdueRepairCount,
+        unpaidDebtCount,
+        outOfStock:     outOfStockCount,
+        lowStock:       lowStockCount,
+      },
+    };
+  }
 }
