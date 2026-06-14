@@ -26,8 +26,7 @@ WORKDIR /app
 
 # Runtime dependencies
 # postgresql-client: provides pg_dump for the admin-triggered backup API endpoint.
-# Version must be >= the postgres server (15). Alpine's postgresql15-client matches exactly.
-RUN apk add --no-cache openssl dumb-init postgresql15-client
+RUN apk add --no-cache openssl dumb-init postgresql-client
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
