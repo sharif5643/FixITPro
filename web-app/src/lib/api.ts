@@ -9,9 +9,9 @@ interface RetryConfig extends AxiosRequestConfig {
 // CHB-08: NEXT_PUBLIC_API_URL is substituted at build time by Next.js.
 const _apiUrl = process.env.NEXT_PUBLIC_API_URL
 if (!_apiUrl) {
-  throw new Error(
+  console.error(
     '[FixITPro] NEXT_PUBLIC_API_URL is not set. ' +
-    'Add it to .env.production before running "next build".',
+    'Set it in Coolify Build Variables or .env.production before running "next build".',
   )
 }
 

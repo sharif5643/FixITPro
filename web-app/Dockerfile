@@ -13,7 +13,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # NEXT_PUBLIC_* vars must be set at BUILD time — they're embedded in JS bundles
-ARG NEXT_PUBLIC_API_URL
+# Set this in Coolify → Build Variables as the real backend URL (e.g. https://api.yourdomain.com/api/v1)
+ARG NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
