@@ -9,4 +9,4 @@ echo "[entrypoint] Running Prisma migrations..."
 npx prisma migrate deploy
 
 echo "[entrypoint] Starting FixITPro Backend..."
-exec node dist/main
+exec node dist/src/main
