@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { RepairsService } from './repairs.service';
 import { CreateRepairDto } from './dto/create-repair.dto';
@@ -29,9 +29,8 @@ import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-// UPLOADS_DIR env var allows PROD/DEV separation. Must be set before Node.js starts.
-const UPLOADS_DIR = process.env.UPLOADS_DIR ||
-  (process.env.NODE_ENV === 'production' ? 'D:\\FixITPro_Prod_Uploads\\repairs' : 'uploads/repairs');
+const uploadsBaseDir = process.env.UPLOADS_BASE_DIR || '/app/uploads';
+const UPLOADS_DIR = process.env.UPLOADS_DIR || join(uploadsBaseDir, 'repairs');
 if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
 
 // M-4 FIX: whitelist of allowed image extensions (lowercase).
