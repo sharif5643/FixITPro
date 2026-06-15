@@ -25,16 +25,16 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB:       ${POSTGRES_DB}
-      POSTGRES_USER:     ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       fixitpro
+      POSTGRES_USER:     fixitpro
+      POSTGRES_PASSWORD: FixITPro2026Secure
       PGDATA:            /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - app_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -U fixitpro -d fixitpro"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -52,10 +52,10 @@ services:
     environment:
       NODE_ENV:       production
       PORT:           3000
-      DATABASE_URL:   postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public&connection_limit=10&pool_timeout=30
-      JWT_SECRET:     ${JWT_SECRET}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
-      CORS_ORIGIN:    ${CORS_ORIGIN}
+      DATABASE_URL:   postgresql://fixitpro:FixITPro2026Secure@postgres:5432/fixitpro?schema=public&connection_limit=10&pool_timeout=30
+      JWT_SECRET:     FixITProJWTSecret2026UltraSecureRandomKey
+      JWT_EXPIRES_IN: 7d
+      CORS_ORIGIN:    "*"
       BACKUP_DIR:     /app/backups
     volumes:
       - uploads_data:/app/uploads
@@ -85,7 +85,7 @@ services:
       args:
         # NEXT_PUBLIC_API_URL is embedded into the JS bundle at build time.
         # Changing the API domain requires rebuilding this image.
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_API_URL: http://91.98.151.10:3000/api/v1
     restart: unless-stopped
     expose:
       - "3000"
