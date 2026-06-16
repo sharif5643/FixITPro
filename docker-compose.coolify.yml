@@ -59,9 +59,11 @@ services:
       BACKUP_DIR:           /app/backups
       UPLOADS_BASE_DIR:     /app/uploads
       REPAIR_UPLOADS_DIR:   /app/uploads/repairs
+      LOGS_DIR:             /app/logs
     volumes:
       - uploads_data:/app/uploads
       - backups_data:/app/backups
+      - logs_data:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,6 +115,9 @@ volumes:
     driver: local
   # pg_dump backups created by the backup API endpoint
   backups_data:
+    driver: local
+  # Winston error/combined log files — persist across deploys
+  logs_data:
     driver: local
 
 # ── Networks ─────────────────────────────────────────────────────────────────

@@ -40,10 +40,11 @@ COPY --from=builder --chown=nestjs:nodejs /app/package.json  ./
 COPY --chown=nestjs:nodejs docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-# Create uploads and backups directories before switching to non-root user.
+# Create uploads, backups, and logs directories before switching to non-root user.
 # Named volumes inherit ownership from the image directory on first mount,
-# so this ensures the nestjs user can write repair images and backup files.
-RUN mkdir -p /app/uploads/repairs /app/backups && chown -R nestjs:nodejs /app/uploads /app/backups
+# so this ensures the nestjs user can write repair images, backups, and logs.
+RUN mkdir -p /app/uploads/repairs /app/backups /app/logs \
+    && chown -R nestjs:nodejs /app/uploads /app/backups /app/logs
 
 USER nestjs
 EXPOSE 3000

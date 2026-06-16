@@ -2,7 +2,7 @@ import * as winston from 'winston';
 import { utilities as nestWinstonUtils, WinstonModule } from 'nest-winston';
 import * as path from 'path';
 
-const logsDir = process.env.LOGS_DIR ?? path.join(process.cwd(), 'logs');
+const logsDir = process.env.LOGS_DIR ?? '/app/logs';
 
 const fileFormat = winston.format.combine(
   winston.format.timestamp(),
