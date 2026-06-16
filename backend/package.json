@@ -10,13 +10,13 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts",
-    "seed:superadmin": "ts-node prisma/seed-superadmin.ts",
-    "seed:prod-owner": "ts-node prisma/seed-prod-owner.ts",
-    "seed:prod-super-admin": "ts-node prisma/seed-prod-super-admin.ts",
-    "fix:prod-tenant-owner": "ts-node prisma/fix-prod-tenant-owner.ts",
-    "seed:demo": "ts-node scripts/seed-super-admin-demo.ts",
-    "backfill:permissions": "ts-node scripts/backfill-permissions.ts"
+    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
+    "seed:superadmin": "ts-node --transpile-only prisma/seed-superadmin.ts",
+    "seed:prod-owner": "ts-node --transpile-only prisma/seed-prod-owner.ts",
+    "seed:prod-super-admin": "ts-node --transpile-only prisma/seed-prod-super-admin.ts",
+    "fix:prod-tenant-owner": "ts-node --transpile-only prisma/fix-prod-tenant-owner.ts",
+    "seed:demo": "ts-node --transpile-only scripts/seed-super-admin-demo.ts",
+    "backfill:permissions": "ts-node --transpile-only scripts/backfill-permissions.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
@@ -40,6 +40,8 @@
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.1",
     "rxjs": "^7.8.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
     "winston": "^3.19.0"
   },
   "devDependencies": {
@@ -55,8 +57,6 @@
     "@types/winston": "^2.4.4",
     "jest": "^30.4.2",
     "prisma": "^5.10.0",
-    "ts-jest": "^29.4.11",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "ts-jest": "^29.4.11"
   }
 }
