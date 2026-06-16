@@ -14,8 +14,9 @@ import {
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname, join } from 'path';
+import { extname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
+import { repairsUploadDir } from '../common/storage-paths';
 import { RepairsService } from './repairs.service';
 import { CreateRepairDto } from './dto/create-repair.dto';
 import { UpdateRepairDto } from './dto/update-repair.dto';
@@ -29,8 +30,7 @@ import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-const uploadsBaseDir = process.env.UPLOADS_BASE_DIR || '/app/uploads';
-const UPLOADS_DIR = process.env.UPLOADS_DIR || join(uploadsBaseDir, 'repairs');
+const UPLOADS_DIR = repairsUploadDir;
 if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
 
 // M-4 FIX: whitelist of allowed image extensions (lowercase).

@@ -10,6 +10,7 @@ import { Response } from 'express';
 import { createReadStream, existsSync } from 'fs';
 import { join, resolve, extname, sep } from 'path';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { uploadsBaseDir } from '../common/storage-paths';
 
 const ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
 
@@ -27,9 +28,7 @@ export class FilesController {
   private readonly uploadsBase: string;
 
   constructor() {
-    this.uploadsBase = resolve(
-      process.env.UPLOADS_BASE_DIR ?? join(process.cwd(), 'uploads'),
-    );
+    this.uploadsBase = resolve(uploadsBaseDir);
   }
 
   // Serves authenticated file access at GET /api/v1/files/<relative-path>

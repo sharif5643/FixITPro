@@ -55,9 +55,10 @@ services:
       DATABASE_URL:   postgresql://fixitpro:FixITPro2026Secure@postgres:5432/fixitpro?schema=public&connection_limit=10&pool_timeout=30
       JWT_SECRET:     FixITProJWTSecret2026UltraSecureRandomKey
       JWT_EXPIRES_IN: 7d
-      CORS_ORIGIN:        "*"
-      BACKUP_DIR:         /app/backups
-      UPLOADS_BASE_DIR:   /app/uploads
+      CORS_ORIGIN:          "*"
+      BACKUP_DIR:           /app/backups
+      UPLOADS_BASE_DIR:     /app/uploads
+      REPAIR_UPLOADS_DIR:   /app/uploads/repairs
     volumes:
       - uploads_data:/app/uploads
       - backups_data:/app/backups

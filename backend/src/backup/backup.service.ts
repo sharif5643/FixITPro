@@ -8,6 +8,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as path from 'path';
+import { backupDir as defaultBackupDir } from '../common/storage-paths';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import { exec } from 'child_process';
@@ -26,8 +27,7 @@ export class BackupService {
     private auditLog: AuditLogService,
     private notif: NotificationsService,
   ) {
-    this.backupDir =
-      process.env.BACKUP_DIR ?? path.join(process.cwd(), '..', 'backups');
+    this.backupDir = defaultBackupDir;
     this.retentionDays = parseInt(process.env.BACKUP_RETENTION_DAYS ?? '30', 10);
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
@@ -71,13 +71,7 @@ export class BackupService {
   }
 
   private async findPgDump(): Promise<string | null> {
-    const candidates = [
-      'pg_dump',
-      '"C:\\Program Files\\PostgreSQL\\17\\bin\\pg_dump.exe"',
-      '"C:\\Program Files\\PostgreSQL\\16\\bin\\pg_dump.exe"',
-      '"C:\\Program Files\\PostgreSQL\\15\\bin\\pg_dump.exe"',
-      '"C:\\Program Files\\PostgreSQL\\14\\bin\\pg_dump.exe"',
-    ];
+    const candidates = ['pg_dump'];
     for (const candidate of candidates) {
       try {
         await execAsync(`${candidate} --version`);
