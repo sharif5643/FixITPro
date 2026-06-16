@@ -89,7 +89,7 @@ services:
       args:
         # NEXT_PUBLIC_API_URL is embedded into the JS bundle at build time.
         # Changing the API domain requires rebuilding this image.
-        NEXT_PUBLIC_API_URL: http://91.98.151.10:3000/api/v1
+        NEXT_PUBLIC_API_URL: http://91.98.151.10/api/v1
     restart: unless-stopped
     expose:
       - "3000"
