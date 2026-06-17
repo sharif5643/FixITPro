@@ -15,6 +15,7 @@ import { UpdateSerialDto } from './dto/update-serial.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionGuard)
 @Controller('serials')
@@ -25,19 +26,26 @@ export class SerialsController {
   findAll(
     @Query()
     query: { productId?: string; status?: string; search?: string; limit?: string; page?: string },
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.findAll(query);
+    return this.service.findAll(query, tenantId);
   }
 
   // Must be before /:id to avoid route conflict
   @Get('lookup')
-  lookup(@Query('serial') serial: string) {
-    return this.service.lookup(serial);
+  lookup(
+    @Query('serial') serial: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.lookup(serial, tenantId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.findOne(id, tenantId);
   }
 
   @RequirePermission('serials.manage')
@@ -54,7 +62,11 @@ export class SerialsController {
 
   @RequirePermission('serials.manage')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateSerialDto) {
-    return this.service.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateSerialDto,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.update(id, dto, tenantId);
   }
 }

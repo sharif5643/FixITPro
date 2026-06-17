@@ -26,6 +26,7 @@ export class RemindersController {
   @RequirePermission('notification.view')
   getActiveReminders(
     @CurrentUser('id')       userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') userBranchId: string | null,
     @CurrentUser('role')     role: string,
     @Query('branchId')       queryBranchId?: string,
@@ -34,16 +35,13 @@ export class RemindersController {
     const isPrivileged = role === 'OWNER' || role === 'SUPER_ADMIN';
     let effectiveBranchId: string | null;
     if (!isPrivileged) {
-      // Non-privileged users are always scoped to their own branch
       effectiveBranchId = userBranchId ?? null;
     } else if (scope === 'branch') {
-      // OWNER explicitly requesting their own branch only
       effectiveBranchId = queryBranchId ?? userBranchId ?? null;
     } else {
-      // OWNER default: all branches, or a specific one via ?branchId=
       effectiveBranchId = queryBranchId ?? null;
     }
-    return this.svc.getActiveReminders(userId, effectiveBranchId);
+    return this.svc.getActiveReminders(userId, tenantId, effectiveBranchId);
   }
 
   /**

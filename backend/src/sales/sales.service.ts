@@ -299,7 +299,7 @@ export class SalesService {
     branchId?: string;
     limit?: number;
     cursor?: string;
-  }) {
+  }, tenantId?: string | null) {
     const where: any = {};
 
     if (query.date) {
@@ -312,6 +312,7 @@ export class SalesService {
     if (query.customerId) where.customerId = query.customerId;
     if (query.shiftId)    where.shiftId    = query.shiftId;
     if (query.branchId)   where.branchId   = query.branchId;
+    if (tenantId)         where.branch     = { tenantId };
 
     const take = Math.min(query.limit ?? 50, 200);
 
@@ -343,9 +344,11 @@ export class SalesService {
     return { items, nextCursor, total };
   }
 
-  async findOne(id: string) {
-    const sale = await this.prisma.sale.findUnique({
-      where: { id },
+  async findOne(id: string, tenantId?: string | null) {
+    const where: any = { id };
+    if (tenantId) where.branch = { tenantId };
+    const sale = await this.prisma.sale.findFirst({
+      where,
       include: {
         items: { include: { product: true } },
         customer: true,
@@ -371,9 +374,11 @@ export class SalesService {
     return `REF-${dateStr}-${suffix}`;
   }
 
-  async refundSaleItems(id: string, dto: RefundSaleDto, userId: string) {
-    const sale = await this.prisma.sale.findUnique({
-      where: { id },
+  async refundSaleItems(id: string, dto: RefundSaleDto, userId: string, tenantId?: string | null) {
+    const refundWhere: any = { id };
+    if (tenantId) refundWhere.branch = { tenantId };
+    const sale = await this.prisma.sale.findFirst({
+      where: refundWhere,
       include: {
         items: {
           include: {
@@ -510,7 +515,7 @@ export class SalesService {
     });
   }
 
-  async voidSale(id: string, reason: string, userId: string) {
+  async voidSale(id: string, reason: string, userId: string, tenantId?: string | null) {
     const activeShift = await this.prisma.shift.findFirst({
       where: { userId, isActive: true },
       select: { id: true },
@@ -519,7 +524,7 @@ export class SalesService {
       throw new BadRequestException('กรุณาเปิดกะก่อนยกเลิกบิล');
     }
 
-    const sale = await this.findOne(id);
+    const sale = await this.findOne(id, tenantId);
 
     if (sale.status === 'VOIDED') {
       throw new BadRequestException('บิลนี้ถูกยกเลิกไปแล้ว');

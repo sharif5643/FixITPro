@@ -1,7 +1,7 @@
 // Navigation data for Super Admin V2 — pure TS (no JSX), safe to import in tests.
 import {
   LayoutDashboard, Building2, GitBranch, Users, Package, Puzzle,
-  CreditCard, Banknote, BarChart3, ScrollText, Settings,
+  CreditCard, Banknote, BarChart3, ScrollText, Settings, Wrench,
 } from 'lucide-react'
 
 export interface SANavItem {
@@ -39,9 +39,10 @@ export const SA_NAV_GROUPS: SANavGroup[] = [
   {
     label: 'System',
     items: [
-      { href: '/super-admin/analytics',  label: 'Analytics',  icon: BarChart3 },
-      { href: '/super-admin/audit-logs', label: 'Audit Logs', icon: ScrollText },
-      { href: '/super-admin/settings',   label: 'Settings',   icon: Settings },
+      { href: '/super-admin/analytics',   label: 'Analytics',   icon: BarChart3 },
+      { href: '/super-admin/audit-logs', label: 'Audit Logs',  icon: ScrollText },
+      { href: '/super-admin/settings',   label: 'Settings',    icon: Settings },
+      { href: '/super-admin/data-repair', label: 'Data Repair', icon: Wrench },
     ],
   },
 ]

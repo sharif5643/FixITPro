@@ -41,20 +41,26 @@ export class WarrantiesController {
 
   @Get()
   @RequirePermission('warranty.view')
-  findAll(@Query() query: any) {
-    return this.svc.findAll(query);
+  findAll(
+    @Query() query: any,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.svc.findAll(query, tenantId);
   }
 
   @Get('stats')
   @RequirePermission('warranty.view')
-  getStats() {
-    return this.svc.getStats();
+  getStats(@CurrentUser('tenantId') tenantId: string | null) {
+    return this.svc.getStats(tenantId);
   }
 
   @Get(':id')
   @RequirePermission('warranty.view')
-  findOne(@Param('id') id: string) {
-    return this.svc.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.svc.findOne(id, tenantId);
   }
 
   @Post('repair')
@@ -84,8 +90,9 @@ export class WarrantiesController {
     @Body() dto: UpdateWarrantyDto,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.svc.update(id, dto, actorId, actorName);
+    return this.svc.update(id, dto, actorId, actorName, tenantId);
   }
 
   @Post(':id/void')
@@ -96,8 +103,9 @@ export class WarrantiesController {
     @Body() dto: VoidWarrantyDto,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.svc.void(id, dto.reason, actorId, actorName);
+    return this.svc.void(id, dto.reason, actorId, actorName, tenantId);
   }
 
   @Post(':id/claim')
@@ -107,7 +115,8 @@ export class WarrantiesController {
     @Param('id') id: string,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.svc.markClaimed(id, actorId, actorName);
+    return this.svc.markClaimed(id, actorId, actorName, tenantId);
   }
 }

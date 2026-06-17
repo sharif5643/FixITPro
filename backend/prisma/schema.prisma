@@ -280,6 +280,8 @@ model Tenant {
   customers       Customer[]
   categories      Category[]
   suppliers       Supplier[]
+  shopSettings    ShopSettings?
+  notifications   Notification[]
 
   @@index([status])
   @@index([expiryDate])
@@ -770,6 +772,9 @@ model ShopSettings {
   showTaxId          Boolean @default(true)
   showLogo           Boolean @default(true)
   updatedAt       DateTime @updatedAt
+
+  tenantId String? @unique
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 enum SubscriptionStatus {
@@ -1183,10 +1188,14 @@ model Notification {
   branchId   String?
   branch     Branch?              @relation(fields: [branchId], references: [id])
 
+  tenantId   String?
+  tenant     Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   @@index([isRead, createdAt])
   @@index([type, entityId])
   @@index([createdAt])
   @@index([branchId])
+  @@index([tenantId])
 }
 
 model AuditLog {

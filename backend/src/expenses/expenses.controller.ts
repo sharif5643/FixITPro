@@ -52,19 +52,23 @@ export class ExpensesController {
   // ── Summary routes — must come before :id ───────────────────────────────────
 
   @Get('summary/daily')
-  getDailySummary(@Query('date') date: string) {
+  getDailySummary(
+    @Query('date') date: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
     const d = date || new Date().toISOString().slice(0, 10);
-    return this.expensesService.getDailySummary(d);
+    return this.expensesService.getDailySummary(d, tenantId);
   }
 
   @Get('summary/monthly')
   getMonthlySummary(
     @Query('year') year: string,
     @Query('month') month: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
     const y = parseInt(year)  || new Date().getFullYear();
     const m = parseInt(month) || new Date().getMonth() + 1;
-    return this.expensesService.getMonthlySummary(y, m);
+    return this.expensesService.getMonthlySummary(y, m, tenantId);
   }
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
@@ -92,11 +96,12 @@ export class ExpensesController {
     },
     @CurrentUser('role') role: string,
     @CurrentUser('branchId') userBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
       ? query.branchId
       : (userBranchId ?? undefined);
-    return this.expensesService.findAll({ ...query, branchId: effectiveBranchId });
+    return this.expensesService.findAll({ ...query, branchId: effectiveBranchId }, tenantId);
   }
 
   @Get(':id')
@@ -104,9 +109,10 @@ export class ExpensesController {
     @Param('id')             id: string,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
     const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
-    return this.expensesService.findOne(id, branchId, isElevated);
+    return this.expensesService.findOne(id, branchId, isElevated, tenantId);
   }
 
   @Post(':id/void')
@@ -115,7 +121,8 @@ export class ExpensesController {
     @Body() dto: VoidExpenseDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.expensesService.voidExpense(id, dto, userId, role);
+    return this.expensesService.voidExpense(id, dto, userId, role, tenantId);
   }
 }

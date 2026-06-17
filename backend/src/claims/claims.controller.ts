@@ -23,26 +23,28 @@ export class ClaimsController {
   constructor(private service: ClaimsService) {}
 
   @Get('stats')
-  getStats() {
-    return this.service.getStats();
+  getStats(@CurrentUser('tenantId') tenantId: string | null) {
+    return this.service.getStats(tenantId);
   }
 
   @Get()
   findAll(
     @Query()
     query: { status?: string; claimType?: string; search?: string; page?: string; limit?: string },
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.findAll(query);
+    return this.service.findAll(query, tenantId);
   }
 
   @Get(':id')
   findOne(
-    @Param('id')         id: string,
-    @CurrentUser('id')   userId: string,
-    @CurrentUser('role') role: string,
+    @Param('id')           id: string,
+    @CurrentUser('id')     userId: string,
+    @CurrentUser('role')   role: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
     const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
-    return this.service.findOne(id, userId, isElevated);
+    return this.service.findOne(id, userId, isElevated, tenantId);
   }
 
   @RequirePermission('claims.manage')
@@ -57,13 +59,18 @@ export class ClaimsController {
     @Param('id') id: string,
     @Body() dto: UpdateClaimStatusDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.updateStatus(id, dto, userId);
+    return this.service.updateStatus(id, dto, userId, tenantId);
   }
 
   @RequirePermission('claims.manage')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateClaimDto) {
-    return this.service.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateClaimDto,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.update(id, dto, tenantId);
   }
 }

@@ -79,11 +79,12 @@ export class SerialsService {
     search?: string;
     limit?: string;
     page?: string;
-  }) {
+  }, tenantId?: string | null) {
     const where: any = {};
     if (query.productId) where.productId = query.productId;
-    if (query.status) where.status = query.status;
-    if (query.search) where.serial = { contains: query.search, mode: 'insensitive' };
+    if (query.status)    where.status    = query.status;
+    if (query.search)    where.serial    = { contains: query.search, mode: 'insensitive' };
+    if (tenantId)        where.product   = { tenantId };
 
     const limit = Math.min(parseInt(query.limit ?? '50', 10), 200);
     const page = Math.max(parseInt(query.page ?? '1', 10), 1);
@@ -102,26 +103,30 @@ export class SerialsService {
     return { total, page, limit, items };
   }
 
-  async findOne(id: string) {
-    const s = await this.prisma.serialNumber.findUnique({
-      where: { id },
+  async findOne(id: string, tenantId?: string | null) {
+    const where: any = { id };
+    if (tenantId) where.product = { tenantId };
+    const s = await this.prisma.serialNumber.findFirst({
+      where,
       include: SERIAL_INCLUDE,
     });
     if (!s) throw new NotFoundException('Serial not found');
     return s;
   }
 
-  async lookup(serial: string) {
-    const s = await this.prisma.serialNumber.findUnique({
-      where: { serial },
+  async lookup(serial: string, tenantId?: string | null) {
+    const where: any = { serial };
+    if (tenantId) where.product = { tenantId };
+    const s = await this.prisma.serialNumber.findFirst({
+      where,
       include: SERIAL_INCLUDE,
     });
     if (!s) throw new NotFoundException(`Serial "${serial}" not found`);
     return s;
   }
 
-  async update(id: string, dto: UpdateSerialDto) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateSerialDto, tenantId?: string | null) {
+    await this.findOne(id, tenantId);
     return this.prisma.serialNumber.update({
       where: { id },
       data: { status: dto.status as any, note: dto.note },

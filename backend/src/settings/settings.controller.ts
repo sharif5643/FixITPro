@@ -12,19 +12,27 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 export class SettingsController {
   constructor(private settingsService: SettingsService) {}
 
+  // Lightweight endpoint: only shopName + logoUrl.
+  // Used by sidebar/navbar — no settings.manage permission required.
+  @Get('shop')
+  getShopInfo(@CurrentUser('tenantId') tenantId: string | null) {
+    return this.settingsService.getShopInfo(tenantId);
+  }
+
   @Get()
-  getSettings() {
-    return this.settingsService.getSettings();
+  getSettings(@CurrentUser('tenantId') tenantId: string | null) {
+    return this.settingsService.getSettings(tenantId);
   }
 
   @Patch()
   @UseGuards(PermissionGuard)
   @RequirePermission('settings.manage')
   updateSettings(
-    @Body() dto: UpdateSettingsDto,
-    @CurrentUser('id')   actorId: string,
-    @CurrentUser('name') actorName: string,
+    @Body()                  dto: UpdateSettingsDto,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.settingsService.updateSettings(dto, actorId, actorName);
+    return this.settingsService.updateSettings(dto, tenantId, actorId, actorName);
   }
 }

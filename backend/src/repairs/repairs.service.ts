@@ -121,12 +121,13 @@ export class RepairsService {
     return repair;
   }
 
-  async findAll(query: { status?: string; customerId?: string; date?: string; branchId?: string }) {
+  async findAll(query: { status?: string; customerId?: string; date?: string; branchId?: string }, tenantId?: string | null) {
     const where: any = {};
 
     if (query.status)     where.status     = query.status;
     if (query.customerId) where.customerId = query.customerId;
     if (query.branchId)   where.branchId   = query.branchId;
+    if (tenantId)         where.branch     = { tenantId };
 
     if (query.date) {
       const start = new Date(query.date);
@@ -150,9 +151,11 @@ export class RepairsService {
     });
   }
 
-  async findOne(id: string) {
-    const repair = await this.prisma.repair.findUnique({
-      where: { id },
+  async findOne(id: string, tenantId?: string | null) {
+    const where: any = { id };
+    if (tenantId) where.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({
+      where,
       include: REPAIR_INCLUDE,
     });
 
@@ -167,8 +170,8 @@ export class RepairsService {
     });
   }
 
-  async update(id: string, dto: UpdateRepairDto, actorId?: string, actorName?: string) {
-    const repair = await this.findOne(id);
+  async update(id: string, dto: UpdateRepairDto, actorId?: string, actorName?: string, tenantId?: string | null) {
+    const repair = await this.findOne(id, tenantId);
 
     // PART 6: DELIVERED repairs are locked — payment already processed and shift-linked
     if (repair.status === 'DELIVERED' && dto.status !== undefined) {
@@ -361,8 +364,8 @@ export class RepairsService {
     return updated;
   }
 
-  async addPart(repairId: string, dto: AddRepairPartDto) {
-    const repair = await this.findOne(repairId);
+  async addPart(repairId: string, dto: AddRepairPartDto, tenantId?: string | null) {
+    const repair = await this.findOne(repairId, tenantId);
 
     if (['COMPLETED', 'DELIVERED'].includes(repair.status)) {
       throw new BadRequestException('ไม่สามารถเพิ่มอะไหล่หลังงานซ่อมเสร็จแล้ว');
@@ -403,9 +406,11 @@ export class RepairsService {
     return this.findOne(repairId);
   }
 
-  async removePart(repairId: string, partId: string) {
-    const repairStatus = await this.prisma.repair.findUnique({
-      where: { id: repairId },
+  async removePart(repairId: string, partId: string, tenantId?: string | null) {
+    const repairWhere: any = { id: repairId };
+    if (tenantId) repairWhere.branch = { tenantId };
+    const repairStatus = await this.prisma.repair.findFirst({
+      where: repairWhere,
       select: { status: true, branchId: true },
     });
     if (!repairStatus) throw new NotFoundException('Repair not found');
@@ -445,7 +450,7 @@ export class RepairsService {
     return this.findOne(repairId);
   }
 
-  async processPayment(repairId: string, dto: RepairPaymentDto, userId: string) {
+  async processPayment(repairId: string, dto: RepairPaymentDto, userId: string, tenantId?: string | null) {
     const activeShift = await this.prisma.shift.findFirst({
       where: { userId, isActive: true },
       select: { id: true },
@@ -454,8 +459,10 @@ export class RepairsService {
       throw new BadRequestException('กรุณาเปิดกะก่อนรับเงิน');
     }
 
-    const repair = await this.prisma.repair.findUnique({
-      where: { id: repairId },
+    const repairWhere: any = { id: repairId };
+    if (tenantId) repairWhere.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({
+      where: repairWhere,
       select: {
         id: true, status: true, paymentStatus: true,
         estimatedTotal: true, finalCost: true, estimateCost: true, deposit: true,
@@ -516,9 +523,11 @@ export class RepairsService {
     return paid;
   }
 
-  async reversePayment(repairId: string, dto: ReversePaymentDto, userId: string) {
-    const repair = await this.prisma.repair.findUnique({
-      where: { id: repairId },
+  async reversePayment(repairId: string, dto: ReversePaymentDto, userId: string, tenantId?: string | null) {
+    const revWhere: any = { id: repairId };
+    if (tenantId) revWhere.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({
+      where: revWhere,
       select: { id: true, status: true, paymentStatus: true, paymentMethod: true, paidAmount: true },
     });
 
@@ -566,9 +575,11 @@ export class RepairsService {
     return reversed;
   }
 
-  async addAdditionalPayment(repairId: string, dto: AdditionalPaymentDto, userId: string) {
-    const repair = await this.prisma.repair.findUnique({
-      where: { id: repairId },
+  async addAdditionalPayment(repairId: string, dto: AdditionalPaymentDto, userId: string, tenantId?: string | null) {
+    const addPayWhere: any = { id: repairId };
+    if (tenantId) addPayWhere.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({
+      where: addPayWhere,
       select: { id: true, status: true },
     });
 
@@ -602,13 +613,15 @@ export class RepairsService {
     return payment;
   }
 
-  async getOutstandingRepairs(branchId?: string) {
+  async getOutstandingRepairs(branchId?: string, tenantId?: string | null) {
+    const where: any = {
+      status:        'DELIVERED',
+      paymentStatus: { in: ['PENDING', 'PARTIAL'] },
+      ...(branchId ? { branchId } : {}),
+    };
+    if (tenantId) where.branch = { tenantId };
     const repairs = await this.prisma.repair.findMany({
-      where: {
-        status:        'DELIVERED',
-        paymentStatus: { in: ['PENDING', 'PARTIAL'] },
-        ...(branchId ? { branchId } : {}),
-      },
+      where,
       include: {
         customer: { select: { id: true, name: true, phone: true } },
         additionalPayments: {

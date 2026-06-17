@@ -13,8 +13,12 @@ import { AuditLogsController } from './audit-logs/audit-logs.controller';
 import { AuditLogsService } from './audit-logs/audit-logs.service';
 import { SettingsController } from './settings/settings.controller';
 import { SettingsService } from './settings/settings.service';
+import { DataRepairController } from './data-repair/data-repair.controller';
+import { DataRepairService } from './data-repair/data-repair.service';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
+  imports: [AuditLogModule],
   controllers: [
     TenantsController,
     PaymentsController,
@@ -23,6 +27,7 @@ import { SettingsService } from './settings/settings.service';
     AnalyticsController,
     AuditLogsController,
     SettingsController,
+    DataRepairController,
   ],
   providers: [
     TenantsService,
@@ -32,6 +37,7 @@ import { SettingsService } from './settings/settings.service';
     AnalyticsService,
     AuditLogsService,
     SettingsService,
+    DataRepairService,
   ],
 })
 export class SuperAdminModule {}

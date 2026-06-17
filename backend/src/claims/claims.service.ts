@@ -131,17 +131,20 @@ export class ClaimsService {
     search?: string;
     page?: string;
     limit?: string;
-  }) {
+  }, tenantId?: string | null) {
     const where: any = {};
+    if (tenantId) where.serialNumber = { product: { tenantId } };
 
     if (query.status) where.status = query.status;
     if (query.claimType) where.claimType = query.claimType;
     if (query.search) {
-      where.OR = [
-        { claimNumber: { contains: query.search, mode: 'insensitive' } },
-        { serialNumber: { serial: { contains: query.search, mode: 'insensitive' } } },
-        { customer: { name: { contains: query.search, mode: 'insensitive' } } },
-        { customer: { phone: { contains: query.search, mode: 'insensitive' } } },
+      where.AND = [
+        { OR: [
+          { claimNumber: { contains: query.search, mode: 'insensitive' } },
+          { serialNumber: { serial: { contains: query.search, mode: 'insensitive' } } },
+          { customer: { name: { contains: query.search, mode: 'insensitive' } } },
+          { customer: { phone: { contains: query.search, mode: 'insensitive' } } },
+        ]},
       ];
     }
 
@@ -164,9 +167,11 @@ export class ClaimsService {
 
   // ─── Find one ────────────────────────────────────────────────────────────────
 
-  async findOne(id: string, userId?: string, isElevated: boolean = true) {
-    const claim = await this.prisma.claim.findUnique({
-      where: { id },
+  async findOne(id: string, userId?: string, isElevated: boolean = true, tenantId?: string | null) {
+    const where: any = { id };
+    if (tenantId) where.serialNumber = { product: { tenantId } };
+    const claim = await this.prisma.claim.findFirst({
+      where,
       include: CLAIM_DETAIL_INCLUDE,
     });
     if (!claim) throw new NotFoundException('ไม่พบเคลม');
@@ -178,8 +183,8 @@ export class ClaimsService {
 
   // ─── Update status ───────────────────────────────────────────────────────────
 
-  async updateStatus(claimId: string, dto: UpdateClaimStatusDto, userId: string) {
-    const claim = await this.findOne(claimId);
+  async updateStatus(claimId: string, dto: UpdateClaimStatusDto, userId: string, tenantId?: string | null) {
+    const claim = await this.findOne(claimId, undefined, true, tenantId);
 
     if (TERMINAL_STATUSES.includes(claim.status)) {
       throw new BadRequestException(`ไม่สามารถเปลี่ยนสถานะจาก ${claim.status} ได้`);
@@ -271,8 +276,8 @@ export class ClaimsService {
 
   // ─── Update cost / note ───────────────────────────────────────────────────────
 
-  async update(claimId: string, dto: UpdateClaimDto) {
-    await this.findOne(claimId);
+  async update(claimId: string, dto: UpdateClaimDto, tenantId?: string | null) {
+    await this.findOne(claimId, undefined, true, tenantId);
     return this.prisma.claim.update({
       where: { id: claimId },
       data: {
@@ -285,19 +290,21 @@ export class ClaimsService {
 
   // ─── Stats ───────────────────────────────────────────────────────────────────
 
-  async getStats() {
+  async getStats(tenantId?: string | null) {
+    const tenantFilter = tenantId ? { serialNumber: { product: { tenantId } } } : {};
     const [byStatus, totalCost, pendingCost] = await Promise.all([
       this.prisma.claim.groupBy({
         by: ['status'],
         _count: { id: true },
+        where: tenantFilter,
       }),
       this.prisma.claim.aggregate({
         _sum: { claimCost: true },
-        where: { status: { not: 'CANCELLED' } },
+        where: { ...tenantFilter, status: { not: 'CANCELLED' } },
       }),
       this.prisma.claim.aggregate({
         _sum: { claimCost: true },
-        where: { status: { notIn: ['CLOSED', 'CANCELLED', 'REJECTED'] } },
+        where: { ...tenantFilter, status: { notIn: ['CLOSED', 'CANCELLED', 'REJECTED'] } },
       }),
     ]);
 

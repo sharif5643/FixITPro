@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { TenantService } from '../tenant/tenant.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { UpdateReminderSettingsDto } from './dto/update-reminder-settings.dto';
 
@@ -40,8 +41,9 @@ const PARTS_STALE_HOURS = 24;
 @Injectable()
 export class RemindersService implements OnModuleInit {
   constructor(
-    private readonly prisma:    PrismaService,
-    private readonly auditLog:  AuditLogService,
+    private readonly prisma:     PrismaService,
+    private readonly tenantSvc:  TenantService,
+    private readonly auditLog:   AuditLogService,
   ) {}
 
   // Run cleanup shortly after boot, then once per day
@@ -64,6 +66,7 @@ export class RemindersService implements OnModuleInit {
 
   async getActiveReminders(
     userId:   string,
+    tenantId: string | null,
     branchId: string | null,
   ): Promise<{ items: ReminderItem[]; total: number }> {
 
@@ -86,19 +89,21 @@ export class RemindersService implements OnModuleInit {
 
     // Reusable where fragments
     const branchFilter       = branchId ? { branchId } : {};
+    const tenantRepairFilter = tenantId ? { branch: { tenantId } } : {};
+    const tenantXferFilter   = tenantId ? { fromBranch: { tenantId } } : {};
     const repairSnoozeFilter = snoozedRepairIds.length   ? { id: { notIn: snoozedRepairIds } }   : {};
     const xferSnoozeFilter   = snoozedTransferIds.length ? { id: { notIn: snoozedTransferIds } } : {};
 
     const allItems: ReminderItem[] = [];
 
     // ── [A] VIP_REPAIR ────────────────────────────────────────────────────────
-    // Repairs linked to a customer tagged 'VIP'/'vip', any active status.
     if (settings.vipRepairEnabled) {
       const rows = await this.prisma.repair.findMany({
         where: {
           status:   { notIn: ['DELIVERED', 'CANCELLED'] as any[] },
           customer: { tags: { hasSome: ['VIP', 'vip'] } },
           ...branchFilter,
+          ...tenantRepairFilter,
           ...repairSnoozeFilter,
         } as any,
         include: {
@@ -117,9 +122,6 @@ export class RemindersService implements OnModuleInit {
     );
 
     // ── [B] URGENT_REPAIR ─────────────────────────────────────────────────────
-    // Repairs that are: WAITING_APPROVAL (needs customer decision)
-    //   OR past their dueDate and still active.
-    // VIP repairs already surfaced above are excluded.
     if (settings.urgentRepairEnabled) {
       const rows = await this.prisma.repair.findMany({
         where: {
@@ -131,6 +133,7 @@ export class RemindersService implements OnModuleInit {
             },
           ],
           ...branchFilter,
+          ...tenantRepairFilter,
           ...repairSnoozeFilter,
         } as any,
         include: {
@@ -138,20 +141,17 @@ export class RemindersService implements OnModuleInit {
           branch:   { select: { name: true } },
         },
         orderBy: { receivedAt: 'asc' },
-        take:    CAT_LIMIT + 10, // fetch extra to absorb VIP exclusions
+        take:    CAT_LIMIT + 10,
       });
       let urgentCount = 0;
       for (const r of rows) {
-        if (vipRepairIds.has(r.id)) continue; // covered by VIP_REPAIR
+        if (vipRepairIds.has(r.id)) continue;
         allItems.push(this.toUrgentRepairItem(r, now));
         if (++urgentCount >= CAT_LIMIT) break;
       }
     }
 
     // ── [C] PARTS_REQUEST_PENDING ─────────────────────────────────────────────
-    // Repairs stuck in WAITING_PARTS for more than PARTS_STALE_HOURS (default 24h).
-    // updatedAt is the best available proxy — if the repair was last touched before
-    // the cutoff, staff need a nudge to source the parts.
     if (settings.partsRequestEnabled) {
       const cutoff = new Date(now.getTime() - PARTS_STALE_HOURS * 60 * 60_000);
       const rows = await this.prisma.repair.findMany({
@@ -159,6 +159,7 @@ export class RemindersService implements OnModuleInit {
           status:    'WAITING_PARTS' as any,
           updatedAt: { lt: cutoff },
           ...branchFilter,
+          ...tenantRepairFilter,
           ...repairSnoozeFilter,
         } as any,
         include: {
@@ -175,13 +176,12 @@ export class RemindersService implements OnModuleInit {
     }
 
     // ── [D] TRANSFER_PENDING ──────────────────────────────────────────────────
-    // PENDING stock transfers where this branch is the source (must approve).
-    // OWNER with no branchId filter sees all pending transfers across branches.
     if (settings.transferPendingEnabled) {
       const rows = await this.prisma.stockTransfer.findMany({
         where: {
           status: 'PENDING' as any,
           ...(branchId ? { fromBranchId: branchId } : {}),
+          ...tenantXferFilter,
           ...xferSnoozeFilter,
         } as any,
         include: {
@@ -196,12 +196,12 @@ export class RemindersService implements OnModuleInit {
     }
 
     // ── [E] PICKUP_WAITING ────────────────────────────────────────────────────
-    // Repairs in COMPLETED status — repair is done, customer hasn't collected yet.
     if (settings.pickupWaitingEnabled) {
       const rows = await this.prisma.repair.findMany({
         where: {
           status: 'COMPLETED' as any,
           ...branchFilter,
+          ...tenantRepairFilter,
           ...repairSnoozeFilter,
         } as any,
         include: {

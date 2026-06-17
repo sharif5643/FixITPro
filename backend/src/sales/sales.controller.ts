@@ -41,17 +41,21 @@ export class SalesController {
     @Query() query: { date?: string; customerId?: string; shiftId?: string; branchId?: string; limit?: string; cursor?: string },
     @CurrentUser('role') role: string,
     @CurrentUser('branchId') userBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
       ? query.branchId
       : (userBranchId ?? undefined);
     const limit = query.limit ? parseInt(query.limit, 10) : undefined;
-    return this.salesService.findAll({ ...query, branchId: effectiveBranchId, limit });
+    return this.salesService.findAll({ ...query, branchId: effectiveBranchId, limit }, tenantId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.salesService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.salesService.findOne(id, tenantId);
   }
 
   @Post(':id/void')
@@ -61,8 +65,9 @@ export class SalesController {
     @Param('id') id: string,
     @Body() dto: VoidSaleDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.salesService.voidSale(id, dto.reason, userId);
+    return this.salesService.voidSale(id, dto.reason, userId, tenantId);
   }
 
   @Post(':id/refund')
@@ -72,7 +77,8 @@ export class SalesController {
     @Param('id') id: string,
     @Body() dto: RefundSaleDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.salesService.refundSaleItems(id, dto, userId);
+    return this.salesService.refundSaleItems(id, dto, userId, tenantId);
   }
 }

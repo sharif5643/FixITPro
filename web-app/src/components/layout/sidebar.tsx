@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
 import { X,
   LayoutDashboard, Package, ShoppingCart, Wrench, Users,
   Clock, Smartphone, Tag, Barcode, Settings, CreditCard, Building2,
@@ -11,8 +10,7 @@ import { X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
-import api from '@/lib/api'
-import type { ShopSettings } from '@/types'
+import { useShopName } from '@/hooks/useShopName'
 
 // ── Navigation structure ──────────────────────────────────────────────────────
 
@@ -119,13 +117,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const isOwner     = user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN'
   const portalLabel = PORTAL_LABEL[user?.role ?? ''] ?? 'Portal'
 
-  const { data: shopSettings } = useQuery<ShopSettings>({
-    queryKey: ['shop-settings'],
-    queryFn: async () => (await api.get('/settings/shop')).data,
-    staleTime: 5 * 60_000,
-  })
-
-  const shopName = shopSettings?.shopName ?? 'FixITPro'
+  const shopName = useShopName()
 
   function isItemVisible(item: NavItem): boolean {
     if (item.ownerOnly && !isOwner) return false

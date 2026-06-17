@@ -106,12 +106,12 @@ export class PurchaseOrdersService {
     return po;
   }
 
-  findAll(query: { status?: string; supplierId?: string; search?: string }) {
+  findAll(query: { status?: string; supplierId?: string; search?: string }, tenantId?: string | null) {
     const where: any = {};
-    if (query.status) where.status = query.status;
-    if (query.supplierId) where.supplierId = query.supplierId;
-    if (query.search)
-      where.poNumber = { contains: query.search, mode: 'insensitive' };
+    if (query.status)     where.status      = query.status;
+    if (query.supplierId) where.supplierId  = query.supplierId;
+    if (query.search)     where.poNumber    = { contains: query.search, mode: 'insensitive' };
+    if (tenantId)         where.supplier    = { tenantId };
 
     return this.prisma.purchaseOrder.findMany({
       where,
@@ -124,17 +124,19 @@ export class PurchaseOrdersService {
     });
   }
 
-  async findOne(id: string) {
-    const po = await this.prisma.purchaseOrder.findUnique({
-      where: { id },
+  async findOne(id: string, tenantId?: string | null) {
+    const where: any = { id };
+    if (tenantId) where.supplier = { tenantId };
+    const po = await this.prisma.purchaseOrder.findFirst({
+      where,
       include: PO_INCLUDE,
     });
     if (!po) throw new NotFoundException('Purchase order not found');
     return po;
   }
 
-  async update(id: string, dto: UpdatePurchaseOrderDto, actorId?: string) {
-    const po = await this.findOne(id);
+  async update(id: string, dto: UpdatePurchaseOrderDto, actorId?: string, tenantId?: string | null) {
+    const po = await this.findOne(id, tenantId);
 
     if (po.status === 'CANCELLED') {
       throw new BadRequestException('ไม่สามารถแก้ไข PO ที่ยกเลิกแล้ว');
@@ -166,8 +168,8 @@ export class PurchaseOrdersService {
     return updated;
   }
 
-  async receiveGoods(poId: string, dto: ReceiveGoodsDto, actorId?: string) {
-    const po = await this.findOne(poId);
+  async receiveGoods(poId: string, dto: ReceiveGoodsDto, actorId?: string, tenantId?: string | null) {
+    const po = await this.findOne(poId, tenantId);
 
     if (!['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)) {
       throw new BadRequestException(
@@ -262,7 +264,8 @@ export class PurchaseOrdersService {
     return result;
   }
 
-  getMovements(poId: string) {
+  async getMovements(poId: string, tenantId?: string | null) {
+    await this.findOne(poId, tenantId);
     return this.prisma.stockMovement.findMany({
       where: { referenceType: 'PURCHASE_ORDER', referenceId: poId },
       include: {
@@ -272,7 +275,7 @@ export class PurchaseOrdersService {
     });
   }
 
-  async createPayment(poId: string, dto: CreatePaymentDto, userId: string) {
+  async createPayment(poId: string, dto: CreatePaymentDto, userId: string, tenantId?: string | null) {
     // CASH payments must be made during an active shift
     if (dto.paymentMethod === 'CASH') {
       const activeShift = await this.prisma.shift.findFirst({
@@ -284,7 +287,7 @@ export class PurchaseOrdersService {
       }
     }
 
-    const po = await this.findOne(poId);
+    const po = await this.findOne(poId, tenantId);
 
     if (po.status === 'CANCELLED') {
       throw new BadRequestException('ไม่สามารถบันทึกการจ่ายเงินสำหรับ PO ที่ยกเลิกแล้ว');
@@ -336,7 +339,8 @@ export class PurchaseOrdersService {
     return result;
   }
 
-  getPayments(poId: string) {
+  async getPayments(poId: string, tenantId?: string | null) {
+    await this.findOne(poId, tenantId);
     return this.prisma.supplierPayment.findMany({
       where: { purchaseOrderId: poId },
       orderBy: { paidAt: 'desc' },

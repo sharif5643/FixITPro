@@ -28,13 +28,17 @@ export class PurchaseOrdersController {
   @Get()
   findAll(
     @Query() query: { status?: string; supplierId?: string; search?: string },
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.poService.findAll(query);
+    return this.poService.findAll(query, tenantId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.poService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.poService.findOne(id, tenantId);
   }
 
   @Post()
@@ -50,8 +54,9 @@ export class PurchaseOrdersController {
     @Param('id') id: string,
     @Body() dto: UpdatePurchaseOrderDto,
     @CurrentUser('id') actorId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.poService.update(id, dto, actorId);
+    return this.poService.update(id, dto, actorId, tenantId);
   }
 
   @Post(':id/receive')
@@ -59,13 +64,17 @@ export class PurchaseOrdersController {
     @Param('id') id: string,
     @Body() dto: ReceiveGoodsDto,
     @CurrentUser('id') actorId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.poService.receiveGoods(id, dto, actorId);
+    return this.poService.receiveGoods(id, dto, actorId, tenantId);
   }
 
   @Get(':id/movements')
-  getMovements(@Param('id') id: string) {
-    return this.poService.getMovements(id);
+  getMovements(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.poService.getMovements(id, tenantId);
   }
 
   @Post(':id/payments')
@@ -73,12 +82,16 @@ export class PurchaseOrdersController {
     @Param('id') id: string,
     @Body() dto: CreatePaymentDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.poService.createPayment(id, dto, userId);
+    return this.poService.createPayment(id, dto, userId, tenantId);
   }
 
   @Get(':id/payments')
-  getPayments(@Param('id') id: string) {
-    return this.poService.getPayments(id);
+  getPayments(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.poService.getPayments(id, tenantId);
   }
 }

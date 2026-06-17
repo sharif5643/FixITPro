@@ -1,11 +1,13 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useQuery } from '@tanstack/react-query'
 import { LogOut, User, ChevronDown, Menu, AlertTriangle, Sun, Moon } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
+import { useShopName } from '@/hooks/useShopName'
 import { NotificationBell } from '@/components/layout/notification-bell'
 import { BranchSelector } from '@/components/layout/branch-selector'
 import { SyncStatusIndicator } from '@/components/layout/sync-status-indicator'
@@ -39,6 +41,12 @@ export function Header({ onMenuToggle }: HeaderProps) {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const { user, clearAuth } = useAuthStore()
+
+  const shopName = useShopName()
+
+  useEffect(() => {
+    document.title = `${shopName} - ระบบร้านมือถือ`
+  }, [shopName])
 
   const isShopUser = user?.role !== 'SUPER_ADMIN'
   const { data: currentShift, isLoading: shiftLoading } = useQuery<{ id: string } | null>({
@@ -75,6 +83,10 @@ export function Header({ onMenuToggle }: HeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </Button>
+
+        <span className="hidden md:block text-sm font-semibold text-slate-900 dark:text-white truncate max-w-[200px]">
+          {shopName}
+        </span>
 
         <Badge variant="secondary" className="text-xs font-normal hidden sm:inline-flex">
           {roleLabel[user?.role || ''] || user?.role}

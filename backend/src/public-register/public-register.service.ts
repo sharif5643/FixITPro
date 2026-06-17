@@ -58,6 +58,14 @@ export class PublicRegisterService {
           isDefault: true,
           isActive: true,
           status: 'ACTIVE',
+          tenantId: tenant.id,
+        },
+      })
+
+      await tx.shopSettings.create({
+        data: {
+          shopName: dto.shopName,
+          tenantId: tenant.id,
         },
       })
 

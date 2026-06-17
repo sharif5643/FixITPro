@@ -12,37 +12,41 @@ export class NotificationsController {
 
   @Get('unread-count')
   getUnreadCount(
+    @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
   ) {
-    return this.notificationsService.getUnreadCount(branchId, role);
+    return this.notificationsService.getUnreadCount(tenantId, branchId, role);
   }
 
   @Get()
   findAll(
-    @Query() query: Record<string, string>,
+    @Query()                 query: Record<string, string>,
+    @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
   ) {
-    return this.notificationsService.findAll(query, branchId, role);
+    return this.notificationsService.findAll(query, tenantId, branchId, role);
   }
 
   @RequirePermission('notification.manage')
   @Patch('read-all')
   markAllRead(
+    @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
   ) {
-    return this.notificationsService.markAllRead(branchId, role);
+    return this.notificationsService.markAllRead(tenantId, branchId, role);
   }
 
   @RequirePermission('notification.view')
   @Patch(':id/read')
   markRead(
     @Param('id')             id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
   ) {
-    return this.notificationsService.markRead(id, branchId, role);
+    return this.notificationsService.markRead(id, tenantId, branchId, role);
   }
 }

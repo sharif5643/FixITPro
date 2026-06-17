@@ -119,6 +119,16 @@ export class WarrantiesService {
     return warranty;
   }
 
+  private tenantScope(tenantId?: string | null) {
+    if (!tenantId) return {};
+    return {
+      OR: [
+        { repair:   { branch: { tenantId } } },
+        { saleItem: { sale:  { branch: { tenantId } } } },
+      ],
+    };
+  }
+
   async findAll(query: {
     search?: string;
     status?: string;
@@ -126,25 +136,27 @@ export class WarrantiesService {
     customerId?: string;
     page?: string;
     limit?: string;
-  }) {
+  }, tenantId?: string | null) {
     const page  = Math.max(1, parseInt(query.page ?? '1'));
     const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20')));
     const skip  = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { ...this.tenantScope(tenantId) };
     if (query.status)     where.status     = query.status;
     if (query.sourceType) where.sourceType = query.sourceType;
     if (query.customerId) where.customerId = query.customerId;
 
     if (query.search) {
       const s = query.search.trim();
-      where.OR = [
-        { warrantyNumber: { contains: s, mode: 'insensitive' } },
-        { customer: { phone: { contains: s, mode: 'insensitive' } } },
-        { customer: { name:  { contains: s, mode: 'insensitive' } } },
-        { repair:   { ticketNumber: { contains: s, mode: 'insensitive' } } },
-        { saleItem: { sale: { receiptNumber: { contains: s, mode: 'insensitive' } } } },
-        { serialNumber: { serial: { contains: s, mode: 'insensitive' } } },
+      where.AND = [
+        { OR: [
+          { warrantyNumber: { contains: s, mode: 'insensitive' } },
+          { customer: { phone: { contains: s, mode: 'insensitive' } } },
+          { customer: { name:  { contains: s, mode: 'insensitive' } } },
+          { repair:   { ticketNumber: { contains: s, mode: 'insensitive' } } },
+          { saleItem: { sale: { receiptNumber: { contains: s, mode: 'insensitive' } } } },
+          { serialNumber: { serial: { contains: s, mode: 'insensitive' } } },
+        ]},
       ];
     }
 
@@ -167,9 +179,10 @@ export class WarrantiesService {
     return { items, total, page, limit };
   }
 
-  async findOne(id: string) {
-    const w = await this.prisma.warranty.findUnique({
-      where: { id },
+  async findOne(id: string, tenantId?: string | null) {
+    const where: any = { id, ...this.tenantScope(tenantId) };
+    const w = await this.prisma.warranty.findFirst({
+      where,
       include: {
         customer:     { select: { id: true, name: true, phone: true } },
         repair:       { select: { id: true, ticketNumber: true, deviceBrand: true, deviceModel: true, warrantyNote: true } },
@@ -186,8 +199,9 @@ export class WarrantiesService {
     dto: { notes?: string; endDate?: string; description?: string },
     actorId?: string,
     actorName?: string,
+    tenantId?: string | null,
   ) {
-    const existing = await this.findOne(id);
+    const existing = await this.findOne(id, tenantId);
     if (existing.status === 'VOIDED') throw new BadRequestException('ไม่สามารถแก้ไขการรับประกันที่ยกเลิกแล้ว');
 
     const data: any = {};
@@ -220,8 +234,9 @@ export class WarrantiesService {
     reason: string,
     actorId?: string,
     actorName?: string,
+    tenantId?: string | null,
   ) {
-    const existing = await this.findOne(id);
+    const existing = await this.findOne(id, tenantId);
     if (existing.status === 'VOIDED') throw new BadRequestException('การรับประกันนี้ถูกยกเลิกแล้ว');
 
     const updated = await this.prisma.warranty.update({
@@ -240,8 +255,8 @@ export class WarrantiesService {
     return updated;
   }
 
-  async markClaimed(id: string, actorId?: string, actorName?: string) {
-    const existing = await this.findOne(id);
+  async markClaimed(id: string, actorId?: string, actorName?: string, tenantId?: string | null) {
+    const existing = await this.findOne(id, tenantId);
     if (existing.status !== 'ACTIVE') throw new BadRequestException('สามารถใช้สิทธิ์การรับประกันได้เฉพาะที่ยังใช้ได้เท่านั้น');
 
     const updated = await this.prisma.warranty.update({
@@ -308,12 +323,13 @@ export class WarrantiesService {
     });
   }
 
-  async getStats() {
+  async getStats(tenantId?: string | null) {
+    const scope = this.tenantScope(tenantId);
     const [active, expiredCount, voided, claimed] = await Promise.all([
-      this.prisma.warranty.count({ where: { status: 'ACTIVE' } }),
-      this.prisma.warranty.count({ where: { status: 'EXPIRED' } }),
-      this.prisma.warranty.count({ where: { status: 'VOIDED' } }),
-      this.prisma.warranty.count({ where: { status: 'CLAIMED' } }),
+      this.prisma.warranty.count({ where: { ...scope, status: 'ACTIVE' } }),
+      this.prisma.warranty.count({ where: { ...scope, status: 'EXPIRED' } }),
+      this.prisma.warranty.count({ where: { ...scope, status: 'VOIDED' } }),
+      this.prisma.warranty.count({ where: { ...scope, status: 'CLAIMED' } }),
     ]);
     return { active, expired: expiredCount, voided, claimed };
   }

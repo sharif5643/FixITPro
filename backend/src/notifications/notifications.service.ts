@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { TenantService } from '../tenant/tenant.service';
 
 export interface CreateNotifData {
   type: string;
@@ -9,20 +10,23 @@ export interface CreateNotifData {
   entityType?: string;
   entityId?: string;
   branchId?: string;
+  tenantId?: string | null;
 }
 
-export const LARGE_REFUND_THRESHOLD      = 1_000;
-export const SHIFT_MISMATCH_THRESHOLD    = 100;
+export const LARGE_REFUND_THRESHOLD        = 1_000;
+export const SHIFT_MISMATCH_THRESHOLD      = 100;
 export const HIGH_VALUE_CUSTOMER_THRESHOLD = 50_000;
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma:     PrismaService,
+    private tenantSvc:  TenantService,
+  ) {}
 
   onModuleInit() {
-    // Check overdue alerts + expiring warranties 10s after startup, then every 30 minutes
     setTimeout(() => {
       this.checkOverdueAlerts().catch((e) => this.logger.warn(`overdue check error: ${(e as Error).message}`));
       this.checkExpiringWarranties().catch((e) => this.logger.warn(`warranty check error: ${(e as Error).message}`));
@@ -35,12 +39,17 @@ export class NotificationsService implements OnModuleInit {
     }, 30 * 60 * 1000);
   }
 
-  // Fire-and-forget: safe, never throws, deduplicates by (type + entityId) when unread
+  // Fire-and-forget: safe, never throws, deduplicates by (type + entityId + tenantId) when unread
   async notify(data: CreateNotifData): Promise<void> {
     try {
       if (data.entityId) {
         const exists = await this.prisma.notification.findFirst({
-          where: { type: data.type, entityId: data.entityId, isRead: false },
+          where: {
+            type:     data.type,
+            entityId: data.entityId,
+            isRead:   false,
+            tenantId: data.tenantId ?? null,
+          },
           select: { id: true },
         });
         if (exists) return;
@@ -54,6 +63,7 @@ export class NotificationsService implements OnModuleInit {
           entityType: data.entityType ?? null,
           entityId:   data.entityId   ?? null,
           branchId:   data.branchId   ?? null,
+          tenantId:   data.tenantId   ?? null,
         },
       });
     } catch (err) {
@@ -62,10 +72,11 @@ export class NotificationsService implements OnModuleInit {
   }
 
   async notifyLowStock(
-    productId: string,
+    productId:   string,
     productName: string,
-    stock: number,
-    minStock: number,
+    stock:       number,
+    minStock:    number,
+    tenantId?:   string | null,
   ): Promise<void> {
     if (stock < 0) {
       await this.notify({
@@ -75,6 +86,7 @@ export class NotificationsService implements OnModuleInit {
         severity:   'CRITICAL',
         entityType: 'Product',
         entityId:   productId,
+        tenantId,
       });
     } else if (stock <= minStock) {
       await this.notify({
@@ -84,6 +96,7 @@ export class NotificationsService implements OnModuleInit {
         severity:   stock === 0 ? 'ERROR' : 'WARNING',
         entityType: 'Product',
         entityId:   productId,
+        tenantId,
       });
     }
   }
@@ -91,14 +104,17 @@ export class NotificationsService implements OnModuleInit {
   async checkOverdueAlerts(): Promise<void> {
     const now = new Date();
 
-    // Overdue accounts payable (POs past due date, not fully paid, not cancelled)
+    // Overdue POs — get tenantId via supplier
     const overduePOs = await this.prisma.purchaseOrder.findMany({
       where: {
         dueDate:       { lt: now },
         paymentStatus: { not: 'PAID' as any },
         status:        { not: 'CANCELLED' as any },
       },
-      select: { id: true, poNumber: true, total: true, paidTotal: true, dueDate: true },
+      select: {
+        id: true, poNumber: true, total: true, paidTotal: true, dueDate: true,
+        supplier: { select: { tenantId: true } },
+      },
     });
 
     for (const po of overduePOs) {
@@ -110,16 +126,20 @@ export class NotificationsService implements OnModuleInit {
         severity:   'WARNING',
         entityType: 'PurchaseOrder',
         entityId:   po.id,
+        tenantId:   (po as any).supplier?.tenantId ?? null,
       });
     }
 
-    // Overdue repairs (past due date, not delivered or cancelled)
+    // Overdue repairs — get tenantId via branch
     const overdueRepairs = await this.prisma.repair.findMany({
       where: {
         dueDate: { lt: now },
         status:  { notIn: ['DELIVERED', 'CANCELLED'] as any[] },
       },
-      select: { id: true, ticketNumber: true, dueDate: true, deviceBrand: true, deviceModel: true },
+      select: {
+        id: true, ticketNumber: true, dueDate: true, deviceBrand: true, deviceModel: true,
+        branch: { select: { tenantId: true } },
+      },
     });
 
     for (const repair of overdueRepairs) {
@@ -130,10 +150,11 @@ export class NotificationsService implements OnModuleInit {
         severity:   'WARNING',
         entityType: 'Repair',
         entityId:   repair.id,
+        tenantId:   (repair as any).branch?.tenantId ?? null,
       });
     }
 
-    // High-value customers (fire once per customer ever — check all, not just unread)
+    // High-value customers
     const highValueRows = await this.prisma.sale.groupBy({
       by:     ['customerId'],
       where:  { status: 'COMPLETED' as any, customerId: { not: null } },
@@ -151,7 +172,7 @@ export class NotificationsService implements OnModuleInit {
 
       const customer = await this.prisma.customer.findUnique({
         where:  { id: row.customerId },
-        select: { id: true, name: true },
+        select: { id: true, name: true, tenantId: true },
       });
       if (!customer) continue;
 
@@ -162,10 +183,11 @@ export class NotificationsService implements OnModuleInit {
         severity:   'INFO',
         entityType: 'Customer',
         entityId:   customer.id,
+        tenantId:   customer.tenantId,
       });
     }
 
-    // Customers with unpaid balance (DELIVERED repairs still pending payment)
+    // Unpaid delivered repairs — get tenantId via branch
     const unpaidRepairs = await this.prisma.repair.findMany({
       where: {
         status:        'DELIVERED',
@@ -175,6 +197,7 @@ export class NotificationsService implements OnModuleInit {
       include: {
         customer:           { select: { name: true } },
         additionalPayments: { select: { amount: true } },
+        branch:             { select: { tenantId: true } },
       },
     });
 
@@ -195,31 +218,48 @@ export class NotificationsService implements OnModuleInit {
         severity:   'WARNING',
         entityType: 'Repair',
         entityId:   repair.id,
+        tenantId:   repair.branch?.tenantId ?? null,
       });
     }
   }
 
-  // ── Queries ────────────────────────────────────────────────────────────────
+  // ── Scope helper ──────────────────────────────────────────────────────────────
 
-  // CHB-02: build a branch-scoped WHERE clause for notification queries.
-  // Non-elevated users see only their branch's notifications plus system-wide
-  // (branchId IS NULL) ones. Elevated users (OWNER, SUPER_ADMIN) see everything.
-  private notificationScope(branchId: string | null, role: string): Record<string, any> {
+  // Builds WHERE clause combining tenant isolation + branch visibility rules:
+  // - SUPER_ADMIN (tenantId=null): sees all notifications across all tenants
+  // - OWNER (tenantId set, isElevated): sees all notifications for their tenant
+  // - Staff (branchId set): sees their branch + system (branchId=null) for their tenant
+  private notificationScope(
+    tenantId: string | null,
+    branchId: string | null,
+    role:     string,
+  ): Record<string, any> {
     const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
-    if (isElevated) return {};
-    return { OR: [{ branchId }, { branchId: null }] };
+
+    // SUPER_ADMIN bypass: no tenant filter, no branch filter
+    if (!tenantId) return {};
+
+    if (isElevated) return { tenantId };
+
+    return {
+      tenantId,
+      OR: [{ branchId }, { branchId: null }],
+    };
   }
 
+  // ── Queries ───────────────────────────────────────────────────────────────────
+
   async findAll(
-    query: { isRead?: string; severity?: string; type?: string; page?: string; limit?: string },
+    query:    { isRead?: string; severity?: string; type?: string; page?: string; limit?: string },
+    tenantId: string | null,
     branchId: string | null,
-    role: string,
+    role:     string,
   ) {
     const page  = Math.max(1, parseInt(query.page  ?? '1'));
     const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20')));
     const skip  = (page - 1) * limit;
 
-    const where: Record<string, any> = { ...this.notificationScope(branchId, role) };
+    const where: Record<string, any> = { ...this.notificationScope(tenantId, branchId, role) };
     if (query.isRead === 'true')  where.isRead = true;
     if (query.isRead === 'false') where.isRead = false;
     if (query.severity) where.severity = query.severity;
@@ -238,52 +278,55 @@ export class NotificationsService implements OnModuleInit {
     return { items, total, page, limit };
   }
 
-  async getUnreadCount(branchId: string | null, role: string) {
-    const where = { isRead: false, ...this.notificationScope(branchId, role) };
+  async getUnreadCount(tenantId: string | null, branchId: string | null, role: string) {
+    const where = { isRead: false, ...this.notificationScope(tenantId, branchId, role) };
     const count = await this.prisma.notification.count({ where });
     return { count };
   }
 
-  async markRead(id: string, branchId: string | null, role: string) {
+  async markRead(id: string, tenantId: string | null, branchId: string | null, role: string) {
     try {
-      // CHB-02: verify the notification belongs to the caller's scope before marking
-      const notif = await this.prisma.notification.findUnique({ where: { id }, select: { branchId: true } });
+      const notif = await this.prisma.notification.findUnique({
+        where:  { id },
+        select: { branchId: true, tenantId: true },
+      });
       if (!notif) return null;
-      const scope = this.notificationScope(branchId, role);
+
+      // Verify the notification belongs to this caller's tenant
+      if (tenantId && notif.tenantId !== tenantId) return null;
+
+      const scope = this.notificationScope(tenantId, branchId, role);
       if (Object.keys(scope).length > 0) {
         const isOwn = notif.branchId === branchId || notif.branchId === null;
-        if (!isOwn) return null;
+        if (!isOwn && !(role === 'OWNER' || role === 'SUPER_ADMIN')) return null;
       }
       return await this.prisma.notification.update({
         where: { id },
-        data: { isRead: true, readAt: new Date() },
+        data:  { isRead: true, readAt: new Date() },
       });
     } catch {
       return null;
     }
   }
 
-  async markAllRead(branchId: string | null, role: string) {
-    const where = { isRead: false, ...this.notificationScope(branchId, role) };
+  async markAllRead(tenantId: string | null, branchId: string | null, role: string) {
+    const where = { isRead: false, ...this.notificationScope(tenantId, branchId, role) };
     const { count } = await this.prisma.notification.updateMany({
       where,
-      data:  { isRead: true, readAt: new Date() },
+      data: { isRead: true, readAt: new Date() },
     });
     return { count };
   }
 
   async checkTechnicianAlerts(): Promise<void> {
-    const now = new Date();
-
-    // ── Inactive technician: no repair received in last 7 days ──
+    const now     = new Date();
     const cutoff7 = new Date();
     cutoff7.setDate(cutoff7.getDate() - 7);
 
     const techs = await this.prisma.user.findMany({
       where: { role: 'TECHNICIAN' as any, isActive: true },
       select: {
-        id: true,
-        name: true,
+        id: true, name: true, tenantId: true,
         repairs: {
           select: { receivedAt: true },
           orderBy: { receivedAt: 'desc' },
@@ -303,11 +346,11 @@ export class NotificationsService implements OnModuleInit {
           severity:   'INFO',
           entityType: 'User',
           entityId:   tech.id,
+          tenantId:   tech.tenantId,
         });
       }
     }
 
-    // ── High claim rate: >20% warranty claim rate in last 30 days (min 3 completed) ──
     const cutoff30 = new Date();
     cutoff30.setDate(cutoff30.getDate() - 30);
 
@@ -336,6 +379,7 @@ export class NotificationsService implements OnModuleInit {
           severity:   'WARNING',
           entityType: 'User',
           entityId:   tech.id,
+          tenantId:   tech.tenantId,
         });
       }
     }
@@ -346,19 +390,19 @@ export class NotificationsService implements OnModuleInit {
     const warnDate = new Date();
     warnDate.setDate(warnDate.getDate() + 7);
 
-    // Expire past-due ACTIVE warranties
     await (this.prisma as any).warranty.updateMany({
       where: { status: 'ACTIVE', endDate: { lt: now } },
       data:  { status: 'EXPIRED' },
     }).catch((e: any) => this.logger.warn(`warranty expire update error: ${(e as Error).message}`));
 
-    // Notify warranties expiring within 7 days
     const expiring = await (this.prisma as any).warranty.findMany({
       where: {
         status:  'ACTIVE',
         endDate: { gt: now, lte: warnDate },
       },
-      include: { customer: { select: { name: true } } },
+      include: {
+        customer: { select: { name: true, tenantId: true } },
+      },
     }).catch(() => []);
 
     for (const w of expiring) {
@@ -369,6 +413,7 @@ export class NotificationsService implements OnModuleInit {
         severity:   'WARNING',
         entityType: 'Warranty',
         entityId:   w.id,
+        tenantId:   w.customer?.tenantId ?? null,
       });
     }
   }

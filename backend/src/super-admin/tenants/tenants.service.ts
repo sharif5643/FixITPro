@@ -102,6 +102,16 @@ export class TenantsService {
         },
       });
 
+      const branch = await tx.branch.create({
+        data: {
+          name: 'สาขาหลัก',
+          isDefault: true,
+          isActive: true,
+          status: 'ACTIVE',
+          tenantId: tenant.id,
+        },
+      });
+
       await tx.user.create({
         data: {
           email: dto.email,
@@ -109,6 +119,14 @@ export class TenantsService {
           phone: dto.phone,
           password: hashedPassword,
           role: 'OWNER',
+          tenantId: tenant.id,
+          branchId: branch.id,
+        },
+      });
+
+      await tx.shopSettings.create({
+        data: {
+          shopName: dto.shopName,
           tenantId: tenant.id,
         },
       });

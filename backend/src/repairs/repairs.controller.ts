@@ -75,11 +75,12 @@ export class RepairsController {
     @Query() query: { status?: string; customerId?: string; date?: string; branchId?: string },
     @CurrentUser('role') role: string,
     @CurrentUser('branchId') userBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
       ? query.branchId
       : (userBranchId ?? undefined);
-    return this.repairsService.findAll({ ...query, branchId: effectiveBranchId });
+    return this.repairsService.findAll({ ...query, branchId: effectiveBranchId }, tenantId);
   }
 
   @Get('outstanding')
@@ -87,11 +88,12 @@ export class RepairsController {
     @Query('branchId') queryBranchId: string | undefined,
     @CurrentUser('role') role: string,
     @CurrentUser('branchId') userBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
     const branchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
       ? (queryBranchId ?? undefined)
       : (userBranchId ?? undefined);
-    return this.repairsService.getOutstandingRepairs(branchId);
+    return this.repairsService.getOutstandingRepairs(branchId, tenantId);
   }
 
   @Get('device-history')
@@ -105,8 +107,11 @@ export class RepairsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.repairsService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.findOne(id, tenantId);
   }
 
   @Patch(':id')
@@ -115,18 +120,27 @@ export class RepairsController {
     @Body() dto: UpdateRepairDto,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.repairsService.update(id, dto, actorId, actorName);
+    return this.repairsService.update(id, dto, actorId, actorName, tenantId);
   }
 
   @Post(':id/parts')
-  addPart(@Param('id') id: string, @Body() dto: AddRepairPartDto) {
-    return this.repairsService.addPart(id, dto);
+  addPart(
+    @Param('id') id: string,
+    @Body() dto: AddRepairPartDto,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.addPart(id, dto, tenantId);
   }
 
   @Delete(':id/parts/:partId')
-  removePart(@Param('id') id: string, @Param('partId') partId: string) {
-    return this.repairsService.removePart(id, partId);
+  removePart(
+    @Param('id') id: string,
+    @Param('partId') partId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.removePart(id, partId, tenantId);
   }
 
   @Post(':id/images')
@@ -163,8 +177,9 @@ export class RepairsController {
     @Param('id') id: string,
     @Body() dto: RepairPaymentDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.repairsService.processPayment(id, dto, userId);
+    return this.repairsService.processPayment(id, dto, userId, tenantId);
   }
 
   @Post(':id/reverse-payment')
@@ -172,8 +187,9 @@ export class RepairsController {
     @Param('id') id: string,
     @Body() dto: ReversePaymentDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.repairsService.reversePayment(id, dto, userId);
+    return this.repairsService.reversePayment(id, dto, userId, tenantId);
   }
 
   @Post(':id/additional-payment')
@@ -181,7 +197,8 @@ export class RepairsController {
     @Param('id') id: string,
     @Body() dto: AdditionalPaymentDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.repairsService.addAdditionalPayment(id, dto, userId);
+    return this.repairsService.addAdditionalPayment(id, dto, userId, tenantId);
   }
 }

@@ -269,32 +269,36 @@ export class ReportsService {
         _count: { id: true },
       }),
       this.prisma.product.count({ where: { isActive: true, stock: 0, ...this.tenantSvc.scope(tenantId) } }),
-      this.prisma.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*) as count FROM "Product"
-        WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"
-      `,
+      tenantId
+        ? this.prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Product" WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock" AND "tenantId" = ${tenantId}`
+        : this.prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Product" WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"`,
       this.prisma.shift.findFirst({
         where: { isActive: true },
         include: { user: { select: { name: true, role: true } } },
         orderBy: { openedAt: 'desc' },
       }),
       this.prisma.claim.count({
-        where: { status: { notIn: ['CLOSED', 'CANCELLED'] } },
+        where: {
+          status: { notIn: ['CLOSED', 'CANCELLED'] },
+          ...(tenantId ? { serialNumber: { product: { tenantId } } } : {}),
+        },
       }),
       this.prisma.repair.count({
-        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' } },
+        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' }, ...bFilter },
       }),
       this.prisma.purchaseOrder.count({
         where: {
           dueDate: { lt: now },
           paymentStatus: { not: 'PAID' },
           status: { not: 'CANCELLED' },
+          ...(tenantId ? { supplier: { tenantId } } : {}),
         },
       }),
       this.prisma.purchaseOrder.aggregate({
         where: {
           paymentStatus: { not: 'PAID' },
           status: { not: 'CANCELLED' },
+          ...(tenantId ? { supplier: { tenantId } } : {}),
         },
         _sum: { total: true, paidTotal: true },
       }),
@@ -647,14 +651,14 @@ export class ReportsService {
     // Repairs by status (current active state)
     const activeByStatus = await this.prisma.repair.groupBy({
       by: ['status'],
-      where: { status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+      where: { status: { notIn: ['DELIVERED', 'CANCELLED'] }, ...bFilter },
       _count: { id: true },
     });
     const repairByStatus = Object.fromEntries(activeByStatus.map((r) => [r.status, r._count.id]));
 
     // Overdue repairs
     const overdueRepairs = await this.prisma.repair.findMany({
-      where: { dueDate: { lt: now }, status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] } },
+      where: { dueDate: { lt: now }, status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] }, ...bFilter },
       include: { customer: { select: { id: true, name: true, phone: true } } },
       orderBy: { dueDate: 'asc' },
       take: 20,
@@ -662,7 +666,7 @@ export class ReportsService {
 
     // Expenses for the day
     const expensesToday = await this.prisma.expense.findMany({
-      where: { expenseDate: { gte: start, lt: end }, voidedAt: null },
+      where: { expenseDate: { gte: start, lt: end }, voidedAt: null, ...bFilter },
       include: {
         category:  { select: { id: true, name: true, code: true } },
         createdBy: { select: { id: true, name: true } },
@@ -671,15 +675,17 @@ export class ReportsService {
     });
 
     // Low-stock products (stock <= minStock) via raw query to compare columns
-    const lowStockProducts = await this.prisma.$queryRaw<
-      Array<{ id: string; name: string; sku: string; stock: number; minStock: number }>
-    >`
-      SELECT id, name, sku, stock, "minStock"
-      FROM "Product"
-      WHERE "isActive" = true AND stock <= "minStock"
-      ORDER BY stock ASC
-      LIMIT 20
-    `;
+    const lowStockProducts = tenantId
+      ? await this.prisma.$queryRaw<Array<{ id: string; name: string; sku: string; stock: number; minStock: number }>>`
+          SELECT id, name, sku, stock, "minStock" FROM "Product"
+          WHERE "isActive" = true AND stock <= "minStock" AND "tenantId" = ${tenantId}
+          ORDER BY stock ASC LIMIT 20
+        `
+      : await this.prisma.$queryRaw<Array<{ id: string; name: string; sku: string; stock: number; minStock: number }>>`
+          SELECT id, name, sku, stock, "minStock" FROM "Product"
+          WHERE "isActive" = true AND stock <= "minStock"
+          ORDER BY stock ASC LIMIT 20
+        `;
 
     // Shift cash reconciliation
     const shiftsWithCash = await Promise.all(

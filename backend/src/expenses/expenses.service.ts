@@ -144,7 +144,7 @@ export class ExpensesService implements OnModuleInit {
     page?:       string;
     limit?:      string;
     branchId?:   string;
-  }) {
+  }, tenantId?: string | null) {
     const page  = Math.max(1, parseInt(query.page  ?? '1'));
     const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '50')));
     const skip  = (page - 1) * limit;
@@ -171,6 +171,9 @@ export class ExpensesService implements OnModuleInit {
     if (query.branchId) {
       where.branchId = query.branchId;
     }
+    if (tenantId) {
+      where.branch = { tenantId };
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.expense.findMany({
@@ -190,9 +193,11 @@ export class ExpensesService implements OnModuleInit {
     return { items, total, page, limit };
   }
 
-  async findOne(id: string, branchId?: string | null, isElevated: boolean = true) {
-    const expense = await this.prisma.expense.findUnique({
-      where: { id },
+  async findOne(id: string, branchId?: string | null, isElevated: boolean = true, tenantId?: string | null) {
+    const where: any = { id };
+    if (tenantId) where.branch = { tenantId };
+    const expense = await this.prisma.expense.findFirst({
+      where,
       include: {
         category:  { select: { id: true, name: true, code: true } },
         createdBy: { select: { id: true, name: true } },
@@ -206,9 +211,11 @@ export class ExpensesService implements OnModuleInit {
     return expense;
   }
 
-  async voidExpense(id: string, dto: VoidExpenseDto, userId: string, role: string) {
+  async voidExpense(id: string, dto: VoidExpenseDto, userId: string, role: string, tenantId?: string | null) {
     this.requireRole(role);
-    const expense = await this.prisma.expense.findUnique({ where: { id } });
+    const where: any = { id };
+    if (tenantId) where.branch = { tenantId };
+    const expense = await this.prisma.expense.findFirst({ where });
     if (!expense) throw new NotFoundException('ไม่พบรายการค่าใช้จ่าย');
     if (expense.voidedAt) throw new BadRequestException('รายการนี้ถูกยกเลิกแล้ว');
     const voided = await this.prisma.expense.update({
@@ -236,10 +243,11 @@ export class ExpensesService implements OnModuleInit {
 
   // ── Summaries ─────────────────────────────────────────────────────────────────
 
-  async getDailySummary(date: string) {
+  async getDailySummary(date: string, tenantId?: string | null) {
     const { start, end } = this.thaiDateBounds(date);
+    const tenantFilter = tenantId ? { branch: { tenantId } } : {};
     const expenses = await this.prisma.expense.findMany({
-      where: { expenseDate: { gte: start, lt: end }, voidedAt: null },
+      where: { expenseDate: { gte: start, lt: end }, voidedAt: null, ...tenantFilter },
       include: { category: { select: { id: true, name: true, code: true } } },
     });
     const totalAmount = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
@@ -260,16 +268,17 @@ export class ExpensesService implements OnModuleInit {
     return { date, totalAmount, byCategory, count: expenses.length };
   }
 
-  async getMonthlySummary(year: number, month: number) {
+  async getMonthlySummary(year: number, month: number, tenantId?: string | null) {
     const pad  = (n: number) => String(n).padStart(2, '0');
     const lastDay = new Date(year, month, 0).getDate();
     const start   = new Date(`${year}-${pad(month)}-01T00:00:00+07:00`);
     const end     = new Date(
       new Date(`${year}-${pad(month)}-${lastDay}T00:00:00+07:00`).getTime() + 24 * 60 * 60 * 1000,
     );
+    const tenantFilter = tenantId ? { branch: { tenantId } } : {};
 
     const expenses = await this.prisma.expense.findMany({
-      where: { expenseDate: { gte: start, lt: end }, voidedAt: null },
+      where: { expenseDate: { gte: start, lt: end }, voidedAt: null, ...tenantFilter },
       include: { category: { select: { id: true, name: true, code: true } } },
       orderBy: { expenseDate: 'asc' },
     });

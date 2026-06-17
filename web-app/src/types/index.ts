@@ -931,7 +931,7 @@ export interface SuperAdminBranch {
   updatedAt: string
   tenantId?: string | null
   tenant?: { id: string; shopName: string } | null
-  _count: { users: number }
+  _count: { users: number; repairs?: number; sales?: number }
 }
 
 export interface SuperAdminUser {

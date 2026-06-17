@@ -19,6 +19,7 @@ import { formatThaiMoney, cn } from '@/lib/utils'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
 import { useBranchContext } from '@/hooks/useBranchContext'
+import { useShopName } from '@/hooks/useShopName'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
 import { RevenueBarChart } from '@/components/charts/revenue-bar-chart'
 import type { OperationalAlert } from '@/components/alerts/operational-alert-center'
@@ -534,6 +535,7 @@ function RecentSalesWidget({
 export default function DashboardPage() {
   const user      = useAuthStore(s => s.user)
   const hasModule = useAuthStore(s => s.hasModule)
+  const shopName  = useShopName()
   const role = user?.role
   const isOwner = role === 'OWNER' || role === 'SUPER_ADMIN'
   const isOwnerOrManager = isOwner || role === 'MANAGER'
@@ -621,6 +623,7 @@ export default function DashboardPage() {
             <h2 className="text-xl sm:text-2xl font-bold text-white leading-tight">
               สวัสดี, {user?.name ?? 'ยินดีต้อนรับ'} 👋
             </h2>
+            <p className="text-sm text-blue-200 font-medium mt-1">{shopName}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className="inline-flex items-center rounded-full bg-white/15 text-white border border-white/10 px-2.5 py-0.5 text-xs font-semibold">
                 {roleLabel[role ?? ''] ?? role}
