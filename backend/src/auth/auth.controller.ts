@@ -1,5 +1,4 @@
 import { Controller, Post, Get, Body, UseGuards, Res } from '@nestjs/common';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -21,8 +20,6 @@ function parseExpiryToSeconds(expiry: string): number {
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Throttle({ auth_login: { ttl: 15 * 60 * 1000, limit: 20 } })
-  @UseGuards(ThrottlerGuard)
   @Post('login')
   async login(
     @Body() dto: LoginDto,
