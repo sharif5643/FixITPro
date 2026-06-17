@@ -563,6 +563,8 @@ export interface Repair {
   approvalNote?: string
   warrantyExpiresAt?: string
   warrantyNote?: string
+  branchId?: string | null
+  branch?: Pick<Branch, 'id' | 'name'>
   customerId?: string
   customer?: Customer
   technicianId?: string

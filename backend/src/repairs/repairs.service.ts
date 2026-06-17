@@ -19,6 +19,7 @@ import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 const REPAIR_INCLUDE = {
   customer: true,
   technician: { select: { id: true, name: true } },
+  branch:    { select: { id: true, name: true } },
   images: { orderBy: { createdAt: 'asc' as const } },
   parts: {
     include: {
