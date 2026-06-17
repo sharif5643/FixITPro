@@ -63,40 +63,66 @@ export class RepairsService {
     return `REP-${dateStr}-${suffix}`;
   }
 
-  private async resolveCustomerId(dto: CreateRepairDto): Promise<string | undefined> {
+  private async resolveCustomerIdInTx(
+    tx: any,
+    dto: CreateRepairDto,
+    tenantId: string | null,
+  ): Promise<string | undefined> {
     if (dto.customerId) return dto.customerId;
     if (!dto.customerName) return undefined;
+
     if (dto.customerPhone) {
-      const existing = await this.prisma.customer.findFirst({ where: { phone: dto.customerPhone } });
+      const where: any = { phone: dto.customerPhone };
+      if (tenantId) where.tenantId = tenantId;
+      const existing = await tx.customer.findFirst({ where });
       if (existing) return existing.id;
     }
-    const created = await this.prisma.customer.create({ data: { name: dto.customerName, phone: dto.customerPhone, tags: [] } });
+
+    const created = await tx.customer.create({
+      data: {
+        name: dto.customerName,
+        phone: dto.customerPhone ?? null,
+        tags: [],
+        ...(tenantId ? { tenantId } : {}),
+      },
+    });
     return created.id;
   }
 
-  async create(dto: CreateRepairDto, actorId?: string, actorName?: string, branchId?: string) {
+  async create(dto: CreateRepairDto, actorId?: string, actorName?: string, branchId?: string, tenantId?: string | null) {
     if (branchId) await this.assertBranchActive(branchId);
 
-    const customerId = await this.resolveCustomerId(dto);
-    const repair = await this.prisma.repair.create({
-      data: {
-        ticketNumber: this.generateTicketNumber(),
-        customerId,
-        technicianId: dto.technicianId,
-        deviceBrand: dto.deviceBrand,
-        deviceModel: dto.deviceModel,
-        deviceColor: dto.deviceColor,
-        deviceImei: dto.deviceImei,
-        issue: dto.issue,
-        accessories: dto.accessories,
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-        estimateCost: dto.estimateCost,
-        deposit: dto.deposit ?? 0,
-        note: dto.note,
-        branchId: branchId ?? null,
-      },
-      include: REPAIR_INCLUDE,
+    const repair = await this.prisma.$transaction(async (tx) => {
+      const customerId = await this.resolveCustomerIdInTx(tx, dto, tenantId ?? null);
+
+      const laborCost  = dto.estimatedLaborCost;
+      const partsCost  = dto.estimatedPartsCost;
+      const total      = laborCost != null && partsCost != null ? laborCost + partsCost : dto.estimateCost;
+
+      return tx.repair.create({
+        data: {
+          ticketNumber:       this.generateTicketNumber(),
+          customerId,
+          technicianId:       dto.technicianId,
+          deviceBrand:        dto.deviceBrand,
+          deviceModel:        dto.deviceModel,
+          deviceColor:        dto.deviceColor,
+          deviceImei:         dto.deviceImei,
+          issue:              dto.issue,
+          accessories:        dto.accessories,
+          dueDate:            dto.dueDate ? new Date(dto.dueDate) : undefined,
+          estimateCost:       total ?? dto.estimateCost,
+          estimatedLaborCost: laborCost,
+          estimatedPartsCost: partsCost,
+          estimatedTotal:     total,
+          deposit:            dto.deposit ?? 0,
+          note:               dto.note,
+          branchId:           branchId ?? null,
+        },
+        include: REPAIR_INCLUDE,
+      });
     });
+
     await this.auditLog.log({
       actorId, actorName,
       action: 'REPAIR_CREATED',
@@ -104,9 +130,9 @@ export class RepairsService {
       entityId: repair.id,
       afterData: {
         ticketNumber: repair.ticketNumber,
-        deviceBrand: dto.deviceBrand,
-        deviceModel: dto.deviceModel,
-        deviceImei: dto.deviceImei,
+        deviceBrand:  dto.deviceBrand,
+        deviceModel:  dto.deviceModel,
+        deviceImei:   dto.deviceImei,
       },
     });
     if (dto.technicianId) {

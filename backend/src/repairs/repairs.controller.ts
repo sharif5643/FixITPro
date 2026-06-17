@@ -66,8 +66,9 @@ export class RepairsController {
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
     @CurrentUser('branchId') branchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.repairsService.create(dto, actorId, actorName, branchId ?? undefined);
+    return this.repairsService.create(dto, actorId, actorName, branchId ?? undefined, tenantId);
   }
 
   @Get()

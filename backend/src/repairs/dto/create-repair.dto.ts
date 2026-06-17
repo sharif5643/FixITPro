@@ -55,6 +55,20 @@ export class CreateRepairDto {
   @IsNumber()
   @Min(0)
   @Max(10_000_000)
+  estimatedLaborCost?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000_000)
+  estimatedPartsCost?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000_000)
   deposit?: number;
 
   @IsOptional()

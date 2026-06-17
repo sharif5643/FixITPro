@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, User, X, Shuffle, Wrench, ShoppingCart } from 'lucide-react'
+import { Loader2, User, X, Shuffle, Wrench, ShoppingCart, Printer, FileText, CheckCircle2 } from 'lucide-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -120,6 +120,9 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
   const partsCost = Number(watch('partsCost')) || 0
   const total     = deposit + laborCost + partsCost
 
+  // Receipt state after successful creation
+  const [createdRepair, setCreatedRepair] = useState<{ id: string; ticketNumber: string } | null>(null)
+
   // Customer selection state
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null)
   const [customerSearch, setCustomerSearch]     = useState('')
@@ -133,6 +136,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
       setSelectedCustomer(null)
       setCustomerSearch('')
       setSearchOpen(false)
+      setCreatedRepair(null)
     }
   }, [open, reset])
 
@@ -179,23 +183,28 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
 
   const createMutation = useMutation({
     mutationFn: async (data: RepairFormData) => {
-      const estimateCost = (data.laborCost || 0) + (data.partsCost || 0)
+      const estimatedLaborCost = data.laborCost || undefined
+      const estimatedPartsCost = data.partsCost || undefined
+      const estimateCost       = (data.laborCost || 0) + (data.partsCost || 0) || undefined
       const res = await api.post('/repairs', {
-        customerId:    selectedCustomer?.id,
-        customerName:  !selectedCustomer ? (data.customerName?.trim() || undefined) : undefined,
-        customerPhone: !selectedCustomer ? (data.customerPhone?.trim() || undefined) : undefined,
-        deviceBrand:   data.deviceBrand.trim(),
-        deviceModel:   data.deviceModel.trim(),
-        deviceImei:    data.deviceImei?.trim() || undefined,
-        issue:         data.issue.trim(),
-        note:          data.note?.trim() || undefined,
-        deposit:       data.deposit || 0,
-        estimateCost:  estimateCost || undefined,
+        customerId:          selectedCustomer?.id,
+        customerName:        !selectedCustomer ? (data.customerName?.trim() || undefined) : undefined,
+        customerPhone:       !selectedCustomer ? (data.customerPhone?.trim() || undefined) : undefined,
+        deviceBrand:         data.deviceBrand.trim(),
+        deviceModel:         data.deviceModel.trim(),
+        deviceImei:          data.deviceImei?.trim() || undefined,
+        issue:               data.issue.trim(),
+        note:                data.note?.trim() || undefined,
+        deposit:             data.deposit || 0,
+        estimateCost,
+        estimatedLaborCost,
+        estimatedPartsCost,
       })
       return res.data
     },
-    onSuccess: () => {
-      toast.success('สร้างงานซ่อมสำเร็จ')
+    onSuccess: (repair) => {
+      toast.success(`สร้างงานซ่อม ${repair.ticketNumber} สำเร็จ`)
+      setCreatedRepair({ id: repair.id, ticketNumber: repair.ticketNumber })
       onSuccess()
     },
     onError: (err: any) => {
@@ -204,14 +213,60 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
     },
   })
 
+  function handleClose() {
+    setCreatedRepair(null)
+    onOpenChange(false)
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>สร้างงานซ่อมใหม่</DialogTitle>
+          <DialogTitle>{createdRepair ? 'สร้างงานซ่อมสำเร็จ' : 'สร้างงานซ่อมใหม่'}</DialogTitle>
         </DialogHeader>
 
-        <form
+        {/* ─── Receipt options panel (shown after creation) ─── */}
+        {createdRepair && (
+          <div className="py-4 space-y-4">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <CheckCircle2 className="h-10 w-10 text-green-500" />
+              <p className="font-semibold text-gray-900">เลขงาน: {createdRepair.ticketNumber}</p>
+              <p className="text-sm text-muted-foreground">เลือกรูปแบบพิมพ์ใบรับงานซ่อม</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm`, '_blank')}
+                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-blue-200 bg-blue-50 px-3 py-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+              >
+                <Printer className="h-5 w-5" />
+                58mm<br />(ใบร้าน)
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm`, '_blank')}
+                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-blue-200 bg-blue-50 px-3 py-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+              >
+                <Printer className="h-5 w-5" />
+                58mm<br />(ใบลูกค้า)
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=A4`, '_blank')}
+                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <FileText className="h-5 w-5" />
+                A4<br />(เอกสาร)
+              </button>
+            </div>
+            <Button className="w-full" onClick={handleClose}>
+              ปิด
+            </Button>
+          </div>
+        )}
+
+        {/* ─── Repair form ─── */}
+        {!createdRepair && <form
           onSubmit={handleSubmit((data) => createMutation.mutateAsync(data))}
           className="space-y-4 pt-1"
         >
@@ -472,7 +527,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
               )}
             </Button>
           </DialogFooter>
-        </form>
+        </form>}
       </DialogContent>
     </Dialog>
   )

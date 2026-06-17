@@ -8,7 +8,7 @@ import { RepairReceipt } from '@/components/receipt/repair-receipt'
 import api from '@/lib/api'
 import type { Repair, ShopSettings } from '@/types'
 
-type PW = '58mm' | '80mm'
+type PW = '58mm' | '80mm' | 'A4'
 
 export default function RepairPrintPage() {
   const { id } = useParams<{ id: string }>()
@@ -33,7 +33,7 @@ export default function RepairPrintPage() {
     const style = document.createElement('style')
     style.id = 'print-page-size'
     style.textContent = `
-      @page { size: ${paperWidth} auto; margin: 3mm; }
+      @page { size: ${paperWidth === 'A4' ? 'A4 portrait' : `${paperWidth} auto`}; margin: ${paperWidth === 'A4' ? '10mm' : '3mm'}; }
       @media print { .no-print { display: none !important; } }
     `
     document.head.appendChild(style)
@@ -54,7 +54,7 @@ export default function RepairPrintPage() {
       {/* Print controls — hidden when printing */}
       <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-2 bg-white border-b px-4 py-2 shadow-sm">
         <span className="text-sm font-semibold text-gray-700">
-          ใบรับงานซ่อม — {paperWidth}
+          ใบรับงานซ่อม — {paperWidth === 'A4' ? 'A4' : paperWidth}
         </span>
         <div className="flex gap-2">
           <button
