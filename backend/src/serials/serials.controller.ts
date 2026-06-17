@@ -50,14 +50,20 @@ export class SerialsController {
 
   @RequirePermission('serials.manage')
   @Post()
-  create(@Body() dto: CreateSerialDto) {
-    return this.service.create(dto);
+  create(
+    @Body() dto: CreateSerialDto,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.create(dto, tenantId);
   }
 
   @RequirePermission('serials.manage')
   @Post('bulk')
-  createBulk(@Body() dto: CreateBulkSerialDto) {
-    return this.service.createBulk(dto);
+  createBulk(
+    @Body() dto: CreateBulkSerialDto,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.createBulk(dto, tenantId);
   }
 
   @RequirePermission('serials.manage')

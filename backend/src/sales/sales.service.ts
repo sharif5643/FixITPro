@@ -36,24 +36,24 @@ export class SalesService {
     return `RCP-${dateStr}-${suffix}`;
   }
 
-  private async resolveCustomerId(dto: CreateSaleDto): Promise<string | undefined> {
+  private async resolveCustomerId(dto: CreateSaleDto, tenantId?: string | null): Promise<string | undefined> {
     if (dto.customerId) return dto.customerId;
     if (!dto.customerName) return undefined;
 
     if (dto.customerPhone) {
-      const existing = await this.prisma.customer.findFirst({
-        where: { phone: dto.customerPhone },
-      });
+      const phoneWhere: any = { phone: dto.customerPhone };
+      if (tenantId) phoneWhere.tenantId = tenantId;
+      const existing = await this.prisma.customer.findFirst({ where: phoneWhere });
       if (existing) return existing.id;
     }
 
     const created = await this.prisma.customer.create({
-      data: { name: dto.customerName, phone: dto.customerPhone, tags: [] },
+      data: { name: dto.customerName, phone: dto.customerPhone, tags: [], ...(tenantId ? { tenantId } : {}) },
     });
     return created.id;
   }
 
-  async create(dto: CreateSaleDto, userId: string, branchId?: string) {
+  async create(dto: CreateSaleDto, userId: string, branchId?: string, tenantId?: string | null) {
     if (branchId) await this.assertBranchActive(branchId);
 
     const activeShift = await this.prisma.shift.findFirst({
@@ -66,7 +66,7 @@ export class SalesService {
 
     const productIds = dto.items.map((i) => i.productId);
     const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds }, isActive: true },
+      where: { id: { in: productIds }, isActive: true, ...(tenantId ? { tenantId } : {}) },
     });
 
     if (products.length !== new Set(productIds).size) {
@@ -142,7 +142,7 @@ export class SalesService {
       throw new BadRequestException('Amount paid is less than total');
     }
 
-    const customerId = await this.resolveCustomerId(dto);
+    const customerId = await this.resolveCustomerId(dto, tenantId);
 
     const sale = await this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({

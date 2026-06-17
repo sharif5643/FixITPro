@@ -23,8 +23,10 @@ const SERIAL_INCLUDE = {
 export class SerialsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateSerialDto) {
-    const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+  async create(dto: CreateSerialDto, tenantId?: string | null) {
+    const productWhere: any = { id: dto.productId };
+    if (tenantId) productWhere.tenantId = tenantId;
+    const product = await this.prisma.product.findFirst({ where: productWhere });
     if (!product) throw new NotFoundException('Product not found');
     if (!product.hasSerial) throw new BadRequestException('Product does not track serials');
 
@@ -42,8 +44,10 @@ export class SerialsService {
     });
   }
 
-  async createBulk(dto: CreateBulkSerialDto) {
-    const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
+  async createBulk(dto: CreateBulkSerialDto, tenantId?: string | null) {
+    const productWhere: any = { id: dto.productId };
+    if (tenantId) productWhere.tenantId = tenantId;
+    const product = await this.prisma.product.findFirst({ where: productWhere });
     if (!product) throw new NotFoundException('Product not found');
     if (!product.hasSerial) throw new BadRequestException('Product does not track serials');
 

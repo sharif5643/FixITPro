@@ -32,8 +32,9 @@ export class SalesController {
     @Body() dto: CreateSaleDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('branchId') branchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.salesService.create(dto, userId, branchId ?? undefined);
+    return this.salesService.create(dto, userId, branchId ?? undefined, tenantId);
   }
 
   @Get()

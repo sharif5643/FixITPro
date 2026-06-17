@@ -37,7 +37,10 @@ export class ReportsService {
         orderBy: { voidedAt: 'asc' },
       }),
       this.prisma.packageSale.findMany({
-        where: { createdAt: { gte: start, lt: end } },
+        where: {
+          createdAt: { gte: start, lt: end },
+          ...(tenantId ? { createdBy: { tenantId } } : {}),
+        },
         select: {
           id: true, receiptNumber: true, carrier: true, packageAmount: true,
           walletDeduction: true, profit: true, paymentMethod: true,
@@ -61,7 +64,10 @@ export class ReportsService {
         select: { id: true, ticketNumber: true, paidAmount: true, paymentMethod: true },
       }),
       this.prisma.supplierPayment.findMany({
-        where: { paidAt: { gte: start, lt: end } },
+        where: {
+          paidAt: { gte: start, lt: end },
+          ...(tenantId ? { purchaseOrder: { supplier: { tenantId } } } : {}),
+        },
         include: {
           purchaseOrder: {
             select: { poNumber: true, supplier: { select: { name: true } } },
@@ -211,7 +217,10 @@ export class ReportsService {
         _sum: { paidAmount: true },
       }),
       this.prisma.packageSale.aggregate({
-        where: { createdAt: { gte: todayStart, lt: todayEnd } },
+        where: {
+          createdAt: { gte: todayStart, lt: todayEnd },
+          ...(tenantId ? { createdBy: { tenantId } } : {}),
+        },
         _sum: { packageAmount: true, profit: true },
         _count: { id: true },
       }),
@@ -241,7 +250,10 @@ export class ReportsService {
         select: { paidAmount: true, paidAt: true },
       }),
       this.prisma.packageSale.findMany({
-        where: { createdAt: { gte: weekAgoStart, lt: todayEnd } },
+        where: {
+          createdAt: { gte: weekAgoStart, lt: todayEnd },
+          ...(tenantId ? { createdBy: { tenantId } } : {}),
+        },
         select: { profit: true, createdAt: true },
       }),
       this.prisma.saleItem.groupBy({
@@ -484,6 +496,7 @@ export class ReportsService {
         sale: {
           createdAt: { gte: start, lt: end },
           status: { not: 'VOIDED' },
+          ...bFilter,
         },
       },
       _sum: { quantity: true, total: true },
@@ -504,7 +517,7 @@ export class ReportsService {
     }));
 
     const repairCount = await this.prisma.repair.count({
-      where: { receivedAt: { gte: start, lt: end } },
+      where: { receivedAt: { gte: start, lt: end }, ...bFilter },
     });
 
     return {
@@ -557,7 +570,7 @@ export class ReportsService {
         orderBy: { voidedAt: 'asc' },
       }),
       this.prisma.saleRefund.findMany({
-        where: { createdAt: { gte: start, lt: end } },
+        where: { createdAt: { gte: start, lt: end }, ...(Object.keys(bFilter).length ? { sale: { ...bFilter } } : {}) },
         include: {
           sale: { select: { receiptNumber: true } },
           items: { include: { product: { select: { name: true } } } },
@@ -576,7 +589,10 @@ export class ReportsService {
         orderBy: { paidAt: 'asc' },
       }),
       this.prisma.packageSale.findMany({
-        where: { createdAt: { gte: start, lt: end } },
+        where: {
+          createdAt: { gte: start, lt: end },
+          ...(tenantId ? { createdBy: { tenantId } } : {}),
+        },
         select: {
           id: true, receiptNumber: true, carrier: true, packageAmount: true,
           profit: true, paymentMethod: true, createdAt: true,
@@ -585,11 +601,11 @@ export class ReportsService {
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.repair.findMany({
-        where: { receivedAt: { gte: start, lt: end } },
+        where: { receivedAt: { gte: start, lt: end }, ...bFilter },
         include: { customer: { select: { id: true, name: true, phone: true } }, technician: { select: { id: true, name: true } } },
       }),
       this.prisma.repair.findMany({
-        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' } },
+        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' }, ...bFilter },
         include: { customer: { select: { id: true, name: true, phone: true } } },
         orderBy: { completedAt: 'asc' },
       }),
@@ -605,20 +621,20 @@ export class ReportsService {
       }),
       this.prisma.saleItem.groupBy({
         by: ['productId'],
-        where: { sale: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' } } },
+        where: { sale: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...bFilter } },
         _sum: { quantity: true, total: true },
         orderBy: { _sum: { total: 'desc' } },
         take: 10,
       }),
       this.prisma.sale.groupBy({
         by: ['userId'],
-        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' } },
+        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...bFilter },
         _sum: { total: true },
         _count: { id: true },
       }),
       this.prisma.repair.groupBy({
         by: ['technicianId'],
-        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', technicianId: { not: null } },
+        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', technicianId: { not: null }, ...bFilter },
         _count: { id: true },
         _sum: { paidAmount: true },
       }),
