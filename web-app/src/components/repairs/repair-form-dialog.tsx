@@ -86,8 +86,7 @@ const repairSchema = z.object({
   issue: z.string().min(1, 'กรุณากรอกอาการเสีย'),
   note: z.string().optional(),
   deposit: z.coerce.number().min(0).optional(),
-  laborCost: z.coerce.number().min(0).optional(),
-  partsCost: z.coerce.number().min(0).optional(),
+  estimateCost: z.coerce.number().min(0).optional(),
 })
 
 type RepairFormData = z.infer<typeof repairSchema>
@@ -114,13 +113,11 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
     formState: { errors },
   } = useForm<RepairFormData>({
     resolver: zodResolver(repairSchema),
-    defaultValues: { deposit: 0, laborCost: 0, partsCost: 0 },
+    defaultValues: { deposit: 0, estimateCost: 0 },
   })
 
-  const deposit   = Number(watch('deposit')) || 0
-  const laborCost = Number(watch('laborCost')) || 0
-  const partsCost = Number(watch('partsCost')) || 0
-  const total     = deposit + laborCost + partsCost
+  const deposit      = Number(watch('deposit')) || 0
+  const estimateCost = Number(watch('estimateCost')) || 0
 
   // Receipt state after successful creation
   const [createdRepair, setCreatedRepair] = useState<{ id: string; ticketNumber: string } | null>(null)
@@ -134,7 +131,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
 
   useEffect(() => {
     if (open) {
-      reset({ deposit: 0, laborCost: 0, partsCost: 0 })
+      reset({ deposit: 0, estimateCost: 0 })
       setSelectedCustomer(null)
       setCustomerSearch('')
       setSearchOpen(false)
@@ -185,22 +182,17 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
 
   const createMutation = useMutation({
     mutationFn: async (data: RepairFormData) => {
-      const estimatedLaborCost = data.laborCost || undefined
-      const estimatedPartsCost = data.partsCost || undefined
-      const estimateCost       = (data.laborCost || 0) + (data.partsCost || 0) || undefined
       const res = await api.post('/repairs', {
-        customerId:          selectedCustomer?.id,
-        customerName:        !selectedCustomer ? (data.customerName?.trim() || undefined) : undefined,
-        customerPhone:       !selectedCustomer ? (data.customerPhone?.trim() || undefined) : undefined,
-        deviceBrand:         data.deviceBrand.trim(),
-        deviceModel:         data.deviceModel.trim(),
-        deviceImei:          data.deviceImei?.trim() || undefined,
-        issue:               data.issue.trim(),
-        note:                data.note?.trim() || undefined,
-        deposit:             data.deposit || 0,
-        estimateCost,
-        estimatedLaborCost,
-        estimatedPartsCost,
+        customerId:    selectedCustomer?.id,
+        customerName:  !selectedCustomer ? (data.customerName?.trim() || undefined) : undefined,
+        customerPhone: !selectedCustomer ? (data.customerPhone?.trim() || undefined) : undefined,
+        deviceBrand:   data.deviceBrand.trim(),
+        deviceModel:   data.deviceModel.trim(),
+        deviceImei:    data.deviceImei?.trim() || undefined,
+        issue:         data.issue.trim(),
+        note:          data.note?.trim() || undefined,
+        deposit:       data.deposit || 0,
+        estimateCost:  data.estimateCost || undefined,
       })
       return res.data
     },
@@ -488,26 +480,14 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
               ค่าใช้จ่าย (ประมาณเบื้องต้น)
             </p>
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label>ค่ามัดจำ (฿)</Label>
-                  <Input type="number" min={0} step={1} placeholder="0" {...register('deposit')} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>ค่าแรง (฿)</Label>
-                  <Input type="number" min={0} step={1} placeholder="0" {...register('laborCost')} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>ค่าอะไหล่ (฿)</Label>
-                  <Input type="number" min={0} step={1} placeholder="0" {...register('partsCost')} />
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>ค่ามัดจำ (฿)</Label>
+                <Input type="number" min={0} step={1} placeholder="0" {...register('deposit')} />
               </div>
-              <div className="flex justify-between items-center rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
-                <span className="font-semibold text-gray-900 text-sm">ยอดรวม (ประมาณ)</span>
-                <span className="text-xl font-bold text-blue-700 tabular-nums">
-                  {formatThaiMoney(total)}
-                </span>
+              <div className="space-y-1.5">
+                <Label>ราคาประเมิน (฿)</Label>
+                <Input type="number" min={0} step={1} placeholder="0" {...register('estimateCost')} />
               </div>
             </div>
           </div>
