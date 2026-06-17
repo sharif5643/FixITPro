@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
@@ -52,8 +53,11 @@ export class CategoriesController {
   }
 
   @Get()
-  findAll(@CurrentUser('tenantId') tenantId: string) {
-    return this.categoriesService.findAll(tenantId);
+  findAll(
+    @CurrentUser('tenantId') tenantId: string,
+    @Query('categoryTypeId') categoryTypeId?: string,
+  ) {
+    return this.categoriesService.findAll(tenantId, categoryTypeId);
   }
 
   @Put(':id')

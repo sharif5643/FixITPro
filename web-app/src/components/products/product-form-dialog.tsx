@@ -25,15 +25,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import api from '@/lib/api'
-import type { Product, Category } from '@/types'
+import type { Product, Category, CategoryType } from '@/types'
+
+// ── Schema ────────────────────────────────────────────────────────────────────
 
 export const productSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อสินค้า'),
   sku: z.string().min(1, 'กรุณากรอก SKU'),
   barcode: z.string().optional(),
-  type: z.enum(['PHONE', 'SIM', 'ACCESSORY', 'PART'], {
-    required_error: 'กรุณาเลือกประเภทสินค้า',
-  }),
+  type: z.enum(['PHONE', 'SIM', 'ACCESSORY', 'PART']).default('PHONE'),
   categoryId: z.string().optional(),
   price: z.coerce.number().min(0, 'ราคาต้องไม่ติดลบ'),
   costPrice: z.coerce.number().min(0, 'ต้นทุนต้องไม่ติดลบ'),
@@ -47,22 +47,18 @@ export const productSchema = z.object({
 
 export type ProductFormData = z.infer<typeof productSchema>
 
-interface ProductFormDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  product?: Product | null
-  onSubmit: (data: ProductFormData) => Promise<void>
-  isLoading?: boolean
-  effectiveBranchName?: string
-  isOwnerGlobalMode?: boolean
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function inferProductType(name: string): ProductFormData['type'] {
+  const n = name.toLowerCase()
+  if (n.includes('มือถือ') || n.includes('phone') || n.includes('mobile') || n.includes('smartphone')) return 'PHONE'
+  if (n.includes('ซิม') || n.includes('sim')) return 'SIM'
+  if (n.includes('อุปกรณ์เสริม') || n.includes('accessory') || n.includes('เสริม')) return 'ACCESSORY'
+  if (n.includes('อะไหล่') || n.includes('part')) return 'PART'
+  return 'PHONE'
 }
 
-const PRODUCT_TYPES = [
-  { value: 'PHONE', label: 'มือถือ' },
-  { value: 'SIM', label: 'ซิมการ์ด' },
-  { value: 'ACCESSORY', label: 'อุปกรณ์เสริม' },
-  { value: 'PART', label: 'อะไหล่' },
-]
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const WARRANTY_OPTIONS = [
   { value: 'NO_WARRANTY',    label: 'ไม่มีประกัน' },
@@ -85,6 +81,20 @@ const defaultValues: ProductFormData = {
   warrantyDays: undefined,
   hasSerial: false,
 }
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+
+interface ProductFormDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  product?: Product | null
+  onSubmit: (data: ProductFormData) => Promise<void>
+  isLoading?: boolean
+  effectiveBranchName?: string
+  isOwnerGlobalMode?: boolean
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function ProductFormDialog({
   open,
@@ -109,52 +119,88 @@ export function ProductFormDialog({
     defaultValues,
   })
 
+  // Local state for CategoryType filter (not stored in form data)
+  const [selectedCategoryTypeId, setSelectedCategoryTypeId] = useState<string>('')
+
   const selectedType     = watch('type')
   const selectedCategory = watch('categoryId')
   const selectedWarranty = watch('warrantyType')
   const hasSerial        = watch('hasSerial')
 
-  const [skuLoading,  setSkuLoading]  = useState(false)
+  const [skuLoading,     setSkuLoading]     = useState(false)
   const [barcodeLoading, setBarcodeLoading] = useState(false)
 
-  // Fetch categories for the dropdown
-  const { data: categories = [] } = useQuery<(Category & { _count: { products: number } })[]>({
-    queryKey: ['categories'],
-    queryFn: async () => (await api.get('/categories')).data,
-    staleTime: 60_000,
+  // ── Data fetching ─────────────────────────────────────────────────────────
+
+  // All category types (system-wide, no tenant scope needed)
+  const { data: categoryTypes = [] } = useQuery<CategoryType[]>({
+    queryKey: ['category-types'],
+    queryFn: () => api.get('/categories/types').then((r) => r.data),
+    staleTime: 5 * 60_000,
     enabled: open,
   })
 
+  // Categories filtered by selected CategoryType (+ tenant-scoped on backend)
+  const { data: categories = [], isFetching: categoriesLoading } = useQuery<
+    (Category & { categoryType?: Pick<CategoryType, 'id' | 'name'> | null })[]
+  >({
+    queryKey: ['categories', selectedCategoryTypeId],
+    queryFn: () =>
+      api.get('/categories', {
+        params: selectedCategoryTypeId ? { categoryTypeId: selectedCategoryTypeId } : {},
+      }).then((r) => r.data),
+    staleTime: 30_000,
+    enabled: open,
+  })
+
+  // ── Reset / pre-fill on open ───────────────────────────────────────────────
+
   useEffect(() => {
-    if (open) {
-      if (product) {
-        reset({
-          name:         product.name,
-          sku:          product.sku,
-          barcode:      product.barcode ?? '',
-          type:         product.type as ProductFormData['type'],
-          categoryId:   product.categoryId ?? '',
-          price:        Number(product.price),
-          costPrice:    Number(product.costPrice),
-          stock:        product.stock,
-          minStock:     product.minStock,
-          description:  product.description ?? '',
-          warrantyType: (product.warrantyType ?? 'NO_WARRANTY') as ProductFormData['warrantyType'],
-          warrantyDays: product.warrantyDays ?? undefined,
-          hasSerial:    product.hasSerial ?? false,
-        })
-      } else {
-        reset(defaultValues)
-      }
+    if (!open) return
+
+    if (product) {
+      // Pre-fill CategoryType from existing product's category relation
+      const existingCategoryTypeId = product.category?.categoryTypeId ?? ''
+      setSelectedCategoryTypeId(existingCategoryTypeId)
+
+      reset({
+        name:         product.name,
+        sku:          product.sku,
+        barcode:      product.barcode ?? '',
+        type:         product.type as ProductFormData['type'],
+        categoryId:   product.categoryId ?? '',
+        price:        Number(product.price),
+        costPrice:    Number(product.costPrice),
+        stock:        product.stock,
+        minStock:     product.minStock,
+        description:  product.description ?? '',
+        warrantyType: (product.warrantyType ?? 'NO_WARRANTY') as ProductFormData['warrantyType'],
+        warrantyDays: product.warrantyDays ?? undefined,
+        hasSerial:    product.hasSerial ?? false,
+      })
+    } else {
+      setSelectedCategoryTypeId('')
+      reset(defaultValues)
     }
   }, [open, product, reset])
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  function handleCategoryTypeChange(typeId: string) {
+    setSelectedCategoryTypeId(typeId)
+    // Clear category when type changes
+    setValue('categoryId', '')
+    // Auto-infer Product.type (internal enum) from CategoryType name
+    const ct = categoryTypes.find((t) => t.id === typeId)
+    if (ct) setValue('type', inferProductType(ct.name))
+  }
 
   async function handleGenerateSku() {
     setSkuLoading(true)
     try {
       const res = await api.get('/products/generate-sku', { params: { type: selectedType } })
       setValue('sku', res.data.sku)
-    } catch (err: any) {
+    } catch {
       toast.error('ไม่สามารถสร้าง SKU ได้')
     } finally {
       setSkuLoading(false)
@@ -166,12 +212,14 @@ export function ProductFormDialog({
     try {
       const res = await api.get('/products/generate-barcode')
       setValue('barcode', res.data.barcode)
-    } catch (err: any) {
+    } catch {
       toast.error('ไม่สามารถสร้าง Barcode ได้')
     } finally {
       setBarcodeLoading(false)
     }
   }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -204,25 +252,31 @@ export function ProductFormDialog({
             {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
           </div>
 
-          {/* Type + Category */}
+          {/* CategoryType → Category (linked) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>ประเภทสินค้า <span className="text-red-500">*</span></Label>
+              <Label>ประเภทสินค้า</Label>
               <Select
-                value={selectedType}
-                onValueChange={(v) => setValue('type', v as ProductFormData['type'])}
+                value={selectedCategoryTypeId}
+                onValueChange={handleCategoryTypeChange}
                 disabled={isLoading}
               >
-                <SelectTrigger className={errors.type ? 'border-red-400' : ''}>
-                  <SelectValue placeholder="เลือกประเภท" />
+                <SelectTrigger>
+                  <SelectValue placeholder="เลือกประเภทสินค้า" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PRODUCT_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
+                  {categoryTypes.length === 0 ? (
+                    <SelectItem value="_none" disabled>ยังไม่มีประเภทสินค้า</SelectItem>
+                  ) : (
+                    categoryTypes.map((ct) => (
+                      <SelectItem key={ct.id} value={ct.id}>{ct.name}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
-              {errors.type && <p className="text-xs text-red-500">{errors.type.message}</p>}
+              <p className="text-xs text-muted-foreground">
+                สร้างประเภทได้ที่หน้า <span className="font-medium">ประเภท/หมวดหมู่</span>
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -230,10 +284,20 @@ export function ProductFormDialog({
               <Select
                 value={selectedCategory ?? ''}
                 onValueChange={(v) => setValue('categoryId', v === '_none' ? '' : v)}
-                disabled={isLoading}
+                disabled={isLoading || !selectedCategoryTypeId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="เลือกหมวดหมู่ (ไม่บังคับ)" />
+                  <SelectValue
+                    placeholder={
+                      !selectedCategoryTypeId
+                        ? 'เลือกประเภทสินค้าก่อน'
+                        : categoriesLoading
+                        ? 'กำลังโหลด...'
+                        : categories.length === 0
+                        ? 'ยังไม่มีหมวดหมู่ในประเภทนี้'
+                        : 'เลือกหมวดหมู่ (ไม่บังคับ)'
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_none">— ไม่ระบุ —</SelectItem>
@@ -242,6 +306,9 @@ export function ProductFormDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {selectedCategoryTypeId && categories.length === 0 && !categoriesLoading && (
+                <p className="text-xs text-amber-600">ยังไม่มีหมวดหมู่ สร้างได้ที่หน้าประเภท/หมวดหมู่</p>
+              )}
             </div>
           </div>
 

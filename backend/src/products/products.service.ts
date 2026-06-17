@@ -132,7 +132,7 @@ export class ProductsService {
           hasSerial:    dto.hasSerial ?? false,
           ...(tenantId ? { tenantId } : {}),
         },
-        include: { category: true },
+        include: { category: { include: { categoryType: { select: { id: true, name: true } } } } },
       });
 
       // Create BranchStock whenever a branch context is present —

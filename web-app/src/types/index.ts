@@ -399,7 +399,8 @@ export interface Product {
   warrantyDays?: number
   hasSerial: boolean
   categoryId?: string
-  category?: Category
+  categoryTypeId?: string
+  category?: Category & { categoryType?: Pick<CategoryType, 'id' | 'name'> | null }
   createdAt: string
   updatedAt: string
   branchQuantity?: number

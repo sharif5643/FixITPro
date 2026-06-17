@@ -82,9 +82,11 @@ export class CategoriesService {
     });
   }
 
-  async findAll(tenantId?: string | null) {
+  async findAll(tenantId?: string | null, categoryTypeId?: string) {
+    const where: any = { ...this.tenantSvc.scope(tenantId) };
+    if (categoryTypeId) where.categoryTypeId = categoryTypeId;
     return this.prisma.category.findMany({
-      where: this.tenantSvc.scope(tenantId),
+      where,
       include: {
         categoryType: { select: { id: true, name: true } },
         _count: { select: { products: true } },

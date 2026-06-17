@@ -359,7 +359,8 @@ export default function ProductsPage() {
             ) : (
               paginated.flatMap((p, idx) => {
                 const rowIdx       = (currentPage - 1) * PAGE_SIZE + idx
-                const typeInfo     = TYPE_CONFIG[p.type] ?? { label: p.type, cls: '' }
+                const typeLabel    = p.category?.categoryType?.name ?? TYPE_CONFIG[p.type]?.label ?? p.type
+                const typeInfo     = TYPE_CONFIG[p.type] ?? { label: typeLabel, cls: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' }
                 const q            = stockOf(p)
                 const isOut        = q === 0
                 const isLow        = !isOut && q <= p.minStock
