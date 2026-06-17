@@ -97,6 +97,13 @@ export class DataRepairController {
     return this.svc.assignOrphanNotificationsToTenant(tenantId, actorId, actorName);
   }
 
+  // ── Sync Product.stock from SUM(BranchStock) ─────────────────────────────────
+
+  @Post('sync-product-stock')
+  syncProductStock() {
+    return this.svc.syncProductStock();
+  }
+
   // ── Orphan Repairs (branchId = null) ─────────────────────────────────────────
 
   @Get('orphan-repairs')

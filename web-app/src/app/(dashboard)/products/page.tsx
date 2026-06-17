@@ -313,6 +313,18 @@ export default function ProductsPage() {
 
       <TopSellingWidget branchId={effectiveBranch} />
 
+      {/* Global-mode stock warning */}
+      {isViewAll && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800 dark:text-amber-300">
+            <span className="font-semibold">กำลังดูสต็อกรวมทุกสาขา</span> — คอลัมน์ "รวมทุกสาขา" แสดงยอดรวมจากทุกสาขา
+            ไม่ใช่สต็อกของสาขาใดสาขาหนึ่ง POS จะตัดสต็อกตามสาขาที่เลือกเท่านั้น
+            หากต้องการดูสต็อกแต่ละสาขาให้เลือกสาขาจาก Sidebar ก่อน
+          </p>
+        </div>
+      )}
+
       {/* Filter bar */}
       <FilterBar
         searchValue={search}

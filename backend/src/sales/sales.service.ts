@@ -19,6 +19,15 @@ export class SalesService {
     private notif: NotificationsService,
   ) {}
 
+  private async syncProductShadowStock(productId: string, tx: any): Promise<void> {
+    const agg = await (tx as any).branchStock.aggregate({
+      where: { productId },
+      _sum: { quantity: true },
+    });
+    const total = (agg._sum.quantity as number | null) ?? 0;
+    await tx.product.update({ where: { id: productId }, data: { stock: total } });
+  }
+
   private async assertBranchActive(branchId: string) {
     const branch = await this.prisma.branch.findUnique({
       where: { id: branchId },
@@ -203,11 +212,8 @@ export class SalesService {
               `สต็อกสาขาไม่พอสำหรับ "${product.name}" คงเหลือ: ${bs?.quantity ?? 0} ชิ้น (ต้องการ: ${item.quantity})`,
             );
           }
-          // Shadow: keep Product.stock in sync for backward-compat display only.
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { decrement: item.quantity } },
-          });
+          // Recalculate Product.stock shadow from SUM(BranchStock) — prevents drift
+          await this.syncProductShadowStock(item.productId, tx);
         } else {
           // C-1 FIX: atomic conditional decrement for the global (no-branch) stock path.
           const prodResult = await tx.product.updateMany({
@@ -451,11 +457,15 @@ export class SalesService {
             create: { branchId: sale.branchId, productId: saleItem.productId, quantity: refundItem.quantity, minStock: 0 },
             update: { quantity: { increment: refundItem.quantity } },
           });
+          // Recalculate Product.stock from SUM(BranchStock) — prevents drift
+          await this.syncProductShadowStock(saleItem.productId, tx);
+        } else {
+          // Legacy no-branch sale: restore Product.stock directly
+          await tx.product.update({
+            where: { id: saleItem.productId },
+            data: { stock: { increment: refundItem.quantity } },
+          });
         }
-        await tx.product.update({
-          where: { id: saleItem.productId },
-          data: { stock: { increment: refundItem.quantity } },
-        });
 
         await tx.stockMovement.create({
           data: {
@@ -565,11 +575,15 @@ export class SalesService {
             create: { branchId: sale.branchId, productId: item.productId, quantity: item.quantity, minStock: 0 },
             update: { quantity: { increment: item.quantity } },
           });
+          // Recalculate Product.stock from SUM(BranchStock) — prevents drift
+          await this.syncProductShadowStock(item.productId, tx);
+        } else {
+          // Legacy no-branch sale: BranchStock doesn't exist, restore Product.stock directly
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
         }
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
-        });
 
         await tx.stockMovement.create({
           data: {

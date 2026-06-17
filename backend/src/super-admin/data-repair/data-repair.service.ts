@@ -89,6 +89,46 @@ export class DataRepairService {
     return { fixed, failed, total: orphans.length, details };
   }
 
+  // ── Sync Product.stock from SUM(BranchStock) ─────────────────────────────────
+
+  async syncProductStock() {
+    // Aggregate SUM(quantity) per productId from BranchStock
+    const rows = await this.prisma.branchStock.groupBy({
+      by: ['productId'],
+      _sum: { quantity: true },
+    });
+
+    const sumMap = new Map<string, number>();
+    for (const r of rows) sumMap.set(r.productId, (r._sum.quantity as number | null) ?? 0);
+
+    // All active products
+    const products = await this.prisma.product.findMany({ select: { id: true, stock: true } });
+
+    let updated = 0;
+    let skipped = 0;
+
+    for (const p of products) {
+      const correctStock = sumMap.get(p.id) ?? 0;
+      if (Number(p.stock) !== correctStock) {
+        await this.prisma.product.update({ where: { id: p.id }, data: { stock: correctStock } });
+        updated++;
+      } else {
+        skipped++;
+      }
+    }
+
+    await this.auditLog.log({
+      actorId:    null,
+      actorName:  'SYSTEM',
+      action:     'PRODUCT_STOCK_SYNCED',
+      entityType: 'Product',
+      entityId:   null,
+      afterData:  { updated, skipped, total: products.length },
+    });
+
+    return { updated, skipped, total: products.length };
+  }
+
   // ── Orphan Branches ───────────────────────────────────────────────────────────
 
   async getOrphanBranches(page = 1, search?: string) {
