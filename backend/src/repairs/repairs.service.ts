@@ -175,14 +175,19 @@ export class RepairsService {
     if (query.status)     where.status     = query.status;
     if (query.customerId) where.customerId = query.customerId;
 
-    // Branch / tenant scoping — both conditions must hold when provided
+    // Branch / tenant scoping
     if (query.branchId && tenantId) {
-      // specific branch + tenant isolation (prevent branch-id spoofing across tenants)
+      // Specific branch: branchId must match AND branch must belong to this tenant
       where.AND = [{ branchId: query.branchId }, { branch: { tenantId } }];
     } else if (query.branchId) {
       where.branchId = query.branchId;
     } else if (tenantId) {
-      where.branch = { tenantId };
+      // Global view (all branches): include repairs belonging to any branch of this tenant
+      // OR orphan repairs (branchId=null) that belong to a customer of this tenant
+      where.OR = [
+        { branch: { tenantId } },
+        { branchId: null, customer: { tenantId } },
+      ];
     }
 
     if (query.date) {
