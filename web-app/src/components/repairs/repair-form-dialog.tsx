@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2, User, X, Shuffle, Wrench, ShoppingCart, Printer, FileText, CheckCircle2 } from 'lucide-react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -103,6 +103,8 @@ function generateImei(): string {
 }
 
 export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDialogProps) {
+  const queryClient = useQueryClient()
+
   const {
     register,
     handleSubmit,
@@ -205,7 +207,9 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
     onSuccess: (repair) => {
       toast.success(`สร้างงานซ่อม ${repair.ticketNumber} สำเร็จ`)
       setCreatedRepair({ id: repair.id, ticketNumber: repair.ticketNumber })
-      onSuccess()
+      // Refresh the list in the background — do NOT call onSuccess() yet
+      // (calling it would close the dialog before user sees the receipt panel)
+      queryClient.invalidateQueries({ queryKey: ['repairs'] })
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message ?? err.message
@@ -216,6 +220,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
   function handleClose() {
     setCreatedRepair(null)
     onOpenChange(false)
+    onSuccess()
   }
 
   return (
