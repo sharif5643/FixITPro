@@ -96,6 +96,7 @@ export class CustomersService {
             repairs: {
               take:    30,
               orderBy: { receivedAt: 'desc' },
+              where:   tenantId ? { branch: { tenantId } } : undefined,
               select: {
                 id: true, ticketNumber: true, deviceBrand: true,
                 deviceModel: true, status: true, receivedAt: true,

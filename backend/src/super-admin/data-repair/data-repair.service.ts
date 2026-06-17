@@ -12,13 +12,81 @@ export class DataRepairService {
   // ── Summary ───────────────────────────────────────────────────────────────────
 
   async getSummary() {
-    const [orphanBranches, orphanShopSettings, orphanNotifications, tenants] = await Promise.all([
+    const [orphanBranches, orphanShopSettings, orphanNotifications, orphanRepairs, tenants] = await Promise.all([
       this.prisma.branch.count({ where: { tenantId: null } }),
       this.prisma.shopSettings.count({ where: { tenantId: null } }),
       this.prisma.notification.count({ where: { tenantId: null } }),
+      this.prisma.repair.count({ where: { branchId: null } }),
       this.prisma.tenant.count(),
     ]);
-    return { orphanBranches, orphanShopSettings, orphanNotifications, tenants };
+    return { orphanBranches, orphanShopSettings, orphanNotifications, orphanRepairs, tenants };
+  }
+
+  // ── Orphan Repairs (branchId = null) ─────────────────────────────────────────
+
+  async getOrphanRepairs() {
+    const repairs = await this.prisma.repair.findMany({
+      where:   { branchId: null },
+      include: {
+        customer: { select: { id: true, name: true, tenantId: true } },
+      },
+      orderBy: { receivedAt: 'desc' },
+      take:    200,
+    });
+    return { total: repairs.length, items: repairs };
+  }
+
+  async fixOrphanRepairs(actorId: string, actorName: string) {
+    const orphans = await this.prisma.repair.findMany({
+      where:   { branchId: null },
+      include: { customer: { select: { tenantId: true } } },
+    });
+
+    if (orphans.length === 0) return { fixed: 0, failed: 0, details: [] };
+
+    let fixed  = 0;
+    let failed = 0;
+    const details: Array<{ repairId: string; ticketNumber: string; status: string; reason?: string }> = [];
+
+    for (const repair of orphans) {
+      const tenantId = repair.customer?.tenantId ?? null;
+
+      if (!tenantId) {
+        failed++;
+        details.push({ repairId: repair.id, ticketNumber: repair.ticketNumber, status: 'failed', reason: 'ไม่พบ tenantId จากลูกค้า' });
+        continue;
+      }
+
+      const branch = await this.prisma.branch.findFirst({
+        where:   { tenantId, status: 'ACTIVE' },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+        select:  { id: true, name: true },
+      });
+
+      if (!branch) {
+        failed++;
+        details.push({ repairId: repair.id, ticketNumber: repair.ticketNumber, status: 'failed', reason: `ไม่พบสาขาที่ใช้งานได้สำหรับ tenant ${tenantId}` });
+        continue;
+      }
+
+      await this.prisma.repair.update({
+        where: { id: repair.id },
+        data:  { branchId: branch.id },
+      });
+      fixed++;
+      details.push({ repairId: repair.id, ticketNumber: repair.ticketNumber, status: 'fixed', reason: `→ ${branch.name}` });
+    }
+
+    await this.auditLog.log({
+      actorId,
+      actorName,
+      action:     'ORPHAN_REPAIRS_FIXED',
+      entityType: 'Repair',
+      entityId:   null,
+      afterData:  { fixed, failed, total: orphans.length },
+    });
+
+    return { fixed, failed, total: orphans.length, details };
   }
 
   // ── Orphan Branches ───────────────────────────────────────────────────────────

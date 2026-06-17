@@ -96,4 +96,19 @@ export class DataRepairController {
   ) {
     return this.svc.assignOrphanNotificationsToTenant(tenantId, actorId, actorName);
   }
+
+  // ── Orphan Repairs (branchId = null) ─────────────────────────────────────────
+
+  @Get('orphan-repairs')
+  getOrphanRepairs() {
+    return this.svc.getOrphanRepairs();
+  }
+
+  @Post('fix-orphan-repairs')
+  fixOrphanRepairs(
+    @CurrentUser('id')   actorId:   string,
+    @CurrentUser('name') actorName: string,
+  ) {
+    return this.svc.fixOrphanRepairs(actorId, actorName);
+  }
 }

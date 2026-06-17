@@ -90,8 +90,29 @@ export class RepairsService {
     return created.id;
   }
 
+  private async resolveEffectiveBranchId(branchId: string | undefined, tenantId: string | null | undefined): Promise<string> {
+    if (branchId) return branchId;
+
+    // OWNER/SUPER_ADMIN may have no branchId in JWT — fall back to tenant's default branch
+    if (tenantId) {
+      const branch = await this.prisma.branch.findFirst({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+          OR: [{ isDefault: true }, {}],
+        },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+        select: { id: true },
+      });
+      if (branch) return branch.id;
+    }
+
+    throw new BadRequestException('กรุณาเลือกสาขาก่อนสร้างงานซ่อม หรือยังไม่มีสาขาที่ใช้งานได้ในระบบ');
+  }
+
   async create(dto: CreateRepairDto, actorId?: string, actorName?: string, branchId?: string, tenantId?: string | null) {
-    if (branchId) await this.assertBranchActive(branchId);
+    const effectiveBranchId = await this.resolveEffectiveBranchId(branchId, tenantId);
+    await this.assertBranchActive(effectiveBranchId);
 
     const repair = await this.prisma.$transaction(async (tx) => {
       const customerId = await this.resolveCustomerIdInTx(tx, dto, tenantId ?? null);
@@ -118,7 +139,7 @@ export class RepairsService {
           estimatedTotal:     total,
           deposit:            dto.deposit ?? 0,
           note:               dto.note,
-          branchId:           branchId ?? null,
+          branchId:           effectiveBranchId,
         },
         include: REPAIR_INCLUDE,
       });
@@ -153,8 +174,16 @@ export class RepairsService {
 
     if (query.status)     where.status     = query.status;
     if (query.customerId) where.customerId = query.customerId;
-    if (query.branchId)   where.branchId   = query.branchId;
-    if (tenantId)         where.branch     = { tenantId };
+
+    // Branch / tenant scoping — both conditions must hold when provided
+    if (query.branchId && tenantId) {
+      // specific branch + tenant isolation (prevent branch-id spoofing across tenants)
+      where.AND = [{ branchId: query.branchId }, { branch: { tenantId } }];
+    } else if (query.branchId) {
+      where.branchId = query.branchId;
+    } else if (tenantId) {
+      where.branch = { tenantId };
+    }
 
     if (query.date) {
       const start = new Date(query.date);
