@@ -135,9 +135,8 @@ export class ProductsService {
         include: { category: { include: { categoryType: { select: { id: true, name: true } } } } },
       });
 
-      // Create BranchStock whenever a branch context is present —
-      // even for stock=0 so the product is visible in that branch's list.
       if (effectiveBranchId) {
+        // Single branch context: create one BranchStock row
         const stockCode = await this.generateStockCode(effectiveBranchId, tx);
         await (tx as any).branchStock.create({
           data: {
@@ -149,13 +148,31 @@ export class ProductsService {
           },
         });
 
-        // Sync Product.stock = SUM(BranchStock.quantity)
         if (initialStock > 0) {
           await tx.product.update({
             where: { id: prod.id },
             data:  { stock: initialStock },
           });
           (prod as any).stock = initialStock;
+        }
+      } else if (isPrivileged && tenantId) {
+        // OWNER in global mode: seed BranchStock=0 for every active branch so the
+        // product is visible (as "หมดสต็อก") in all branch POS views immediately.
+        const branches = await tx.branch.findMany({
+          where: { tenantId, isActive: true, status: 'ACTIVE' as any },
+          select: { id: true },
+        });
+        for (const branch of branches) {
+          const stockCode = await this.generateStockCode(branch.id, tx);
+          await (tx as any).branchStock.create({
+            data: {
+              branchId:  branch.id,
+              productId: prod.id,
+              quantity:  0,
+              minStock:  dto.minStock ?? 0,
+              ...(stockCode ? { stockCode } : {}),
+            },
+          });
         }
       }
 

@@ -39,8 +39,9 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: React.Elemen
 // ── Product card (search results) ─────────────────────────────────────────────
 
 function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product) => void }) {
-  const outOfStock = product.stock < 1
-  const lowStock   = !outOfStock && product.stock < 5
+  const availableQty = product.branchQuantity ?? product.stock
+  const outOfStock = availableQty < 1
+  const lowStock   = !outOfStock && availableQty < 5
   return (
     <button
       type="button"
@@ -59,7 +60,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product)
         <span className={`text-xs font-semibold mt-0.5 inline-block ${
           lowStock ? 'text-orange-500' : 'text-slate-400'
         }`}>
-          คงเหลือ {product.stock} {lowStock ? '⚠ ใกล้หมด' : ''}
+          คงเหลือ {availableQty} {lowStock ? '⚠ ใกล้หมด' : ''}
         </span>
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">
@@ -88,7 +89,7 @@ function CartRow({
 }) {
   const [showDiscount, setShowDiscount] = useState(itemDiscount > 0)
   const [discStr, setDiscStr]           = useState(itemDiscount > 0 ? String(itemDiscount) : '')
-  const atMax = quantity >= product.stock
+  const atMax = quantity >= (product.branchQuantity ?? product.stock)
 
   function commitDiscount() {
     const d = Math.max(0, Math.min(Number(discStr) || 0, Number(product.price) * quantity))
@@ -105,7 +106,7 @@ function CartRow({
         <div className="flex-1 min-w-0">
           <p className="font-bold text-slate-900 text-sm leading-tight truncate">{product.name}</p>
           <p className="text-xs text-slate-400 mt-0.5">
-            {formatThaiMoney(Number(product.price))} · สต็อก {quantity}/{product.stock}
+            {formatThaiMoney(Number(product.price))} · สต็อก {quantity}/{product.branchQuantity ?? product.stock}
           </p>
         </div>
 
@@ -560,7 +561,7 @@ export default function SunmiSalesPage() {
       const list: Product[] = Array.isArray(res.data) ? res.data : res.data?.items ?? []
       const exact = list.find((p) => p.barcode === trimmed || p.sku === trimmed) ?? list[0]
       if (exact) {
-        if (exact.stock < 1) {
+        if ((exact.branchQuantity ?? exact.stock) < 1) {
           toast.error(`${exact.name} — สต็อกหมด`)
         } else {
           addItem(exact)
@@ -577,7 +578,7 @@ export default function SunmiSalesPage() {
   }, [addItem])
 
   function handlePickProduct(product: Product) {
-    if (product.stock < 1) {
+    if ((product.branchQuantity ?? product.stock) < 1) {
       toast.error(`${product.name} — สต็อกหมด`)
       return
     }

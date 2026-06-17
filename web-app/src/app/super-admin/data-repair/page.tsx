@@ -201,7 +201,21 @@ export default function DataRepairPage() {
     onSuccess: () => { invalidate(); setConfirm(c => ({ ...c, open: false })) },
   })
 
+  const [syncResult, setSyncResult]         = useState<{ updated: number; skipped: number; total: number } | null>(null)
+  const [backfillResult, setBackfillResult] = useState<{ created: number; skipped: number } | null>(null)
+
+  const syncProductStock = useMutation({
+    mutationFn: () => api.post('/super-admin/data-repair/sync-product-stock'),
+    onSuccess: (res) => { setSyncResult(res.data); setConfirm(c => ({ ...c, open: false })) },
+  })
+
+  const backfillBranchStock = useMutation({
+    mutationFn: () => api.post('/super-admin/data-repair/backfill-branch-stock'),
+    onSuccess: (res) => { setBackfillResult(res.data); setConfirm(c => ({ ...c, open: false })) },
+  })
+
   const anyLoading = assignBranch.isPending || assignSettings.isPending || assignNotifications.isPending
+    || syncProductStock.isPending || backfillBranchStock.isPending
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const openConfirm = (title: string, desc: string, onConfirm: () => void) =>
@@ -401,6 +415,64 @@ export default function DataRepairPage() {
               </div>
             </>
           )}
+        </div>
+      </section>
+
+      {/* ── Sync Product.stock ── */}
+      <section className="bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-700 flex items-center gap-2">
+          <RefreshCw className="h-4 w-4 text-emerald-400" />
+          <h2 className="font-semibold text-white">Sync Product Stock Shadow</h2>
+        </div>
+        <div className="p-5 space-y-3">
+          <p className="text-slate-400 text-sm">
+            คำนวณ <code className="text-emerald-300">Product.stock</code> ใหม่จาก SUM(BranchStock) ทุก product
+            — ใช้หลัง deploy เพื่อแก้ไขค่า stock ที่ drift
+          </p>
+          {syncResult && (
+            <div className="text-sm text-emerald-300 bg-emerald-900/20 border border-emerald-700/40 rounded-lg px-3 py-2">
+              อัปเดต {syncResult.updated} รายการ · ข้าม {syncResult.skipped} · ทั้งหมด {syncResult.total}
+            </div>
+          )}
+          <Button size="sm" disabled={anyLoading}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={() => openConfirm(
+              'Sync Product Stock',
+              'คำนวณ Product.stock = SUM(BranchStock) ทุกรายการ — ปลอดภัย ไม่ลบข้อมูล',
+              () => syncProductStock.mutate(),
+            )}>
+            {syncProductStock.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Sync Product Stock
+          </Button>
+        </div>
+      </section>
+
+      {/* ── Backfill BranchStock ── */}
+      <section className="bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-700 flex items-center gap-2">
+          <ShieldAlert className="h-4 w-4 text-amber-400" />
+          <h2 className="font-semibold text-white">Backfill BranchStock (P0)</h2>
+        </div>
+        <div className="p-5 space-y-3">
+          <p className="text-slate-400 text-sm">
+            สร้าง BranchStock qty=0 สำหรับทุก (product, branch) ที่ยังไม่มี row
+            — ทำให้สินค้าเก่าที่สร้างก่อนระบบ BranchStock มองเห็นใน POS สาขาทุกแห่ง
+          </p>
+          {backfillResult && (
+            <div className="text-sm text-amber-300 bg-amber-900/20 border border-amber-700/40 rounded-lg px-3 py-2">
+              สร้างใหม่ {backfillResult.created} รายการ · ข้าม {backfillResult.skipped} (มีอยู่แล้ว)
+            </div>
+          )}
+          <Button size="sm" disabled={anyLoading}
+            className="bg-amber-600 hover:bg-amber-700 text-white"
+            onClick={() => openConfirm(
+              'Backfill BranchStock',
+              'สร้าง BranchStock qty=0 สำหรับทุก (product, branch) ที่ขาดหาย — ปลอดภัย ไม่แก้ไขค่า qty ที่มีอยู่',
+              () => backfillBranchStock.mutate(),
+            )}>
+            {backfillBranchStock.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Backfill BranchStock
+          </Button>
         </div>
       </section>
 

@@ -129,6 +129,64 @@ export class DataRepairService {
     return { updated, skipped, total: products.length };
   }
 
+  // ── Backfill BranchStock=0 for products missing a BranchStock row ────────────
+
+  async backfillBranchStock() {
+    // For each tenant, find all active branches + all active products.
+    // For any (product, branch) pair that has no BranchStock row, insert one with qty=0
+    // so the product becomes visible in that branch's POS.
+    const tenants = await this.prisma.tenant.findMany({ select: { id: true } });
+
+    let created = 0;
+    let skipped = 0;
+
+    for (const tenant of tenants) {
+      const branches = await this.prisma.branch.findMany({
+        where: { tenantId: tenant.id, isActive: true, status: 'ACTIVE' as any },
+        select: { id: true },
+      });
+      const products = await this.prisma.product.findMany({
+        where: { tenantId: tenant.id, isActive: true },
+        select: { id: true },
+      });
+
+      for (const product of products) {
+        const existingRows = await (this.prisma as any).branchStock.findMany({
+          where: { productId: product.id },
+          select: { branchId: true },
+        });
+        const existingBranchIds = new Set(existingRows.map((r: any) => r.branchId));
+
+        for (const branch of branches) {
+          if (existingBranchIds.has(branch.id)) {
+            skipped++;
+          } else {
+            await (this.prisma as any).branchStock.create({
+              data: {
+                branchId:  branch.id,
+                productId: product.id,
+                quantity:  0,
+                minStock:  0,
+              },
+            });
+            created++;
+          }
+        }
+      }
+    }
+
+    await this.auditLog.log({
+      actorId:    null,
+      actorName:  'SYSTEM',
+      action:     'BRANCH_STOCK_BACKFILLED',
+      entityType: 'BranchStock',
+      entityId:   null,
+      afterData:  { created, skipped },
+    });
+
+    return { created, skipped };
+  }
+
   // ── Orphan Branches ───────────────────────────────────────────────────────────
 
   async getOrphanBranches(page = 1, search?: string) {

@@ -104,6 +104,11 @@ export class DataRepairController {
     return this.svc.syncProductStock();
   }
 
+  @Post('backfill-branch-stock')
+  backfillBranchStock() {
+    return this.svc.backfillBranchStock();
+  }
+
   // ── Orphan Repairs (branchId = null) ─────────────────────────────────────────
 
   @Get('orphan-repairs')
