@@ -12,18 +12,21 @@ import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { FilterBar } from '@/components/ui/filter-bar'
 import { SectionCard } from '@/components/ui/section-card'
+import { StatCard } from '@/components/ui/stat-card'
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
   DataTableRow, DataTableCell, DataTableLoadingRows,
 } from '@/components/ui/data-table'
+import { ExpiringSoonWidget } from '@/components/warranties/expiring-soon-widget'
 import api from '@/lib/api'
 import type { Warranty, WarrantyStatus } from '@/types'
 
 const STATUS_CONFIG: Record<WarrantyStatus, { label: string; cls: string; Icon: React.ElementType }> = {
-  ACTIVE:  { label: 'ใช้งานได้',  cls: 'bg-green-50 text-green-700 border-green-200',  Icon: ShieldCheck },
-  EXPIRED: { label: 'หมดอายุ',   cls: 'bg-gray-50 text-gray-500 border-gray-200',    Icon: ShieldOff },
-  VOIDED:  { label: 'ยกเลิกแล้ว', cls: 'bg-red-50 text-red-600 border-red-200',      Icon: ShieldOff },
-  CLAIMED: { label: 'ใช้สิทธิ์แล้ว', cls: 'bg-amber-50 text-amber-700 border-amber-200', Icon: ShieldAlert },
+  ACTIVE:  { label: 'ใช้งานได้',  cls: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/60',  Icon: ShieldCheck },
+  EXPIRED: { label: 'หมดอายุ',   cls: 'bg-gray-50 dark:bg-gray-900/20 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-800/60',    Icon: ShieldOff },
+  VOIDED:  { label: 'ยกเลิกแล้ว', cls: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60',      Icon: ShieldOff },
+  CLAIMED: { label: 'ใช้สิทธิ์แล้ว', cls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/60', Icon: ShieldAlert },
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -45,8 +48,8 @@ function EndDateCell({ endDate, status }: { endDate: string; status: WarrantySta
   const date = new Date(endDate)
   const expired = isPast(date)
   const cls = status === 'ACTIVE' && !expired
-    ? expired ? 'text-red-600 font-semibold' : 'text-gray-700'
-    : 'text-gray-400 line-through'
+    ? expired ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-700 dark:text-slate-300'
+    : 'text-gray-400 dark:text-slate-500 line-through'
   return (
     <div>
       <p className={`text-sm ${cls}`}>{format(date, 'dd MMM yyyy', { locale: th })}</p>
@@ -136,6 +139,38 @@ export default function WarrantiesPage() {
         subtitle={`ทั้งหมด ${total} รายการ`}
       />
 
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard
+          label="ใช้งานได้"
+          value={stats?.active ?? 0}
+          icon={ShieldCheck}
+          color="emerald"
+          loading={!stats}
+        />
+        <StatCard
+          label="หมดอายุ"
+          value={stats?.expired ?? 0}
+          icon={ShieldOff}
+          color="slate"
+          loading={!stats}
+        />
+        <StatCard
+          label="ใช้สิทธิ์แล้ว"
+          value={stats?.claimed ?? 0}
+          icon={ShieldAlert}
+          color="amber"
+          loading={!stats}
+        />
+        <StatCard
+          label="ยกเลิกแล้ว"
+          value={stats?.voided ?? 0}
+          icon={ShieldOff}
+          color="red"
+          loading={!stats}
+        />
+      </div>
+
       {/* Status filter chips */}
       {stats && (
         <div className="flex flex-wrap gap-2">
@@ -152,7 +187,7 @@ export default function WarrantiesPage() {
               className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-all ${
                 statusFilter === key
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700'
               }`}
             >
               {label} ({count})
@@ -170,13 +205,15 @@ export default function WarrantiesPage() {
         <select
           value={sourceFilter}
           onChange={(e) => { setSource(e.target.value); setPage(1) }}
-          className="h-9 rounded-md border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="h-9 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">ทุกประเภท</option>
           <option value="REPAIR">งานซ่อม</option>
           <option value="PRODUCT">สินค้า</option>
         </select>
       </FilterBar>
+
+      <ExpiringSoonWidget />
 
       {/* Desktop table */}
       <SectionCard noPadding className="hidden md:block">
@@ -195,40 +232,37 @@ export default function WarrantiesPage() {
               <DataTableLoadingRows rows={5} cols={7} />
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-16 text-center">
-                  <div className="flex flex-col items-center gap-2 text-slate-400">
-                    <BadgeCheck className="h-10 w-10 opacity-30" />
-                    <p className="text-sm font-medium">ไม่พบข้อมูลการรับประกัน</p>
-                  </div>
+                <td colSpan={7}>
+                  <EmptyState preset="warranty" />
                 </td>
               </tr>
             ) : items.map((w) => (
               <DataTableRow key={w.id}>
                 <DataTableCell>
-                  <p className="font-mono text-xs font-semibold text-slate-700">{w.warrantyNumber}</p>
-                  <p className="text-[10px] text-slate-400">{format(new Date(w.startDate), 'dd/MM/yy', { locale: th })}</p>
+                  <p className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">{w.warrantyNumber}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">{format(new Date(w.startDate), 'dd/MM/yy', { locale: th })}</p>
                 </DataTableCell>
                 <DataTableCell>
                   {w.customer ? (
                     <>
-                      <p className="font-semibold text-slate-800">{w.customer.name}</p>
-                      <p className="text-xs text-slate-400">{w.customer.phone ?? '—'}</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200">{w.customer.name}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{w.customer.phone ?? '—'}</p>
                     </>
-                  ) : <span className="text-slate-400">—</span>}
+                  ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
                 </DataTableCell>
                 <DataTableCell className="max-w-[200px]">
-                  {w.repair && <p className="text-sm font-medium text-blue-700 truncate">{w.repair.ticketNumber}</p>}
+                  {w.repair && <p className="text-sm font-medium text-blue-700 dark:text-blue-400 truncate">{w.repair.ticketNumber}</p>}
                   {w.saleItem && (
                     <>
                       <p className="text-sm font-medium truncate">{w.saleItem.product.name}</p>
-                      <p className="text-xs text-slate-400">{w.saleItem.sale.receiptNumber}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{w.saleItem.sale.receiptNumber}</p>
                     </>
                   )}
-                  {w.serialNumber && <p className="text-xs font-mono text-slate-500">S/N: {w.serialNumber.serial}</p>}
-                  {w.description && <p className="text-xs text-slate-400 truncate">{w.description}</p>}
+                  {w.serialNumber && <p className="text-xs font-mono text-slate-500 dark:text-slate-400">S/N: {w.serialNumber.serial}</p>}
+                  {w.description && <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{w.description}</p>}
                 </DataTableCell>
                 <DataTableCell>
-                  <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                  <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/60">
                     {SOURCE_LABEL[w.sourceType]}
                   </span>
                 </DataTableCell>
@@ -241,8 +275,8 @@ export default function WarrantiesPage() {
                 <DataTableCell className="text-right">
                   {w.status === 'ACTIVE' && (
                     <div className="flex items-center gap-1 justify-end">
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์</Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์</Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
                     </div>
                   )}
                 </DataTableCell>
@@ -255,39 +289,38 @@ export default function WarrantiesPage() {
       {/* Mobile cards */}
       <div className="md:hidden space-y-3">
         {isLoading ? (
-          <div className="flex items-center justify-center h-40 bg-white rounded-xl border">
+          <div className="flex items-center justify-center h-40 bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800">
             <div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 gap-2 bg-white rounded-xl border text-slate-400">
-            <BadgeCheck className="h-10 w-10 opacity-30" />
-            <p className="text-sm">ไม่พบข้อมูลการรับประกัน</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800">
+            <EmptyState preset="warranty" />
           </div>
         ) : items.map((w) => (
-          <div key={w.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+          <div key={w.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="font-mono text-xs font-semibold text-slate-600">{w.warrantyNumber}</p>
-                {w.customer && <p className="font-semibold text-slate-900">{w.customer.name}</p>}
-                {w.repair && <p className="text-sm text-blue-700">{w.repair.ticketNumber}</p>}
+                <p className="font-mono text-xs font-semibold text-slate-600 dark:text-slate-300">{w.warrantyNumber}</p>
+                {w.customer && <p className="font-semibold text-slate-900 dark:text-white">{w.customer.name}</p>}
+                {w.repair && <p className="text-sm text-blue-700 dark:text-blue-400">{w.repair.ticketNumber}</p>}
                 {w.saleItem && <p className="text-sm">{w.saleItem.product.name}</p>}
               </div>
               <WarrantyStatusBadge status={w.status} />
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="text-[10px] text-slate-400">ประเภท</p>
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-900/40 px-3 py-2">
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">ประเภท</p>
                 <p className="font-medium text-xs">{SOURCE_LABEL[w.sourceType]}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 px-3 py-2">
-                <p className="text-[10px] text-slate-400">หมดอายุ</p>
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-900/40 px-3 py-2">
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">หมดอายุ</p>
                 <p className="font-medium text-xs">{format(new Date(w.endDate), 'dd/MM/yy', { locale: th })}</p>
               </div>
             </div>
             {w.status === 'ACTIVE' && (
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-amber-600 border-amber-200" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์รับประกัน</Button>
-                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-red-500 border-red-200" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
+                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์รับประกัน</Button>
+                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-red-500 dark:text-red-400 border-red-200 dark:border-red-800/60" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
               </div>
             )}
           </div>
@@ -326,8 +359,8 @@ export default function WarrantiesPage() {
       {/* Void confirmation modal */}
       {voidId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h2 className="text-base font-semibold text-gray-900">ยืนยันการยกเลิกการรับประกัน</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">ยืนยันการยกเลิกการรับประกัน</h2>
             <p className="text-sm text-muted-foreground">กรุณาระบุเหตุผลในการยกเลิก</p>
             <textarea
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none"
@@ -355,8 +388,8 @@ export default function WarrantiesPage() {
       {/* Claim confirmation modal */}
       {claimId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h2 className="text-base font-semibold text-gray-900">ยืนยันการใช้สิทธิ์การรับประกัน</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">ยืนยันการใช้สิทธิ์การรับประกัน</h2>
             <p className="text-sm text-muted-foreground">
               สถานะจะเปลี่ยนเป็น &quot;ใช้สิทธิ์แล้ว&quot; และจะไม่สามารถใช้ได้อีก
             </p>

@@ -140,7 +140,7 @@ function SerialPicker({
       </div>
 
       {needed > 0 && (
-        <p className="text-xs text-amber-600 font-medium">เลือกอีก {needed} serial</p>
+        <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">เลือกอีก {needed} serial</p>
       )}
 
       <Input
@@ -155,7 +155,7 @@ function SerialPicker({
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : serials.length === 0 ? (
-        <p className="text-sm text-center text-red-500 py-2">
+        <p className="text-sm text-center text-red-500 dark:text-red-400 py-2">
           ไม่มี Serial ที่พร้อมขาย — กรุณาเพิ่มก่อนขาย
         </p>
       ) : (
@@ -307,14 +307,14 @@ export function CheckoutDialog({
                 <span className="tabular-nums">{formatThaiMoney(subtotal)}</span>
               </div>
               {discount > 0 && (
-                <div className="flex justify-between text-red-600">
+                <div className="flex justify-between text-red-600 dark:text-red-400">
                   <span>ส่วนลด</span>
                   <span className="tabular-nums">- {formatThaiMoney(discount)}</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-base border-t dark:border-slate-700 pt-2 mt-1">
                 <span>ยอดสุทธิ</span>
-                <span className="text-blue-700 tabular-nums">{formatThaiMoney(total)}</span>
+                <span className="text-blue-700 dark:text-blue-400 tabular-nums">{formatThaiMoney(total)}</span>
               </div>
             </div>
 

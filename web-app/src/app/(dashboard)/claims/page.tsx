@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -194,10 +195,7 @@ export default function ClaimsPage() {
           {isLoading ? (
             <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
           ) : claims.length === 0 ? (
-            <div className="flex flex-col items-center py-16 text-center">
-              <ShieldCheck className="h-12 w-12 text-gray-200 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">ไม่พบรายการเคลม</p>
-            </div>
+            <EmptyState preset={search || statusFilter !== 'ALL' || typeFilter !== 'ALL' ? 'search' : 'default'} icon={ShieldCheck} title="ไม่พบรายการเคลม" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

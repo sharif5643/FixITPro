@@ -20,6 +20,7 @@ import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
+import { RevenueBarChart } from '@/components/charts/revenue-bar-chart'
 import type { OperationalAlert } from '@/components/alerts/operational-alert-center'
 import type { Repair } from '@/types'
 
@@ -109,9 +110,9 @@ const actionLabel: Record<string, string> = {
 }
 
 const severityColor: Record<string, string> = {
-  INFO: 'bg-blue-100 text-blue-800',
-  WARNING: 'bg-yellow-100 text-yellow-800',
-  ERROR: 'bg-red-100 text-red-800',
+  INFO: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  WARNING: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  ERROR: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
   CRITICAL: 'bg-red-600 text-white',
 }
 
@@ -122,15 +123,15 @@ const REPAIR_STATUS_LABEL: Record<string, string> = {
 }
 
 const REPAIR_STATUS_COLOR: Record<string, string> = {
-  RECEIVED:         'bg-blue-100 text-blue-700',
-  DIAGNOSING:       'bg-yellow-100 text-yellow-700',
-  WAITING_APPROVAL: 'bg-amber-100 text-amber-700',
-  APPROVED:         'bg-teal-100 text-teal-700',
-  WAITING_PARTS:    'bg-orange-100 text-orange-700',
-  IN_PROGRESS:      'bg-purple-100 text-purple-700',
-  COMPLETED:        'bg-green-100 text-green-700',
-  DELIVERED:        'bg-slate-100 text-slate-600',
-  CANCELLED:        'bg-red-100 text-red-700',
+  RECEIVED:         'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  DIAGNOSING:       'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  WAITING_APPROVAL: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  APPROVED:         'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  WAITING_PARTS:    'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  IN_PROGRESS:      'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  COMPLETED:        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  DELIVERED:        'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+  CANCELLED:        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 }
 
 const shortDate = (iso: string) => {
@@ -152,29 +153,29 @@ function KpiCard({
 }) {
   const inner = (
     <div className={cn(
-      'relative bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-150 border-l-4',
+      'relative bg-white dark:bg-slate-900 rounded-xl shadow-sm overflow-hidden transition-all duration-150 border-l-4',
       urgent
-        ? 'border-l-red-500 border border-red-100 shadow-red-50/60'
-        : `border-l-${accentColor}-500 border border-slate-100 hover:shadow-md hover:border-slate-200`,
+        ? 'border-l-red-500 border border-red-100 dark:border-red-900/60 shadow-red-50/60 dark:shadow-none'
+        : `border-l-${accentColor}-500 border border-slate-100 dark:border-slate-800 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700`,
     )}>
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className={cn('text-xs font-medium uppercase tracking-wide', urgent ? 'text-red-500' : 'text-slate-400')}>
+            <p className={cn('text-xs font-medium uppercase tracking-wide', urgent ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500')}>
               {label}
             </p>
             {loading ? (
-              <div className="h-9 w-32 bg-slate-100 rounded animate-pulse mt-2" />
+              <div className="h-9 w-32 bg-slate-100 dark:bg-slate-800 rounded animate-pulse mt-2" />
             ) : (
               <p className={cn(
                 'text-3xl font-bold mt-1 tracking-tight leading-none',
-                urgent ? 'text-red-700' : 'text-slate-900',
+                urgent ? 'text-red-700 dark:text-red-400' : 'text-slate-900 dark:text-white',
               )}>
                 {value}
               </p>
             )}
             {sub && !loading && (
-              <p className="text-xs text-slate-400 mt-1.5 leading-snug">{sub}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 leading-snug">{sub}</p>
             )}
           </div>
           <div className={cn('rounded-xl p-2.5 shrink-0 mt-0.5', iconBg)}>
@@ -190,14 +191,14 @@ function KpiCard({
 
 function SkeletonKpi() {
   return (
-    <div className="bg-white rounded-xl border-l-4 border-l-slate-200 border border-slate-100 shadow-sm p-5">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border-l-4 border-l-slate-200 dark:border-l-slate-700 border border-slate-100 dark:border-slate-800 shadow-sm p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2 mt-1">
-          <div className="h-2.5 w-20 bg-slate-100 rounded animate-pulse" />
-          <div className="h-9 w-28 bg-slate-100 rounded animate-pulse" />
-          <div className="h-2.5 w-16 bg-slate-100 rounded animate-pulse" />
+          <div className="h-2.5 w-20 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-9 w-28 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
         </div>
-        <div className="h-10 w-10 bg-slate-100 rounded-xl animate-pulse" />
+        <div className="h-10 w-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
       </div>
     </div>
   )
@@ -213,12 +214,12 @@ function SectionHeader({
   return (
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
-        {Icon && <Icon className="h-4 w-4 text-slate-400 shrink-0" />}
-        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+        {Icon && <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />}
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">{title}</h3>
       </div>
       {href && (
         <Link href={href}>
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 -mr-1">
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 -mr-1">
             {linkLabel} <ArrowRight className="h-3 w-3" />
           </Button>
         </Link>
@@ -228,33 +229,7 @@ function SectionHeader({
 }
 
 // ── Weekly chart V3 ───────────────────────────────────────────────────────────
-
-function WeeklyChart({ data }: { data: DashboardOverview['weeklyRevenue'] }) {
-  const max = Math.max(...data.map(d => d.total), 1)
-  return (
-    <div className="flex items-end gap-1.5 h-36 pt-2">
-      {data.map(d => {
-        const totalH  = Math.max((d.total / max) * 112, d.total > 0 ? 4 : 0)
-        const repairH = Math.max((d.repairs / max) * 112, d.repairs > 0 ? 2 : 0)
-        const salesH  = Math.max(totalH - repairH, 0)
-        return (
-          <div key={d.date} className="flex-1 flex flex-col items-center gap-1 group">
-            <div className="relative w-full flex flex-col justify-end" style={{ height: 112 }}>
-              {d.total > 0 && (
-                <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  {formatThaiMoney(d.total)}
-                </div>
-              )}
-              <div className="w-full bg-orange-400 rounded-t-none" style={{ height: repairH }} />
-              <div className="w-full bg-emerald-500" style={{ height: salesH }} />
-            </div>
-            <span className="text-[10px] text-slate-400">{shortDate(d.date)}</span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+// Rendering moved to RevenueBarChart (recharts) — see src/components/charts/revenue-bar-chart.tsx
 
 // ── Dashboard Reminder Widget ─────────────────────────────────────────────────
 
@@ -295,51 +270,51 @@ function DashboardReminderWidget() {
   if (total === 0) return null
 
   return (
-    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 rounded-xl p-4">
       <div className="flex items-center gap-2 mb-3">
-        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-        <span className="text-sm font-semibold text-amber-800">สิ่งที่ต้องดำเนินการ</span>
+        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+        <span className="text-sm font-semibold text-amber-800 dark:text-amber-400">สิ่งที่ต้องดำเนินการ</span>
       </div>
       <div className="flex flex-wrap gap-3">
         {repairOverdue > 0 && (
-          <Link href="/repairs" className="flex items-center gap-2 rounded-lg bg-white border border-amber-200 px-3 py-2 hover:bg-amber-50 transition-colors">
-            <Wrench className="h-4 w-4 text-red-600 shrink-0" />
-            <span className="text-sm text-slate-700">งานซ่อมค้าง</span>
+          <Link href="/repairs" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+            <Wrench className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
+            <span className="text-sm text-slate-700 dark:text-slate-300">งานซ่อมค้าง</span>
             <Badge className="bg-red-600 text-white text-xs ml-1">{repairOverdue} งาน</Badge>
           </Link>
         )}
         {transferPending > 0 && (
-          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white border border-amber-200 px-3 py-2 hover:bg-amber-50 transition-colors">
-            <ArrowRightLeft className="h-4 w-4 text-amber-600 shrink-0" />
-            <span className="text-sm text-slate-700">คำขอโอนรออนุมัติ</span>
+          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+            <ArrowRightLeft className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="text-sm text-slate-700 dark:text-slate-300">คำขอโอนรออนุมัติ</span>
             <Badge className="bg-amber-500 text-white text-xs ml-1">{transferPending} รายการ</Badge>
           </Link>
         )}
         {transferTransit > 0 && (
-          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white border border-amber-200 px-3 py-2 hover:bg-amber-50 transition-colors">
-            <Send className="h-4 w-4 text-blue-600 shrink-0" />
-            <span className="text-sm text-slate-700">สินค้ารอรับ</span>
+          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+            <Send className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+            <span className="text-sm text-slate-700 dark:text-slate-300">สินค้ารอรับ</span>
             <Badge className="bg-blue-600 text-white text-xs ml-1">{transferTransit} รายการ</Badge>
           </Link>
         )}
         {totalUrgent > 0 && (
-          <Link href="/repairs?filter=urgent" className="flex items-center gap-2 rounded-lg bg-white border border-red-200 px-3 py-2 hover:bg-red-50 transition-colors">
-            <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
-            <span className="text-sm text-slate-700">งานซ่อมเร่งด่วน</span>
+          <Link href="/repairs?filter=urgent" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-red-200 dark:border-red-800/60 px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
+            <span className="text-sm text-slate-700 dark:text-slate-300">งานซ่อมเร่งด่วน</span>
             <Badge className="bg-red-600 text-white text-xs ml-1">{totalUrgent} งาน</Badge>
           </Link>
         )}
         {partsCount > 0 && (
-          <Link href="/repairs?filter=waiting_parts" className="flex items-center gap-2 rounded-lg bg-white border border-orange-200 px-3 py-2 hover:bg-orange-50 transition-colors">
-            <Settings2 className="h-4 w-4 text-orange-600 shrink-0" />
-            <span className="text-sm text-slate-700">รอชิ้นส่วน</span>
+          <Link href="/repairs?filter=waiting_parts" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-orange-200 dark:border-orange-800/60 px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+            <Settings2 className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
+            <span className="text-sm text-slate-700 dark:text-slate-300">รอชิ้นส่วน</span>
             <Badge className="bg-orange-500 text-white text-xs ml-1">{partsCount} งาน</Badge>
           </Link>
         )}
         {pickupCount > 0 && (
-          <Link href="/repairs?filter=completed" className="flex items-center gap-2 rounded-lg bg-white border border-green-200 px-3 py-2 hover:bg-green-50 transition-colors">
-            <Clock className="h-4 w-4 text-green-600 shrink-0" />
-            <span className="text-sm text-slate-700">รอรับเครื่อง</span>
+          <Link href="/repairs?filter=completed" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-green-200 dark:border-green-800/60 px-3 py-2 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+            <Clock className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+            <span className="text-sm text-slate-700 dark:text-slate-300">รอรับเครื่อง</span>
             <Badge className="bg-green-600 text-white text-xs ml-1">{pickupCount} งาน</Badge>
           </Link>
         )}
@@ -357,7 +332,7 @@ function RecentRepairsWidget({ repairs, isLoading }: { repairs: Repair[]; isLoad
     return (
       <div className="space-y-2">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-[52px] bg-slate-100 rounded-lg animate-pulse" />
+          <div key={i} className="h-[52px] bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
         ))}
       </div>
     )
@@ -366,10 +341,10 @@ function RecentRepairsWidget({ repairs, isLoading }: { repairs: Repair[]; isLoad
   if (!items.length) {
     return (
       <div className="flex flex-col items-center py-8 text-center">
-        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center mb-2">
-          <Wrench className="h-5 w-5 text-slate-300" />
+        <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-2">
+          <Wrench className="h-5 w-5 text-slate-300 dark:text-slate-600" />
         </div>
-        <p className="text-sm text-slate-400">ยังไม่มีงานซ่อม</p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">ยังไม่มีงานซ่อม</p>
       </div>
     )
   }
@@ -378,30 +353,30 @@ function RecentRepairsWidget({ repairs, isLoading }: { repairs: Repair[]; isLoad
     <div className="space-y-1.5">
       {items.map(repair => (
         <Link key={repair.id} href="/repairs">
-          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 px-3 py-2.5 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all cursor-pointer">
+          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-900/40 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-mono font-semibold text-slate-700">{repair.ticketNumber}</span>
+                <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{repair.ticketNumber}</span>
                 <span className={cn(
                   'text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none',
-                  REPAIR_STATUS_COLOR[repair.status] ?? 'bg-slate-100 text-slate-600',
+                  REPAIR_STATUS_COLOR[repair.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
                 )}>
                   {REPAIR_STATUS_LABEL[repair.status] ?? repair.status}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5 truncate leading-snug">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate leading-snug">
                 {[repair.customer?.name, `${repair.deviceBrand} ${repair.deviceModel}`].filter(Boolean).join(' · ')}
               </p>
             </div>
             <div className="text-right shrink-0">
               {repair.finalCost != null ? (
-                <p className="text-xs font-bold text-emerald-700">{formatThaiMoney(repair.finalCost)}</p>
+                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(repair.finalCost)}</p>
               ) : repair.estimateCost != null ? (
-                <p className="text-xs text-slate-400">{formatThaiMoney(repair.estimateCost)}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">{formatThaiMoney(repair.estimateCost)}</p>
               ) : (
-                <p className="text-xs text-slate-300">—</p>
+                <p className="text-xs text-slate-300 dark:text-slate-600">—</p>
               )}
-              <p className="text-[10px] text-slate-400 mt-0.5">{thaiTime(repair.receivedAt)}</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{thaiTime(repair.receivedAt)}</p>
             </div>
           </div>
         </Link>
@@ -419,10 +394,10 @@ function RevenueBar({ label, value, total, color }: {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-slate-500">{label}</span>
-        <span className="font-semibold text-slate-700">{formatThaiMoney(value)}</span>
+        <span className="text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(value)}</span>
       </div>
-      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-500 ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -465,8 +440,8 @@ function BusinessHealthCards({
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <Activity className="h-4 w-4 text-slate-400" />
-        <h3 className="text-sm font-semibold text-slate-800">สุขภาพร้านค้า</h3>
+        <Activity className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">สุขภาพร้านค้า</h3>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {items.map(item => (
@@ -474,12 +449,12 @@ function BusinessHealthCards({
             <div className={cn(
               'rounded-xl border p-3.5 transition-all hover:shadow-sm cursor-pointer',
               item.ok
-                ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
-                : 'bg-red-50 border-red-200 hover:bg-red-100',
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/60 hover:bg-red-100 dark:hover:bg-red-900/30',
             )}>
               <p className={cn(
                 'text-xs font-semibold uppercase tracking-wide mb-1.5',
-                item.ok ? 'text-emerald-600' : 'text-red-600',
+                item.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400',
               )}>
                 {item.label}
               </p>
@@ -489,7 +464,7 @@ function BusinessHealthCards({
                   : <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />}
                 <span className={cn(
                   'text-xs font-medium leading-tight',
-                  item.ok ? 'text-emerald-700' : 'text-red-700',
+                  item.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400',
                 )}>
                   {item.ok ? item.okText : item.warnText}
                 </span>
@@ -514,7 +489,7 @@ function RecentSalesWidget({
     return (
       <div className="space-y-2">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-12 bg-slate-100 rounded-lg animate-pulse" />
+          <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
         ))}
       </div>
     )
@@ -522,8 +497,8 @@ function RecentSalesWidget({
   if (!sales.length) {
     return (
       <div className="flex flex-col items-center py-8 text-center">
-        <ShoppingCart className="h-8 w-8 text-slate-200 mb-2" />
-        <p className="text-sm text-slate-400">ยังไม่มีการขาย</p>
+        <ShoppingCart className="h-8 w-8 text-slate-200 dark:text-slate-700 mb-2" />
+        <p className="text-sm text-slate-400 dark:text-slate-500">ยังไม่มีการขาย</p>
       </div>
     )
   }
@@ -531,21 +506,21 @@ function RecentSalesWidget({
     <div className="space-y-1.5">
       {sales.map(s => (
         <Link key={s.id} href="/sales">
-          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 px-3 py-2.5 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all cursor-pointer">
+          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-900/40 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-mono font-semibold text-slate-700">{s.receiptNumber}</span>
+                <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{s.receiptNumber}</span>
                 <Badge variant="outline" className="text-[10px] py-0 h-4">
                   {s.paymentMethod === 'CASH' ? 'เงินสด' : s.paymentMethod === 'TRANSFER' ? 'โอน' : 'บัตร'}
                 </Badge>
               </div>
               {s.customerName && (
-                <p className="text-xs text-slate-500 mt-0.5 truncate">{s.customerName}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{s.customerName}</p>
               )}
             </div>
             <div className="text-right shrink-0">
-              <p className="text-xs font-bold text-emerald-700">{formatThaiMoney(s.total)}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">{thaiTime(s.createdAt)}</p>
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(s.total)}</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{thaiTime(s.createdAt)}</p>
             </div>
           </div>
         </Link>
@@ -779,8 +754,8 @@ export default function DashboardPage() {
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-4">
-              <CalendarDays className="h-4 w-4 text-slate-400" />
-              <h3 className="text-sm font-semibold text-slate-800">
+              <CalendarDays className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                 ภาพรวมเดือนนี้
               </h3>
             </div>
@@ -788,36 +763,36 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="space-y-1.5">
-                    <div className="h-2.5 w-16 bg-slate-100 rounded animate-pulse" />
-                    <div className="h-7 w-20 bg-slate-100 rounded animate-pulse" />
+                    <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                    <div className="h-7 w-20 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                   </div>
                 ))}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                 <div>
-                  <p className="text-xs text-slate-400 font-medium">ยอดขาย POS</p>
-                  <p className="text-xl font-bold text-blue-700 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.salesRevenue ?? 0)}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ยอดขาย POS</p>
+                  <p className="text-xl font-bold text-blue-700 dark:text-blue-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.salesRevenue ?? 0)}</p>
                 </div>
                 {hasModule('repair') && (
                   <div>
-                    <p className="text-xs text-slate-400 font-medium">รายรับซ่อม</p>
-                    <p className="text-xl font-bold text-orange-700 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.repairRevenue ?? 0)}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">รายรับซ่อม</p>
+                    <p className="text-xl font-bold text-orange-700 dark:text-orange-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.repairRevenue ?? 0)}</p>
                   </div>
                 )}
                 <div>
-                  <p className="text-xs text-slate-400 font-medium">รายรับรวม</p>
-                  <p className="text-xl font-bold text-emerald-700 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.totalRevenue ?? 0)}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">รายรับรวม</p>
+                  <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.totalRevenue ?? 0)}</p>
                 </div>
                 {hasModule('finance') && (
                   <>
                     <div>
-                      <p className="text-xs text-slate-400 font-medium">รายจ่าย</p>
-                      <p className="text-xl font-bold text-rose-700 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.totalExpenses ?? 0)}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">รายจ่าย</p>
+                      <p className="text-xl font-bold text-rose-700 dark:text-rose-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.totalExpenses ?? 0)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-400 font-medium">กำไรสุทธิ</p>
-                      <p className={cn('text-xl font-bold mt-0.5', (ownerSummary?.monthly.netProfit ?? 0) >= 0 ? 'text-teal-700' : 'text-red-700')}>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">กำไรสุทธิ</p>
+                      <p className={cn('text-xl font-bold mt-0.5', (ownerSummary?.monthly.netProfit ?? 0) >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400')}>
                         {formatThaiMoney(ownerSummary?.monthly.netProfit ?? 0)}
                       </p>
                     </div>
@@ -825,8 +800,8 @@ export default function DashboardPage() {
                 )}
                 {hasModule('crm') && (
                   <div>
-                    <p className="text-xs text-slate-400 font-medium">ลูกค้าใหม่วันนี้</p>
-                    <p className="text-xl font-bold text-violet-700 mt-0.5 flex items-center gap-1.5">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ลูกค้าใหม่วันนี้</p>
+                    <p className="text-xl font-bold text-violet-700 dark:text-violet-400 mt-0.5 flex items-center gap-1.5">
                       <UserPlus className="h-4 w-4 shrink-0" />
                       {ownerSummary?.today.newCustomers ?? 0}
                     </p>
@@ -856,8 +831,8 @@ export default function DashboardPage() {
       {isOwnerOrManager && (
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <Zap className="h-4 w-4 text-slate-400" />
-            <h3 className="text-sm font-semibold text-slate-800">ทางลัดด่วน</h3>
+            <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">ทางลัดด่วน</h3>
           </div>
           <div className="flex flex-wrap gap-2.5">
             {hasModule('pos') && (
@@ -928,27 +903,27 @@ export default function DashboardPage() {
               {isLoading ? (
                 <div className="space-y-2">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="h-9 bg-slate-100 rounded-lg animate-pulse" />
+                    <div key={i} className="h-9 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
                   ))}
                 </div>
               ) : (
                 <div className="space-y-2">
                   {[
-                    { label: 'รออนุมัติใบเสนอ', count: ops?.waitingApproval ?? 0, color: 'bg-yellow-100 text-yellow-800', urgent: (ops?.waitingApproval ?? 0) > 0 },
-                    { label: 'รออะไหล่',         count: ops?.waitingParts ?? 0,     color: 'bg-blue-100 text-blue-800',    urgent: false },
-                    { label: 'กำลังซ่อม',        count: ops?.inProgress ?? 0,       color: 'bg-indigo-100 text-indigo-800', urgent: false },
-                    { label: 'เสร็จแล้ว รอส่ง',  count: ops?.completedNotDelivered ?? 0, color: 'bg-emerald-100 text-emerald-800', urgent: (ops?.completedNotDelivered ?? 0) > 0 },
-                    { label: 'เกินกำหนด',        count: ops?.overdueRepairs ?? 0,   color: 'bg-red-100 text-red-800',      urgent: (ops?.overdueRepairs ?? 0) > 0 },
+                    { label: 'รออนุมัติใบเสนอ', count: ops?.waitingApproval ?? 0, color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', urgent: (ops?.waitingApproval ?? 0) > 0 },
+                    { label: 'รออะไหล่',         count: ops?.waitingParts ?? 0,     color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',    urgent: false },
+                    { label: 'กำลังซ่อม',        count: ops?.inProgress ?? 0,       color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400', urgent: false },
+                    { label: 'เสร็จแล้ว รอส่ง',  count: ops?.completedNotDelivered ?? 0, color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400', urgent: (ops?.completedNotDelivered ?? 0) > 0 },
+                    { label: 'เกินกำหนด',        count: ops?.overdueRepairs ?? 0,   color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',      urgent: (ops?.overdueRepairs ?? 0) > 0 },
                   ].map(row => (
                     <div
                       key={row.label}
                       className={`flex items-center justify-between rounded-lg px-3 py-2 transition-colors ${
-                        row.urgent && row.count > 0 ? 'bg-red-50 ring-1 ring-red-200' : 'bg-slate-50 hover:bg-slate-100'
+                        row.urgent && row.count > 0 ? 'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200 dark:ring-red-800/60' : 'bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         {row.urgent && row.count > 0 && <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />}
-                        <span className="text-sm text-slate-700">{row.label}</span>
+                        <span className="text-sm text-slate-700 dark:text-slate-300">{row.label}</span>
                       </div>
                       <Badge variant="outline" className={`text-xs font-bold ${row.color}`}>{row.count}</Badge>
                     </div>
@@ -967,11 +942,11 @@ export default function DashboardPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-slate-400" />
-                <h3 className="text-sm font-semibold text-slate-800">รายรับ{isToday ? 'วันนี้' : ''}</h3>
+                <ShoppingCart className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">รายรับ{isToday ? 'วันนี้' : ''}</h3>
               </div>
               <Link href="/reports">
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 hover:bg-blue-50 -mr-1">
+                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 -mr-1">
                   รายงาน <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
@@ -981,8 +956,8 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="space-y-1.5">
-                    <div className="h-2.5 w-16 bg-slate-100 rounded animate-pulse" />
-                    <div className="h-7 w-20 bg-slate-100 rounded animate-pulse" />
+                    <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                    <div className="h-7 w-20 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                   </div>
                 ))}
               </div>
@@ -991,24 +966,24 @@ export default function DashboardPage() {
                 {/* Top row: key numbers */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                   {[
-                    { label: 'รายรับรวม',    value: formatThaiMoney(f?.totalRevenue ?? 0),  color: 'text-emerald-700' },
-                    { label: 'ยอดขาย POS',   value: formatThaiMoney(f?.salesRevenue ?? 0),  color: 'text-blue-700',   sub: `${f?.salesCount ?? 0} บิล` },
-                    { label: 'รายรับซ่อม',   value: formatThaiMoney(f?.repairRevenue ?? 0), color: 'text-orange-700', sub: `${f?.repairCount ?? 0} ใบงาน` },
-                    { label: 'ค่าใช้จ่าย',   value: formatThaiMoney(f?.totalExpenses ?? 0), color: 'text-rose-700',   sub: 'ไม่รวม COGS' },
-                    { label: 'กำไรสุทธิ',    value: formatThaiMoney(f?.netProfit ?? 0),     color: (f?.netProfit ?? 0) >= 0 ? 'text-teal-700' : 'text-red-700' },
-                    { label: 'แจ้งเตือน',    value: String(totalAlerts),                   color: totalAlerts > 0 ? 'text-red-700' : 'text-slate-400', sub: totalAlerts > 0 ? 'ต้องดำเนินการ' : 'ทุกอย่างปกติ' },
+                    { label: 'รายรับรวม',    value: formatThaiMoney(f?.totalRevenue ?? 0),  color: 'text-emerald-700 dark:text-emerald-400' },
+                    { label: 'ยอดขาย POS',   value: formatThaiMoney(f?.salesRevenue ?? 0),  color: 'text-blue-700 dark:text-blue-400',   sub: `${f?.salesCount ?? 0} บิล` },
+                    { label: 'รายรับซ่อม',   value: formatThaiMoney(f?.repairRevenue ?? 0), color: 'text-orange-700 dark:text-orange-400', sub: `${f?.repairCount ?? 0} ใบงาน` },
+                    { label: 'ค่าใช้จ่าย',   value: formatThaiMoney(f?.totalExpenses ?? 0), color: 'text-rose-700 dark:text-rose-400',   sub: 'ไม่รวม COGS' },
+                    { label: 'กำไรสุทธิ',    value: formatThaiMoney(f?.netProfit ?? 0),     color: (f?.netProfit ?? 0) >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400' },
+                    { label: 'แจ้งเตือน',    value: String(totalAlerts),                   color: totalAlerts > 0 ? 'text-red-700 dark:text-red-400' : 'text-slate-400 dark:text-slate-500', sub: totalAlerts > 0 ? 'ต้องดำเนินการ' : 'ทุกอย่างปกติ' },
                   ].map(s => (
                     <div key={s.label}>
-                      <p className="text-xs text-slate-400 font-medium">{s.label}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">{s.label}</p>
                       <p className={`text-xl font-bold mt-0.5 ${s.color}`}>{s.value}</p>
-                      {s.sub && <p className="text-xs text-slate-400 mt-0.5">{s.sub}</p>}
+                      {s.sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{s.sub}</p>}
                     </div>
                   ))}
                 </div>
 
                 {/* Payment breakdown bars */}
                 {(f?.totalRevenue ?? 0) > 0 && (
-                  <div className="pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="pt-3 border-t dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <RevenueBar label="เงินสด" value={f?.cashIn ?? 0} total={f?.totalRevenue ?? 0} color="bg-emerald-500" />
                     <RevenueBar label="โอนเงิน" value={f?.transferIn ?? 0} total={f?.totalRevenue ?? 0} color="bg-blue-500" />
                   </div>
@@ -1052,39 +1027,39 @@ export default function DashboardPage() {
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <BarChart2 className="h-4 w-4 text-slate-400" />
-                  <h3 className="text-sm font-semibold text-slate-800">รายรับ 7 วัน</h3>
+                  <BarChart2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">รายรับ 7 วัน</h3>
                 </div>
-                <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-500" />ขาย</span>
                   <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-orange-400" />ซ่อม</span>
                 </div>
               </div>
               {isLoading ? (
-                <div className="h-36 bg-slate-100 rounded animate-pulse" />
+                <div className="h-36 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
               ) : data?.weeklyRevenue ? (
                 <>
-                  <WeeklyChart data={data.weeklyRevenue} />
-                  <div className="mt-3 pt-3 border-t flex justify-between items-center">
-                    <span className="text-xs text-slate-500">รวม 7 วัน</span>
-                    <span className="text-sm font-bold text-emerald-700">
+                  <RevenueBarChart data={data.weeklyRevenue} shortDate={shortDate} />
+                  <div className="mt-3 pt-3 border-t dark:border-slate-800 flex justify-between items-center">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">รวม 7 วัน</span>
+                    <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
                       {formatThaiMoney(data.weeklyRevenue.reduce((s, d) => s + d.total, 0))}
                     </span>
                   </div>
                 </>
               ) : (
-                <div className="h-36 flex items-center justify-center text-sm text-slate-400">ไม่มีข้อมูล</div>
+                <div className="h-36 flex items-center justify-center text-sm text-slate-400 dark:text-slate-500">ไม่มีข้อมูล</div>
               )}
             </CardContent>
           </Card>
         )}
 
         {/* แจ้งเตือนด่วน */}
-        <Card className={cn('lg:col-span-1', !isOwnerOrManager && 'lg:col-span-3', totalAlerts > 0 ? 'border-red-200' : '')}>
+        <Card className={cn('lg:col-span-1', !isOwnerOrManager && 'lg:col-span-3', totalAlerts > 0 ? 'border-red-200 dark:border-red-800/60' : '')}>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className={cn('h-4 w-4', totalAlerts > 0 ? 'text-red-500' : 'text-slate-400')} />
-              <h3 className="text-sm font-semibold text-slate-800">แจ้งเตือนด่วน</h3>
+              <AlertTriangle className={cn('h-4 w-4', totalAlerts > 0 ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500')} />
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">แจ้งเตือนด่วน</h3>
               {totalAlerts > 0 && (
                 <Badge className="bg-red-500 text-white text-xs px-1.5 py-0 h-4 ml-1">{totalAlerts}</Badge>
               )}
@@ -1092,95 +1067,95 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-9 bg-slate-100 rounded-lg animate-pulse" />
+                  <div key={i} className="h-9 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
                 ))}
               </div>
             ) : totalAlerts === 0 ? (
               <div className="flex flex-col items-center py-6 text-center gap-2">
-                <CheckCircle className="h-8 w-8 text-emerald-400" />
-                <p className="text-sm text-slate-500">ทุกอย่างเรียบร้อย</p>
+                <CheckCircle className="h-8 w-8 text-emerald-400 dark:text-emerald-500" />
+                <p className="text-sm text-slate-500 dark:text-slate-400">ทุกอย่างเรียบร้อย</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {(alerts?.overdueRepairs ?? 0) > 0 && (
                   <Link href="/repairs">
-                    <div className="flex items-center justify-between rounded-lg bg-red-50 border border-red-100 px-3 py-2 hover:bg-red-100 transition-colors">
+                    <div className="flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50 px-3 py-2 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <Wrench className="h-3.5 w-3.5 text-red-600" />
-                        <span className="text-sm font-medium text-red-800">งานซ่อมเกินกำหนด</span>
+                        <Wrench className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                        <span className="text-sm font-medium text-red-800 dark:text-red-300">งานซ่อมเกินกำหนด</span>
                       </div>
-                      <Badge className="bg-red-600 text-white text-xs">{alerts?.overdueRepairs}</Badge>
+                      <Badge className="bg-red-600 dark:bg-red-700 text-white text-xs">{alerts?.overdueRepairs}</Badge>
                     </div>
                   </Link>
                 )}
                 {(alerts?.unpaidRepairs ?? 0) > 0 && (
                   <Link href="/repairs">
-                    <div className="flex items-center justify-between rounded-lg bg-orange-50 border border-orange-100 px-3 py-2 hover:bg-orange-100 transition-colors">
+                    <div className="flex items-center justify-between rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800/50 px-3 py-2 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <Wallet className="h-3.5 w-3.5 text-orange-600" />
-                        <span className="text-sm font-medium text-orange-800">รอรับเงิน (ซ่อมเสร็จ)</span>
+                        <Wallet className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+                        <span className="text-sm font-medium text-orange-800 dark:text-orange-300">รอรับเงิน (ซ่อมเสร็จ)</span>
                       </div>
-                      <Badge className="bg-orange-500 text-white text-xs">{alerts?.unpaidRepairs}</Badge>
+                      <Badge className="bg-orange-500 dark:bg-orange-600 text-white text-xs">{alerts?.unpaidRepairs}</Badge>
                     </div>
                   </Link>
                 )}
                 {(alerts?.outOfStock ?? 0) > 0 && (
                   <Link href="/products">
-                    <div className="flex items-center justify-between rounded-lg bg-red-50 border border-red-100 px-3 py-2 hover:bg-red-100 transition-colors">
+                    <div className="flex items-center justify-between rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50 px-3 py-2 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <Package className="h-3.5 w-3.5 text-red-600" />
-                        <span className="text-sm font-medium text-red-800">สินค้าหมด</span>
+                        <Package className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                        <span className="text-sm font-medium text-red-800 dark:text-red-300">สินค้าหมด</span>
                       </div>
-                      <Badge className="bg-red-600 text-white text-xs">{alerts?.outOfStock}</Badge>
+                      <Badge className="bg-red-600 dark:bg-red-700 text-white text-xs">{alerts?.outOfStock}</Badge>
                     </div>
                   </Link>
                 )}
                 {(alerts?.lowStock ?? 0) > 0 && (
                   <Link href="/products">
-                    <div className="flex items-center justify-between rounded-lg bg-yellow-50 border border-yellow-100 px-3 py-2 hover:bg-yellow-100 transition-colors">
+                    <div className="flex items-center justify-between rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/50 px-3 py-2 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <Package className="h-3.5 w-3.5 text-yellow-600" />
-                        <span className="text-sm font-medium text-yellow-800">สินค้าใกล้หมด</span>
+                        <Package className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />
+                        <span className="text-sm font-medium text-yellow-800 dark:text-yellow-300">สินค้าใกล้หมด</span>
                       </div>
-                      <Badge className="bg-yellow-500 text-white text-xs">{alerts?.lowStock}</Badge>
+                      <Badge className="bg-yellow-500 dark:bg-yellow-600 text-white text-xs">{alerts?.lowStock}</Badge>
                     </div>
                   </Link>
                 )}
                 {(alerts?.expiringWarranties ?? 0) > 0 && (
                   <Link href="/warranties">
-                    <div className="flex items-center justify-between rounded-lg bg-purple-50 border border-purple-100 px-3 py-2 hover:bg-purple-100 transition-colors">
+                    <div className="flex items-center justify-between rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/50 px-3 py-2 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <Shield className="h-3.5 w-3.5 text-purple-600" />
-                        <span className="text-sm font-medium text-purple-800">การรับประกันใกล้หมด</span>
+                        <Shield className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                        <span className="text-sm font-medium text-purple-800 dark:text-purple-300">การรับประกันใกล้หมด</span>
                       </div>
-                      <Badge className="bg-purple-600 text-white text-xs">{alerts?.expiringWarranties}</Badge>
+                      <Badge className="bg-purple-600 dark:bg-purple-700 text-white text-xs">{alerts?.expiringWarranties}</Badge>
                     </div>
                   </Link>
                 )}
                 {(alerts?.pendingClaims ?? 0) > 0 && (
                   <Link href="/claims">
-                    <div className="flex items-center justify-between rounded-lg bg-purple-50 border border-purple-100 px-3 py-2 hover:bg-purple-100 transition-colors">
+                    <div className="flex items-center justify-between rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/50 px-3 py-2 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <AlertCircle className="h-3.5 w-3.5 text-purple-600" />
-                        <span className="text-sm font-medium text-purple-800">การเคลมรออยู่</span>
+                        <AlertCircle className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                        <span className="text-sm font-medium text-purple-800 dark:text-purple-300">การเคลมรออยู่</span>
                       </div>
-                      <Badge className="bg-purple-600 text-white text-xs">{alerts?.pendingClaims}</Badge>
+                      <Badge className="bg-purple-600 dark:bg-purple-700 text-white text-xs">{alerts?.pendingClaims}</Badge>
                     </div>
                   </Link>
                 )}
                 {(alerts?.overdueSuppliers ?? 0) > 0 && (
                   <Link href="/suppliers">
-                    <div className="flex items-center justify-between rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 hover:bg-amber-100 transition-colors">
+                    <div className="flex items-center justify-between rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/50 px-3 py-2 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <Building2 className="h-3.5 w-3.5 text-amber-600" />
+                        <Building2 className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                         <div>
-                          <span className="text-sm font-medium text-amber-800">หนี้เจ้าหนี้เกินกำหนด</span>
+                          <span className="text-sm font-medium text-amber-800 dark:text-amber-300">หนี้เจ้าหนี้เกินกำหนด</span>
                           {(alerts?.apOutstanding ?? 0) > 0 && (
-                            <p className="text-xs text-amber-600">{formatThaiMoney(alerts!.apOutstanding)}</p>
+                            <p className="text-xs text-amber-600 dark:text-amber-400">{formatThaiMoney(alerts!.apOutstanding)}</p>
                           )}
                         </div>
                       </div>
-                      <Badge className="bg-amber-500 text-white text-xs">{alerts?.overdueSuppliers} PO</Badge>
+                      <Badge className="bg-amber-500 dark:bg-amber-600 text-white text-xs">{alerts?.overdueSuppliers} PO</Badge>
                     </div>
                   </Link>
                 )}
@@ -1199,21 +1174,21 @@ export default function DashboardPage() {
               <SectionHeader title="ลูกหนี้ค้างชำระ" icon={Wallet} href="/repairs" linkLabel="ดู" />
               {isLoading ? (
                 <div className="space-y-2">
-                  <div className="h-8 bg-slate-100 rounded animate-pulse" />
-                  <div className="h-5 w-24 bg-slate-100 rounded animate-pulse" />
+                  <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                  <div className="h-5 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                 </div>
               ) : (
                 <>
-                  <p className={`text-3xl font-bold ${(ops?.unpaidDebtTotal ?? 0) > 0 ? 'text-red-600' : 'text-slate-300'}`}>
+                  <p className={`text-3xl font-bold ${(ops?.unpaidDebtTotal ?? 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-300 dark:text-slate-600'}`}>
                     {formatThaiMoney(ops?.unpaidDebtTotal ?? 0)}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {ops?.unpaidDebtCount ?? 0} ใบงาน · ซ่อมเสร็จแล้วยังไม่รับเงิน
                   </p>
                   {(ops?.unpaidDebtTotal ?? 0) === 0 && (
                     <div className="flex items-center gap-1.5 mt-3">
-                      <CheckCircle className="h-4 w-4 text-emerald-500" />
-                      <span className="text-xs text-slate-500">ไม่มีลูกหนี้ค้างชำระ</span>
+                      <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                      <span className="text-xs text-slate-500 dark:text-slate-400">ไม่มีลูกหนี้ค้างชำระ</span>
                     </div>
                   )}
                 </>
@@ -1228,34 +1203,34 @@ export default function DashboardPage() {
             <SectionHeader title="สถานะสต็อก" icon={Package} href="/products" linkLabel="สินค้า" />
             {isLoading ? (
               <div className="space-y-2">
-                <div className="h-9 bg-slate-100 rounded animate-pulse" />
-                <div className="h-9 bg-slate-100 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
               </div>
             ) : (
               <div className="space-y-2">
                 <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${
-                  (data?.stock.outOfStock ?? 0) > 0 ? 'bg-red-50 ring-1 ring-red-200' : 'bg-slate-50'
+                  (data?.stock.outOfStock ?? 0) > 0 ? 'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200 dark:ring-red-800/50' : 'bg-slate-50 dark:bg-slate-800/60'
                 }`}>
                   <div className="flex items-center gap-2">
-                    {(data?.stock.outOfStock ?? 0) > 0 && <AlertCircle className="h-3.5 w-3.5 text-red-500" />}
-                    <span className="text-sm text-slate-700">สินค้าหมด</span>
+                    {(data?.stock.outOfStock ?? 0) > 0 && <AlertCircle className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />}
+                    <span className="text-sm text-slate-700 dark:text-slate-300">สินค้าหมด</span>
                   </div>
                   <Badge variant="outline" className={`text-xs font-bold ${
-                    (data?.stock.outOfStock ?? 0) > 0 ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-500'
+                    (data?.stock.outOfStock ?? 0) > 0 ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                   }`}>{data?.stock.outOfStock ?? 0}</Badge>
                 </div>
                 <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${
-                  (data?.stock.lowStock ?? 0) > 0 ? 'bg-yellow-50 ring-1 ring-yellow-200' : 'bg-slate-50'
+                  (data?.stock.lowStock ?? 0) > 0 ? 'bg-yellow-50 dark:bg-yellow-900/20 ring-1 ring-yellow-200 dark:ring-yellow-800/50' : 'bg-slate-50 dark:bg-slate-800/60'
                 }`}>
-                  <span className="text-sm text-slate-700">ใกล้หมด</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">ใกล้หมด</span>
                   <Badge variant="outline" className={`text-xs font-bold ${
-                    (data?.stock.lowStock ?? 0) > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-500'
+                    (data?.stock.lowStock ?? 0) > 0 ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                   }`}>{data?.stock.lowStock ?? 0}</Badge>
                 </div>
                 {(data?.stock.outOfStock ?? 0) === 0 && (data?.stock.lowStock ?? 0) === 0 && (
                   <div className="flex items-center gap-1.5 mt-1">
-                    <CheckCircle className="h-4 w-4 text-emerald-500" />
-                    <span className="text-xs text-slate-500">สต็อกเพียงพอ</span>
+                    <CheckCircle className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                    <span className="text-xs text-slate-500 dark:text-slate-400">สต็อกเพียงพอ</span>
                   </div>
                 )}
               </div>
@@ -1270,29 +1245,29 @@ export default function DashboardPage() {
             <SectionHeader title="การรับประกัน" icon={Shield} href="/warranties" linkLabel="ดู" />
             {isLoading ? (
               <div className="space-y-2">
-                <div className="h-9 bg-slate-100 rounded animate-pulse" />
-                <div className="h-9 bg-slate-100 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2">
+                <div className="flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2">
                   <div className="flex items-center gap-2">
-                    <Shield className="h-3.5 w-3.5 text-emerald-600" />
-                    <span className="text-sm text-slate-700">ยังมีผล</span>
+                    <Shield className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-sm text-slate-700 dark:text-slate-300">ยังมีผล</span>
                   </div>
-                  <Badge variant="outline" className="text-xs font-bold bg-emerald-100 text-emerald-800">
+                  <Badge variant="outline" className="text-xs font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300">
                     {data?.warranties.active ?? 0}
                   </Badge>
                 </div>
                 <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${
-                  (data?.warranties.expiringSoon ?? 0) > 0 ? 'bg-orange-50 ring-1 ring-orange-200' : 'bg-slate-50'
+                  (data?.warranties.expiringSoon ?? 0) > 0 ? 'bg-orange-50 dark:bg-orange-900/20 ring-1 ring-orange-200 dark:ring-orange-800/50' : 'bg-slate-50 dark:bg-slate-800/60'
                 }`}>
                   <div className="flex items-center gap-2">
-                    {(data?.warranties.expiringSoon ?? 0) > 0 && <AlertCircle className="h-3.5 w-3.5 text-orange-500" />}
-                    <span className="text-sm text-slate-700">หมดใน 7 วัน</span>
+                    {(data?.warranties.expiringSoon ?? 0) > 0 && <AlertCircle className="h-3.5 w-3.5 text-orange-500 dark:text-orange-400" />}
+                    <span className="text-sm text-slate-700 dark:text-slate-300">หมดใน 7 วัน</span>
                   </div>
                   <Badge variant="outline" className={`text-xs font-bold ${
-                    (data?.warranties.expiringSoon ?? 0) > 0 ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-500'
+                    (data?.warranties.expiringSoon ?? 0) > 0 ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                   }`}>{data?.warranties.expiringSoon ?? 0}</Badge>
                 </div>
               </div>
@@ -1312,13 +1287,13 @@ export default function DashboardPage() {
               {isLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="h-8 bg-slate-100 rounded animate-pulse" />
+                    <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                   ))}
                 </div>
               ) : !data?.topProducts?.length ? (
                 <div className="flex flex-col items-center py-6 text-center">
-                  <Package className="h-7 w-7 text-slate-200 mb-2" />
-                  <p className="text-sm text-slate-400">ยังไม่มีข้อมูลการขาย</p>
+                  <Package className="h-7 w-7 text-slate-200 dark:text-slate-700 mb-2" />
+                  <p className="text-sm text-slate-400 dark:text-slate-500">ยังไม่มีข้อมูลการขาย</p>
                 </div>
               ) : (
                 <div className="space-y-2.5">
@@ -1326,15 +1301,15 @@ export default function DashboardPage() {
                     <div key={p.sku + i} className="flex items-center gap-3">
                       <span className={cn(
                         'text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0',
-                        i === 0 ? 'bg-amber-100 text-amber-700' : i === 1 ? 'bg-slate-200 text-slate-600' : 'text-slate-400',
+                        i === 0 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400' : i === 1 ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500',
                       )}>
                         {i === 0 ? '🥇' : i === 1 ? '🥈' : i + 1}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate leading-tight">{p.name}</p>
-                        <p className="text-xs text-slate-400">{p.sku} · {p.qty} ชิ้น</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">{p.sku} · {p.qty} ชิ้น</p>
                       </div>
-                      <span className="text-sm font-bold text-emerald-700 shrink-0">
+                      <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 shrink-0">
                         {formatThaiMoney(p.revenue)}
                       </span>
                     </div>
@@ -1352,13 +1327,13 @@ export default function DashboardPage() {
               {isLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="h-10 bg-slate-100 rounded animate-pulse" />
+                    <div key={i} className="h-10 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                   ))}
                 </div>
               ) : !data?.topTechnicians?.length ? (
                 <div className="flex flex-col items-center py-6 text-center">
-                  <Wrench className="h-7 w-7 text-slate-200 mb-2" />
-                  <p className="text-sm text-slate-400">ยังไม่มีงานซ่อมในช่วงนี้</p>
+                  <Wrench className="h-7 w-7 text-slate-200 dark:text-slate-700 mb-2" />
+                  <p className="text-sm text-slate-400 dark:text-slate-500">ยังไม่มีงานซ่อมในช่วงนี้</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1366,15 +1341,15 @@ export default function DashboardPage() {
                     <div key={tech.id} className="flex items-center gap-3">
                       <div className={cn(
                         'h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white',
-                        i === 0 ? 'bg-orange-500' : i === 1 ? 'bg-slate-400' : 'bg-slate-300',
+                        i === 0 ? 'bg-orange-500' : i === 1 ? 'bg-slate-400 dark:bg-slate-600' : 'bg-slate-300 dark:bg-slate-700',
                       )}>
                         {tech.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate leading-tight">{tech.name}</p>
-                        <p className="text-xs text-slate-400">{tech.repairCount} งาน</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">{tech.repairCount} งาน</p>
                       </div>
-                      <span className="text-sm font-bold text-orange-700 shrink-0">
+                      <span className="text-sm font-bold text-orange-700 dark:text-orange-400 shrink-0">
                         {formatThaiMoney(tech.repairRevenue)}
                       </span>
                     </div>
@@ -1387,33 +1362,33 @@ export default function DashboardPage() {
 
         {/* Shift + Quick Actions */}
         <div className="space-y-5">
-          <Card className={shift?.isOpen ? 'border-emerald-200' : ''}>
+          <Card className={shift?.isOpen ? 'border-emerald-200 dark:border-emerald-800/60' : ''}>
             <CardContent className="p-5">
               <SectionHeader title="กะปัจจุบัน" icon={Clock} href="/shifts" linkLabel="กะ" />
               {isLoading ? (
-                <div className="h-12 bg-slate-100 rounded animate-pulse" />
+                <div className="h-12 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
               ) : shift?.isOpen ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-sm font-medium text-emerald-700">กะเปิดอยู่</span>
+                    <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400">กะเปิดอยู่</span>
                   </div>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
                     <span className="font-medium">{shift.userName}</span>
                     {shift.userRole && (
-                      <span className="text-slate-400 ml-1">({roleLabel[shift.userRole] ?? shift.userRole})</span>
+                      <span className="text-slate-400 dark:text-slate-500 ml-1">({roleLabel[shift.userRole] ?? shift.userRole})</span>
                     )}
                   </p>
                   {shift.openedAt && (
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
                       เปิด {format(new Date(shift.openedAt), 'HH:mm น.')} · เงินต้น {formatThaiMoney(shift.openBalance)}
                     </p>
                   )}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="inline-block h-2 w-2 rounded-full bg-slate-300" />
-                  <span className="text-sm text-slate-500">ยังไม่ได้เปิดกะ</span>
+                  <span className="inline-block h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600" />
+                  <span className="text-sm text-slate-500 dark:text-slate-400">ยังไม่ได้เปิดกะ</span>
                 </div>
               )}
             </CardContent>
@@ -1433,11 +1408,11 @@ export default function DashboardPage() {
                   ...(isOwnerOrManager ? [{ label: 'วิเคราะห์', href: '/analytics', icon: BarChart2, color: 'bg-rose-600' }] : []),
                 ].map(a => (
                   <Link key={a.href} href={a.href}
-                    className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 p-2.5 hover:border-blue-200 hover:bg-blue-50 hover:shadow-sm transition-all">
+                    className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 dark:border-slate-800 p-2.5 hover:border-blue-200 dark:hover:border-blue-800/60 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm transition-all">
                     <div className={`rounded-lg p-1.5 ${a.color}`}>
                       <a.icon className="h-3.5 w-3.5 text-white" />
                     </div>
-                    <span className="text-[10px] font-medium text-slate-700 text-center leading-tight">{a.label}</span>
+                    <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300 text-center leading-tight">{a.label}</span>
                   </Link>
                 ))}
               </div>
@@ -1454,39 +1429,39 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-10 bg-slate-100 rounded animate-pulse" />
+                  <div key={i} className="h-10 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                 ))}
               </div>
             ) : !data?.branchPerformance?.length ? (
               <div className="flex flex-col items-center py-6 text-center">
-                <Building2 className="h-7 w-7 text-slate-200 mb-2" />
-                <p className="text-sm text-slate-400">ยังไม่มีข้อมูลสาขา</p>
+                <Building2 className="h-7 w-7 text-slate-200 dark:text-slate-700 mb-2" />
+                <p className="text-sm text-slate-400 dark:text-slate-500">ยังไม่มีข้อมูลสาขา</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-xs text-slate-400">
+                    <tr className="border-b dark:border-slate-800 text-xs text-slate-400 dark:text-slate-500">
                       <th className="text-left py-2 font-medium">สาขา</th>
                       <th className="text-right py-2 font-medium">ยอดขาย</th>
                       <th className="text-right py-2 font-medium">ซ่อม</th>
                       <th className="text-right py-2 font-medium">รวม</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {data.branchPerformance.map((b, i) => (
-                      <tr key={b.branchId} className="hover:bg-slate-50 transition-colors">
+                      <tr key={b.branchId} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
                         <td className="py-2.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-300 w-4">{i + 1}</span>
-                            <Link href="/branches" className="font-medium text-slate-800 hover:text-blue-600">
+                            <span className="text-xs font-bold text-slate-300 dark:text-slate-600 w-4">{i + 1}</span>
+                            <Link href="/branches" className="font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400">
                               {b.name}
                             </Link>
                           </div>
                         </td>
-                        <td className="py-2.5 text-right text-slate-600">{formatThaiMoney(b.salesRevenue)}</td>
-                        <td className="py-2.5 text-right text-slate-600">{formatThaiMoney(b.repairRevenue)}</td>
-                        <td className="py-2.5 text-right font-bold text-emerald-700">{formatThaiMoney(b.totalRevenue)}</td>
+                        <td className="py-2.5 text-right text-slate-600 dark:text-slate-400">{formatThaiMoney(b.salesRevenue)}</td>
+                        <td className="py-2.5 text-right text-slate-600 dark:text-slate-400">{formatThaiMoney(b.repairRevenue)}</td>
+                        <td className="py-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(b.totalRevenue)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1504,16 +1479,16 @@ export default function DashboardPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Bell className="h-4 w-4 text-slate-400" />
-                <h3 className="text-sm font-semibold text-slate-800">การแจ้งเตือน</h3>
+                <Bell className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">การแจ้งเตือน</h3>
                 {(notif?.unreadCount ?? 0) > 0 && (
-                  <Badge className="bg-red-500 text-white text-xs px-1.5 py-0 h-4">
+                  <Badge className="bg-red-500 dark:bg-red-600 text-white text-xs px-1.5 py-0 h-4">
                     {notif?.unreadCount ?? 0}
                   </Badge>
                 )}
               </div>
               <Link href="/notifications">
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 hover:bg-blue-50 -mr-1">
+                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 -mr-1">
                   ดูทั้งหมด <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
@@ -1521,28 +1496,28 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-2.5">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-12 bg-slate-100 rounded animate-pulse" />
+                  <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                 ))}
               </div>
             ) : !notif?.latest?.length ? (
               <div className="flex flex-col items-center py-6 text-center">
-                <Bell className="h-7 w-7 text-slate-200 mb-2" />
-                <p className="text-sm text-slate-400">ไม่มีการแจ้งเตือนที่ยังไม่ได้อ่าน</p>
+                <Bell className="h-7 w-7 text-slate-200 dark:text-slate-700 mb-2" />
+                <p className="text-sm text-slate-400 dark:text-slate-500">ไม่มีการแจ้งเตือนที่ยังไม่ได้อ่าน</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {notif.latest.map(n => (
-                  <div key={n.id} className="flex items-start gap-3 rounded-lg bg-slate-50 px-3 py-2.5 hover:bg-white hover:shadow-sm transition-all">
+                  <div key={n.id} className="flex items-start gap-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all">
                     <div className="mt-0.5 shrink-0">
-                      <Badge className={`text-[10px] px-1.5 ${severityColor[n.severity] ?? 'bg-slate-100 text-slate-600'}`}>
+                      <Badge className={`text-[10px] px-1.5 ${severityColor[n.severity] ?? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
                         {n.severity === 'CRITICAL' ? '!!' : n.severity === 'ERROR' ? '!' : n.severity === 'WARNING' ? '⚠' : 'i'}
                       </Badge>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-slate-800 truncate">{n.title}</p>
-                      <p className="text-xs text-slate-500 truncate">{n.message}</p>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{n.title}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{n.message}</p>
                     </div>
-                    <span className="text-[10px] text-slate-400 shrink-0 mt-0.5">{thaiTime(n.createdAt)}</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 mt-0.5">{thaiTime(n.createdAt)}</span>
                   </div>
                 ))}
               </div>
@@ -1554,11 +1529,11 @@ export default function DashboardPage() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-slate-400" />
-                <h3 className="text-sm font-semibold text-slate-800">กิจกรรมล่าสุด</h3>
+                <Activity className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">กิจกรรมล่าสุด</h3>
               </div>
               <Link href="/audit-logs">
-                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 hover:bg-blue-50 -mr-1">
+                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 -mr-1">
                   ดูทั้งหมด <ArrowRight className="h-3 w-3" />
                 </Button>
               </Link>
@@ -1566,35 +1541,35 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-2.5">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-10 bg-slate-100 rounded animate-pulse" />
+                  <div key={i} className="h-10 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
                 ))}
               </div>
             ) : !data?.recentActivities?.length ? (
               <div className="flex flex-col items-center py-6 text-center">
-                <Activity className="h-7 w-7 text-slate-200 mb-2" />
-                <p className="text-sm text-slate-400">ยังไม่มีกิจกรรม</p>
+                <Activity className="h-7 w-7 text-slate-200 dark:text-slate-700 mb-2" />
+                <p className="text-sm text-slate-400 dark:text-slate-500">ยังไม่มีกิจกรรม</p>
               </div>
             ) : (
               <div className="space-y-1.5">
                 {data.recentActivities.map(a => (
-                  <div key={a.id} className="flex items-center gap-3 rounded-lg hover:bg-slate-50 px-2 py-1.5 transition-colors">
-                    <div className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                      <Activity className="h-3 w-3 text-slate-500" />
+                  <div key={a.id} className="flex items-center gap-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 px-2 py-1.5 transition-colors">
+                    <div className="h-6 w-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                      <Activity className="h-3 w-3 text-slate-500 dark:text-slate-400" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-slate-700">
+                        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                           {actionLabel[a.action] ?? a.action}
                         </span>
                         {a.entityType && (
-                          <span className="text-[10px] text-slate-400">· {a.entityType}</span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500">· {a.entityType}</span>
                         )}
                       </div>
                       {a.actorName && (
-                        <p className="text-[11px] text-slate-400">โดย {a.actorName}</p>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500">โดย {a.actorName}</p>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-400 shrink-0">{thaiTime(a.createdAt)}</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">{thaiTime(a.createdAt)}</span>
                   </div>
                 ))}
               </div>

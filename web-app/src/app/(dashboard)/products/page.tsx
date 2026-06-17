@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { toast } from 'sonner'
 import {
   Plus, Pencil, Trash2, Package, AlertTriangle, Loader2, Barcode,
-  ChevronDown, ChevronUp, PackagePlus, ArrowRightLeft, Layers,
+  ChevronDown, ChevronUp, PackagePlus, ArrowRightLeft, Layers, Wallet,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +31,7 @@ import {
 import { ProductCatalogEnrollDialog } from '@/components/products/product-catalog-enroll-dialog'
 import { AddStockDialog } from '@/components/products/add-stock-dialog'
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
+import { TopSellingWidget } from '@/components/inventory/top-selling-widget'
 import { formatThaiMoney } from '@/lib/utils'
 import { ModuleGate } from '@/components/auth/module-gate'
 import { useAuthStore } from '@/store/auth.store'
@@ -41,10 +42,10 @@ import type { Product, BranchAvailability } from '@/types'
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const TYPE_CONFIG: Record<string, { label: string; cls: string }> = {
-  PHONE:     { label: 'มือถือ',        cls: 'bg-blue-100 text-blue-700 border-blue-200' },
-  SIM:       { label: 'ซิมการ์ด',     cls: 'bg-green-100 text-green-700 border-green-200' },
-  ACCESSORY: { label: 'อุปกรณ์เสริม', cls: 'bg-purple-100 text-purple-700 border-purple-200' },
-  PART:      { label: 'อะไหล่',        cls: 'bg-orange-100 text-orange-700 border-orange-200' },
+  PHONE:     { label: 'มือถือ',        cls: 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/60' },
+  SIM:       { label: 'ซิมการ์ด',     cls: 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/60' },
+  ACCESSORY: { label: 'อุปกรณ์เสริม', cls: 'bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/60' },
+  PART:      { label: 'อะไหล่',        cls: 'bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800/60' },
 }
 
 const PAGE_SIZE = 50
@@ -210,9 +211,10 @@ export default function ProductsPage() {
   useMemo(() => { setPage(1) }, [search, typeFilter]) // eslint-disable-line
 
   const stats = {
-    total:    products.length,
-    lowStock: products.filter((p) => { const q = stockOf(p); return q > 0 && q <= p.minStock }).length,
-    outStock: products.filter((p) => stockOf(p) === 0).length,
+    total:      products.length,
+    lowStock:   products.filter((p) => { const q = stockOf(p); return q > 0 && q <= p.minStock }).length,
+    outStock:   products.filter((p) => stockOf(p) === 0).length,
+    stockValue: products.reduce((sum, p) => sum + stockOf(p) * Number(p.costPrice), 0),
   }
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -280,12 +282,18 @@ export default function ProductsPage() {
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="สินค้าทั้งหมด"
           value={isLoading ? '—' : stats.total}
           icon={Package}
           color="blue"
+        />
+        <StatCard
+          label="มูลค่าสต็อก"
+          value={isLoading ? '—' : formatThaiMoney(stats.stockValue)}
+          icon={Wallet}
+          color="emerald"
         />
         <StatCard
           label="สต็อกใกล้หมด"
@@ -303,6 +311,8 @@ export default function ProductsPage() {
         />
       </div>
 
+      <TopSellingWidget branchId={effectiveBranch} />
+
       {/* Filter bar */}
       <FilterBar
         searchValue={search}
@@ -310,7 +320,7 @@ export default function ProductsPage() {
         searchPlaceholder="ค้นหาชื่อสินค้า, SKU, Barcode..."
       >
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-36 h-9 text-sm border-slate-200 bg-white">
+          <SelectTrigger className="w-36 h-9 text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -371,28 +381,28 @@ export default function ProductsPage() {
 
                     {/* Name */}
                     <DataTableCell className="max-w-[200px]">
-                      <p className="font-semibold text-slate-900 truncate">{p.name}</p>
+                      <p className="font-semibold text-slate-900 dark:text-white truncate">{p.name}</p>
                       {p.description && (
-                        <p className="text-xs text-slate-400 truncate mt-0.5">{p.description}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{p.description}</p>
                       )}
                     </DataTableCell>
 
                     {/* SKU */}
                     <DataTableCell hidden className="min-w-[120px]">
-                      <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-700">
+                      <code className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-xs font-mono text-slate-700 dark:text-slate-300">
                         {p.sku}
                       </code>
                       {!isViewAll && p.stockCode && (
                         <div className="mt-1">
-                          <span className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-xs font-mono text-blue-700">
+                          <span className="inline-flex items-center gap-1 rounded border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 text-xs font-mono text-blue-700 dark:text-blue-400">
                             {p.stockCode}
                           </span>
                         </div>
                       )}
                       {p.barcode && (
                         <div className="flex items-center gap-1 mt-1">
-                          <Barcode className="h-3 w-3 text-slate-400" />
-                          <span className="text-xs text-slate-400">{p.barcode}</span>
+                          <Barcode className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+                          <span className="text-xs text-slate-400 dark:text-slate-500">{p.barcode}</span>
                         </div>
                       )}
                     </DataTableCell>
@@ -406,7 +416,7 @@ export default function ProductsPage() {
 
                     {/* Price */}
                     <DataTableCell right hidden>
-                      <span className="font-semibold tabular-nums text-slate-900">
+                      <span className="font-semibold tabular-nums text-slate-900 dark:text-white">
                         {formatThaiMoney(Number(p.price))}
                       </span>
                     </DataTableCell>
@@ -421,15 +431,15 @@ export default function ProductsPage() {
                       <div className="flex flex-col items-center gap-0.5">
                         <div className="flex items-center gap-1">
                           <span className={`text-lg font-bold leading-none ${
-                            isOut ? 'text-red-500' : isLow ? 'text-amber-600' : 'text-slate-900'
+                            isOut ? 'text-red-500 dark:text-red-400' : isLow ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'
                           }`}>
                             {q}
                           </span>
-                          <span className="text-xs text-slate-400">/{p.minStock}</span>
+                          <span className="text-xs text-slate-400 dark:text-slate-500">/{p.minStock}</span>
                           {hasBreakdown && (
                             <button
                               onClick={() => toggleExpand(p.id)}
-                              className="ml-0.5 text-slate-400 hover:text-slate-700 transition-colors"
+                              className="ml-0.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
                               title={isExpanded ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียดสาขา'}
                             >
                               {isExpanded
@@ -441,7 +451,7 @@ export default function ProductsPage() {
                         {!isViewAll && isOut && (
                           <button
                             onClick={() => toggleAvailability(p.id)}
-                            className="flex items-center gap-0.5 text-[10px] text-blue-600 hover:text-blue-800 transition-colors mt-0.5"
+                            className="flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors mt-0.5"
                           >
                             {isAvailLoading ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
@@ -468,7 +478,7 @@ export default function ProductsPage() {
                         <Badge variant="success" className="text-xs">ปกติ</Badge>
                       )}
                       {!isViewAll && isOut && !isAvailLoading && isAvailExpanded && otherHaveStock && (
-                        <p className="text-[10px] text-emerald-600 mt-0.5 font-medium">มีสต็อกสาขาอื่น</p>
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">มีสต็อกสาขาอื่น</p>
                       )}
                     </DataTableCell>
 
@@ -477,7 +487,7 @@ export default function ProductsPage() {
                       <div className="flex items-center justify-center gap-1">
                         <Button
                           size="icon" variant="ghost"
-                          className="h-7 w-7 hover:bg-blue-50 hover:text-blue-600"
+                          className="h-7 w-7 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400"
                           onClick={() => openEdit(p)}
                           title="แก้ไข"
                         >
@@ -486,7 +496,7 @@ export default function ProductsPage() {
                         {canAdjust && (
                           <Button
                             size="icon" variant="ghost"
-                            className="h-7 w-7 hover:bg-emerald-50 hover:text-emerald-700"
+                            className="h-7 w-7 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-700 dark:hover:text-emerald-400"
                             onClick={() => openAddStockDialog(p)}
                             title="เพิ่มสต็อก"
                           >
@@ -496,7 +506,7 @@ export default function ProductsPage() {
                         {!isViewAll && effectiveBranch && isOut && otherHaveStock && canRequestTransfer && (
                           <Button
                             size="icon" variant="ghost"
-                            className="h-7 w-7 hover:bg-amber-50 hover:text-amber-600"
+                            className="h-7 w-7 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 dark:hover:text-amber-400"
                             onClick={() => setTransferProduct(p)}
                             title="ขอโอนสินค้า"
                           >
@@ -505,7 +515,7 @@ export default function ProductsPage() {
                         )}
                         <Button
                           size="icon" variant="ghost"
-                          className="h-7 w-7 hover:bg-red-50 hover:text-red-600"
+                          className="h-7 w-7 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400"
                           onClick={() => setDeleteProduct(p)}
                           title="ลบ"
                         >
@@ -517,7 +527,7 @@ export default function ProductsPage() {
 
                   // ── All-branches stock breakdown row ──────────────────────
                   ...(hasBreakdown && isExpanded ? [
-                    <tr key={`${p.id}-breakdown`} className="bg-blue-50/40 border-t border-blue-100">
+                    <tr key={`${p.id}-breakdown`} className="bg-blue-50/40 dark:bg-blue-900/10 border-t border-blue-100 dark:border-blue-800/40">
                       <td colSpan={9} className="px-8 py-3">
                         <div className="flex flex-wrap gap-2">
                           {p.branchBreakdown!.map((b) => (
@@ -525,10 +535,10 @@ export default function ProductsPage() {
                               key={b.branchId}
                               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
                                 b.quantity === 0
-                                  ? 'bg-red-50 border-red-200 text-red-600'
+                                  ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400'
                                   : b.quantity <= b.minStock
-                                    ? 'bg-amber-50 border-amber-200 text-amber-700'
-                                    : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                    ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-400'
+                                    : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400'
                               }`}
                             >
                               <span>{b.branchName}</span>
@@ -545,10 +555,10 @@ export default function ProductsPage() {
 
                   // ── Single-branch availability mini-breakdown row ──────────
                   ...(!isViewAll && isAvailExpanded ? [
-                    <tr key={`${p.id}-avail`} className="bg-slate-50 border-t border-slate-100">
+                    <tr key={`${p.id}-avail`} className="bg-slate-50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800">
                       <td colSpan={9} className="px-8 py-2.5">
                         {availData.filter((b) => b.branchId !== effectiveBranch).length === 0 ? (
-                          <p className="text-xs text-slate-400">ไม่มีสาขาอื่นที่มีสต็อกสินค้านี้</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500">ไม่มีสาขาอื่นที่มีสต็อกสินค้านี้</p>
                         ) : (
                           <div className="flex flex-wrap gap-2">
                             {availData
@@ -558,8 +568,8 @@ export default function ProductsPage() {
                                   key={b.branchId}
                                   className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
                                     b.quantity === 0
-                                      ? 'border-slate-200 bg-slate-50 text-slate-400'
-                                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                      ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
+                                      : 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
                                   }`}
                                 >
                                   <span>{b.branchName}</span>
@@ -579,13 +589,13 @@ export default function ProductsPage() {
 
         {/* Pagination footer */}
         {filtered.length > 0 && (
-          <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500">
+          <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
             <span>
               แสดง{' '}
-              <span className="font-medium text-slate-700">
+              <span className="font-medium text-slate-700 dark:text-slate-300">
                 {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)}
               </span>{' '}
-              จาก <span className="font-medium text-slate-700">{filtered.length}</span> รายการ
+              จาก <span className="font-medium text-slate-700 dark:text-slate-300">{filtered.length}</span> รายการ
               {isFetching && !isLoading && <span className="ml-2 opacity-50">(กำลังอัปเดต...)</span>}
             </span>
             {totalPages > 1 && (
@@ -649,13 +659,13 @@ export default function ProductsPage() {
       <Dialog open={!!deleteProduct} onOpenChange={(v) => { if (!v) setDeleteProduct(null) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
               <Trash2 className="h-5 w-5" />
               ยืนยันการลบสินค้า
             </DialogTitle>
             <DialogDescription>
               คุณต้องการลบสินค้า{' '}
-              <span className="font-semibold text-slate-900">&ldquo;{deleteProduct?.name}&rdquo;</span>{' '}
+              <span className="font-semibold text-slate-900 dark:text-white">&ldquo;{deleteProduct?.name}&rdquo;</span>{' '}
               ใช่หรือไม่?
               <br />
               <span className="text-xs mt-1 inline-block">สินค้าจะถูกซ่อนออกจากระบบ (ไม่ได้ลบถาวร)</span>

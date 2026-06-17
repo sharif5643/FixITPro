@@ -14,6 +14,7 @@ import api from '@/lib/api'
 import type { StockTransfer } from '@/types'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -312,10 +313,7 @@ function TransfersContent() {
           ))}
         </div>
       ) : transfers.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
-          <ArrowRightLeft className="h-10 w-10 mx-auto mb-2 opacity-40" />
-          <p className="text-sm">ยังไม่มีรายการโอนสต็อก</p>
-        </div>
+        <EmptyState preset="transfers" />
       ) : (
         <div className="space-y-2">
           {transfers.map((t) => {

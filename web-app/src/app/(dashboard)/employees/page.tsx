@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -549,9 +550,8 @@ export default function EmployeesPage() {
           <span className="text-sm">กำลังโหลด...</span>
         </div>
       ) : users.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 gap-2 rounded-xl border bg-slate-50 text-slate-400">
-          <Users className="h-12 w-12 opacity-30" />
-          <p className="text-sm font-medium">ยังไม่มีพนักงาน</p>
+        <div className="rounded-xl border bg-slate-50">
+          <EmptyState preset="default" title="ยังไม่มีพนักงาน" description="เพิ่มพนักงานเพื่อเริ่มต้นใช้งานระบบ" icon={Users} />
         </div>
       ) : (
         <div className="grid gap-3">

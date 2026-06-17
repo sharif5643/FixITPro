@@ -6,3 +6,14 @@ logs/
 .env.*
 !.env.example
 !.env.production.example
+
+# Compiled TypeScript output (transpile-in-place artifacts)
+prisma/*.js
+prisma/*.d.ts
+prisma/*.js.map
+scripts/*.js
+scripts/*.d.ts
+scripts/*.js.map
+jest.config.js
+jest.config.d.ts
+jest.config.js.map

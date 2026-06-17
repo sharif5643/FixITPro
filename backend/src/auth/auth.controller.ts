@@ -21,7 +21,7 @@ function parseExpiryToSeconds(expiry: string): number {
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Throttle({ auth_login: { ttl: 15 * 60 * 1000, limit: 5 } })
+  @Throttle({ auth_login: { ttl: 15 * 60 * 1000, limit: 20 } })
   @UseGuards(ThrottlerGuard)
   @Post('login')
   async login(

@@ -17,6 +17,7 @@ import {
   PackageX,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -173,11 +174,12 @@ export default function SerialsPage() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : serials.length === 0 ? (
-            <div className="flex flex-col items-center py-16 text-center">
-              <ShieldCheck className="h-12 w-12 text-gray-200 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">ไม่พบ Serial</p>
-              <p className="text-xs text-muted-foreground mt-1">เพิ่ม Serial / IMEI สำหรับสินค้าที่ต้องการติดตาม</p>
-            </div>
+            <EmptyState
+              preset={search || statusFilter !== 'ALL' || productFilter ? 'search' : 'default'}
+              icon={ShieldCheck}
+              title="ไม่พบ Serial"
+              description="เพิ่ม Serial / IMEI สำหรับสินค้าที่ต้องการติดตาม"
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

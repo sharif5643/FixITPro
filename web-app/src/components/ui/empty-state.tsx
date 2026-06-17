@@ -2,7 +2,8 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Package, Wrench, Bell, Users, BarChart2, ShoppingCart,
-  Inbox, Search, AlertTriangle, FileText, type LucideIcon,
+  Inbox, Search, AlertTriangle, FileText, BadgeCheck, ArrowRightLeft,
+  Clock, type LucideIcon,
 } from 'lucide-react'
 
 // ── Preset icon / copy maps ───────────────────────────────────────────────────
@@ -17,6 +18,10 @@ type EmptyPreset =
   | 'debt'
   | 'stock'
   | 'search'
+  | 'warranty'
+  | 'technicians'
+  | 'transfers'
+  | 'shifts'
   | 'default'
 
 const PRESETS: Record<EmptyPreset, { icon: LucideIcon; title: string; description: string }> = {
@@ -29,6 +34,10 @@ const PRESETS: Record<EmptyPreset, { icon: LucideIcon; title: string; descriptio
   debt:          { icon: AlertTriangle,'title': 'ไม่มีหนี้ค้างชำระ',   description: 'ลูกค้าทุกคนชำระเงินครบแล้ว' },
   stock:         { icon: Package,      title: 'ไม่มีสต็อกค้าง',        description: 'สินค้าทุกรายการมีการเคลื่อนไหว' },
   search:        { icon: Search,       title: 'ไม่พบผลลัพธ์',           description: 'ลองค้นหาด้วยคำอื่น หรือปรับตัวกรอง' },
+  warranty:      { icon: BadgeCheck,    title: 'ยังไม่มีการรับประกัน',   description: 'การรับประกันงานซ่อมและสินค้าจะแสดงที่นี่' },
+  technicians:   { icon: Users,        title: 'ไม่มีข้อมูลช่างซ่อม',    description: 'อันดับและสถิติช่างจะแสดงเมื่อมีงานซ่อม' },
+  transfers:     { icon: ArrowRightLeft,'title': 'ยังไม่มีรายการโอนสต็อก', description: 'รายการโอนสินค้าระหว่างสาขาจะแสดงที่นี่' },
+  shifts:        { icon: Clock,        title: 'ยังไม่มีประวัติกะ',      description: 'ประวัติการเปิด-ปิดกะจะแสดงที่นี่' },
   default:       { icon: Inbox,        title: 'ไม่มีข้อมูล',            description: 'ยังไม่มีรายการในขณะนี้' },
 }
 

@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
 import type { TechnicianSummary } from '@/types'
@@ -181,10 +182,7 @@ export default function TechniciansPage() {
             <span>กำลังโหลด...</span>
           </div>
         ) : techs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
-            <Users className="h-10 w-10 text-gray-200" />
-            <p className="text-sm">ไม่มีข้อมูลช่างซ่อม</p>
-          </div>
+          <EmptyState preset="technicians" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -273,9 +271,8 @@ export default function TechniciansPage() {
             <span>กำลังโหลด...</span>
           </div>
         ) : techs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 bg-white rounded-xl border gap-2 text-muted-foreground">
-            <Users className="h-10 w-10 text-gray-200" />
-            <p className="text-sm">ไม่มีข้อมูลช่างซ่อม</p>
+          <div className="bg-white rounded-xl border">
+            <EmptyState preset="technicians" />
           </div>
         ) : (
           techs.map((t) => (

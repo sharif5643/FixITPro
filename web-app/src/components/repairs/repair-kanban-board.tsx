@@ -22,6 +22,7 @@ import { getSLATier, formatSLAAge, SLA_CLS, SLA_DOT } from '@/lib/sla'
 import { beepSuccess, beepError, haptic } from '@/lib/beep'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
+import { TechnicianAvatar } from '@/components/ui/technician-avatar'
 import type { Repair, RepairStatus } from '@/types'
 
 // ── Column definitions (maps to DB status values) ────────────────────────────
@@ -94,7 +95,7 @@ function TechnicianQueueBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-1 pb-3 shrink-0">
-      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1">
+      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
         <User className="h-3 w-3" />
         ช่าง
       </span>
@@ -104,8 +105,8 @@ function TechnicianQueueBar({
         className={cn(
           'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
           filterTechId === null
-            ? 'bg-blue-600 text-white border-blue-600'
-            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300',
+            ? 'bg-blue-600 text-white border-blue-600 dark:bg-blue-600 dark:border-blue-600'
+            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600',
         )}
       >
         ทั้งหมด
@@ -118,17 +119,15 @@ function TechnicianQueueBar({
           className={cn(
             'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors',
             filterTechId === id
-              ? 'bg-purple-600 text-white border-purple-600'
-              : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300',
+              ? 'bg-purple-600 text-white border-purple-600 dark:bg-purple-600 dark:border-purple-600'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600',
           )}
         >
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-slate-700 font-bold text-[10px]">
-            {name.charAt(0).toUpperCase()}
-          </span>
+          <TechnicianAvatar name={name} size="sm" />
           {name}
           <span className={cn(
             'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
-            filterTechId === id ? 'bg-white text-purple-600' : 'bg-slate-100 text-slate-600',
+            filterTechId === id ? 'bg-white text-purple-600 dark:bg-slate-900 dark:text-purple-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
           )}>
             {count}
           </span>
@@ -136,7 +135,7 @@ function TechnicianQueueBar({
       ))}
 
       {unassigned > 0 && (
-        <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+        <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
           <AlertTriangle className="h-3 w-3" />
           ยังไม่มีช่าง {unassigned} งาน
         </span>
@@ -192,12 +191,12 @@ function RepairCard({
       style={style}
       {...(isDragOverlay ? {} : { ...listeners, ...attributes })}
       className={cn(
-        'bg-white rounded-xl border shadow-sm select-none',
+        'bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm select-none',
         isDragOverlay
-          ? 'opacity-95 shadow-xl rotate-1 cursor-grabbing ring-2 ring-blue-400'
+          ? 'opacity-95 shadow-xl rotate-1 cursor-grabbing ring-2 ring-blue-400 dark:ring-blue-600'
           : isDragging
             ? 'opacity-30 border-dashed cursor-grabbing'
-            : 'cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-300 transition-all',
+            : 'card-lift cursor-grab active:cursor-grabbing hover:border-blue-300 dark:hover:border-blue-600',
       )}
     >
       {/* SLA accent bar */}
@@ -210,7 +209,7 @@ function RepairCard({
       <div className="p-3 space-y-2">
         {/* Row 1: ticket + SLA age */}
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-xs font-bold text-blue-700 shrink-0">
+          <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400 shrink-0">
             {repair.ticketNumber}
           </span>
           <span className={cn('flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0', SLA_CLS[tier])}>
@@ -221,45 +220,43 @@ function RepairCard({
 
         {/* Row 2: customer */}
         {repair.customer && (
-          <p className="text-sm font-semibold text-slate-900 truncate leading-tight">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white truncate leading-tight">
             {repair.customer.name}
           </p>
         )}
 
         {/* Row 3: device */}
-        <p className="text-xs text-slate-500 truncate">
+        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
           {repair.deviceBrand} {repair.deviceModel}
         </p>
 
         {/* Row 4: issue */}
-        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+        <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
           {repair.issue}
         </p>
 
         {/* Row 5: badges */}
         <div className="flex flex-wrap gap-1">
           {partsWaiting && (
-            <span className="flex items-center gap-0.5 rounded-full bg-orange-100 text-orange-700 px-2 py-0.5 text-[10px] font-semibold">
+            <span className="flex items-center gap-0.5 rounded-full bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 px-2 py-0.5 text-[10px] font-semibold">
               <Package className="h-2.5 w-2.5" />
               รออะไหล่
             </span>
           )}
           {!partsWaiting && hasParts && (
-            <span className="flex items-center gap-0.5 rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 text-[10px]">
+            <span className="flex items-center gap-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 text-[10px]">
               <Package className="h-2.5 w-2.5" />
               {repair.parts.length} ชิ้น
             </span>
           )}
           {repair.technician && (
-            <span className="flex items-center gap-0.5 rounded-full bg-purple-50 text-purple-700 px-2 py-0.5 text-[10px]">
-              <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-purple-200 text-[8px] font-bold">
-                {repair.technician.name.charAt(0).toUpperCase()}
-              </span>
+            <span className="flex items-center gap-0.5 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 px-2 py-0.5 text-[10px]">
+              <TechnicianAvatar name={repair.technician.name} size="xs" />
               {repair.technician.name}
             </span>
           )}
           {hasBalance && balance > 0 && (
-            <span className="flex items-center gap-0.5 rounded-full bg-red-50 text-red-700 px-2 py-0.5 text-[10px] font-semibold">
+            <span className="flex items-center gap-0.5 rounded-full bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-2 py-0.5 text-[10px] font-semibold">
               <Banknote className="h-2.5 w-2.5" />
               ค้าง {formatThaiMoney(balance)}
             </span>
@@ -268,13 +265,13 @@ function RepairCard({
 
         {/* Quick actions */}
         <div
-          className="flex items-center gap-1 pt-1 border-t border-slate-100"
+          className="flex items-center gap-1 pt-1 border-t border-slate-100 dark:border-slate-700"
           onPointerDown={(e) => e.stopPropagation()} // prevent drag when clicking actions
         >
           {hasBalance && (
             <button
               onClick={() => onPayment(repair.id)}
-              className="flex items-center gap-1 rounded-lg bg-green-50 text-green-700 px-2 py-1 text-[10px] font-semibold hover:bg-green-100 active:bg-green-200 transition-colors"
+              className="flex items-center gap-1 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2 py-1 text-[10px] font-semibold hover:bg-green-100 dark:hover:bg-green-900/40 active:bg-green-200 dark:active:bg-green-900/60 transition-colors"
             >
               <Banknote className="h-3 w-3" />
               รับเงิน
@@ -282,13 +279,13 @@ function RepairCard({
           )}
           <button
             onClick={() => onPrint(repair.id)}
-            className="flex items-center gap-1 rounded-lg bg-slate-50 text-slate-600 px-2 py-1 text-[10px] hover:bg-slate-100 transition-colors"
+            className="flex items-center gap-1 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 text-[10px] hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
           >
             <Printer className="h-3 w-3" />
           </button>
           <button
             onClick={() => onOpenDetail(repair.id)}
-            className="ml-auto flex items-center gap-1 rounded-lg bg-blue-50 text-blue-700 px-2 py-1 text-[10px] hover:bg-blue-100 transition-colors"
+            className="ml-auto flex items-center gap-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 px-2 py-1 text-[10px] hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
           >
             <ExternalLink className="h-3 w-3" />
             รายละเอียด
@@ -322,15 +319,15 @@ function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        'flex flex-col rounded-xl border-2 border-t-4 bg-slate-50 min-h-[200px] w-64 sm:w-72 shrink-0 transition-colors',
+        'flex flex-col rounded-xl border-2 border-t-4 bg-slate-50 dark:bg-slate-900/40 min-h-[200px] w-64 sm:w-72 shrink-0 transition-colors',
         accent,
-        isOver ? 'bg-blue-50 border-blue-300 border-t-4' : '',
+        isOver ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 border-t-4' : '',
       )}
     >
       {/* Column header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b bg-white rounded-t-lg">
-        <span className="text-sm font-bold text-slate-800">{label}</span>
-        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 text-slate-700 text-xs font-bold px-1">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b dark:border-slate-800 bg-white dark:bg-slate-900 rounded-t-lg">
+        <span className="text-sm font-bold text-slate-800 dark:text-white">{label}</span>
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold px-1">
           {repairs.length}
         </span>
       </div>
@@ -339,13 +336,13 @@ function KanbanColumn({
       <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-20rem)]">
         {repairs.length === 0 ? (
           <div className={cn(
-            'flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-8 gap-2 text-slate-400 transition-colors',
-            isOver ? 'border-blue-400 bg-blue-50/50' : 'border-slate-200',
+            'flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-8 gap-2 text-slate-400 dark:text-slate-500 transition-colors',
+            isOver ? 'border-blue-400 dark:border-blue-600 bg-blue-50/50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700',
           )}>
             <Wrench className="h-6 w-6 opacity-30" />
             <p className="text-xs text-center">ไม่มีงานในสถานะนี้</p>
             {isOver && (
-              <p className="text-xs text-blue-500 font-semibold">วางที่นี่</p>
+              <p className="text-xs text-blue-500 dark:text-blue-400 font-semibold">วางที่นี่</p>
             )}
           </div>
         ) : (
@@ -385,10 +382,10 @@ function CancelledSection({
   if (repairs.length === 0) return null
 
   return (
-    <div className="shrink-0 border-t pt-3">
+    <div className="shrink-0 border-t dark:border-slate-800 pt-3">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full text-left px-1 py-1 text-sm font-semibold text-red-600 hover:text-red-700 transition-colors"
+        className="flex items-center gap-2 w-full text-left px-1 py-1 text-sm font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
       >
         {expanded
           ? <ChevronUp className="h-4 w-4" />

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   Dialog,
   DialogContent,
@@ -398,16 +399,15 @@ export default function CategoriesPage() {
           <span>กำลังโหลด...</span>
         </div>
       ) : types.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 gap-3 rounded-xl border bg-gray-50 text-muted-foreground">
-          <Layers className="h-12 w-12 text-gray-200" />
-          <div className="text-center">
-            <p className="text-sm font-medium">ยังไม่มีประเภทสินค้า</p>
-            <p className="text-xs mt-0.5">เริ่มต้นด้วยการเพิ่มประเภท เช่น &ldquo;มือถือ&rdquo;, &ldquo;อะไหล่&rdquo;</p>
-          </div>
-          <Button size="sm" variant="outline" onClick={openAddType}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            เพิ่มประเภทแรก
-          </Button>
+        <div className="rounded-xl border bg-gray-50">
+          <EmptyState
+            preset="default"
+            icon={Layers}
+            title="ยังไม่มีประเภทสินค้า"
+            description="เริ่มต้นด้วยการเพิ่มประเภท เช่น “มือถือ”, “อะไหล่”"
+            ctaLabel="เพิ่มประเภทแรก"
+            onCta={openAddType}
+          />
         </div>
       ) : (
         <div className="space-y-4">

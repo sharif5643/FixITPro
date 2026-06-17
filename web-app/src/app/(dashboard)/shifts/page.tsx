@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
   DataTableRow, DataTableCell,
@@ -624,7 +625,7 @@ export default function ShiftsPage() {
             <span className="text-sm">กำลังโหลด...</span>
           </div>
         ) : history.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-8 px-4">ยังไม่มีประวัติกะ</p>
+          <EmptyState preset="shifts" size="sm" />
         ) : (
           <>
             {/* Desktop table */}

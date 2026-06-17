@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import api from '@/lib/api'
 import type { Branch, BranchStatus, BranchStock } from '@/types'
 
@@ -276,10 +277,7 @@ export default function BranchesPage() {
           {isLoading ? (
             <div className="text-center py-12 text-slate-400">กำลังโหลด...</div>
           ) : branches.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
-              <Building2 className="h-10 w-10 mx-auto mb-2 opacity-40" />
-              ยังไม่มีสาขา — กดปุ่มเพิ่มสาขาเพื่อเริ่มต้น
-            </div>
+            <EmptyState preset="default" icon={Building2} title="ยังไม่มีสาขา" description="กดปุ่มเพิ่มสาขาเพื่อเริ่มต้น" />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {branches.map((branch) => (
@@ -420,7 +418,7 @@ export default function BranchesPage() {
               <p className="text-xs mt-1 text-amber-500">⚠ สต็อกแสดงเฉพาะสาขาที่เลือก — ไม่ใช่รวมทุกสาขา</p>
             </div>
           ) : branchStock.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">ยังไม่มีข้อมูลสต็อกสำหรับสาขานี้</div>
+            <EmptyState preset="stock" title="ยังไม่มีข้อมูลสต็อก" description="ไม่มีข้อมูลสต็อกสำหรับสาขานี้" />
           ) : (
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
               <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 text-xs text-blue-700 font-medium flex items-center gap-1">
