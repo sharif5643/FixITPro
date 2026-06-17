@@ -182,6 +182,7 @@ export default function RepairsPage() {
           selectedRepairId={selectedRepairId}
           setSelectedRepairId={setSelectedRepairId}
           invalidate={invalidate}
+          branchId={branchId}
         />
       </div>
     )
@@ -354,6 +355,7 @@ export default function RepairsPage() {
         selectedRepairId={selectedRepairId}
         setSelectedRepairId={setSelectedRepairId}
         invalidate={invalidate}
+        branchId={branchId}
       />
     </div>
   )
@@ -386,19 +388,21 @@ function ViewToggle({ viewMode, onSwitch }: { viewMode: 'list' | 'board'; onSwit
 }
 
 function Dialogs({
-  createOpen, setCreateOpen, selectedRepairId, setSelectedRepairId, invalidate,
+  createOpen, setCreateOpen, selectedRepairId, setSelectedRepairId, invalidate, branchId,
 }: {
   createOpen: boolean
   setCreateOpen: (v: boolean) => void
   selectedRepairId: string | null
   setSelectedRepairId: (v: string | null) => void
   invalidate: () => void
+  branchId: string | undefined
 }) {
   return (
     <>
       <RepairFormDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        branchId={branchId}
         onSuccess={() => { setCreateOpen(false); invalidate() }}
       />
       <RepairDetailDialog

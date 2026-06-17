@@ -65,10 +65,14 @@ export class RepairsController {
     @Body() dto: CreateRepairDto,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
-    @CurrentUser('branchId') branchId: string | null,
+    @CurrentUser('role') role: string,
+    @CurrentUser('branchId') jwtBranchId: string | null,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.repairsService.create(dto, actorId, actorName, branchId ?? undefined, tenantId);
+    // OWNER/SUPER_ADMIN have no fixed branch in JWT — use the branchId they send in the body
+    const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
+    const branchId   = isElevated ? (dto.branchId ?? jwtBranchId ?? undefined) : (jwtBranchId ?? undefined);
+    return this.repairsService.create(dto, actorId, actorName, branchId, tenantId);
   }
 
   @Get()

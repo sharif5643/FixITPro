@@ -95,13 +95,14 @@ interface RepairFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+  branchId?: string
 }
 
 function generateImei(): string {
   return Array.from({ length: 15 }, () => Math.floor(Math.random() * 10)).join('')
 }
 
-export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDialogProps) {
+export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: RepairFormDialogProps) {
   const queryClient = useQueryClient()
 
   const {
@@ -183,6 +184,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess }: RepairFormDi
   const createMutation = useMutation({
     mutationFn: async (data: RepairFormData) => {
       const res = await api.post('/repairs', {
+        branchId,
         customerId:    selectedCustomer?.id,
         customerName:  !selectedCustomer ? (data.customerName?.trim() || undefined) : undefined,
         customerPhone: !selectedCustomer ? (data.customerPhone?.trim() || undefined) : undefined,

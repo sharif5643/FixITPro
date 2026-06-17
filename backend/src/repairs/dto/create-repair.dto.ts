@@ -4,6 +4,10 @@ import { Type } from 'class-transformer';
 export class CreateRepairDto {
   @IsOptional()
   @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
   customerId?: string;
 
   @IsOptional()
