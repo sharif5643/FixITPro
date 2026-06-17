@@ -1,19 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { TenantService } from '../tenant/tenant.service';
 
 interface OverviewParams {
   startDate?: string;
   endDate?: string;
   branchId?: string;
   isOwner?: boolean;
+  tenantId?: string | null;
 }
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private tenantSvc: TenantService,
+  ) {}
 
   async getOverview(params: OverviewParams) {
-    const { isOwner = false } = params;
+    const { isOwner = false, tenantId } = params;
     const now = new Date();
     const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
     const todayStr = thaiNow.toISOString().slice(0, 10);
@@ -33,11 +38,13 @@ export class DashboardService {
     const toThaiDate = (d: Date) =>
       new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    const bFilter = params.branchId ? { branchId: params.branchId } : {};
+    const bFilter = params.branchId
+      ? { branchId: params.branchId }
+      : this.tenantSvc.branchScope(tenantId);
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const notifWhere = params.branchId
       ? { OR: [{ branchId: params.branchId }, { branchId: null as string | null }] }
-      : {};
+      : tenantId ? { branch: { tenantId } } : {};
 
     const [
       salesAgg,
@@ -186,20 +193,23 @@ export class DashboardService {
         where: { paymentStatus: { not: 'PAID' }, status: { not: 'CANCELLED' } },
         _sum: { total: true, paidTotal: true },
       }),
-      // Branch performance (all branches, no bFilter — for comparison view)
+      // Branch performance (scoped to tenant)
       this.prisma.sale.groupBy({
         by: ['branchId'],
-        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' } },
+        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...this.tenantSvc.branchScope(tenantId) },
         _sum: { total: true },
         _count: { id: true },
       }),
       this.prisma.repair.groupBy({
         by: ['branchId'],
-        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID' },
+        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', ...this.tenantSvc.branchScope(tenantId) },
         _sum: { paidAmount: true },
         _count: { id: true },
       }),
-      this.prisma.branch.findMany({ select: { id: true, name: true } }),
+      this.prisma.branch.findMany({
+        where: tenantId ? { tenantId } : {},
+        select: { id: true, name: true },
+      }),
     ]);
 
     // ── Financial ─────────────────────────────────────────────────────────────
@@ -375,7 +385,7 @@ export class DashboardService {
   }
 
   // ── Owner Summary ─────────────────────────────────────────────────────────────
-  async getOwnerSummary() {
+  async getOwnerSummary(tenantId?: string | null) {
     const now      = new Date();
     const thaiNow  = new Date(now.getTime() + 7 * 60 * 60 * 1000);
     const todayStr = thaiNow.toISOString().slice(0, 10);
@@ -385,6 +395,9 @@ export class DashboardService {
     const todayEnd     = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
     const monthStart   = new Date(`${monthStr}T00:00:00+07:00`);
     const weekAgoStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
+
+    const bScope = this.tenantSvc.branchScope(tenantId);
+    const tScope = this.tenantSvc.scope(tenantId);
 
     const [
       todaySalesAgg, todayRepairAgg, todayExpensesAgg,
@@ -396,49 +409,54 @@ export class DashboardService {
       pastWeekSalesAgg,
     ] = await Promise.all([
       this.prisma.sale.aggregate({
-        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' } },
+        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bScope },
         _sum: { total: true },
       }),
       this.prisma.repair.aggregate({
-        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID' },
+        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID', ...bScope },
         _sum: { paidAmount: true },
       }),
       this.prisma.expense.aggregate({
-        where: { expenseDate: { gte: todayStart, lt: todayEnd }, voidedAt: null },
+        where: { expenseDate: { gte: todayStart, lt: todayEnd }, voidedAt: null, ...bScope },
         _sum: { amount: true },
       }),
       this.prisma.customer.count({
-        where: { createdAt: { gte: todayStart, lt: todayEnd } },
+        where: { createdAt: { gte: todayStart, lt: todayEnd }, ...tScope },
       }),
       this.prisma.sale.aggregate({
-        where: { createdAt: { gte: monthStart, lt: todayEnd }, status: { not: 'VOIDED' } },
+        where: { createdAt: { gte: monthStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bScope },
         _sum: { total: true },
       }),
       this.prisma.repair.aggregate({
-        where: { paidAt: { gte: monthStart, lt: todayEnd }, paymentStatus: 'PAID' },
+        where: { paidAt: { gte: monthStart, lt: todayEnd }, paymentStatus: 'PAID', ...bScope },
         _sum: { paidAmount: true },
       }),
       this.prisma.expense.aggregate({
-        where: { expenseDate: { gte: monthStart, lt: todayEnd }, voidedAt: null },
+        where: { expenseDate: { gte: monthStart, lt: todayEnd }, voidedAt: null, ...bScope },
         _sum: { amount: true },
       }),
       this.prisma.repair.count({
-        where: { status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+        where: { status: { notIn: ['DELIVERED', 'CANCELLED'] }, ...bScope },
       }),
       this.prisma.repair.count({
-        where: { dueDate: { lt: now }, status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] } },
+        where: { dueDate: { lt: now }, status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] }, ...bScope },
       }),
       this.prisma.repair.findMany({
-        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' } },
+        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' }, ...bScope },
         select: { finalCost: true, estimateCost: true, deposit: true },
       }),
-      this.prisma.product.count({ where: { isActive: true, stock: 0 } }),
-      this.prisma.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*) as count FROM "Product"
-        WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"
-      `,
+      this.prisma.product.count({ where: { isActive: true, stock: 0, ...tScope } }),
+      tenantId
+        ? this.prisma.$queryRaw<[{ count: bigint }]>`
+            SELECT COUNT(*) as count FROM "Product"
+            WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock" AND "tenantId" = ${tenantId}
+          `
+        : this.prisma.$queryRaw<[{ count: bigint }]>`
+            SELECT COUNT(*) as count FROM "Product"
+            WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"
+          `,
       this.prisma.sale.findMany({
-        where: { status: { not: 'VOIDED' } },
+        where: { status: { not: 'VOIDED' }, ...bScope },
         orderBy: { createdAt: 'desc' },
         take: 5,
         select: {
@@ -448,7 +466,7 @@ export class DashboardService {
         },
       }),
       this.prisma.sale.aggregate({
-        where: { createdAt: { gte: weekAgoStart, lt: todayStart }, status: { not: 'VOIDED' } },
+        where: { createdAt: { gte: weekAgoStart, lt: todayStart }, status: { not: 'VOIDED' }, ...bScope },
         _sum: { total: true },
       }),
     ]);

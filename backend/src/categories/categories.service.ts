@@ -5,12 +5,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { TenantService } from '../tenant/tenant.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateCategoryTypeDto } from './dto/create-category-type.dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private tenantSvc: TenantService,
+  ) {}
 
   private toSlug(name: string): string {
     return name
@@ -60,9 +64,11 @@ export class CategoriesService {
 
   // ── Categories ────────────────────────────────────────────────────
 
-  async create(dto: CreateCategoryDto) {
+  async create(dto: CreateCategoryDto, tenantId?: string | null) {
     const slug = dto.slug?.trim() || this.toSlug(dto.name) || `cat-${Date.now()}`;
-    const existing = await this.prisma.category.findUnique({ where: { slug } });
+    const existing = await this.prisma.category.findFirst({
+      where: { slug, ...this.tenantSvc.scope(tenantId) },
+    });
     if (existing) throw new ConflictException('Slug already exists');
 
     if (dto.categoryTypeId) {
@@ -71,13 +77,14 @@ export class CategoriesService {
     }
 
     return this.prisma.category.create({
-      data: { name: dto.name, slug, categoryTypeId: dto.categoryTypeId },
+      data: { name: dto.name, slug, categoryTypeId: dto.categoryTypeId, ...this.tenantSvc.scope(tenantId) },
       include: { categoryType: { select: { id: true, name: true } }, _count: { select: { products: true } } },
     });
   }
 
-  async findAll() {
+  async findAll(tenantId?: string | null) {
     return this.prisma.category.findMany({
+      where: this.tenantSvc.scope(tenantId),
       include: {
         categoryType: { select: { id: true, name: true } },
         _count: { select: { products: true } },
@@ -86,8 +93,10 @@ export class CategoriesService {
     });
   }
 
-  async update(id: string, dto: Partial<CreateCategoryDto>) {
-    const category = await this.prisma.category.findUnique({ where: { id } });
+  async update(id: string, dto: Partial<CreateCategoryDto>, tenantId?: string | null) {
+    const category = await this.prisma.category.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
+    });
     if (!category) throw new NotFoundException('Category not found');
 
     if (dto.categoryTypeId !== undefined && dto.categoryTypeId !== null) {
@@ -105,8 +114,10 @@ export class CategoriesService {
     });
   }
 
-  async remove(id: string) {
-    const category = await this.prisma.category.findUnique({ where: { id } });
+  async remove(id: string, tenantId?: string | null) {
+    const category = await this.prisma.category.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
+    });
     if (!category) throw new NotFoundException('Category not found');
     return this.prisma.category.delete({ where: { id } });
   }

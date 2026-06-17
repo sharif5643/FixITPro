@@ -175,6 +175,9 @@ model Branch {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
   users          User[]
   sales          Sale[]
   repairs        Repair[]
@@ -186,6 +189,7 @@ model Branch {
   transfersFrom  StockTransfer[] @relation("TransferFrom")
   transfersTo    StockTransfer[] @relation("TransferTo")
 
+  @@index([tenantId])
   @@index([isActive])
   @@index([status])
 }
@@ -271,6 +275,11 @@ model Tenant {
   renewals        TenantRenewal[]
   payments        TenantPayment[]
   moduleOverrides TenantModule[]
+  branches        Branch[]
+  products        Product[]
+  customers       Customer[]
+  categories      Category[]
+  suppliers       Supplier[]
 
   @@index([status])
   @@index([expiryDate])
@@ -411,18 +420,24 @@ model CategoryType {
 model Category {
   id             String        @id @default(cuid())
   name           String
-  slug           String        @unique
+  slug           String
   categoryTypeId String?
   categoryType   CategoryType? @relation(fields: [categoryTypeId], references: [id])
   createdAt      DateTime      @default(now())
 
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
   products Product[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
 }
 
 model Product {
   id          String      @id @default(cuid())
   name        String
-  sku         String      @unique
+  sku         String
   barcode     String?
   type        ProductType
   price       Decimal     @db.Decimal(10, 2)
@@ -441,6 +456,9 @@ model Product {
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
 
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
   saleItems          SaleItem[]
   stockMovements     StockMovement[]
   repairParts        RepairPart[]
@@ -449,6 +467,9 @@ model Product {
   refundItems        SaleRefundItem[]
   branchStocks       BranchStock[]
   stockTransfers     StockTransfer[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
 }
 
 model StockMovement {
@@ -480,7 +501,7 @@ model StockMovement {
 model Customer {
   id        String   @id @default(cuid())
   name      String
-  phone     String?  @unique
+  phone     String?
   email     String?
   address   String?
   note      String?
@@ -489,6 +510,9 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
   sales         Sale[]
   repairs       Repair[]
   claims        Claim[]
@@ -496,6 +520,9 @@ model Customer {
   saleRefunds   SaleRefund[]
   customerNotes CustomerNote[]
   warranties    Warranty[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
 }
 
 model CustomerNote {
@@ -816,7 +843,12 @@ model Supplier {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
   purchaseOrders PurchaseOrder[]
+
+  @@index([tenantId])
 }
 
 enum POStatus {

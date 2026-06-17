@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TenantService } from '../tenant/tenant.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { CreateTransferDto } from './dto/create-transfer.dto';
@@ -20,6 +21,7 @@ export class BranchesService implements OnModuleInit {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private notif: NotificationsService,
+    private tenantSvc: TenantService,
   ) {}
 
   async onModuleInit() {
@@ -134,9 +136,12 @@ export class BranchesService implements OnModuleInit {
 
   // ── Branches CRUD ───────────────────────────────────────────────────────────
 
-  async findAll(includeInactive = false) {
+  async findAll(tenantId: string | null, includeInactive = false) {
     return this.prisma.branch.findMany({
-      where: includeInactive ? undefined : { isActive: true },
+      where: {
+        ...this.tenantSvc.scope(tenantId),
+        ...(includeInactive ? {} : { isActive: true }),
+      },
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
       include: {
         _count: { select: { users: true, sales: true, repairs: true } },
@@ -144,9 +149,9 @@ export class BranchesService implements OnModuleInit {
     });
   }
 
-  async findOne(id: string) {
-    const branch = await this.prisma.branch.findUnique({
-      where: { id },
+  async findOne(id: string, tenantId?: string | null) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
       include: {
         _count: { select: { users: true, sales: true, repairs: true } },
       },
@@ -155,21 +160,24 @@ export class BranchesService implements OnModuleInit {
     return branch;
   }
 
-  async create(dto: CreateBranchDto, actorId?: string, actorName?: string) {
+  async create(dto: CreateBranchDto, actorId?: string, actorName?: string, tenantId?: string | null) {
     if (dto.isDefault) {
-      await this.prisma.branch.updateMany({ data: { isDefault: false } });
+      await this.prisma.branch.updateMany({
+        where: tenantId ? { tenantId } : {},
+        data: { isDefault: false },
+      });
     }
 
-    // Auto-assign next branchNumber
+    // Auto-assign next branchNumber scoped to this tenant
     const maxRow = await this.prisma.branch.findFirst({
-      where: { branchNumber: { not: null } },
+      where: { branchNumber: { not: null }, ...this.tenantSvc.scope(tenantId) },
       orderBy: { branchNumber: 'desc' },
       select: { branchNumber: true },
     });
     const branchNumber = (maxRow?.branchNumber ?? 0) + 1;
 
     const branch = await this.prisma.branch.create({
-      data: { ...dto, branchNumber, status: 'ACTIVE' },
+      data: { ...dto, branchNumber, status: 'ACTIVE', ...(tenantId ? { tenantId } : {}) },
     });
 
     this.auditLog.log({
@@ -192,13 +200,15 @@ export class BranchesService implements OnModuleInit {
     return branch;
   }
 
-  async update(id: string, dto: UpdateBranchDto, actorId?: string, actorName?: string) {
-    const branch = await this.prisma.branch.findUnique({ where: { id } });
+  async update(id: string, dto: UpdateBranchDto, actorId?: string, actorName?: string, tenantId?: string | null) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
+    });
     if (!branch) throw new NotFoundException('ไม่พบสาขา');
 
     if (dto.isDefault) {
       await this.prisma.branch.updateMany({
-        where: { id: { not: id } },
+        where: { id: { not: id }, ...this.tenantSvc.scope(tenantId) },
         data: { isDefault: false },
       });
     }
@@ -215,8 +225,10 @@ export class BranchesService implements OnModuleInit {
     return updated;
   }
 
-  async deactivate(id: string, actorId?: string, actorName?: string) {
-    const branch = await this.prisma.branch.findUnique({ where: { id } });
+  async deactivate(id: string, actorId?: string, actorName?: string, tenantId?: string | null) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
+    });
     if (!branch) throw new NotFoundException('ไม่พบสาขา');
     if (branch.isDefault) throw new BadRequestException('ไม่สามารถปิดใช้งานสาขาหลักได้');
 
@@ -405,21 +417,43 @@ export class BranchesService implements OnModuleInit {
 
   // ── Stock Transfers ─────────────────────────────────────────────────────────
 
-  async listTransfers(query: {
-    branchId?: string;
-    status?: string;
-    productId?: string;
-    startDate?: string;
-    endDate?: string;
-  }) {
+  async listTransfers(
+    query: {
+      branchId?: string;
+      status?: string;
+      productId?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+    tenantId?: string | null,
+  ) {
     const where: any = {};
 
-    if (query.branchId) {
+    // Scope to tenant's branches
+    if (tenantId) {
+      const tenantBranchIds = await this.tenantSvc.getBranchIds(tenantId);
+      if (query.branchId) {
+        // Validate the requested branch belongs to this tenant
+        if (!tenantBranchIds.includes(query.branchId)) {
+          throw new ForbiddenException('สาขานี้ไม่ได้อยู่ในบัญชีของคุณ');
+        }
+        where.OR = [
+          { fromBranchId: query.branchId },
+          { toBranchId: query.branchId },
+        ];
+      } else {
+        where.OR = [
+          { fromBranchId: { in: tenantBranchIds } },
+          { toBranchId: { in: tenantBranchIds } },
+        ];
+      }
+    } else if (query.branchId) {
       where.OR = [
         { fromBranchId: query.branchId },
         { toBranchId: query.branchId },
       ];
     }
+
     if (query.status) where.status = query.status;
     if (query.productId) where.productId = query.productId;
     if (query.startDate || query.endDate) {

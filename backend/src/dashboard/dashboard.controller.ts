@@ -17,8 +17,9 @@ export class DashboardController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('branchId') branchId?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const isOwner = role === 'OWNER' || role === 'SUPER_ADMIN';
     const effectiveBranchId = isOwner ? branchId : (userBranchId ?? undefined);
@@ -27,16 +28,20 @@ export class DashboardController {
       endDate,
       branchId: effectiveBranchId,
       isOwner,
+      tenantId,
     });
   }
 
   @UseGuards(TenantActiveGuard)
   @RequirePermission('reports.view')
   @Get('owner-summary')
-  getOwnerSummary(@CurrentUser('role') role?: string) {
+  getOwnerSummary(
+    @CurrentUser('role')     role?: string,
+    @CurrentUser('tenantId') tenantId?: string,
+  ) {
     if (!['OWNER', 'MANAGER', 'SUPER_ADMIN'].includes(role ?? '')) {
       throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลสรุปเจ้าของ');
     }
-    return this.dashboardService.getOwnerSummary();
+    return this.dashboardService.getOwnerSummary(tenantId);
   }
 }

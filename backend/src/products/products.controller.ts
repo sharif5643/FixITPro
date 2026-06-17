@@ -31,8 +31,9 @@ export class ProductsController {
     @CurrentUser('name')     actorName: string,
     @CurrentUser('branchId') userBranchId: string | null,
     @CurrentUser('role')     userRole: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.productsService.create(dto, actorId, actorName, userBranchId, userRole);
+    return this.productsService.create(dto, actorId, actorName, userBranchId, userRole, tenantId);
   }
 
   @Get()
@@ -47,19 +48,22 @@ export class ProductsController {
     },
     @CurrentUser('branchId') userBranchId: string | null,
     @CurrentUser('role')     role: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    // Non-OWNER users can only see their own branch stock — ignore any query param
     const effectiveBranchId =
       role !== 'OWNER' && role !== 'SUPER_ADMIN'
         ? (userBranchId ?? undefined)
         : (query.branchId ?? undefined);
 
-    return this.productsService.findAll({ ...query, branchId: effectiveBranchId, role });
+    return this.productsService.findAll({ ...query, branchId: effectiveBranchId, role, tenantId });
   }
 
   @Get('generate-sku')
-  generateSku(@Query('type') type: string) {
-    return this.productsService.generateSku(type ?? 'PHONE');
+  generateSku(
+    @Query('type') type: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.productsService.generateSku(type ?? 'PHONE', tenantId);
   }
 
   @Get('generate-barcode')
@@ -71,13 +75,17 @@ export class ProductsController {
   catalogSearch(
     @Query('search') search?: string,
     @Query('barcode') barcode?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
-    return this.productsService.catalogSearch(search, barcode);
+    return this.productsService.catalogSearch(search, barcode, tenantId);
   }
 
   @Get('barcode/:barcode')
-  findByBarcode(@Param('barcode') barcode: string) {
-    return this.productsService.findByBarcode(barcode);
+  findByBarcode(
+    @Param('barcode') barcode: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.productsService.findByBarcode(barcode, undefined, tenantId);
   }
 
   @Get(':id/availability')
@@ -86,8 +94,11 @@ export class ProductsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.productsService.findOne(id, undefined, tenantId);
   }
 
   @Post(':id/enroll-branch')
@@ -106,18 +117,20 @@ export class ProductsController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateProductDto,
-    @CurrentUser('id') actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.productsService.update(id, dto, actorId, actorName);
+    return this.productsService.update(id, dto, actorId, actorName, tenantId);
   }
 
   @Delete(':id')
   remove(
     @Param('id') id: string,
-    @CurrentUser('id') actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.productsService.remove(id, actorId, actorName);
+    return this.productsService.remove(id, actorId, actorName, tenantId);
   }
 }

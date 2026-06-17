@@ -12,13 +12,14 @@ import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateCategoryTypeDto } from './dto/create-category-type.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('categories')
 export class CategoriesController {
   constructor(private categoriesService: CategoriesService) {}
 
-  // ── Category Types ──────────────────────────────────────────────
+  // ── Category Types (system-wide, no tenant scope) ───────────────
 
   @Post('types')
   createType(@Body() dto: CreateCategoryTypeDto) {
@@ -43,22 +44,32 @@ export class CategoriesController {
   // ── Categories ──────────────────────────────────────────────────
 
   @Post()
-  create(@Body() dto: CreateCategoryDto) {
-    return this.categoriesService.create(dto);
+  create(
+    @Body() dto: CreateCategoryDto,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.categoriesService.create(dto, tenantId);
   }
 
   @Get()
-  findAll() {
-    return this.categoriesService.findAll();
+  findAll(@CurrentUser('tenantId') tenantId: string) {
+    return this.categoriesService.findAll(tenantId);
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: Partial<CreateCategoryDto>) {
-    return this.categoriesService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: Partial<CreateCategoryDto>,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.categoriesService.update(id, dto, tenantId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.categoriesService.remove(id);
+  remove(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.categoriesService.remove(id, tenantId);
   }
 }

@@ -21,11 +21,12 @@ export class AnalyticsController {
   @Get('overview')
   getOverview(
     @Query('branchId') branchId?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const effectiveBranchId = IS_ELEVATED(role ?? '') ? branchId : (userBranchId ?? undefined);
-    return this.analyticsService.getOverview(effectiveBranchId);
+    return this.analyticsService.getOverview(effectiveBranchId, tenantId);
   }
 
   @RequirePermission('reports.view')
@@ -33,11 +34,12 @@ export class AnalyticsController {
   getDeadStock(
     @Query('branchId') branchId?: string,
     @Query('days') days?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const effectiveBranchId = IS_ELEVATED(role ?? '') ? branchId : (userBranchId ?? undefined);
-    return this.analyticsService.getDeadStock(effectiveBranchId, days ? parseInt(days, 10) : 30);
+    return this.analyticsService.getDeadStock(effectiveBranchId, days ? parseInt(days, 10) : 30, tenantId);
   }
 
   @Roles('OWNER', 'SUPER_ADMIN')
@@ -46,22 +48,24 @@ export class AnalyticsController {
   @Get('branch-stock')
   getBranchStock(
     @Query('branchId') branchId?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const effectiveBranchId = IS_ELEVATED(role ?? '') ? branchId : (userBranchId ?? undefined);
-    return this.analyticsService.getBranchStock(effectiveBranchId);
+    return this.analyticsService.getBranchStock(effectiveBranchId, tenantId);
   }
 
   @RequirePermission('reports.view')
   @Get('repair-aging')
   getRepairAging(
     @Query('branchId') branchId?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const effectiveBranchId = IS_ELEVATED(role ?? '') ? branchId : (userBranchId ?? undefined);
-    return this.analyticsService.getRepairAging(effectiveBranchId);
+    return this.analyticsService.getRepairAging(effectiveBranchId, tenantId);
   }
 
   @RequirePermission('reports.view')
@@ -70,14 +74,15 @@ export class AnalyticsController {
     @Query('branchId') branchId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const effectiveBranchId = IS_ELEVATED(role ?? '') ? branchId : (userBranchId ?? undefined);
     const today = new Date().toISOString().slice(0, 10);
     const start = new Date(`${startDate ?? today}T00:00:00+07:00`);
     const end   = new Date(`${endDate   ?? today}T23:59:59+07:00`);
-    return this.analyticsService.getTopProfitProducts(effectiveBranchId, start, end);
+    return this.analyticsService.getTopProfitProducts(effectiveBranchId, start, end, tenantId);
   }
 
   @RequirePermission('reports.view')
@@ -86,13 +91,14 @@ export class AnalyticsController {
     @Query('branchId') branchId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const effectiveBranchId = IS_ELEVATED(role ?? '') ? branchId : (userBranchId ?? undefined);
     const today = new Date().toISOString().slice(0, 10);
     const start = new Date(`${startDate ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)}T00:00:00+07:00`);
     const end   = new Date(`${endDate ?? today}T23:59:59+07:00`);
-    return this.analyticsService.getTechnicianTrends(effectiveBranchId, start, end);
+    return this.analyticsService.getTechnicianTrends(effectiveBranchId, start, end, tenantId);
   }
 }

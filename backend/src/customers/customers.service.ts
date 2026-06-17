@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TenantService } from '../tenant/tenant.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 
 export const HIGH_VALUE_CUSTOMER_THRESHOLD = 50_000;
@@ -16,17 +17,20 @@ export class CustomersService {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private notif: NotificationsService,
+    private tenantSvc: TenantService,
   ) {}
 
-  async create(dto: CreateCustomerDto, actorId?: string, actorName?: string) {
+  async create(dto: CreateCustomerDto, actorId?: string, actorName?: string, tenantId?: string | null) {
     if (dto.phone) {
-      const existing = await this.prisma.customer.findUnique({
-        where: { phone: dto.phone },
+      const existing = await this.prisma.customer.findFirst({
+        where: { phone: dto.phone, ...this.tenantSvc.scope(tenantId) },
       });
       if (existing) throw new ConflictException('Phone number already registered');
     }
 
-    const customer = await this.prisma.customer.create({ data: dto });
+    const customer = await this.prisma.customer.create({
+      data: { ...dto, ...this.tenantSvc.scope(tenantId) },
+    });
 
     await this.auditLog.log({
       actorId, actorName,
@@ -39,8 +43,8 @@ export class CustomersService {
     return customer;
   }
 
-  async findAll(query: { search?: string }) {
-    const where: any = {};
+  async findAll(query: { search?: string; tenantId?: string | null }) {
+    const where: any = { ...this.tenantSvc.scope(query.tenantId) };
 
     if (query.search) {
       where.OR = [
@@ -74,11 +78,11 @@ export class CustomersService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, tenantId?: string | null) {
     const [customer, spending, unpaidRepairs, lastSale, lastRepair, notes] =
       await Promise.all([
-        this.prisma.customer.findUnique({
-          where: { id },
+        this.prisma.customer.findFirst({
+          where: { id, ...this.tenantSvc.scope(tenantId) },
           include: {
             _count: { select: { sales: true, repairs: true } },
             sales: {
@@ -164,8 +168,11 @@ export class CustomersService {
     dto: Partial<CreateCustomerDto>,
     actorId?: string,
     actorName?: string,
+    tenantId?: string | null,
   ) {
-    const customer = await this.prisma.customer.findUnique({ where: { id } });
+    const customer = await this.prisma.customer.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
+    });
     if (!customer) throw new NotFoundException('Customer not found');
 
     const updated = await this.prisma.customer.update({
@@ -184,8 +191,10 @@ export class CustomersService {
     return updated;
   }
 
-  async updateTags(id: string, tags: string[]) {
-    const customer = await this.prisma.customer.findUnique({ where: { id } });
+  async updateTags(id: string, tags: string[], tenantId?: string | null) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
+    });
     if (!customer) throw new NotFoundException('Customer not found');
     return this.prisma.customer.update({ where: { id }, data: { tags } });
   }
@@ -195,9 +204,10 @@ export class CustomersService {
     note: string,
     createdById?: string,
     createdByName?: string,
+    tenantId?: string | null,
   ) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, ...this.tenantSvc.scope(tenantId) },
     });
     if (!customer) throw new NotFoundException('Customer not found');
 
@@ -217,9 +227,9 @@ export class CustomersService {
     return created;
   }
 
-  async getNotes(customerId: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
+  async getNotes(customerId: string, tenantId?: string | null) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, ...this.tenantSvc.scope(tenantId) },
     });
     if (!customer) throw new NotFoundException('Customer not found');
 
@@ -229,11 +239,12 @@ export class CustomersService {
     });
   }
 
-  async getDebtSummary() {
+  async getDebtSummary(tenantId?: string | null) {
     const outstandingRepairs = await this.prisma.repair.findMany({
       where: {
         status:        'DELIVERED',
         paymentStatus: { in: ['PENDING', 'PARTIAL'] },
+        ...this.tenantSvc.branchScope(tenantId),
       },
       include: {
         customer:           { select: { id: true, name: true, phone: true } },

@@ -1,15 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { TenantService } from '../tenant/tenant.service';
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private tenantSvc: TenantService,
+  ) {}
 
-  async getDailyReport(date: string, branchId?: string) {
+  async getDailyReport(date: string, branchId?: string, tenantId?: string | null) {
     // Use Thai timezone (UTC+7) so midnight-to-midnight matches the shop's day
     const start = new Date(`${date}T00:00:00+07:00`);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-    const bFilter = branchId ? { branchId } : {};
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const [sales, voidedSales, packageSales, repairs, stockIn, repairPayments, supplierPayments] = await Promise.all([
       this.prisma.sale.findMany({
@@ -149,7 +153,7 @@ export class ReportsService {
     };
   }
 
-  async getOwnerDashboard(branchId?: string) {
+  async getOwnerDashboard(branchId?: string, tenantId?: string | null) {
     const now = new Date();
     // Shift to Thai timezone (UTC+7) for date boundaries
     const thaiNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
@@ -160,6 +164,8 @@ export class ReportsService {
 
     const toThaiDate = (d: Date) =>
       new Date(d.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const [
       todaySalesAgg,
@@ -185,23 +191,23 @@ export class ReportsService {
       apOutstandingAgg,
     ] = await Promise.all([
       this.prisma.sale.aggregate({
-        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' } },
+        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
         _sum: { total: true },
         _count: { id: true },
       }),
       this.prisma.sale.groupBy({
         by: ['paymentMethod'],
-        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' } },
+        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
         _sum: { total: true },
       }),
       this.prisma.repair.aggregate({
-        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID' },
+        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
         _sum: { paidAmount: true },
         _count: { id: true },
       }),
       this.prisma.repair.groupBy({
         by: ['paymentMethod'],
-        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID' },
+        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
         _sum: { paidAmount: true },
       }),
       this.prisma.packageSale.aggregate({
@@ -210,27 +216,28 @@ export class ReportsService {
         _count: { id: true },
       }),
       this.prisma.sale.aggregate({
-        where: { voidedAt: { gte: todayStart, lt: todayEnd }, status: 'VOIDED' },
+        where: { voidedAt: { gte: todayStart, lt: todayEnd }, status: 'VOIDED', ...bFilter },
         _sum: { total: true },
         _count: { id: true },
       }),
       this.prisma.repair.groupBy({
         by: ['status'],
-        where: { status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+        where: { status: { notIn: ['DELIVERED', 'CANCELLED'] }, ...bFilter },
         _count: { id: true },
       }),
       this.prisma.repair.count({
         where: {
           dueDate: { lt: now },
           status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] },
+          ...bFilter,
         },
       }),
       this.prisma.sale.findMany({
-        where: { createdAt: { gte: weekAgoStart, lt: todayEnd }, status: { not: 'VOIDED' } },
+        where: { createdAt: { gte: weekAgoStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
         select: { total: true, createdAt: true },
       }),
       this.prisma.repair.findMany({
-        where: { paidAt: { gte: weekAgoStart, lt: todayEnd }, paymentStatus: 'PAID' },
+        where: { paidAt: { gte: weekAgoStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
         select: { paidAmount: true, paidAt: true },
       }),
       this.prisma.packageSale.findMany({
@@ -240,7 +247,7 @@ export class ReportsService {
       this.prisma.saleItem.groupBy({
         by: ['productId'],
         where: {
-          sale: { createdAt: { gte: weekAgoStart, lt: todayEnd }, status: { not: 'VOIDED' } },
+          sale: { createdAt: { gte: weekAgoStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
         },
         _sum: { quantity: true, total: true },
         orderBy: { _sum: { total: 'desc' } },
@@ -248,7 +255,7 @@ export class ReportsService {
       }),
       this.prisma.sale.groupBy({
         by: ['userId'],
-        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' } },
+        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
         _sum: { total: true },
         _count: { id: true },
       }),
@@ -257,10 +264,11 @@ export class ReportsService {
         where: {
           status: { notIn: ['DELIVERED', 'CANCELLED'] },
           technicianId: { not: null },
+          ...bFilter,
         },
         _count: { id: true },
       }),
-      this.prisma.product.count({ where: { isActive: true, stock: 0 } }),
+      this.prisma.product.count({ where: { isActive: true, stock: 0, ...this.tenantSvc.scope(tenantId) } }),
       this.prisma.$queryRaw<[{ count: bigint }]>`
         SELECT COUNT(*) as count FROM "Product"
         WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"
@@ -453,11 +461,11 @@ export class ReportsService {
     };
   }
 
-  async getSummary(startDate: string, endDate: string, branchId?: string) {
+  async getSummary(startDate: string, endDate: string, branchId?: string, tenantId?: string | null) {
     const start = new Date(`${startDate}T00:00:00+07:00`);
     const end = new Date(`${endDate}T00:00:00+07:00`);
     end.setTime(end.getTime() + 24 * 60 * 60 * 1000);
-    const bFilter = branchId ? { branchId } : {};
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const sales = await this.prisma.sale.findMany({
       where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...bFilter },
@@ -506,11 +514,11 @@ export class ReportsService {
     };
   }
 
-  async getDailyClosingReport(date: string, branchId?: string) {
+  async getDailyClosingReport(date: string, branchId?: string, tenantId?: string | null) {
     const start = new Date(`${date}T00:00:00+07:00`);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
     const now = new Date();
-    const bFilter = branchId ? { branchId } : {};
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const [
       sales,
@@ -816,10 +824,10 @@ export class ReportsService {
     };
   }
 
-  async getVoidLog(date: string, branchId?: string) {
+  async getVoidLog(date: string, branchId?: string, tenantId?: string | null) {
     const start = new Date(`${date}T00:00:00+07:00`);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-    const bFilter = branchId ? { branchId } : {};
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const voidedSales = await this.prisma.sale.findMany({
       where: { voidedAt: { gte: start, lt: end }, status: 'VOIDED', ...bFilter },
@@ -846,11 +854,11 @@ export class ReportsService {
     };
   }
 
-  async getProfitReport(startDate: string, endDate: string, branchId?: string) {
+  async getProfitReport(startDate: string, endDate: string, branchId?: string, tenantId?: string | null) {
     const start = new Date(`${startDate}T00:00:00+07:00`);
     const end   = new Date(`${endDate}T00:00:00+07:00`);
     end.setTime(end.getTime() + 24 * 60 * 60 * 1000); // include end date fully
-    const bFilter = branchId ? { branchId } : {};
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const [saleItems, repaids, packageSales, expenses] = await Promise.all([
       // POS: sale items for non-voided sales in range
@@ -1047,11 +1055,22 @@ export class ReportsService {
     };
   }
 
-  async getSupplierAging() {
+  async getSupplierAging(tenantId?: string | null) {
     const today = new Date();
 
+    const tenantSupplierIds = tenantId
+      ? (await this.prisma.supplier.findMany({
+          where: { tenantId },
+          select: { id: true },
+        })).map((s) => s.id)
+      : null;
+
     const outstandingPos = await this.prisma.purchaseOrder.findMany({
-      where: { status: { not: 'CANCELLED' }, paymentStatus: { not: 'PAID' } },
+      where: {
+        status: { not: 'CANCELLED' },
+        paymentStatus: { not: 'PAID' },
+        ...(tenantSupplierIds ? { supplierId: { in: tenantSupplierIds } } : {}),
+      },
       select: {
         id: true, poNumber: true, orderDate: true, dueDate: true,
         total: true, paidTotal: true, paymentStatus: true, status: true,

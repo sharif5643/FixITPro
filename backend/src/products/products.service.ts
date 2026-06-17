@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { TenantService } from '../tenant/tenant.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { EnrollBranchDto } from './dto/enroll-branch.dto';
@@ -22,12 +23,13 @@ export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private auditLog: AuditLogService,
+    private tenantSvc: TenantService,
   ) {}
 
-  async generateSku(type: string): Promise<{ sku: string }> {
+  async generateSku(type: string, tenantId?: string | null): Promise<{ sku: string }> {
     const prefix = SKU_PREFIX[type] ?? type.slice(0, 4).toUpperCase();
     const existing = await this.prisma.product.findMany({
-      where: { sku: { startsWith: `${prefix}-` } },
+      where: { sku: { startsWith: `${prefix}-` }, ...this.tenantSvc.scope(tenantId) },
       select: { sku: true },
     });
 
@@ -83,6 +85,7 @@ export class ProductsService {
     actorName?: string,
     userBranchId?: string | null,
     userRole?: string,
+    tenantId?: string | null,
   ) {
     const isPrivileged = userRole === 'OWNER' || userRole === 'SUPER_ADMIN';
     const initialStock = dto.stock ?? 0;
@@ -99,7 +102,14 @@ export class ProductsService {
       throw new BadRequestException('กรุณาเลือกสาขาก่อนเพิ่มสต๊อกสินค้า');
     }
 
-    const existing = await this.prisma.product.findUnique({ where: { sku: dto.sku } });
+    // Verify branch belongs to this tenant before assigning stock
+    if (effectiveBranchId) {
+      await this.tenantSvc.assertBranchOwnership(tenantId, effectiveBranchId);
+    }
+
+    const existing = await this.prisma.product.findFirst({
+      where: { sku: dto.sku, ...this.tenantSvc.scope(tenantId) },
+    });
     if (existing) throw new ConflictException('SKU already exists');
 
     // Create Product master + optional BranchStock atomically
@@ -120,6 +130,7 @@ export class ProductsService {
           warrantyType: (dto.warrantyType as any) ?? 'NO_WARRANTY',
           warrantyDays: dto.warrantyDays ?? null,
           hasSerial:    dto.hasSerial ?? false,
+          ...(tenantId ? { tenantId } : {}),
         },
         include: { category: true },
       });
@@ -171,12 +182,13 @@ export class ProductsService {
     lowStock?: string;
     branchId?: string;
     role?: string;
+    tenantId?: string | null;
   }) {
     const isOwner   = query.role === 'OWNER' || query.role === 'SUPER_ADMIN';
     const viewAll   = isOwner && !query.branchId;
     const branchId  = query.branchId;
 
-    const where: any = { isActive: true };
+    const where: any = { isActive: true, ...this.tenantSvc.scope(query.tenantId) };
 
     if (query.search) {
       where.OR = [
@@ -281,9 +293,9 @@ export class ProductsService {
       : result;
   }
 
-  async findOne(id: string, branchId?: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
+  async findOne(id: string, branchId?: string, tenantId?: string | null) {
+    const product = await this.prisma.product.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
       include: {
         category: true,
         stockMovements: { take: 10, orderBy: { createdAt: 'desc' } },
@@ -306,11 +318,12 @@ export class ProductsService {
     return { ...product, branchQuantity: product.stock, stockCode: null };
   }
 
-  async findByBarcode(barcode: string, branchId?: string) {
+  async findByBarcode(barcode: string, branchId?: string, tenantId?: string | null) {
     const product = await this.prisma.product.findFirst({
       where: {
         OR: [{ barcode }, { sku: barcode }],
         isActive: true,
+        ...this.tenantSvc.scope(tenantId),
       },
       include: { category: true },
     });
@@ -334,8 +347,8 @@ export class ProductsService {
     return { ...product, branchQuantity: product.stock, stockCode: null };
   }
 
-  async update(id: string, dto: UpdateProductDto, actorId?: string, actorName?: string) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateProductDto, actorId?: string, actorName?: string, tenantId?: string | null) {
+    await this.findOne(id, undefined, tenantId);
 
     const product = await this.prisma.product.update({
       where: { id },
@@ -367,8 +380,8 @@ export class ProductsService {
     return product;
   }
 
-  async remove(id: string, actorId?: string, actorName?: string) {
-    await this.findOne(id);
+  async remove(id: string, actorId?: string, actorName?: string, tenantId?: string | null) {
+    await this.findOne(id, undefined, tenantId);
     const product = await this.prisma.product.update({
       where: { id },
       data: { isActive: false },
@@ -382,10 +395,10 @@ export class ProductsService {
     return product;
   }
 
-  async catalogSearch(search?: string, barcode?: string) {
+  async catalogSearch(search?: string, barcode?: string, tenantId?: string | null) {
     if (!search && !barcode) return [];
 
-    const where: any = { isActive: true };
+    const where: any = { isActive: true, ...this.tenantSvc.scope(tenantId) };
 
     if (barcode) {
       where.OR = [{ barcode }, { sku: barcode }];

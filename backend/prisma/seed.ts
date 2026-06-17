@@ -89,22 +89,22 @@ async function main() {
 
   const categories = await Promise.all([
     prisma.category.upsert({
-      where: { slug: 'phones' },
+      where: { tenantId_slug: { tenantId: null as any, slug: 'phones' } },
       update: {},
       create: { name: 'มือถือ', slug: 'phones' },
     }),
     prisma.category.upsert({
-      where: { slug: 'accessories' },
+      where: { tenantId_slug: { tenantId: null as any, slug: 'accessories' } },
       update: {},
       create: { name: 'อุปกรณ์เสริม', slug: 'accessories' },
     }),
     prisma.category.upsert({
-      where: { slug: 'sims' },
+      where: { tenantId_slug: { tenantId: null as any, slug: 'sims' } },
       update: {},
       create: { name: 'ซิมการ์ด', slug: 'sims' },
     }),
     prisma.category.upsert({
-      where: { slug: 'parts' },
+      where: { tenantId_slug: { tenantId: null as any, slug: 'parts' } },
       update: {},
       create: { name: 'อะไหล่', slug: 'parts' },
     }),

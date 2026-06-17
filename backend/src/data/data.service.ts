@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { TenantService } from '../tenant/tenant.service';
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ export class DataService {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private notif: NotificationsService,
+    private tenantSvc: TenantService,
   ) {}
 
   // ── Export dispatcher ───────────────────────────────────────────────────────
@@ -96,17 +98,18 @@ export class DataService {
     query: { startDate?: string; endDate?: string },
     actorId?: string,
     actorName?: string,
+    tenantId?: string | null,
   ): Promise<ExportResult> {
     let result: ExportResult;
     switch (type) {
-      case 'customers':       result = await this.exportCustomers(query);       break;
-      case 'products':        result = await this.exportProducts(query);        break;
-      case 'stock-movements': result = await this.exportStockMovements(query);  break;
-      case 'sales':           result = await this.exportSales(query);           break;
-      case 'repairs':         result = await this.exportRepairs(query);         break;
-      case 'expenses':        result = await this.exportExpenses(query);        break;
-      case 'warranties':      result = await this.exportWarranties(query);      break;
-      case 'audit-logs':      result = await this.exportAuditLogs(query);       break;
+      case 'customers':       result = await this.exportCustomers(query, tenantId);       break;
+      case 'products':        result = await this.exportProducts(query, tenantId);        break;
+      case 'stock-movements': result = await this.exportStockMovements(query, tenantId);  break;
+      case 'sales':           result = await this.exportSales(query, tenantId);           break;
+      case 'repairs':         result = await this.exportRepairs(query, tenantId);         break;
+      case 'expenses':        result = await this.exportExpenses(query, tenantId);        break;
+      case 'warranties':      result = await this.exportWarranties(query, tenantId);      break;
+      case 'audit-logs':      result = await this.exportAuditLogs(query);                 break;
       default:
         throw new BadRequestException(`Unknown export type: ${type}`);
     }
@@ -121,9 +124,9 @@ export class DataService {
 
   // ── Individual exports ──────────────────────────────────────────────────────
 
-  private async exportCustomers(q: { startDate?: string; endDate?: string }): Promise<ExportResult> {
+  private async exportCustomers(q: { startDate?: string; endDate?: string }, tenantId?: string | null): Promise<ExportResult> {
     const rows = await this.prisma.customer.findMany({
-      where: buildWhere(q.startDate, q.endDate) ?? undefined,
+      where: { ...buildWhere(q.startDate, q.endDate), ...this.tenantSvc.scope(tenantId) },
       select: { id: true, name: true, phone: true, email: true, address: true, note: true, points: true, tags: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -134,9 +137,9 @@ export class DataService {
     return { filename: `customers_${dateTag()}.csv`, content, rowCount: rows.length };
   }
 
-  private async exportProducts(q: { startDate?: string; endDate?: string }): Promise<ExportResult> {
+  private async exportProducts(q: { startDate?: string; endDate?: string }, tenantId?: string | null): Promise<ExportResult> {
     const rows = await this.prisma.product.findMany({
-      where: buildWhere(q.startDate, q.endDate) ?? undefined,
+      where: { ...buildWhere(q.startDate, q.endDate), ...this.tenantSvc.scope(tenantId) },
       include: { category: { select: { name: true } } },
       orderBy: { name: 'asc' },
     });
@@ -150,9 +153,9 @@ export class DataService {
     return { filename: `products_${dateTag()}.csv`, content, rowCount: rows.length };
   }
 
-  private async exportStockMovements(q: { startDate?: string; endDate?: string }): Promise<ExportResult> {
+  private async exportStockMovements(q: { startDate?: string; endDate?: string }, tenantId?: string | null): Promise<ExportResult> {
     const rows = await this.prisma.stockMovement.findMany({
-      where: buildWhere(q.startDate, q.endDate) ?? undefined,
+      where: { ...buildWhere(q.startDate, q.endDate), ...(tenantId ? { product: { tenantId } } : {}) },
       include: { product: { select: { name: true, sku: true } } },
       orderBy: { createdAt: 'desc' },
       take: 10_000,
@@ -164,9 +167,9 @@ export class DataService {
     return { filename: `stock_movements_${dateTag()}.csv`, content, rowCount: rows.length };
   }
 
-  private async exportSales(q: { startDate?: string; endDate?: string }): Promise<ExportResult> {
+  private async exportSales(q: { startDate?: string; endDate?: string }, tenantId?: string | null): Promise<ExportResult> {
     const rows = await this.prisma.sale.findMany({
-      where: buildWhere(q.startDate, q.endDate) ?? undefined,
+      where: { ...buildWhere(q.startDate, q.endDate), ...this.tenantSvc.branchScope(tenantId) },
       include: { customer: { select: { name: true } }, user: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
       take: 10_000,
@@ -182,9 +185,9 @@ export class DataService {
     return { filename: `sales_${dateTag()}.csv`, content, rowCount: rows.length };
   }
 
-  private async exportRepairs(q: { startDate?: string; endDate?: string }): Promise<ExportResult> {
+  private async exportRepairs(q: { startDate?: string; endDate?: string }, tenantId?: string | null): Promise<ExportResult> {
     const rows = await this.prisma.repair.findMany({
-      where: buildWhere(q.startDate, q.endDate, 'receivedAt') ?? undefined,
+      where: { ...buildWhere(q.startDate, q.endDate, 'receivedAt'), ...this.tenantSvc.branchScope(tenantId) },
       include: {
         customer:   { select: { name: true, phone: true } },
         technician: { select: { name: true } },
@@ -209,9 +212,9 @@ export class DataService {
     return { filename: `repairs_${dateTag()}.csv`, content, rowCount: rows.length };
   }
 
-  private async exportExpenses(q: { startDate?: string; endDate?: string }): Promise<ExportResult> {
+  private async exportExpenses(q: { startDate?: string; endDate?: string }, tenantId?: string | null): Promise<ExportResult> {
     const rows = await this.prisma.expense.findMany({
-      where: buildWhere(q.startDate, q.endDate, 'expenseDate') ?? undefined,
+      where: { ...buildWhere(q.startDate, q.endDate, 'expenseDate'), ...this.tenantSvc.branchScope(tenantId) },
       include: {
         category:  { select: { name: true } },
         createdBy: { select: { name: true } },
@@ -229,9 +232,9 @@ export class DataService {
     return { filename: `expenses_${dateTag()}.csv`, content, rowCount: rows.length };
   }
 
-  private async exportWarranties(q: { startDate?: string; endDate?: string }): Promise<ExportResult> {
+  private async exportWarranties(q: { startDate?: string; endDate?: string }, tenantId?: string | null): Promise<ExportResult> {
     const rows = await (this.prisma as any).warranty.findMany({
-      where: buildWhere(q.startDate, q.endDate) ?? undefined,
+      where: { ...buildWhere(q.startDate, q.endDate), ...(tenantId ? { customer: { tenantId } } : {}) },
       include: {
         customer:  { select: { name: true, phone: true } },
         repair:    { select: { ticketNumber: true } },
@@ -282,20 +285,23 @@ export class DataService {
 
   // ── Preview (validate only, no DB write) ───────────────────────────────────
 
-  async preview(type: string, csvContent: string): Promise<PreviewResult> {
+  async preview(type: string, csvContent: string, tenantId?: string | null): Promise<PreviewResult> {
     const allRows = parseCSVRows(csvContent);
     if (allRows.length < 2) {
       return { headers: [], rows: [], stats: { total: 0, valid: 0, invalid: 0 } };
     }
     const [rawHeaders, ...dataRows] = allRows;
 
-    if (type === 'products') return this.previewProducts(rawHeaders, dataRows);
-    if (type === 'customers') return this.previewCustomers(rawHeaders, dataRows);
+    if (type === 'products') return this.previewProducts(rawHeaders, dataRows, tenantId);
+    if (type === 'customers') return this.previewCustomers(rawHeaders, dataRows, tenantId);
     throw new BadRequestException(`Import not supported for type: ${type}`);
   }
 
-  private async previewProducts(headers: string[], dataRows: string[][]): Promise<PreviewResult> {
-    const existing = await this.prisma.product.findMany({ select: { sku: true, barcode: true } });
+  private async previewProducts(headers: string[], dataRows: string[][], tenantId?: string | null): Promise<PreviewResult> {
+    const existing = await this.prisma.product.findMany({
+      where: this.tenantSvc.scope(tenantId),
+      select: { sku: true, barcode: true },
+    });
     const skuSet  = new Set(existing.map((p) => p.sku.toLowerCase()));
     const bcSet   = new Set(existing.filter((p) => p.barcode).map((p) => p.barcode!.toLowerCase()));
 
@@ -321,8 +327,11 @@ export class DataService {
     return { headers, rows, stats: { total: rows.length, valid, invalid } };
   }
 
-  private async previewCustomers(headers: string[], dataRows: string[][]): Promise<PreviewResult> {
-    const existing = await this.prisma.customer.findMany({ select: { phone: true } });
+  private async previewCustomers(headers: string[], dataRows: string[][], tenantId?: string | null): Promise<PreviewResult> {
+    const existing = await this.prisma.customer.findMany({
+      where: this.tenantSvc.scope(tenantId),
+      select: { phone: true },
+    });
     const phoneSet = new Set(existing.filter((c) => c.phone).map((c) => c.phone!.replace(/\D/g, '')));
 
     const rows = dataRows.map((row) => {
@@ -350,12 +359,13 @@ export class DataService {
     csvContent: string,
     actorId?: string,
     actorName?: string,
+    tenantId?: string | null,
   ): Promise<ImportResult> {
-    const preview = await this.preview(type, csvContent);
+    const preview = await this.preview(type, csvContent, tenantId);
     let result: ImportResult;
 
-    if (type === 'products')  result = await this.importProducts(preview);
-    else if (type === 'customers') result = await this.importCustomers(preview);
+    if (type === 'products')  result = await this.importProducts(preview, tenantId);
+    else if (type === 'customers') result = await this.importCustomers(preview, tenantId);
     else throw new BadRequestException(`Import not supported for type: ${type}`);
 
     // Audit log
@@ -386,7 +396,7 @@ export class DataService {
     return result;
   }
 
-  private async importProducts(preview: PreviewResult): Promise<ImportResult> {
+  private async importProducts(preview: PreviewResult, tenantId?: string | null): Promise<ImportResult> {
     const errors: { row: number; message: string }[] = [];
     let imported = 0;
     let skipped  = 0;
@@ -413,6 +423,7 @@ export class DataService {
             costPrice: Number(cost),
             stock:     stock ? Math.max(0, parseInt(stock)) : 0,
             minStock:  minStock ? Math.max(0, parseInt(minStock)) : 0,
+            ...this.tenantSvc.scope(tenantId),
           },
         });
         imported++;
@@ -423,7 +434,7 @@ export class DataService {
     return { imported, skipped, errors };
   }
 
-  private async importCustomers(preview: PreviewResult): Promise<ImportResult> {
+  private async importCustomers(preview: PreviewResult, tenantId?: string | null): Promise<ImportResult> {
     const errors: { row: number; message: string }[] = [];
     let imported = 0;
     let skipped  = 0;
@@ -448,6 +459,7 @@ export class DataService {
             address: address?.trim() || null,
             note:    note?.trim() || null,
             tags:    [],
+            ...this.tenantSvc.scope(tenantId),
           },
         });
         imported++;

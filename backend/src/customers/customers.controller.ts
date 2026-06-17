@@ -36,60 +36,73 @@ export class CustomersController {
   @Post()
   create(
     @Body()              dto: CreateCustomerDto,
-    @CurrentUser('id')   actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.customersService.create(dto, actorId, actorName);
+    return this.customersService.create(dto, actorId, actorName, tenantId);
   }
 
   @Get()
-  findAll(@Query() query: { search?: string }) {
-    return this.customersService.findAll(query);
+  findAll(
+    @Query() query: { search?: string },
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.customersService.findAll({ ...query, tenantId });
   }
 
   @Get('debt-summary')
-  getDebtSummary() {
-    return this.customersService.getDebtSummary();
+  getDebtSummary(@CurrentUser('tenantId') tenantId: string) {
+    return this.customersService.getDebtSummary(tenantId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.customersService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.customersService.findOne(id, tenantId);
   }
 
   @RequirePermission('sales.create')
   @Put(':id')
   update(
-    @Param('id')         id: string,
-    @Body()              dto: Partial<CreateCustomerDto>,
-    @CurrentUser('id')   actorId: string,
-    @CurrentUser('name') actorName: string,
+    @Param('id')             id: string,
+    @Body()                  dto: Partial<CreateCustomerDto>,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.customersService.update(id, dto, actorId, actorName);
+    return this.customersService.update(id, dto, actorId, actorName, tenantId);
   }
 
   @Patch(':id/tags')
   updateTags(
-    @Param('id') id: string,
-    @Body()      dto: UpdateTagsDto,
+    @Param('id')             id: string,
+    @Body()                  dto: UpdateTagsDto,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.customersService.updateTags(id, dto.tags);
+    return this.customersService.updateTags(id, dto.tags, tenantId);
   }
 
   @Get(':id/notes')
-  getNotes(@Param('id') id: string) {
-    return this.customersService.getNotes(id);
+  getNotes(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.customersService.getNotes(id, tenantId);
   }
 
   @Post(':id/notes')
   addNote(
-    @Param('id')         customerId: string,
-    @Body()              dto: AddNoteDto,
-    @CurrentUser('id')   actorId: string,
-    @CurrentUser('name') actorName: string,
+    @Param('id')             customerId: string,
+    @Body()                  dto: AddNoteDto,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
     return this.customersService.addNote(
-      customerId, dto.note, actorId, actorName,
+      customerId, dto.note, actorId, actorName, tenantId,
     );
   }
 }

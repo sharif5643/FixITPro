@@ -22,23 +22,30 @@ export class BranchesController {
   // ── Branches ──────────────────────────────────────────────────────────────
 
   @Get()
-  findAll(@Query('includeInactive') inc?: string) {
-    return this.svc.findAll(inc === 'true');
+  findAll(
+    @CurrentUser('tenantId') tenantId: string,
+    @Query('includeInactive') inc?: string,
+  ) {
+    return this.svc.findAll(tenantId, inc === 'true');
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.svc.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.svc.findOne(id, tenantId);
   }
 
   @Post()
   @RequirePermission('branches.manage')
   create(
     @Body() dto: CreateBranchDto,
-    @CurrentUser('id')   actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.svc.create(dto, actorId, actorName);
+    return this.svc.create(dto, actorId, actorName, tenantId);
   }
 
   @Patch(':id')
@@ -46,10 +53,11 @@ export class BranchesController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateBranchDto,
-    @CurrentUser('id')   actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.svc.update(id, dto, actorId, actorName);
+    return this.svc.update(id, dto, actorId, actorName, tenantId);
   }
 
   @Delete(':id')
@@ -57,10 +65,11 @@ export class BranchesController {
   @RequirePermission('branches.manage')
   deactivate(
     @Param('id') id: string,
-    @CurrentUser('id')   actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.svc.deactivate(id, actorId, actorName);
+    return this.svc.deactivate(id, actorId, actorName, tenantId);
   }
 
   // ── Branch Stock ──────────────────────────────────────────────────────────
@@ -91,8 +100,9 @@ export class BranchesController {
   @RequirePermission('stock.transfer')
   listTransfers(
     @Query() query: { branchId?: string; status?: string; productId?: string; startDate?: string; endDate?: string },
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.svc.listTransfers(query);
+    return this.svc.listTransfers(query, tenantId);
   }
 
   @Post('transfers')

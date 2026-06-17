@@ -15,8 +15,11 @@ export class ReportsController {
 
   @RequirePermission('reports.view')
   @Get('owner-dashboard')
-  getOwnerDashboard(@Query('branchId') branchId?: string) {
-    return this.reportsService.getOwnerDashboard(branchId);
+  getOwnerDashboard(
+    @Query('branchId') branchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
+  ) {
+    return this.reportsService.getOwnerDashboard(branchId, tenantId);
   }
 
   @RequirePermission('reports.view')
@@ -24,12 +27,13 @@ export class ReportsController {
   getDailyReport(
     @Query('date') date: string,
     @Query('branchId') branchId?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const reportDate = date || new Date().toISOString().slice(0, 10);
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN') ? branchId : (userBranchId ?? undefined);
-    return this.reportsService.getDailyReport(reportDate, effectiveBranchId);
+    return this.reportsService.getDailyReport(reportDate, effectiveBranchId, tenantId);
   }
 
   @RequirePermission('reports.view')
@@ -38,12 +42,13 @@ export class ReportsController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
     @Query('branchId') branchId?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const today = new Date().toISOString().slice(0, 10);
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN') ? branchId : (userBranchId ?? undefined);
-    return this.reportsService.getSummary(startDate || today, endDate || today, effectiveBranchId);
+    return this.reportsService.getSummary(startDate || today, endDate || today, effectiveBranchId, tenantId);
   }
 
   @RequirePermission('reports.view')
@@ -51,9 +56,10 @@ export class ReportsController {
   getVoidLog(
     @Query('date') date: string,
     @Query('branchId') branchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const reportDate = date || new Date().toISOString().slice(0, 10);
-    return this.reportsService.getVoidLog(reportDate, branchId);
+    return this.reportsService.getVoidLog(reportDate, branchId, tenantId);
   }
 
   @RequirePermission('reports.view')
@@ -61,12 +67,13 @@ export class ReportsController {
   getDailyClosingReport(
     @Query('date') date: string,
     @Query('branchId') branchId?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const reportDate = date || new Date().toISOString().slice(0, 10);
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN') ? branchId : (userBranchId ?? undefined);
-    return this.reportsService.getDailyClosingReport(reportDate, effectiveBranchId);
+    return this.reportsService.getDailyClosingReport(reportDate, effectiveBranchId, tenantId);
   }
 
   @RequirePermission('reports.view')
@@ -75,17 +82,18 @@ export class ReportsController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
     @Query('branchId') branchId?: string,
-    @CurrentUser('role') role?: string,
+    @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
+    @CurrentUser('tenantId') tenantId?: string,
   ) {
     const today = new Date().toISOString().slice(0, 10);
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN') ? branchId : (userBranchId ?? undefined);
-    return this.reportsService.getProfitReport(startDate || today, endDate || today, effectiveBranchId);
+    return this.reportsService.getProfitReport(startDate || today, endDate || today, effectiveBranchId, tenantId);
   }
 
   @RequirePermission('reports.view')
   @Get('supplier-aging')
-  getSupplierAging() {
-    return this.reportsService.getSupplierAging();
+  getSupplierAging(@CurrentUser('tenantId') tenantId?: string) {
+    return this.reportsService.getSupplierAging(tenantId);
   }
 }

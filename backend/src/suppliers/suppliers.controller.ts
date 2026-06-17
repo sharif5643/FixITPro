@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 function defaultMonthRange(): { startDate: string; endDate: string } {
   const now = new Date();
@@ -32,38 +33,55 @@ export class SuppliersController {
   constructor(private suppliersService: SuppliersService) {}
 
   @Get()
-  findAll(@Query() query: { search?: string; includeInactive?: string }) {
-    return this.suppliersService.findAll(query);
+  findAll(
+    @Query() query: { search?: string; includeInactive?: string },
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.suppliersService.findAll({ ...query, tenantId });
   }
 
   @Get('payables/aging')
-  getAgingReport() {
-    return this.suppliersService.getAgingReport();
+  getAgingReport(@CurrentUser('tenantId') tenantId: string) {
+    return this.suppliersService.getAgingReport(tenantId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.suppliersService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.suppliersService.findOne(id, tenantId);
   }
 
   @Post()
-  create(@Body() dto: CreateSupplierDto) {
-    return this.suppliersService.create(dto);
+  create(
+    @Body() dto: CreateSupplierDto,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.suppliersService.create(dto, tenantId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateSupplierDto) {
-    return this.suppliersService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateSupplierDto,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.suppliersService.update(id, dto, tenantId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.suppliersService.remove(id);
+  remove(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.suppliersService.remove(id, tenantId);
   }
 
   @Get(':id/statement')
   getStatement(
     @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
@@ -72,6 +90,7 @@ export class SuppliersController {
       id,
       startDate || range.startDate,
       endDate   || range.endDate,
+      tenantId,
     );
   }
 }

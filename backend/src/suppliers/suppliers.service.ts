@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { TenantService } from '../tenant/tenant.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 
@@ -10,13 +11,17 @@ const PO_AGING_SELECT = {
 
 @Injectable()
 export class SuppliersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private tenantSvc: TenantService,
+  ) {}
 
-  findAll(query: { search?: string; includeInactive?: string }) {
+  findAll(query: { search?: string; includeInactive?: string; tenantId?: string | null }) {
     const isActive = query.includeInactive === 'true' ? undefined : true;
     return this.prisma.supplier.findMany({
       where: {
         isActive,
+        ...this.tenantSvc.scope(query.tenantId),
         name: query.search
           ? { contains: query.search, mode: 'insensitive' as const }
           : undefined,
@@ -25,28 +30,34 @@ export class SuppliersService {
     });
   }
 
-  async findOne(id: string) {
-    const supplier = await this.prisma.supplier.findUnique({ where: { id } });
+  async findOne(id: string, tenantId?: string | null) {
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
+    });
     if (!supplier) throw new NotFoundException('Supplier not found');
     return supplier;
   }
 
-  create(dto: CreateSupplierDto) {
-    return this.prisma.supplier.create({ data: dto });
+  create(dto: CreateSupplierDto, tenantId?: string | null) {
+    return this.prisma.supplier.create({
+      data: { ...dto, ...this.tenantSvc.scope(tenantId) },
+    });
   }
 
-  async update(id: string, dto: UpdateSupplierDto) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateSupplierDto, tenantId?: string | null) {
+    await this.findOne(id, tenantId);
     return this.prisma.supplier.update({ where: { id }, data: dto });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, tenantId?: string | null) {
+    await this.findOne(id, tenantId);
     return this.prisma.supplier.update({ where: { id }, data: { isActive: false } });
   }
 
-  async getStatement(id: string, startDate: string, endDate: string) {
-    const supplier = await this.prisma.supplier.findUnique({ where: { id } });
+  async getStatement(id: string, startDate: string, endDate: string, tenantId?: string | null) {
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
+    });
     if (!supplier) throw new NotFoundException('Supplier not found');
 
     const start = new Date(`${startDate}T00:00:00+07:00`);
@@ -132,11 +143,22 @@ export class SuppliersService {
     };
   }
 
-  async getAgingReport() {
+  async getAgingReport(tenantId?: string | null) {
     const today = new Date();
 
+    const tenantSupplierIds = tenantId
+      ? (await this.prisma.supplier.findMany({
+          where: { tenantId },
+          select: { id: true },
+        })).map((s) => s.id)
+      : null;
+
     const outstandingPos = await this.prisma.purchaseOrder.findMany({
-      where: { status: { not: 'CANCELLED' }, paymentStatus: { not: 'PAID' } },
+      where: {
+        status: { not: 'CANCELLED' },
+        paymentStatus: { not: 'PAID' },
+        ...(tenantSupplierIds ? { supplierId: { in: tenantSupplierIds } } : {}),
+      },
       select: {
         ...PO_AGING_SELECT,
         supplier: { select: { id: true, name: true, creditDays: true } },

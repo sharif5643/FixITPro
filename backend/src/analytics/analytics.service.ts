@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { TenantService } from '../tenant/tenant.service';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -14,12 +15,15 @@ function toNum(v: unknown): number {
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private tenantSvc: TenantService,
+  ) {}
 
   // ── Overview ────────────────────────────────────────────────────────────────
 
-  async getOverview(branchId?: string) {
-    const bFilter = branchId ? { branchId } : {};
+  async getOverview(branchId?: string, tenantId?: string | null) {
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
     const now     = Date.now();
 
     const [
@@ -41,7 +45,10 @@ export class AnalyticsService {
       }),
       branchId
         ? this.prisma.branch.findMany({ where: { id: branchId }, select: { id: true, name: true } })
-        : this.prisma.branch.findMany({ select: { id: true, name: true } }),
+        : this.prisma.branch.findMany({
+            where: tenantId ? { tenantId } : {},
+            select: { id: true, name: true },
+          }),
       this.prisma.sale.findMany({
         where: {
           createdAt: { gte: new Date(now - 30 * MS_PER_DAY) },
@@ -126,9 +133,9 @@ export class AnalyticsService {
 
   // ── Dead Stock ───────────────────────────────────────────────────────────────
 
-  async getDeadStock(branchId?: string, days = 30) {
+  async getDeadStock(branchId?: string, days = 30, tenantId?: string | null) {
     const cutoff  = new Date(Date.now() - days * MS_PER_DAY);
-    const bFilter = branchId ? { branchId } : {};
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     // Step 1: All branch stocks with quantity > 0
     const branchStocks = await this.prisma.branchStock.findMany({
@@ -212,9 +219,10 @@ export class AnalyticsService {
 
   // ── Branch Stock Comparison ──────────────────────────────────────────────────
 
-  async getBranchStock(branchId?: string) {
+  async getBranchStock(branchId?: string, tenantId?: string | null) {
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
     const branchStocks = await this.prisma.branchStock.findMany({
-      where: branchId ? { branchId } : {},
+      where: bFilter,
       include: {
         product: { select: { id: true, name: true, sku: true, minStock: true } },
         branch:  { select: { id: true, name: true } },
@@ -258,8 +266,8 @@ export class AnalyticsService {
 
   // ── Repair Aging ─────────────────────────────────────────────────────────────
 
-  async getRepairAging(branchId?: string) {
-    const bFilter = branchId ? { branchId } : {};
+  async getRepairAging(branchId?: string, tenantId?: string | null) {
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
     const now     = Date.now();
 
     const openRepairs = await this.prisma.repair.findMany({
@@ -316,8 +324,8 @@ export class AnalyticsService {
 
   // ── Top Profit Products ──────────────────────────────────────────────────────
 
-  async getTopProfitProducts(branchId: string | undefined, start: Date, end: Date) {
-    const bFilter = branchId ? { branchId } : {};
+  async getTopProfitProducts(branchId: string | undefined, start: Date, end: Date, tenantId?: string | null) {
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const saleItems = await this.prisma.saleItem.findMany({
       where: {
@@ -375,8 +383,8 @@ export class AnalyticsService {
 
   // ── Technician Trends ────────────────────────────────────────────────────────
 
-  async getTechnicianTrends(branchId: string | undefined, start: Date, end: Date) {
-    const bFilter = branchId ? { branchId } : {};
+  async getTechnicianTrends(branchId: string | undefined, start: Date, end: Date, tenantId?: string | null) {
+    const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const repairs = await this.prisma.repair.findMany({
       where: {

@@ -25,10 +25,11 @@ export class DataController {
   async export(
     @Param('type') type: string,
     @Query() query: { startDate?: string; endDate?: string },
-    @CurrentUser('id') actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    const result = await this.svc.export(type, query, actorId, actorName);
+    const result = await this.svc.export(type, query, actorId, actorName, tenantId);
     const buffer = Buffer.from(result.content, 'utf-8');
     return new StreamableFile(buffer, {
       type: 'text/csv; charset=utf-8',
@@ -65,9 +66,10 @@ export class DataController {
   async previewImport(
     @Param('type') type: string,
     @UploadedFile() file: Express.Multer.File,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
     if (!file) throw new BadRequestException('กรุณาเลือกไฟล์ CSV');
-    return this.svc.preview(type, file.buffer.toString('utf-8'));
+    return this.svc.preview(type, file.buffer.toString('utf-8'), tenantId);
   }
 
   // ── Execute import ──────────────────────────────────────────────────────────
@@ -86,10 +88,11 @@ export class DataController {
   async executeImport(
     @Param('type') type: string,
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser('id') actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
     if (!file) throw new BadRequestException('กรุณาเลือกไฟล์ CSV');
-    return this.svc.import(type, file.buffer.toString('utf-8'), actorId, actorName);
+    return this.svc.import(type, file.buffer.toString('utf-8'), actorId, actorName, tenantId);
   }
 }

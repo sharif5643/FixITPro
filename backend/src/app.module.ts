@@ -39,6 +39,7 @@ import { RemindersModule }  from './reminders/reminders.module';
 import { PublicRegisterModule } from './public-register/public-register.module';
 import { FilesModule } from './files/files.module';
 import { ModulesModule } from './modules/modules.module';
+import { TenantModule } from './tenant/tenant.module';
 
 @Module({
   controllers: [HealthController],
@@ -91,6 +92,7 @@ import { ModulesModule } from './modules/modules.module';
     PublicRegisterModule,
     FilesModule,
     ModulesModule,
+    TenantModule,
   ],
 })
 export class AppModule {}
