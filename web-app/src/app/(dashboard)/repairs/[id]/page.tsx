@@ -326,13 +326,34 @@ export default function RepairWorkspacePage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const { data: partProducts = [] } = useQuery<Product[]>({
-    queryKey: ['products', 'parts', debouncedSearch],
-    queryFn: async () =>
-      (await api.get('/products', { params: { type: 'PART', search: debouncedSearch || undefined } })).data,
-    enabled: searchOpen,
-    staleTime: 10_000,
+  // Use repair.branchId as branch scope — mirrors POS source-of-truth logic.
+  // No type filter: accessories/phones/sims can all be used as repair parts.
+  const repairBranchId = repair?.branchId ?? undefined
+  const { data: allPartProducts = [] } = useQuery<Product[]>({
+    queryKey: ['products', 'repair-parts', repairBranchId ?? 'all'],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (repairBranchId) params.set('branchId', repairBranchId)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[REPAIR PARTS] query params:', params.toString(), '| repair.branchId:', repairBranchId)
+      }
+      return (await api.get(`/products?${params}`)).data
+    },
+    enabled: !!repair,
+    staleTime: 30_000,
   })
+  // BranchStock.qty is source of truth — only show products with stock in this branch
+  const partProducts = allPartProducts.filter((p) => (p.branchQuantity ?? 0) > 0 || !repairBranchId)
+  const filteredPartProducts = debouncedSearch
+    ? partProducts.filter((p) =>
+        p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        p.sku.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (p.barcode ?? '').toLowerCase().includes(debouncedSearch.toLowerCase()),
+      )
+    : partProducts
+  if (process.env.NODE_ENV === 'development' && searchOpen) {
+    console.log('[REPAIR PARTS] total products:', allPartProducts.length, '| in-stock:', partProducts.length, '| filtered:', filteredPartProducts.length, '| search:', debouncedSearch)
+  }
 
   const computedPartsCost = repair
     ? repair.parts.reduce((sum, p) => sum + Number(p.price) * p.quantity, 0)
@@ -773,12 +794,12 @@ export default function RepairWorkspacePage() {
                       </button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      SKU: {addingPart.sku} · สต็อก: {addingPart.stock} ชิ้น · ราคาทุน: {formatThaiMoney(Number(addingPart.costPrice))}
+                      SKU: {addingPart.sku} · สต็อก: {addingPart.branchQuantity ?? 0} ชิ้น · ราคาทุน: {formatThaiMoney(Number(addingPart.costPrice))}
                     </p>
                     <div className="flex gap-2">
                       <div className="space-y-1 flex-1">
                         <label className="text-xs text-muted-foreground">จำนวน</label>
-                        <Input type="number" min={1} max={addingPart.stock} value={partQty}
+                        <Input type="number" min={1} max={addingPart.branchQuantity ?? undefined} value={partQty}
                           onChange={(e) => setPartQty(Number(e.target.value))} className="h-8 text-sm" />
                       </div>
                       <div className="space-y-1 flex-1">
@@ -788,7 +809,7 @@ export default function RepairWorkspacePage() {
                       </div>
                     </div>
                     <Button size="sm" className="w-full gap-1.5" onClick={handleAddPart}
-                      disabled={partQty < 1 || partQty > addingPart.stock || addPartMutation.isPending}>
+                      disabled={partQty < 1 || (addingPart.branchQuantity != null && partQty > addingPart.branchQuantity) || addPartMutation.isPending}>
                       {addPartMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                       เพิ่มอะไหล่
                     </Button>
@@ -802,29 +823,32 @@ export default function RepairWorkspacePage() {
                       onFocus={() => setSearchOpen(true)}
                       className="text-sm h-9"
                     />
-                    {searchOpen && partProducts.length > 0 && (
+                    {searchOpen && filteredPartProducts.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {partProducts.map((p) => (
-                          <button
-                            key={p.id}
-                            className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b last:border-0"
-                            onClick={() => {
-                              setAddingPart(p)
-                              setPartSearch('')
-                              setSearchOpen(false)
-                              setPartQty(1)
-                              setPartPrice('')
-                            }}
-                          >
-                            <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              SKU: {p.sku} · สต็อก: {p.stock} · ราคาทุน: {formatThaiMoney(Number(p.costPrice))}
-                            </p>
-                          </button>
-                        ))}
+                        {filteredPartProducts.map((p) => {
+                          const qty = p.branchQuantity ?? 0
+                          return (
+                            <button
+                              key={p.id}
+                              className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b last:border-0"
+                              onClick={() => {
+                                setAddingPart(p)
+                                setPartSearch('')
+                                setSearchOpen(false)
+                                setPartQty(1)
+                                setPartPrice('')
+                              }}
+                            >
+                              <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                SKU: {p.sku} · สต็อก: {qty} ชิ้น · ราคาทุน: {formatThaiMoney(Number(p.costPrice))}
+                              </p>
+                            </button>
+                          )
+                        })}
                       </div>
                     )}
-                    {searchOpen && debouncedSearch && partProducts.length === 0 && (
+                    {searchOpen && debouncedSearch && filteredPartProducts.length === 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg p-3 text-sm text-muted-foreground text-center">
                         ไม่พบอะไหล่
                       </div>
