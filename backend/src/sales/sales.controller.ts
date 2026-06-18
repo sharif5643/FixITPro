@@ -30,11 +30,20 @@ export class SalesController {
   @RequirePermission('sales.create')
   create(
     @Body() dto: CreateSaleDto,
-    @CurrentUser('id') userId: string,
-    @CurrentUser('branchId') branchId: string | null,
+    @CurrentUser('id')       userId: string,
+    @CurrentUser('role')     role: string,
+    @CurrentUser('branchId') jwtBranchId: string | null,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.salesService.create(dto, userId, branchId ?? undefined, tenantId);
+    // OWNER has branchId=null in JWT — they select a branch in the POS UI.
+    // The frontend sends dto.branchId = selectedBranchId so the checkout
+    // validates BranchStock for the correct branch.
+    // STAFF: always use JWT branchId (body.branchId is untrusted for staff).
+    const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN'
+    const branchId = isElevated
+      ? (dto.branchId ?? jwtBranchId ?? undefined)
+      : (jwtBranchId ?? undefined)
+    return this.salesService.create(dto, userId, branchId, tenantId);
   }
 
   @Get()

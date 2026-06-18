@@ -47,6 +47,9 @@ interface CheckoutDialogProps {
   discount: number
   total: number
   shiftId?: string | null
+  /** The branch selected in the POS UI. OWNER's JWT has branchId=null so the
+   *  frontend must forward the selected branch explicitly. */
+  branchId?: string | null
   onSuccess: (sale: Sale) => void
 }
 
@@ -201,6 +204,7 @@ export function CheckoutDialog({
   discount,
   total,
   shiftId,
+  branchId,
   onSuccess,
 }: CheckoutDialogProps) {
   const queryClient = useQueryClient()
@@ -245,6 +249,9 @@ export function CheckoutDialog({
       if (data.paymentMethod === 'CASH' && data.amountPaid < total) {
         throw new Error('จำนวนเงินที่รับน้อยกว่ายอดสุทธิ')
       }
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[CHECKOUT] branchId sent in body:', branchId ?? 'undefined (no-branch path)')
+      }
       const res = await api.post<Sale>('/sales', {
         customerName:  data.customerName?.trim() || undefined,
         customerPhone: data.customerPhone?.trim() || undefined,
@@ -253,6 +260,9 @@ export function CheckoutDialog({
         discount,
         note:          data.note?.trim() || undefined,
         shiftId:       shiftId ?? undefined,
+        // Forward the POS selected branch so OWNER checkout validates the correct
+        // BranchStock row. STAFF branchId is overridden by JWT on the backend.
+        branchId:      branchId ?? undefined,
         items: cartItems.map((i) => ({
           productId: i.product.id,
           quantity:  i.quantity,

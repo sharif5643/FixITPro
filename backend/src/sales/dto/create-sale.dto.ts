@@ -56,6 +56,12 @@ export class CreateSaleDto {
   @IsString()
   shiftId?: string;
 
+  // OWNER has branchId=null in JWT. Frontend must send the selected branch
+  // so the backend validates BranchStock for the correct branch.
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
   @IsIn(['CASH', 'TRANSFER', 'CARD'])
   paymentMethod: string;
 

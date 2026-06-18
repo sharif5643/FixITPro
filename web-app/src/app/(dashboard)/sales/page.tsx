@@ -46,7 +46,7 @@ export default function SalesPage() {
   const clearCart      = useCartStore((s) => s.clearCart)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
 
-  const { isGlobalMode, isSunmi } = useBranchContext()
+  const { branchId: effectiveBranch, isGlobalMode, isSunmi } = useBranchContext()
 
   const { data: currentShift, isLoading: shiftLoading } = useQuery<{ id: string } | null>({
     queryKey: ['shifts', 'current'],
@@ -329,6 +329,7 @@ export default function SalesPage() {
         discount={discount}
         total={total}
         shiftId={currentShift?.id}
+        branchId={effectiveBranch}
         onSuccess={handleSuccess}
       />
 
