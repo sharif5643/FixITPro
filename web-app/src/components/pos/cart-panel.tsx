@@ -45,7 +45,7 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
   const hasZeroPriceItem = items.some((i) => Number(i.product.price) === 0)
   const canCheckout      = items.length > 0 && !hasZeroPriceItem
 
-  const stockOf = (i: typeof items[0]) => i.product.branchQuantity ?? i.product.stock
+  const stockOf = (i: typeof items[0]) => i.product.branchQuantity ?? 0
 
   return (
     <div className="flex flex-col h-full">

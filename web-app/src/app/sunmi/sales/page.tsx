@@ -39,7 +39,7 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: React.Elemen
 // ── Product card (search results) ─────────────────────────────────────────────
 
 function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product) => void }) {
-  const availableQty = product.branchQuantity ?? product.stock
+  const availableQty = product.branchQuantity ?? 0
   const outOfStock = availableQty < 1
   const lowStock   = !outOfStock && availableQty < 5
   return (
@@ -89,7 +89,7 @@ function CartRow({
 }) {
   const [showDiscount, setShowDiscount] = useState(itemDiscount > 0)
   const [discStr, setDiscStr]           = useState(itemDiscount > 0 ? String(itemDiscount) : '')
-  const atMax = quantity >= (product.branchQuantity ?? product.stock)
+  const atMax = quantity >= (product.branchQuantity ?? 0)
 
   function commitDiscount() {
     const d = Math.max(0, Math.min(Number(discStr) || 0, Number(product.price) * quantity))
@@ -106,7 +106,7 @@ function CartRow({
         <div className="flex-1 min-w-0">
           <p className="font-bold text-slate-900 text-sm leading-tight truncate">{product.name}</p>
           <p className="text-xs text-slate-400 mt-0.5">
-            {formatThaiMoney(Number(product.price))} · สต็อก {quantity}/{product.branchQuantity ?? product.stock}
+            {formatThaiMoney(Number(product.price))} · สต็อก {quantity}/{product.branchQuantity ?? 0}
           </p>
         </div>
 
@@ -578,7 +578,7 @@ export default function SunmiSalesPage() {
   }, [addItem])
 
   function handlePickProduct(product: Product) {
-    if ((product.branchQuantity ?? product.stock) < 1) {
+    if ((product.branchQuantity ?? 0) < 1) {
       toast.error(`${product.name} — สต็อกหมด`)
       return
     }
@@ -618,6 +618,9 @@ export default function SunmiSalesPage() {
     setNotFoundCode(null)
     queryClient.invalidateQueries({ queryKey: ['products'] })
     queryClient.invalidateQueries({ queryKey: ['sales-today'] })
+    queryClient.invalidateQueries({ queryKey: ['low-stock'] })
+    queryClient.invalidateQueries({ queryKey: ['serials'] })
+    queryClient.invalidateQueries({ queryKey: ['shifts', 'current'] })
 
     const opts: PrintReceiptOptions = {
       shopName:      settings?.shopName ?? 'FixITPro',
