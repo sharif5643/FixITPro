@@ -273,7 +273,10 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
       staleTime: 30_000,
     })
 
-    const stockOf = useCallback((p: Product) => p.branchQuantity ?? p.stock, [])
+    // BranchStock is the single source of truth for branch inventory.
+    // Fallback to 0 (not product.stock) — product.stock is a shadow sum that
+    // can lag or include other branches, causing false "in-stock" reads.
+    const stockOf = useCallback((p: Product) => p.branchQuantity ?? 0, [])
 
     // ── Native barcode scanner ──────────────────────────────────────────────
 
@@ -368,6 +371,12 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
         beepError(); haptic(80)
         return
       }
+      const currentInCart = cartItems.find((i) => i.product.id === target.id)?.quantity ?? 0
+      if (currentInCart >= qty) {
+        toast.error(`${target.name} — สต็อกไม่พอ คงเหลือ ${qty} ชิ้น`, { duration: 2000 })
+        beepError(); haptic(60)
+        return
+      }
       addItem(target)
       toast.success(`เพิ่มสินค้าแล้ว — ${target.name}`, { duration: 1200 })
       beepSuccess(); haptic(40)
@@ -406,10 +415,19 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
         beepError()
         return
       }
-      const isOut    = stockOf(product) === 0
+      const qty      = stockOf(product)
       const hasOther = (product.otherBranchTotal ?? 0) > 0
-      if (isOut && hasOther) { setTransferProduct(product); return }
-      if (isOut) return
+      if (qty === 0) {
+        if (hasOther) { setTransferProduct(product); return }
+        return
+      }
+      // Check if adding one more would exceed the branch stock
+      const currentInCart = getCartQty(product.id)
+      if (currentInCart >= qty) {
+        toast.error(`${product.name} — สต็อกไม่พอ คงเหลือ ${qty} ชิ้น`, { duration: 2000 })
+        beepError(); haptic(60)
+        return
+      }
       addItem(product)
       toast.success(`เพิ่มสินค้าแล้ว — ${product.name}`, { duration: 1000 })
       beepSuccess(); haptic(40)

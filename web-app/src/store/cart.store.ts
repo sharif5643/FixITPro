@@ -25,7 +25,10 @@ export const useCartStore = create<CartStore>()(
 
       addItem: (product) => {
         const items     = get().items
-        const available = product.branchQuantity ?? product.stock
+        // branchQuantity is set by the backend when a branchId is in scope.
+        // Use 0 as the strict fallback — never shadow-promote via product.stock,
+        // which is a denormalized sum and can be stale / cross-branch.
+        const available = product.branchQuantity ?? 0
         const existing  = items.find((i) => i.product.id === product.id)
         if (existing) {
           const newQty = existing.quantity + 1
@@ -51,7 +54,7 @@ export const useCartStore = create<CartStore>()(
         }
         const item = get().items.find((i) => i.product.id === productId)
         if (!item) return
-        const available = item.product.branchQuantity ?? item.product.stock
+        const available = item.product.branchQuantity ?? 0
         if (quantity > available) return
         set({
           items: get().items.map((i) =>

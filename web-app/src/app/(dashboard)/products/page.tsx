@@ -442,13 +442,20 @@ export default function ProductsPage() {
                     {/* Stock */}
                     <DataTableCell className="text-center">
                       <div className="flex flex-col items-center gap-0.5">
-                        <div className="flex items-center gap-1">
+                        <div
+                          className="flex items-center gap-1"
+                          title={`สต็อก: ${q} ชิ้น  |  ขั้นต่ำ: ${p.minStock} ชิ้น`}
+                        >
                           <span className={`text-lg font-bold leading-none ${
                             isOut ? 'text-red-500 dark:text-red-400' : isLow ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'
                           }`}>
                             {q}
                           </span>
-                          <span className="text-xs text-slate-400 dark:text-slate-500">/{p.minStock}</span>
+                          <span
+                            className="text-xs text-slate-400 dark:text-slate-500"
+                            title={`ขั้นต่ำ: ${p.minStock} ชิ้น`}
+                          >
+                            /{p.minStock}</span>
                           {hasBreakdown && (
                             <button
                               onClick={() => toggleExpand(p.id)}
