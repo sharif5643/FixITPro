@@ -91,7 +91,21 @@ export class RepairsService {
   }
 
   private async resolveEffectiveBranchId(branchId: string | undefined, tenantId: string | null | undefined): Promise<string> {
-    if (branchId) return branchId;
+    if (branchId) {
+      // Validate the provided branchId belongs to this tenant (prevents cross-tenant repair creation
+      // and repairs created in orphan branches that the owner can't see later).
+      if (tenantId) {
+        const branch = await this.prisma.branch.findUnique({
+          where:  { id: branchId },
+          select: { tenantId: true, status: true },
+        });
+        if (!branch) throw new NotFoundException('ไม่พบสาขา');
+        if (branch.tenantId !== null && branch.tenantId !== tenantId) {
+          throw new ForbiddenException('ไม่มีสิทธิ์สร้างงานซ่อมในสาขานี้');
+        }
+      }
+      return branchId;
+    }
 
     // OWNER/SUPER_ADMIN may have no branchId in JWT — fall back to tenant's default branch
     if (tenantId) {
@@ -177,16 +191,26 @@ export class RepairsService {
 
     // Branch / tenant scoping
     if (query.branchId && tenantId) {
-      // Specific branch: branchId must match AND branch must belong to this tenant
-      where.AND = [{ branchId: query.branchId }, { branch: { tenantId } }];
+      // Specific branch: branchId must match AND (branch belongs to tenant OR branch is orphan
+      // but customer belongs to tenant — covers legacy data created before tenant assignment).
+      where.AND = [
+        { branchId: query.branchId },
+        {
+          OR: [
+            { branch: { tenantId } },
+            { branch: { tenantId: null }, customer: { tenantId } },
+          ],
+        },
+      ];
     } else if (query.branchId) {
       where.branchId = query.branchId;
     } else if (tenantId) {
-      // Global view (all branches): include repairs belonging to any branch of this tenant
-      // OR orphan repairs (branchId=null) that belong to a customer of this tenant
+      // Global view (all branches): repairs from this tenant's branches, OR orphan repairs
+      // (branchId=null / branch.tenantId=null) whose customer belongs to this tenant.
       where.OR = [
         { branch: { tenantId } },
         { branchId: null, customer: { tenantId } },
+        { branch: { tenantId: null }, customer: { tenantId } },
       ];
     }
 

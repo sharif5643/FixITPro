@@ -124,6 +124,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.replace('/sunmi')
       return
     }
+    // SUPER_ADMIN must use /super-admin — owner portal is for OWNER/STAFF only
+    if (user.role === 'SUPER_ADMIN') {
+      router.replace('/super-admin')
+      return
+    }
     if (user.forcePasswordChange && pathname !== '/change-password') {
       router.replace('/change-password')
       return
@@ -167,6 +172,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (user.forcePasswordChange) {
     return <LoadingScreen message="กำลังนำคุณไปยังหน้าเปลี่ยนรหัสผ่าน..." />
+  }
+
+  if (user.role === 'SUPER_ADMIN') {
+    return <LoadingScreen message="กำลังนำคุณไปยังหน้า Super Admin..." />
   }
 
   if (user.role !== 'SUPER_ADMIN' && user.tenantExpiryDate) {

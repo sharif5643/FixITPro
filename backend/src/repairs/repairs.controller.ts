@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UploadedFiles,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -69,6 +70,10 @@ export class RepairsController {
     @CurrentUser('branchId') jwtBranchId: string | null,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
+    // SUPER_ADMIN without a tenant context must use /super-admin/* endpoints
+    if (role === 'SUPER_ADMIN' && !tenantId) {
+      throw new ForbiddenException('Super Admin ต้องเข้าข้อมูลผ่าน /super-admin/* เท่านั้น');
+    }
     // OWNER/SUPER_ADMIN have no fixed branch in JWT — use the branchId they send in the body
     const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
     const branchId   = isElevated ? (dto.branchId ?? jwtBranchId ?? undefined) : (jwtBranchId ?? undefined);
@@ -82,6 +87,10 @@ export class RepairsController {
     @CurrentUser('branchId') userBranchId: string | null,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
+    // SUPER_ADMIN without tenant context must use /super-admin/* endpoints
+    if (role === 'SUPER_ADMIN' && !tenantId) {
+      throw new ForbiddenException('Super Admin ต้องเข้าข้อมูลผ่าน /super-admin/* เท่านั้น');
+    }
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
       ? query.branchId
       : (userBranchId ?? undefined);
