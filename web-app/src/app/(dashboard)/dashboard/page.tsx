@@ -32,7 +32,8 @@ interface DashboardOverview {
   finance: {
     totalRevenue: number; salesRevenue: number; salesCount: number
     repairRevenue: number; repairCount: number; packageRevenue: number
-    packageCount: number; totalExpenses: number; netProfit: number
+    packageCount: number; totalExpenses: number
+    posCOGS: number; repairCOGS: number; grossProfit: number; netProfit: number
     cashIn: number; transferIn: number
   }
   repairOps: {
@@ -73,11 +74,13 @@ interface DashboardOverview {
 interface OwnerSummaryData {
   today: {
     salesRevenue: number; repairRevenue: number; totalRevenue: number
-    totalExpenses: number; netProfit: number; newCustomers: number
+    posCOGS: number; repairCOGS: number; totalCOGS: number
+    grossProfit: number; totalExpenses: number; netProfit: number; newCustomers: number
   }
   monthly: {
     salesRevenue: number; repairRevenue: number; totalRevenue: number
-    totalExpenses: number; netProfit: number
+    posCOGS: number; repairCOGS: number; totalCOGS: number
+    grossProfit: number; totalExpenses: number; netProfit: number
   }
   recentSales: {
     id: string; receiptNumber: string; total: number
@@ -677,15 +680,15 @@ export default function DashboardPage() {
         ) : isOwnerOrManager ? (
           <>
             <KpiCard
-              label="รายรับวันนี้"
+              label="ยอดขายรวมวันนี้"
               value={formatThaiMoney(f?.totalRevenue ?? 0)}
               sub={`ขาย ${f?.salesCount ?? 0} · ซ่อม ${f?.repairCount ?? 0}`}
               icon={TrendingUp} accentColor="emerald" iconBg="bg-emerald-500" href="/reports"
             />
             <KpiCard
-              label="กำไรสุทธิ"
+              label="กำไรสุทธิวันนี้"
               value={formatThaiMoney(f?.netProfit ?? 0)}
-              sub={`เงินสด ${formatThaiMoney(f?.cashIn ?? 0)}`}
+              sub={`ขั้นต้น ${formatThaiMoney(f?.grossProfit ?? 0)} · ต้นทุน ${formatThaiMoney((f?.posCOGS ?? 0) + (f?.repairCOGS ?? 0))}`}
               icon={Banknote}
               accentColor={(f?.netProfit ?? 0) >= 0 ? 'teal' : 'red'}
               iconBg={(f?.netProfit ?? 0) >= 0 ? 'bg-teal-500' : 'bg-red-500'}
@@ -772,35 +775,41 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ยอดขาย POS</p>
-                  <p className="text-xl font-bold text-blue-700 dark:text-blue-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.salesRevenue ?? 0)}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ยอดขายรวม</p>
+                  <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.totalRevenue ?? 0)}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                    POS {formatThaiMoney(ownerSummary?.monthly.salesRevenue ?? 0)}
+                    {hasModule('repair') && ` · ซ่อม ${formatThaiMoney(ownerSummary?.monthly.repairRevenue ?? 0)}`}
+                  </p>
                 </div>
-                {hasModule('repair') && (
+                <div>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ต้นทุนสินค้า</p>
+                  <p className="text-xl font-bold text-rose-700 dark:text-rose-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.totalCOGS ?? 0)}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">COGS + อะไหล่</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">กำไรขั้นต้น</p>
+                  <p className={cn('text-xl font-bold mt-0.5', (ownerSummary?.monthly.grossProfit ?? 0) >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400')}>
+                    {formatThaiMoney(ownerSummary?.monthly.grossProfit ?? 0)}
+                  </p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">ก่อนหักค่าใช้จ่าย</p>
+                </div>
+                {hasModule('finance') && (
                   <div>
-                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">รายรับซ่อม</p>
-                    <p className="text-xl font-bold text-orange-700 dark:text-orange-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.repairRevenue ?? 0)}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ค่าใช้จ่าย</p>
+                    <p className="text-xl font-bold text-amber-700 dark:text-amber-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.totalExpenses ?? 0)}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">ค่าดำเนินการ</p>
                   </div>
                 )}
                 <div>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">รายรับรวม</p>
-                  <p className="text-xl font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.totalRevenue ?? 0)}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">กำไรสุทธิ</p>
+                  <p className={cn('text-xl font-bold mt-0.5', (ownerSummary?.monthly.netProfit ?? 0) >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400')}>
+                    {formatThaiMoney(ownerSummary?.monthly.netProfit ?? 0)}
+                  </p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">หลังหักทุกต้นทุน</p>
                 </div>
-                {hasModule('finance') && (
-                  <>
-                    <div>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">รายจ่าย</p>
-                      <p className="text-xl font-bold text-rose-700 dark:text-rose-400 mt-0.5">{formatThaiMoney(ownerSummary?.monthly.totalExpenses ?? 0)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">กำไรสุทธิ</p>
-                      <p className={cn('text-xl font-bold mt-0.5', (ownerSummary?.monthly.netProfit ?? 0) >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400')}>
-                        {formatThaiMoney(ownerSummary?.monthly.netProfit ?? 0)}
-                      </p>
-                    </div>
-                  </>
-                )}
                 {hasModule('crm') && (
                   <div>
                     <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ลูกค้าใหม่วันนี้</p>
@@ -966,27 +975,63 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Top row: key numbers */}
+                {/* P&L row: mirrors /reports/profit */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                  {[
-                    { label: 'รายรับรวม',    value: formatThaiMoney(f?.totalRevenue ?? 0),  color: 'text-emerald-700 dark:text-emerald-400' },
-                    { label: 'ยอดขาย POS',   value: formatThaiMoney(f?.salesRevenue ?? 0),  color: 'text-blue-700 dark:text-blue-400',   sub: `${f?.salesCount ?? 0} บิล` },
-                    { label: 'รายรับซ่อม',   value: formatThaiMoney(f?.repairRevenue ?? 0), color: 'text-orange-700 dark:text-orange-400', sub: `${f?.repairCount ?? 0} ใบงาน` },
-                    { label: 'ค่าใช้จ่าย',   value: formatThaiMoney(f?.totalExpenses ?? 0), color: 'text-rose-700 dark:text-rose-400',   sub: 'ไม่รวม COGS' },
-                    { label: 'กำไรสุทธิ',    value: formatThaiMoney(f?.netProfit ?? 0),     color: (f?.netProfit ?? 0) >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400' },
-                    { label: 'แจ้งเตือน',    value: String(totalAlerts),                   color: totalAlerts > 0 ? 'text-red-700 dark:text-red-400' : 'text-slate-400 dark:text-slate-500', sub: totalAlerts > 0 ? 'ต้องดำเนินการ' : 'ทุกอย่างปกติ' },
-                  ].map(s => (
-                    <div key={s.label}>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">{s.label}</p>
-                      <p className={`text-xl font-bold mt-0.5 ${s.color}`}>{s.value}</p>
-                      {s.sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{s.sub}</p>}
-                    </div>
-                  ))}
+                  <div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ยอดขายรวม</p>
+                    <p className="text-xl font-bold mt-0.5 text-emerald-700 dark:text-emerald-400">{formatThaiMoney(f?.totalRevenue ?? 0)}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">POS {f?.salesCount ?? 0} · ซ่อม {f?.repairCount ?? 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ต้นทุนสินค้า</p>
+                    <p className="text-xl font-bold mt-0.5 text-rose-700 dark:text-rose-400">{formatThaiMoney((f?.posCOGS ?? 0) + (f?.repairCOGS ?? 0))}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">COGS + อะไหล่/แรงงาน</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">กำไรขั้นต้น</p>
+                    <p className={cn('text-xl font-bold mt-0.5', (f?.grossProfit ?? 0) >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-red-700 dark:text-red-400')}>
+                      {formatThaiMoney(f?.grossProfit ?? 0)}
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">ก่อนหักค่าใช้จ่าย</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">ค่าใช้จ่าย</p>
+                    <p className="text-xl font-bold mt-0.5 text-amber-700 dark:text-amber-400">{formatThaiMoney(f?.totalExpenses ?? 0)}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">ค่าดำเนินการ</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">กำไรสุทธิ</p>
+                    <p className={cn('text-xl font-bold mt-0.5', (f?.netProfit ?? 0) >= 0 ? 'text-teal-700 dark:text-teal-400' : 'text-red-700 dark:text-red-400')}>
+                      {formatThaiMoney(f?.netProfit ?? 0)}
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">หลังหักทุกต้นทุน</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">แจ้งเตือน</p>
+                    <p className={cn('text-xl font-bold mt-0.5', totalAlerts > 0 ? 'text-red-700 dark:text-red-400' : 'text-slate-400 dark:text-slate-500')}>
+                      {totalAlerts}
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{totalAlerts > 0 ? 'ต้องดำเนินการ' : 'ทุกอย่างปกติ'}</p>
+                  </div>
                 </div>
 
-                {/* Payment breakdown bars */}
+                {/* Revenue breakdown sub-row */}
                 {(f?.totalRevenue ?? 0) > 0 && (
-                  <div className="pt-3 border-t dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="pt-3 border-t dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="text-xs">
+                      <span className="text-slate-400 dark:text-slate-500">POS </span>
+                      <span className="font-semibold text-blue-700 dark:text-blue-400">{formatThaiMoney(f?.salesRevenue ?? 0)}</span>
+                      <span className="text-slate-400 dark:text-slate-500"> · กำไร </span>
+                      <span className="font-semibold text-blue-700 dark:text-blue-400">{formatThaiMoney((f?.salesRevenue ?? 0) - (f?.posCOGS ?? 0))}</span>
+                    </div>
+                    {(f?.repairRevenue ?? 0) > 0 && (
+                      <div className="text-xs">
+                        <span className="text-slate-400 dark:text-slate-500">ซ่อม </span>
+                        <span className="font-semibold text-orange-700 dark:text-orange-400">{formatThaiMoney(f?.repairRevenue ?? 0)}</span>
+                        <span className="text-slate-400 dark:text-slate-500"> · กำไร </span>
+                        <span className="font-semibold text-orange-700 dark:text-orange-400">{formatThaiMoney((f?.repairRevenue ?? 0) - (f?.repairCOGS ?? 0))}</span>
+                      </div>
+                    )}
                     <RevenueBar label="เงินสด" value={f?.cashIn ?? 0} total={f?.totalRevenue ?? 0} color="bg-emerald-500" />
                     <RevenueBar label="โอนเงิน" value={f?.transferIn ?? 0} total={f?.totalRevenue ?? 0} color="bg-blue-500" />
                   </div>

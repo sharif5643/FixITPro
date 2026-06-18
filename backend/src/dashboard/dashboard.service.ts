@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 
@@ -212,12 +213,52 @@ export class DashboardService {
       }),
     ]);
 
+    // ── COGS (raw SQL — Prisma ORM can't SUM a product of two columns) ────────
+    // Build tenant/branch filter fragment for raw queries
+    const saleBranchSql: Prisma.Sql = params.branchId
+      ? Prisma.sql`AND s."branchId" = ${params.branchId}`
+      : tenantId
+        ? Prisma.sql`AND s."branchId" IN (SELECT id FROM "Branch" WHERE "tenantId" = ${tenantId})`
+        : Prisma.sql``;
+    const repairBranchSql: Prisma.Sql = params.branchId
+      ? Prisma.sql`AND r."branchId" = ${params.branchId}`
+      : tenantId
+        ? Prisma.sql`AND r."branchId" IN (SELECT id FROM "Branch" WHERE "tenantId" = ${tenantId})`
+        : Prisma.sql``;
+
+    const [posCOGSRow, repairCOGSRow] = await Promise.all([
+      this.prisma.$queryRaw<[{ cogs: number }]>(Prisma.sql`
+        SELECT COALESCE(SUM(si."costPrice"::float8 * si.quantity), 0) as cogs
+        FROM "SaleItem" si
+        JOIN "Sale" s ON s.id = si."saleId"
+        WHERE s."createdAt" >= ${start}
+          AND s."createdAt" < ${end}
+          AND s.status != 'VOIDED'
+          ${saleBranchSql}
+      `),
+      this.prisma.$queryRaw<[{ parts: number; labor: number }]>(Prisma.sql`
+        SELECT
+          COALESCE(SUM(rp.price::float8 * rp.quantity), 0) as parts,
+          COALESCE(SUM(r."actualLaborCost"::float8), 0)    as labor
+        FROM "Repair" r
+        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id
+        WHERE r."paidAt" >= ${start}
+          AND r."paidAt" < ${end}
+          AND r."paymentStatus" = 'PAID'
+          ${repairBranchSql}
+      `),
+    ]);
+
+    const posCOGS    = Number(posCOGSRow[0]?.cogs ?? 0);
+    const repairCOGS = Number(repairCOGSRow[0]?.parts ?? 0) + Number(repairCOGSRow[0]?.labor ?? 0);
+
     // ── Financial ─────────────────────────────────────────────────────────────
     const salesRevenue   = Number(salesAgg._sum.total ?? 0);
     const repairRevenue  = Number(repairPaymentsAgg._sum.paidAmount ?? 0);
     const packageRevenue = Number(packageSalesAgg._sum.profit ?? 0);
     const totalRevenue   = salesRevenue + repairRevenue + packageRevenue;
     const totalExpenses  = Number(expensesAgg._sum.amount ?? 0);
+    const grossProfit    = (salesRevenue - posCOGS) + (repairRevenue - repairCOGS) + packageRevenue;
 
     const cashIn =
       Number(salesByMethod.find(r => r.paymentMethod === 'CASH')?._sum.total ?? 0) +
@@ -333,13 +374,17 @@ export class DashboardService {
       finance: {
         totalRevenue,
         salesRevenue,
-        salesCount: salesAgg._count.id,
+        salesCount:    salesAgg._count.id,
         repairRevenue,
-        repairCount: repairPaymentsAgg._count.id,
+        repairCount:   repairPaymentsAgg._count.id,
         packageRevenue,
-        packageCount: packageSalesAgg._count.id,
+        packageCount:  packageSalesAgg._count.id,
         totalExpenses,
-        netProfit: totalRevenue - totalExpenses,
+        // COGS and profit — mirrors /reports/profit calculation exactly
+        posCOGS,
+        repairCOGS,
+        grossProfit,
+        netProfit: grossProfit - totalExpenses,
         cashIn,
         transferIn,
       },
@@ -471,15 +516,65 @@ export class DashboardService {
       }),
     ]);
 
+    // COGS queries for today and this month (mirrors /reports/profit calculation)
+    const saleBSql: Prisma.Sql = tenantId
+      ? Prisma.sql`AND s."branchId" IN (SELECT id FROM "Branch" WHERE "tenantId" = ${tenantId})`
+      : Prisma.sql``;
+    const repairBSql: Prisma.Sql = tenantId
+      ? Prisma.sql`AND r."branchId" IN (SELECT id FROM "Branch" WHERE "tenantId" = ${tenantId})`
+      : Prisma.sql``;
+
+    const [todayPosCOGSRow, todayRepairCOGSRow, monthlyPosCOGSRow, monthlyRepairCOGSRow] = await Promise.all([
+      this.prisma.$queryRaw<[{ cogs: number }]>(Prisma.sql`
+        SELECT COALESCE(SUM(si."costPrice"::float8 * si.quantity), 0) as cogs
+        FROM "SaleItem" si
+        JOIN "Sale" s ON s.id = si."saleId"
+        WHERE s."createdAt" >= ${todayStart} AND s."createdAt" < ${todayEnd}
+          AND s.status != 'VOIDED' ${saleBSql}
+      `),
+      this.prisma.$queryRaw<[{ parts: number; labor: number }]>(Prisma.sql`
+        SELECT
+          COALESCE(SUM(rp.price::float8 * rp.quantity), 0) as parts,
+          COALESCE(SUM(r."actualLaborCost"::float8), 0)    as labor
+        FROM "Repair" r
+        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id
+        WHERE r."paidAt" >= ${todayStart} AND r."paidAt" < ${todayEnd}
+          AND r."paymentStatus" = 'PAID' ${repairBSql}
+      `),
+      this.prisma.$queryRaw<[{ cogs: number }]>(Prisma.sql`
+        SELECT COALESCE(SUM(si."costPrice"::float8 * si.quantity), 0) as cogs
+        FROM "SaleItem" si
+        JOIN "Sale" s ON s.id = si."saleId"
+        WHERE s."createdAt" >= ${monthStart} AND s."createdAt" < ${todayEnd}
+          AND s.status != 'VOIDED' ${saleBSql}
+      `),
+      this.prisma.$queryRaw<[{ parts: number; labor: number }]>(Prisma.sql`
+        SELECT
+          COALESCE(SUM(rp.price::float8 * rp.quantity), 0) as parts,
+          COALESCE(SUM(r."actualLaborCost"::float8), 0)    as labor
+        FROM "Repair" r
+        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id
+        WHERE r."paidAt" >= ${monthStart} AND r."paidAt" < ${todayEnd}
+          AND r."paymentStatus" = 'PAID' ${repairBSql}
+      `),
+    ]);
+
+    const todayPosCOGS    = Number(todayPosCOGSRow[0]?.cogs ?? 0);
+    const todayRepairCOGS = Number(todayRepairCOGSRow[0]?.parts ?? 0) + Number(todayRepairCOGSRow[0]?.labor ?? 0);
+    const monthlyPosCOGS    = Number(monthlyPosCOGSRow[0]?.cogs ?? 0);
+    const monthlyRepairCOGS = Number(monthlyRepairCOGSRow[0]?.parts ?? 0) + Number(monthlyRepairCOGSRow[0]?.labor ?? 0);
+
     const todaySalesRevenue  = Number(todaySalesAgg._sum.total ?? 0);
     const todayRepairRevenue = Number(todayRepairAgg._sum.paidAmount ?? 0);
     const todayRevenue       = todaySalesRevenue + todayRepairRevenue;
     const todayExpenses      = Number(todayExpensesAgg._sum.amount ?? 0);
+    const todayGrossProfit   = (todaySalesRevenue - todayPosCOGS) + (todayRepairRevenue - todayRepairCOGS);
 
     const monthlySalesRevenue  = Number(monthlySalesAgg._sum.total ?? 0);
     const monthlyRepairRevenue = Number(monthlyRepairAgg._sum.paidAmount ?? 0);
     const monthlyRevenue       = monthlySalesRevenue + monthlyRepairRevenue;
     const monthlyExpenses      = Number(monthlyExpensesAgg._sum.amount ?? 0);
+    const monthlyGrossProfit   = (monthlySalesRevenue - monthlyPosCOGS) + (monthlyRepairRevenue - monthlyRepairCOGS);
 
     const unpaidDebtCount = unpaidDebtRepairs.length;
     const lowStockCount   = Number((lowStockResult as [{ count: bigint }])[0]?.count ?? 0);
@@ -489,19 +584,27 @@ export class DashboardService {
 
     return {
       today: {
-        salesRevenue: todaySalesRevenue,
+        salesRevenue:  todaySalesRevenue,
         repairRevenue: todayRepairRevenue,
-        totalRevenue: todayRevenue,
+        totalRevenue:  todayRevenue,
+        posCOGS:       todayPosCOGS,
+        repairCOGS:    todayRepairCOGS,
+        totalCOGS:     todayPosCOGS + todayRepairCOGS,
+        grossProfit:   todayGrossProfit,
         totalExpenses: todayExpenses,
-        netProfit: todayRevenue - todayExpenses,
-        newCustomers: newCustomersCount,
+        netProfit:     todayGrossProfit - todayExpenses,
+        newCustomers:  newCustomersCount,
       },
       monthly: {
-        salesRevenue: monthlySalesRevenue,
+        salesRevenue:  monthlySalesRevenue,
         repairRevenue: monthlyRepairRevenue,
-        totalRevenue: monthlyRevenue,
+        totalRevenue:  monthlyRevenue,
+        posCOGS:       monthlyPosCOGS,
+        repairCOGS:    monthlyRepairCOGS,
+        totalCOGS:     monthlyPosCOGS + monthlyRepairCOGS,
+        grossProfit:   monthlyGrossProfit,
         totalExpenses: monthlyExpenses,
-        netProfit: monthlyRevenue - monthlyExpenses,
+        netProfit:     monthlyGrossProfit - monthlyExpenses,
       },
       recentSales: recentSales.map(s => ({
         id:            s.id,
