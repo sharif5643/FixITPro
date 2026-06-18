@@ -602,7 +602,9 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                       {searchOpen && partProducts.length > 0 && (
                         <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                           {partProducts.map((p) => {
-                            const stockQty  = p.branchQuantity ?? p.stock
+                            // Parts must be drawn from the current branch's BranchStock only.
+                            // Never fall back to product.stock — it's a cross-branch shadow sum.
+                            const stockQty  = p.branchQuantity ?? 0
                             const isOut     = stockQty === 0
                             const hasOther  = (p.otherBranchTotal ?? 0) > 0
                             const canRequest = isOut && hasOther

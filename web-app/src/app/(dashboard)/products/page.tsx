@@ -444,7 +444,7 @@ export default function ProductsPage() {
                       <div className="flex flex-col items-center gap-0.5">
                         <div
                           className="flex items-center gap-1"
-                          title={`สต็อก: ${q} ชิ้น  |  ขั้นต่ำ: ${p.minStock} ชิ้น`}
+                          title={`${isViewAll ? 'สต็อกรวมทุกสาขา' : 'สต็อกสาขานี้'}: ${q} ชิ้น  |  ขั้นต่ำ: ${p.minStock} ชิ้น`}
                         >
                           <span className={`text-lg font-bold leading-none ${
                             isOut ? 'text-red-500 dark:text-red-400' : isLow ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'
