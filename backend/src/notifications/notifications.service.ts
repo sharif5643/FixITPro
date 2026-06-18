@@ -154,37 +154,44 @@ export class NotificationsService implements OnModuleInit {
       });
     }
 
-    // High-value customers
-    const highValueRows = await this.prisma.sale.groupBy({
-      by:     ['customerId'],
-      where:  { status: 'COMPLETED' as any, customerId: { not: null } },
-      _sum:   { total: true },
-      having: { total: { _sum: { gte: HIGH_VALUE_CUSTOMER_THRESHOLD } } },
-    });
-
-    for (const row of highValueRows) {
-      if (!row.customerId) continue;
-      const alreadyNotified = await this.prisma.notification.findFirst({
-        where:  { type: 'HIGH_VALUE_CUSTOMER', entityId: row.customerId },
-        select: { id: true },
+    // High-value customers — group per-tenant to avoid cross-tenant aggregation
+    const tenants = await this.prisma.tenant.findMany({ select: { id: true } });
+    for (const tenant of tenants) {
+      const highValueRows = await this.prisma.sale.groupBy({
+        by:     ['customerId'],
+        where:  {
+          status:     'COMPLETED' as any,
+          customerId: { not: null },
+          customer:   { tenantId: tenant.id },
+        },
+        _sum:   { total: true },
+        having: { total: { _sum: { gte: HIGH_VALUE_CUSTOMER_THRESHOLD } } },
       });
-      if (alreadyNotified) continue;
 
-      const customer = await this.prisma.customer.findUnique({
-        where:  { id: row.customerId },
-        select: { id: true, name: true, tenantId: true },
-      });
-      if (!customer) continue;
+      for (const row of highValueRows) {
+        if (!row.customerId) continue;
+        const alreadyNotified = await this.prisma.notification.findFirst({
+          where:  { type: 'HIGH_VALUE_CUSTOMER', entityId: row.customerId },
+          select: { id: true },
+        });
+        if (alreadyNotified) continue;
 
-      await this.notify({
-        type:       'HIGH_VALUE_CUSTOMER',
-        title:      `ลูกค้า VIP: ${customer.name}`,
-        message:    `${customer.name} มียอดซื้อสะสม ${Number(row._sum.total).toFixed(0)} บาท`,
-        severity:   'INFO',
-        entityType: 'Customer',
-        entityId:   customer.id,
-        tenantId:   customer.tenantId,
-      });
+        const customer = await this.prisma.customer.findUnique({
+          where:  { id: row.customerId },
+          select: { id: true, name: true, tenantId: true },
+        });
+        if (!customer) continue;
+
+        await this.notify({
+          type:       'HIGH_VALUE_CUSTOMER',
+          title:      `ลูกค้า VIP: ${customer.name}`,
+          message:    `${customer.name} มียอดซื้อสะสม ${Number(row._sum.total).toFixed(0)} บาท`,
+          severity:   'INFO',
+          entityType: 'Customer',
+          entityId:   customer.id,
+          tenantId:   customer.tenantId,
+        });
+      }
     }
 
     // Unpaid delivered repairs — get tenantId via branch

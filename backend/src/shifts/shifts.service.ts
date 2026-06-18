@@ -292,11 +292,16 @@ export class ShiftsService {
     };
   }
 
-  async findAll(query: { date?: string; userId?: string; branchId?: string }) {
+  async findAll(query: { date?: string; userId?: string; branchId?: string; tenantId?: string }) {
     const where: any = {};
 
     if (query.userId)   where.userId   = query.userId;
-    if (query.branchId) where.branchId = query.branchId;
+    // Scope shifts to tenant via branch.tenantId
+    if (query.branchId) {
+      where.branchId = query.branchId;
+    } else if (query.tenantId) {
+      where.branch = { tenantId: query.tenantId };
+    }
 
     if (query.date) {
       const start = new Date(query.date);

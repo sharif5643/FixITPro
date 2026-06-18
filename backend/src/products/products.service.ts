@@ -442,6 +442,7 @@ export class ProductsService {
     actorName?: string,
     userBranchId?: string | null,
     userRole?: string,
+    tenantId?: string,
   ) {
     const isPrivileged = userRole === 'OWNER' || userRole === 'SUPER_ADMIN';
     const effectiveBranchId: string | undefined = isPrivileged
@@ -452,8 +453,20 @@ export class ProductsService {
       throw new BadRequestException('กรุณาเลือกสาขาก่อนเพิ่มสินค้าเข้าสาขา');
     }
 
-    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    // Validate product belongs to tenant
+    const product = await this.prisma.product.findUnique({ where: { id: productId, ...(tenantId ? { tenantId } : {}) } });
     if (!product || !product.isActive) throw new NotFoundException('Product not found');
+
+    // Validate branch belongs to same tenant (prevents cross-tenant stock enrollment)
+    if (tenantId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: effectiveBranchId },
+        select: { tenantId: true },
+      });
+      if (!branch || branch.tenantId !== tenantId) {
+        throw new NotFoundException('ไม่พบสาขา');
+      }
+    }
 
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await (tx as any).branchStock.findUnique({
@@ -497,15 +510,16 @@ export class ProductsService {
     return result;
   }
 
-  async getAvailability(id: string) {
+  async getAvailability(id: string, tenantId: string) {
     const product = await this.prisma.product.findUnique({
-      where: { id },
+      where: { id, tenantId },
       select: { id: true, name: true },
     });
     if (!product) throw new NotFoundException('Product not found');
 
+    // Filter by branch.tenantId so a tenant cannot see another tenant's branch stock
     const stocks = await (this.prisma as any).branchStock.findMany({
-      where: { productId: id },
+      where: { productId: id, branch: { tenantId } },
       include: { branch: { select: { id: true, name: true } } },
       orderBy: { quantity: 'desc' },
     });

@@ -478,7 +478,7 @@ export class BranchesService implements OnModuleInit {
     });
   }
 
-  async createTransfer(dto: CreateTransferDto, actorId?: string, actorName?: string) {
+  async createTransfer(dto: CreateTransferDto, actorId?: string, actorName?: string, tenantId?: string) {
     if (dto.fromBranchId === dto.toBranchId) {
       throw new BadRequestException('สาขาต้นทางและปลายทางต้องไม่ใช่สาขาเดียวกัน');
     }
@@ -491,6 +491,14 @@ export class BranchesService implements OnModuleInit {
     if (!fromBranch) throw new NotFoundException('ไม่พบสาขาต้นทาง');
     if (!toBranch)   throw new NotFoundException('ไม่พบสาขาปลายทาง');
     if (!product)    throw new NotFoundException('ไม่พบสินค้า');
+
+    // Validate all three resources belong to the calling tenant
+    if (tenantId) {
+      if ((fromBranch as any).tenantId !== tenantId) throw new NotFoundException('ไม่พบสาขาต้นทาง');
+      if ((toBranch as any).tenantId   !== tenantId) throw new NotFoundException('ไม่พบสาขาปลายทาง');
+      if (product.tenantId             !== tenantId) throw new NotFoundException('ไม่พบสินค้า');
+    }
+
     if ((fromBranch as any).status === 'SUSPENDED') throw new BadRequestException('สาขาต้นทางถูกระงับ');
     if ((toBranch as any).status === 'SUSPENDED')   throw new BadRequestException('สาขาปลายทางถูกระงับ');
 

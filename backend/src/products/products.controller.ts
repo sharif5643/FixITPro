@@ -89,8 +89,11 @@ export class ProductsController {
   }
 
   @Get(':id/availability')
-  getAvailability(@Param('id') id: string) {
-    return this.productsService.getAvailability(id);
+  getAvailability(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.productsService.getAvailability(id, tenantId);
   }
 
   @Get(':id')
@@ -109,8 +112,9 @@ export class ProductsController {
     @CurrentUser('name')     actorName: string,
     @CurrentUser('branchId') userBranchId: string | null,
     @CurrentUser('role')     userRole: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.productsService.enrollBranch(id, dto, actorId, actorName, userBranchId, userRole);
+    return this.productsService.enrollBranch(id, dto, actorId, actorName, userBranchId, userRole, tenantId);
   }
 
   @Patch(':id')

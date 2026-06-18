@@ -113,12 +113,13 @@ export class BranchesController {
     @CurrentUser('name')     actorName: string,
     @CurrentUser('role')     actorRole: string,
     @CurrentUser('branchId') actorBranchId: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
     const isOwner = actorRole === 'OWNER' || actorRole === 'SUPER_ADMIN';
     if (!isOwner && actorBranchId) {
       dto.toBranchId = actorBranchId;
     }
-    return this.svc.createTransfer(dto, actorId, actorName);
+    return this.svc.createTransfer(dto, actorId, actorName, tenantId);
   }
 
   @Patch('transfers/:id/approve')

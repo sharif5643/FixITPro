@@ -28,25 +28,27 @@ export class ExpensesController {
   // ── Categories ───────────────────────────────────────────────────────────────
 
   @Get('categories')
-  findAllCategories() {
-    return this.expensesService.findAllCategories();
+  findAllCategories(@CurrentUser('tenantId') tenantId: string | null) {
+    return this.expensesService.findAllCategories(tenantId);
   }
 
   @Post('categories')
   createCategory(
     @Body() dto: CreateExpenseCategoryDto,
-    @CurrentUser('role') role: string,
+    @CurrentUser('role')     role: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.expensesService.createCategory(dto, role);
+    return this.expensesService.createCategory(dto, role, tenantId);
   }
 
   @Patch('categories/:id')
   updateCategory(
     @Param('id') id: string,
     @Body() dto: UpdateExpenseCategoryDto,
-    @CurrentUser('role') role: string,
+    @CurrentUser('role')     role: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.expensesService.updateCategory(id, dto, role);
+    return this.expensesService.updateCategory(id, dto, role, tenantId);
   }
 
   // ── Summary routes — must come before :id ───────────────────────────────────

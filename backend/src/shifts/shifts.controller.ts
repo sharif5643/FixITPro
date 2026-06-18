@@ -53,12 +53,13 @@ export class ShiftsController {
   @Get()
   findAll(
     @Query() query: { date?: string; userId?: string; branchId?: string },
-    @CurrentUser('role') role: string,
+    @CurrentUser('role')     role: string,
     @CurrentUser('branchId') userBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
       ? query.branchId
       : (userBranchId ?? undefined);
-    return this.shiftsService.findAll({ ...query, branchId: effectiveBranchId });
+    return this.shiftsService.findAll({ ...query, branchId: effectiveBranchId, tenantId });
   }
 }

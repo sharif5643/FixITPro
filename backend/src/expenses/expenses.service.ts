@@ -68,22 +68,35 @@ export class ExpensesService implements OnModuleInit {
 
   // ── Categories ───────────────────────────────────────────────────────────────
 
-  findAllCategories() {
+  findAllCategories(tenantId?: string | null) {
+    // Return global categories (null tenantId) AND this tenant's private categories
     return this.prisma.expenseCategory.findMany({
+      where: {
+        OR: [
+          { tenantId: null },
+          ...(tenantId ? [{ tenantId }] : []),
+        ],
+      },
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
       include: { _count: { select: { expenses: true } } },
     });
   }
 
-  async createCategory(dto: CreateExpenseCategoryDto, role: string) {
+  async createCategory(dto: CreateExpenseCategoryDto, role: string, tenantId?: string | null) {
     this.requireRole(role);
-    return this.prisma.expenseCategory.create({ data: dto });
+    return this.prisma.expenseCategory.create({
+      data: { ...dto, tenantId: tenantId ?? null },
+    });
   }
 
-  async updateCategory(id: string, dto: UpdateExpenseCategoryDto, role: string) {
+  async updateCategory(id: string, dto: UpdateExpenseCategoryDto, role: string, tenantId?: string | null) {
     this.requireRole(role);
     const cat = await this.prisma.expenseCategory.findUnique({ where: { id } });
     if (!cat) throw new NotFoundException('ไม่พบหมวดหมู่');
+    // Prevent editing a category that belongs to another tenant
+    if (cat.tenantId !== null && tenantId && cat.tenantId !== tenantId) {
+      throw new NotFoundException('ไม่พบหมวดหมู่');
+    }
     return this.prisma.expenseCategory.update({ where: { id }, data: dto });
   }
 

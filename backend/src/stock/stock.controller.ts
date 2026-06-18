@@ -29,6 +29,7 @@ export class StockController {
     @CurrentUser('name')     actorName: string,
     @CurrentUser('role')     actorRole: string,
     @CurrentUser('branchId') actorBranchId: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
     const isOwner = actorRole === 'OWNER' || actorRole === 'SUPER_ADMIN';
     if (!isOwner) {
@@ -47,24 +48,28 @@ export class StockController {
       this.logger.debug(`[adjust] actor=${actorId} role=${actorRole} jwtBranch=${actorBranchId ?? null} bodyBranch=${dto.branchId ?? null} product=${dto.productId} type=${dto.type} qty=${dto.quantity}`);
     }
 
-    return this.stockService.adjustStock(dto, actorId, actorName);
+    return this.stockService.adjustStock(dto, actorId, actorName, tenantId);
   }
 
   @Get('movements/:productId')
-  getMovements(@Param('productId') productId: string) {
-    return this.stockService.getMovements(productId);
+  getMovements(
+    @Param('productId')      productId: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.stockService.getMovements(productId, tenantId);
   }
 
   @Get('low-stock')
   getLowStockProducts(
     @CurrentUser('role')     role: string,
     @CurrentUser('branchId') jwtBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string,
     @Query('branchId')       queryBranchId?: string,
   ) {
     const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
     const effectiveBranchId = isElevated
       ? (queryBranchId || undefined)
       : (jwtBranchId ?? undefined);
-    return this.stockService.getLowStockProducts(effectiveBranchId);
+    return this.stockService.getLowStockProducts(effectiveBranchId, tenantId);
   }
 }

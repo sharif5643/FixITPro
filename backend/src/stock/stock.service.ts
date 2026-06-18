@@ -49,7 +49,7 @@ export class StockService {
     return `SK${branch.branchNumber}-${String(branch.stockCodeSeq).padStart(6, '0')}`;
   }
 
-  async adjustStock(dto: AdjustStockDto, actorId?: string, actorName?: string) {
+  async adjustStock(dto: AdjustStockDto, actorId?: string, actorName?: string, tenantId?: string) {
     // Controller guarantees dto.branchId is always set; guard defensively
     if (!dto.branchId) {
       throw new BadRequestException('กรุณาระบุสาขา (branchId is required)');
@@ -57,8 +57,19 @@ export class StockService {
 
     await this.assertBranchActive(dto.branchId);
 
+    // Validate branch belongs to the calling tenant
+    if (tenantId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: dto.branchId },
+        select: { tenantId: true },
+      });
+      if (!branch || branch.tenantId !== tenantId) {
+        throw new NotFoundException('ไม่พบสาขา');
+      }
+    }
+
     const product = await this.prisma.product.findUnique({
-      where: { id: dto.productId },
+      where: { id: dto.productId, ...(tenantId ? { tenantId } : {}) },
     });
     if (!product) throw new NotFoundException('Product not found');
 
@@ -155,9 +166,9 @@ export class StockService {
     return { success: true, productId: dto.productId, branchId: dto.branchId ?? null };
   }
 
-  async getMovements(productId: string) {
+  async getMovements(productId: string, tenantId?: string) {
     const product = await this.prisma.product.findUnique({
-      where: { id: productId },
+      where: { id: productId, ...(tenantId ? { tenantId } : {}) },
     });
     if (!product) throw new NotFoundException('Product not found');
 
@@ -168,7 +179,7 @@ export class StockService {
     });
   }
 
-  async getLowStockProducts(branchId?: string) {
+  async getLowStockProducts(branchId?: string, tenantId?: string) {
     const rows: any[] = branchId
       ? await this.prisma.$queryRaw`
           SELECT
@@ -189,6 +200,7 @@ export class StockService {
             AND bs."minStock" > 0
             AND bs.quantity <= bs."minStock"
             AND bs."branchId" = ${branchId}
+            AND (${tenantId ?? null}::text IS NULL OR p."tenantId" = ${tenantId ?? null})
           ORDER BY bs.quantity ASC, p.name ASC
         `
       : await this.prisma.$queryRaw`
@@ -209,6 +221,7 @@ export class StockService {
           WHERE p."isActive" = true
             AND bs."minStock" > 0
             AND bs.quantity <= bs."minStock"
+            AND (${tenantId ?? null}::text IS NULL OR p."tenantId" = ${tenantId ?? null})
           ORDER BY bs.quantity ASC, p.name ASC
         `;
 

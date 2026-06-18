@@ -271,17 +271,18 @@ model Tenant {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  users           User[]
-  renewals        TenantRenewal[]
-  payments        TenantPayment[]
-  moduleOverrides TenantModule[]
-  branches        Branch[]
-  products        Product[]
-  customers       Customer[]
-  categories      Category[]
-  suppliers       Supplier[]
-  shopSettings    ShopSettings?
-  notifications   Notification[]
+  users             User[]
+  renewals          TenantRenewal[]
+  payments          TenantPayment[]
+  moduleOverrides   TenantModule[]
+  branches          Branch[]
+  products          Product[]
+  customers         Customer[]
+  categories        Category[]
+  suppliers         Supplier[]
+  shopSettings      ShopSettings?
+  notifications     Notification[]
+  expenseCategories ExpenseCategory[]
 
   @@index([status])
   @@index([expiryDate])
@@ -1059,11 +1060,17 @@ model CarrierWalletMovement {
 model ExpenseCategory {
   id        String    @id @default(cuid())
   name      String
-  code      String    @unique
+  code      String
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
 
+  // null = global system default visible to all tenants; non-null = tenant-private category
+  tenantId  String?
+  tenant    Tenant?   @relation(fields: [tenantId], references: [id])
+
   expenses  Expense[]
+
+  @@unique([code, tenantId])
 }
 
 model Expense {
