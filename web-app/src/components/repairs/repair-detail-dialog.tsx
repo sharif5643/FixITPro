@@ -155,7 +155,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [addPayNote, setAddPayNote] = useState('')
 
   const { hasPermission, user: authUser } = useAuthStore()
-  const repairBranchId = (authUser?.branchId as string | null | undefined) ?? undefined
+  const repairBranchId = (repair?.branchId as string | null | undefined) ?? undefined
   const canReverse = hasPermission('repair.close') || repair?.paymentStatus === 'PAID'
 
   useEffect(() => {
@@ -197,21 +197,10 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
           ...(repairBranchId ? { branchId: repairBranchId } : {}),
         },
       })).data
-      console.log('[PARTS RESPONSE]', products)
-      console.log('[PARTS AUDIT]', products.map((p: Product) => ({
-        id: p.id,
-        name: p.name,
-        sku: p.sku,
-        stock: p.stock,
-        branchQuantity: p.branchQuantity,
-        effectiveQty: p.branchQuantity ?? 0,
-        jwtBranchId: repairBranchId,
-        repairBranchId: repair?.branchId,
-      })))
       return products
     },
     enabled: searchOpen,
-    staleTime: 0,
+    staleTime: 30_000,
   })
 
   const computedPartsCost = Array.isArray(repair?.parts)
@@ -644,7 +633,6 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                                   <p className="text-xs text-muted-foreground">
                                     SKU: {p.sku} · สต็อก: {isOut ? <span className="text-red-500">หมด</span> : stockQty} · ราคาทุน: {formatThaiMoney(Number(p.costPrice))}
                                   </p>
-                                  <p className="text-xs font-mono text-orange-600 break-all">[DEBUG] {JSON.stringify({id: p.id, branchQty: p.branchQuantity, stock: p.stock, jwtBranch: repairBranchId, repairBranch: repair?.branchId})}</p>
                                 </button>
                                 {canRequest && (
                                   <button
