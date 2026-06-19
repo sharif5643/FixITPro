@@ -156,6 +156,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
 
   const { hasPermission, user: authUser } = useAuthStore()
   const repairBranchId = (repair?.branchId as string | null | undefined) ?? undefined
+  const canViewCost = hasPermission('products.view_cost')
   const canReverse = hasPermission('repair.close') || repair?.paymentStatus === 'PAID'
 
   useEffect(() => {
@@ -558,7 +559,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         </button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        SKU: {addingPart.sku} · สต็อก: {addingPart.branchQuantity ?? addingPart.stock} ชิ้น · ราคาทุน: {formatThaiMoney(Number(addingPart.costPrice))}
+                        SKU: {addingPart.sku} · สต็อก: {addingPart.branchQuantity ?? addingPart.stock} ชิ้น{canViewCost && ` · ราคาทุน: ${formatThaiMoney(Number(addingPart.costPrice))}`}
                       </p>
                       <div className="flex gap-2">
                         <div className="space-y-1 flex-1">
@@ -573,11 +574,11 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                           />
                         </div>
                         <div className="space-y-1 flex-1">
-                          <label className="text-xs text-muted-foreground">ราคา/ชิ้น (ปล่อยว่าง=ราคาทุน)</label>
+                          <label className="text-xs text-muted-foreground">ราคา/ชิ้น{canViewCost && ' (ปล่อยว่าง=ราคาทุน)'}</label>
                           <Input
                             type="number"
                             min={0}
-                            placeholder={String(addingPart.costPrice)}
+                            placeholder={canViewCost ? String(addingPart.costPrice) : '0'}
                             value={partPrice}
                             onChange={(e) => setPartPrice(e.target.value)}
                             className="h-8 text-sm"
@@ -631,7 +632,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                                 >
                                   <p className="text-sm font-medium text-gray-900">{p.name}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    SKU: {p.sku} · สต็อก: {isOut ? <span className="text-red-500">หมด</span> : stockQty} · ราคาทุน: {formatThaiMoney(Number(p.costPrice))}
+                                    SKU: {p.sku} · สต็อก: {isOut ? <span className="text-red-500">หมด</span> : stockQty}{canViewCost && ` · ราคาทุน: ${formatThaiMoney(Number(p.costPrice))}`}
                                   </p>
                                 </button>
                                 {canRequest && (
