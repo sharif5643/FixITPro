@@ -1,5 +1,7 @@
 'use client'
 
+console.log('REPAIR_PARTS_BUILD_V1 | commit=360779a | deployed=' + new Date().toISOString())
+
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
