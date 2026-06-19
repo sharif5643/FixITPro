@@ -342,8 +342,11 @@ export default function RepairWorkspacePage() {
     enabled: !!repair,
     staleTime: 30_000,
   })
-  // BranchStock.qty is source of truth — only show products with stock in this branch
-  const partProducts = allPartProducts.filter((p) => (p.branchQuantity ?? 0) > 0 || !repairBranchId)
+  // Show products that have branch stock OR global stock (not-yet-enrolled in branch)
+  const partProducts = allPartProducts.filter((p) => {
+    const qty = p.branchQuantity != null ? p.branchQuantity : ((p as any).stock ?? 0)
+    return qty > 0 || !repairBranchId
+  })
   const filteredPartProducts = debouncedSearch
     ? partProducts.filter((p) =>
         p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||

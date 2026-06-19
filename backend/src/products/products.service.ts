@@ -272,13 +272,17 @@ export class ProductsService {
       const bsMap = new Map<string, any>();
       for (const bs of bsList) bsMap.set(bs.productId, bs);
 
-      // Keep only products that have a BranchStock record for this branch
-      const visibleProducts = products.filter((p) => bsMap.has(p.id));
+      // Products WITH BranchStock record for this branch, OR with global stock > 0
+      // (the latter = not yet enrolled in branch stock — shown with branchQuantity null)
+      const visibleProducts = products.filter(
+        (p) => bsMap.has(p.id) || Number(p.stock ?? 0) > 0,
+      );
       const visibleIds = visibleProducts.map((p) => p.id);
 
-      // Fetch other-branch totals only for visible products
+      // Fetch other-branch totals only for enrolled products
+      const enrolledIds = visibleIds.filter((id) => bsMap.has(id));
       const otherBsList = await (this.prisma as any).branchStock.findMany({
-        where: { branchId: { not: branchId }, productId: { in: visibleIds } },
+        where: { branchId: { not: branchId }, productId: { in: enrolledIds } },
         select: { productId: true, quantity: true },
       });
 
@@ -289,6 +293,10 @@ export class ProductsService {
 
       const result = visibleProducts.map((p) => {
         const bs = bsMap.get(p.id);
+        if (!bs) {
+          // Not enrolled in this branch — expose global stock as context for repair parts picker
+          return { ...p, branchQuantity: null, stockCode: null, hasStockRecord: false, otherBranchTotal: 0 };
+        }
         return {
           ...p,
           branchQuantity:   bs.quantity ?? 0,

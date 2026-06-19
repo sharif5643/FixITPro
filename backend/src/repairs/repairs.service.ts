@@ -436,16 +436,28 @@ export class RepairsService {
         const bs = await (tx as any).branchStock.findUnique({
           where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
         });
-        const available = bs?.quantity ?? 0;
-        if (available < dto.quantity) {
-          throw new BadRequestException(
-            `สต็อกสาขาไม่พอสำหรับ "${product.name}" มีอยู่ในสาขา: ${available} ชิ้น`,
-          );
+
+        if (bs !== null) {
+          // BranchStock record exists — use it as strict source of truth
+          const available = bs.quantity ?? 0;
+          if (available < dto.quantity) {
+            throw new BadRequestException(
+              `สต็อกสาขาไม่พอสำหรับ "${product.name}" มีอยู่ในสาขา: ${available} ชิ้น`,
+            );
+          }
+          await (tx as any).branchStock.update({
+            where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
+            data: { quantity: { decrement: dto.quantity } },
+          });
+        } else {
+          // No BranchStock record — product not enrolled in branch stock tracking.
+          // Fall back to global product.stock so repairs can still proceed.
+          if (product.stock < dto.quantity) {
+            throw new BadRequestException(
+              `สต็อกไม่พอสำหรับ "${product.name}" มีอยู่: ${product.stock} ชิ้น`,
+            );
+          }
         }
-        await (tx as any).branchStock.update({
-          where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
-          data: { quantity: { decrement: dto.quantity } },
-        });
       } else {
         if (product.stock < dto.quantity) {
           throw new BadRequestException(
