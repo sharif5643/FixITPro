@@ -211,7 +211,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       return products
     },
     enabled: searchOpen,
-    staleTime: 10_000,
+    staleTime: 0,
   })
 
   const computedPartsCost = Array.isArray(repair?.parts)
@@ -644,6 +644,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                                   <p className="text-xs text-muted-foreground">
                                     SKU: {p.sku} · สต็อก: {isOut ? <span className="text-red-500">หมด</span> : stockQty} · ราคาทุน: {formatThaiMoney(Number(p.costPrice))}
                                   </p>
+                                  <p className="text-xs font-mono text-orange-600 break-all">[DEBUG] {JSON.stringify({id: p.id, branchQty: p.branchQuantity, stock: p.stock, jwtBranch: repairBranchId, repairBranch: repair?.branchId})}</p>
                                 </button>
                                 {canRequest && (
                                   <button
