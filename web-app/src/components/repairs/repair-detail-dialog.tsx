@@ -189,14 +189,27 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
 
   const { data: partProducts = [] } = useQuery<Product[]>({
     queryKey: ['products', 'parts', debouncedSearch, repairBranchId],
-    queryFn: async () =>
-      (await api.get('/products', {
+    queryFn: async () => {
+      const products = (await api.get('/products', {
         params: {
           type: 'PART',
           search: debouncedSearch || undefined,
           ...(repairBranchId ? { branchId: repairBranchId } : {}),
         },
-      })).data,
+      })).data
+      console.log('[PARTS RESPONSE]', products)
+      console.log('[PARTS AUDIT]', products.map((p: Product) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        stock: p.stock,
+        branchQuantity: p.branchQuantity,
+        effectiveQty: p.branchQuantity ?? 0,
+        jwtBranchId: repairBranchId,
+        repairBranchId: repair?.branchId,
+      })))
+      return products
+    },
     enabled: searchOpen,
     staleTime: 10_000,
   })
