@@ -419,74 +419,78 @@ export class RepairsService {
   }
 
   async addPart(repairId: string, dto: AddRepairPartDto, tenantId?: string | null) {
+    // Guard 1: repair exists + tenant-scoped
     const repair = await this.findOne(repairId, tenantId);
-
     if (['COMPLETED', 'DELIVERED'].includes(repair.status)) {
       throw new BadRequestException('ไม่สามารถเพิ่มอะไหล่หลังงานซ่อมเสร็จแล้ว');
     }
 
-    const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
-    if (!product) throw new NotFoundException('ไม่พบสินค้า');
-
+    // Guard 2: repair must belong to a specific branch
     const repairBranchId = (repair as any).branchId ?? null;
+    if (!repairBranchId) {
+      throw new BadRequestException('งานซ่อมนี้ยังไม่ได้กำหนดสาขา กรุณาระบุสาขาก่อนเบิกอะไหล่');
+    }
+
+    // Guard 3: product exists + belongs to same tenant
+    const product = await this.prisma.product.findFirst({
+      where: { id: dto.productId, ...(tenantId ? { tenantId } : {}) },
+    });
+    if (!product) throw new NotFoundException('ไม่พบสินค้า หรือสินค้าไม่ได้อยู่ใน tenant นี้');
 
     return this.prisma.$transaction(async (tx) => {
-      // Stock check + deduction — branch-scoped when repair has branchId
-      if (repairBranchId) {
-        const bs = await (tx as any).branchStock.findUnique({
-          where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
-        });
+      // Guard 4: BranchStock MUST exist — no product.stock fallback allowed
+      const bs = await (tx as any).branchStock.findUnique({
+        where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
+        include: { branch: { select: { tenantId: true } } },
+      });
 
-        if (bs !== null) {
-          // BranchStock record exists — use it as strict source of truth
-          const available = bs.quantity ?? 0;
-          if (available < dto.quantity) {
-            throw new BadRequestException(
-              `สต็อกสาขาไม่พอสำหรับ "${product.name}" มีอยู่ในสาขา: ${available} ชิ้น`,
-            );
-          }
-          await (tx as any).branchStock.update({
-            where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
-            data: { quantity: { decrement: dto.quantity } },
-          });
-        } else {
-          // No BranchStock record — product not enrolled in branch stock tracking.
-          // Fall back to global product.stock so repairs can still proceed.
-          if (product.stock < dto.quantity) {
-            throw new BadRequestException(
-              `สต็อกไม่พอสำหรับ "${product.name}" มีอยู่: ${product.stock} ชิ้น`,
-            );
-          }
-        }
-      } else {
-        if (product.stock < dto.quantity) {
-          throw new BadRequestException(
-            `สต็อกไม่พอสำหรับ "${product.name}" มีอยู่: ${product.stock} ชิ้น`,
-          );
-        }
+      if (!bs) {
+        throw new BadRequestException(
+          `สินค้า "${product.name}" ยังไม่ได้เพิ่มเข้าสาขาของงานซ่อม กรุณาเพิ่มสินค้าเข้าสาขาก่อน`,
+        );
       }
-      // Always decrement shadow stock
+
+      // Guard 5: cross-tenant protection — BranchStock's branch must match caller's tenant
+      if (tenantId && bs.branch?.tenantId !== tenantId) {
+        throw new ForbiddenException('สาขานี้ไม่ได้อยู่ใน tenant ของคุณ');
+      }
+
+      // Guard 6: BranchStock.qty must cover requested quantity
+      const available = bs.quantity ?? 0;
+      if (available < dto.quantity) {
+        throw new BadRequestException(
+          `สต็อกสาขาไม่พอสำหรับ "${product.name}" มีอยู่ในสาขา: ${available} ชิ้น`,
+        );
+      }
+
+      // Deduct BranchStock (source of truth)
+      await (tx as any).branchStock.update({
+        where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
+        data: { quantity: { decrement: dto.quantity } },
+      });
+
+      // Decrement shadow stock (kept in sync for global aggregates)
       await tx.product.update({
         where: { id: dto.productId },
         data: { stock: { decrement: dto.quantity } },
       });
 
-      // Snapshot prices at time of adding
-      const costPrice = Number(product.costPrice);
-      const sellPrice = dto.price !== undefined ? dto.price : Number(product.price);
+      // Snapshot prices at add time
+      const costPrice = Number(product.costPrice ?? 0);
+      const sellPrice = dto.price !== undefined ? dto.price : Number(product.price ?? 0);
 
       const part = await tx.repairPart.create({
         data: {
           repairId,
           productId: dto.productId,
           quantity:  dto.quantity,
-          price:     costPrice,       // legacy field = costPrice
-          costPrice,                  // COGS snapshot
-          sellPrice,                  // customer-charge snapshot
+          price:     costPrice,
+          costPrice,
+          sellPrice,
         },
       });
 
-      // Immediate REPAIR_USE movement — audit trail + removePart guard
+      // REPAIR_USE movement — audit trail + removePart idempotency guard
       await tx.stockMovement.create({
         data: {
           productId:    dto.productId,

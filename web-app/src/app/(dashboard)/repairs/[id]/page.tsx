@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -342,20 +343,19 @@ export default function RepairWorkspacePage() {
     enabled: !!repair,
     staleTime: 30_000,
   })
-  // Show products that have branch stock OR global stock (not-yet-enrolled in branch)
-  const partProducts = allPartProducts.filter((p) => {
-    const qty = p.branchQuantity != null ? p.branchQuantity : ((p as any).stock ?? 0)
-    return qty > 0 || !repairBranchId
-  })
+  // Source of truth: BranchStock.qty only — NO product.stock fallback
+  // branchQuantity > 0  = in stock in this branch (can add)
+  // branchQuantity = 0  = out of stock in this branch (cannot add)
+  // branchQuantity = null = product not enrolled in this branch (cannot add)
   const filteredPartProducts = debouncedSearch
-    ? partProducts.filter((p) =>
+    ? allPartProducts.filter((p) =>
         p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         p.sku.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         (p.barcode ?? '').toLowerCase().includes(debouncedSearch.toLowerCase()),
       )
-    : partProducts
+    : []
   if (process.env.NODE_ENV === 'development' && searchOpen) {
-    console.log('[REPAIR PARTS] total products:', allPartProducts.length, '| in-stock:', partProducts.length, '| filtered:', filteredPartProducts.length, '| search:', debouncedSearch)
+    console.log('[REPAIR PARTS] total products:', allPartProducts.length, '| filtered:', filteredPartProducts.length, '| search:', debouncedSearch)
   }
 
   // sellPrice = snapshot of product.price at time of adding (what customer is charged)
@@ -805,30 +805,65 @@ export default function RepairWorkspacePage() {
                       </button>
                     </div>
                     {(() => {
-                      const addQty = addingPart.branchQuantity != null ? addingPart.branchQuantity : ((addingPart as any).stock ?? 0)
-                      const addIsGlobal = addingPart.branchQuantity == null
+                      const bqty = addingPart.branchQuantity  // null | 0 | N
+                      const canAdd = bqty != null && bqty > 0
                       return (
                         <>
-                          <p className="text-xs text-muted-foreground">
-                            SKU: {addingPart.sku} · สต็อก: {addQty} ชิ้น{addIsGlobal ? ' (สต็อกรวม)' : ''} · ราคาทุน: {formatThaiMoney(Number(addingPart.costPrice))}
-                          </p>
-                          <div className="flex gap-2">
-                            <div className="space-y-1 flex-1">
-                              <label className="text-xs text-muted-foreground">จำนวน</label>
-                              <Input type="number" min={1} max={addQty || undefined} value={partQty}
-                                onChange={(e) => setPartQty(Number(e.target.value))} className="h-8 text-sm" />
+                          {/* Stock status banner — 3 states */}
+                          {bqty == null ? (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 flex gap-2">
+                              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-amber-700">ยังไม่ได้เพิ่มเข้าสาขานี้</p>
+                                <p className="text-xs text-amber-600 mt-0.5">สินค้านี้ไม่มี BranchStock สำหรับสาขาของงานซ่อม</p>
+                                <Link
+                                  href={`/products?search=${encodeURIComponent(addingPart.name)}`}
+                                  className="text-xs text-blue-600 hover:underline font-medium mt-1 inline-block"
+                                  onClick={() => setSearchOpen(false)}
+                                >
+                                  ไปหน้าจัดการสต็อก →
+                                </Link>
+                              </div>
                             </div>
-                            <div className="space-y-1 flex-1">
-                              <label className="text-xs text-muted-foreground">ราคา/ชิ้น (ว่าง=ราคาทุน)</label>
-                              <Input type="number" min={0} placeholder={String(addingPart.costPrice)} value={partPrice}
-                                onChange={(e) => setPartPrice(e.target.value)} className="h-8 text-sm" />
+                          ) : bqty === 0 ? (
+                            <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 flex gap-2">
+                              <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-xs font-semibold text-red-700">หมดสต็อกในสาขานี้</p>
+                                <p className="text-xs text-red-600 mt-0.5">SKU: {addingPart.sku} · ทุน: {formatThaiMoney(Number(addingPart.costPrice))}</p>
+                              </div>
                             </div>
-                          </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              SKU: {addingPart.sku} · <span className="text-emerald-700 font-medium">สต็อกสาขานี้: {bqty} ชิ้น</span> · ราคาทุน: {formatThaiMoney(Number(addingPart.costPrice))}
+                            </p>
+                          )}
+                          {/* Quantity + price inputs — only when can add */}
+                          {canAdd && (
+                            <div className="flex gap-2">
+                              <div className="space-y-1 flex-1">
+                                <label className="text-xs text-muted-foreground">จำนวน (สูงสุด {bqty} ชิ้น)</label>
+                                <Input type="number" min={1} max={bqty} value={partQty}
+                                  onChange={(e) => setPartQty(Number(e.target.value))} className="h-8 text-sm" />
+                              </div>
+                              <div className="space-y-1 flex-1">
+                                <label className="text-xs text-muted-foreground">ราคา/ชิ้น (ว่าง=ราคาทุน)</label>
+                                <Input type="number" min={0} placeholder={String(addingPart.costPrice)} value={partPrice}
+                                  onChange={(e) => setPartPrice(e.target.value)} className="h-8 text-sm" />
+                              </div>
+                            </div>
+                          )}
                         </>
                       )
                     })()}
                     <Button size="sm" className="w-full gap-1.5" onClick={handleAddPart}
-                      disabled={partQty < 1 || partQty > (addingPart.branchQuantity != null ? addingPart.branchQuantity : ((addingPart as any).stock ?? 0)) || addPartMutation.isPending}>
+                      disabled={
+                        addingPart.branchQuantity == null ||
+                        addingPart.branchQuantity === 0 ||
+                        partQty < 1 ||
+                        partQty > (addingPart.branchQuantity ?? 0) ||
+                        addPartMutation.isPending
+                      }>
                       {addPartMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                       เพิ่มอะไหล่
                     </Button>
@@ -845,14 +880,15 @@ export default function RepairWorkspacePage() {
                     {searchOpen && filteredPartProducts.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                         {filteredPartProducts.map((p) => {
-                          // branchQuantity = BranchStock for repair's branch (enrolled)
-                          // null = product exists globally but not enrolled in this branch → use product.stock
-                          const effectiveQty = p.branchQuantity != null ? p.branchQuantity : ((p as any).stock ?? 0)
-                          const isGlobal = p.branchQuantity == null
+                          // branchQuantity = null  → ยังไม่ได้เพิ่มเข้าสาขานี้
+                          // branchQuantity = 0     → หมดสต็อกในสาขานี้
+                          // branchQuantity > 0     → มีสต็อก พร้อมเบิก
+                          const bqty = p.branchQuantity
+                          const canAdd = bqty != null && bqty > 0
                           return (
                             <button
                               key={p.id}
-                              className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b last:border-0"
+                              className={`w-full text-left px-3 py-2.5 border-b last:border-0 transition-colors ${canAdd ? 'hover:bg-blue-50' : 'hover:bg-gray-50'}`}
                               onClick={() => {
                                 setAddingPart(p)
                                 setPartSearch('')
@@ -861,9 +897,16 @@ export default function RepairWorkspacePage() {
                                 setPartPrice('')
                               }}
                             >
-                              <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                SKU: {p.sku} · สต็อก: {effectiveQty} ชิ้น{isGlobal ? ' (สต็อกรวม)' : ''} · ราคาทุน: {formatThaiMoney(Number(p.costPrice))}
+                              <p className={`text-sm font-medium ${canAdd ? 'text-gray-900' : 'text-gray-400'}`}>{p.name}</p>
+                              <p className="text-xs mt-0.5 flex items-center gap-1.5">
+                                {bqty == null ? (
+                                  <span className="text-amber-600 font-medium">⚠ ยังไม่ได้เพิ่มเข้าสาขานี้</span>
+                                ) : bqty === 0 ? (
+                                  <span className="text-red-500 font-medium">หมดสต็อกในสาขานี้</span>
+                                ) : (
+                                  <span className="text-emerald-700 font-medium">สต็อกสาขานี้ {bqty} ชิ้น</span>
+                                )}
+                                <span className="text-muted-foreground">· SKU: {p.sku} · ทุน: {formatThaiMoney(Number(p.costPrice))}</span>
                               </p>
                             </button>
                           )
