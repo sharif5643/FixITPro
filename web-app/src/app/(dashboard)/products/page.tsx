@@ -124,12 +124,31 @@ export default function ProductsPage() {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (effectiveBranch) params.set('branchId', effectiveBranch)
-      return (await api.get(`/products?${params}`)).data
+      const data = (await api.get(`/products?${params}`)).data
+      if (process.env.NODE_ENV === 'development') {
+        console.group('[PRODUCTS AUDIT] branchId=' + (effectiveBranch ?? 'all'))
+        data.forEach((p: Product) =>
+          console.log(
+            'product.id=', p.id,
+            '| product.name=', p.name,
+            '| branchQuantity=', p.branchQuantity,
+            '| product.stock=', p.stock,
+            '| stockOf=', effectiveBranch ? (p.branchQuantity ?? 0) : (p.branchQuantity ?? p.stock),
+          )
+        )
+        console.groupEnd()
+      }
+      return data
     },
     placeholderData: keepPreviousData,
   })
 
-  const stockOf = (p: Product) => p.branchQuantity ?? p.stock
+  // When viewing a specific branch: ONLY use BranchStock.qty (null = not enrolled = 0)
+  // When viewing all branches: use BranchStock sum (branchQuantity from viewAll path)
+  const stockOf = (p: Product) =>
+    effectiveBranch
+      ? (p.branchQuantity ?? 0)          // branch mode: null = not enrolled, not "2 from global"
+      : (p.branchQuantity ?? p.stock)    // all-branches mode: fallback to global shadow is OK
 
   // ── Mutations ──────────────────────────────────────────────────────────────
   const createMutation = useMutation({

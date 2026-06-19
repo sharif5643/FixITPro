@@ -328,23 +328,35 @@ export default function RepairWorkspacePage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Use repair.branchId as branch scope — mirrors POS source-of-truth logic.
-  // No type filter: accessories/phones/sims can all be used as repair parts.
+  // Use repair.branchId as branch scope — only BranchStock of repair's branch
   const repairBranchId = repair?.branchId ?? undefined
   const { data: allPartProducts = [] } = useQuery<Product[]>({
     queryKey: ['products', 'repair-parts', repairBranchId ?? 'all'],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (repairBranchId) params.set('branchId', repairBranchId)
+      const data = (await api.get(`/products?${params}`)).data
       if (process.env.NODE_ENV === 'development') {
-        console.log('[REPAIR PARTS] query params:', params.toString(), '| repair.branchId:', repairBranchId)
+        console.group('[REPAIR PARTS AUDIT] repair.branchId=' + (repairBranchId ?? 'null'))
+        data.forEach((p: Product) =>
+          console.log(
+            'product.id=', p.id,
+            '| product.name=', p.name,
+            '| branchQuantity=', p.branchQuantity,
+            '| product.stock=', p.stock,
+            '| effectiveQty=', p.branchQuantity ?? 0,
+            '| willShow=', p.branchQuantity != null && p.branchQuantity > 0,
+          )
+        )
+        console.groupEnd()
       }
-      return (await api.get(`/products?${params}`)).data
+      return data
     },
     enabled: !!repair,
     staleTime: 30_000,
   })
   // Only show products available in repair's branch (BranchStock.qty > 0)
+  // branchQuantity=null = not enrolled in this branch → excluded (correct — cannot deduct from non-existent BranchStock)
   const filteredPartProducts = debouncedSearch
     ? allPartProducts.filter((p) =>
         (p.branchQuantity != null && p.branchQuantity > 0) &&
