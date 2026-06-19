@@ -500,11 +500,13 @@ export default function RepairWorkspacePage() {
 
   const handleAddPart = () => {
     if (!addingPart) return
-    addPartMutation.mutate({
+    const payload = {
       productId: addingPart.id,
       quantity: partQty,
       price: partPrice ? Number(partPrice) : undefined,
-    })
+    }
+    console.log('[AddPart] payload →', payload, '| repair.branchId →', repair?.branchId, '| product.branchQty →', addingPart.branchQuantity)
+    addPartMutation.mutate(payload)
   }
 
   const handlePayment = () => {
