@@ -922,10 +922,13 @@ export class ReportsService {
           deviceModel: true,
           customer: { select: { name: true } },
           parts: {
+            where: { isVoided: false },
             select: {
-              quantity: true,
-              price: true,
-              product: { select: { name: true } },
+              quantity:  true,
+              price:     true,
+              costPrice: true,
+              sellPrice: true,
+              product:   { select: { name: true } },
             },
           },
         },
@@ -968,9 +971,11 @@ export class ReportsService {
     const posProfit  = posRevenue - posCOGS;
 
     // --- Repair profit ---
+    // costPrice = COGS (product cost snapshot at time of adding the part)
+    // fallback to price for legacy parts created before the migration
     const repairRevenue   = repaids.reduce((s, r) => s + Number(r.paidAmount ?? 0), 0);
     const repairPartsCost = repaids.reduce(
-      (s, r) => s + r.parts.reduce((ps, p) => ps + Number(p.price) * p.quantity, 0), 0,
+      (s, r) => s + r.parts.reduce((ps, p) => ps + Number((p as any).costPrice ?? p.price) * p.quantity, 0), 0,
     );
     const repairLaborCost = repaids.reduce((s, r) => s + Number(r.actualLaborCost ?? 0), 0);
     const repairProfit    = repairRevenue - repairPartsCost - repairLaborCost;
@@ -1026,7 +1031,7 @@ export class ReportsService {
         count:     repaids.length,
         margin:    repairRevenue > 0 ? (repairProfit / repairRevenue) * 100 : 0,
         items:     repaids.map((r) => {
-          const pc = r.parts.reduce((s, p) => s + Number(p.price) * p.quantity, 0);
+          const pc = r.parts.reduce((s, p) => s + Number((p as any).costPrice ?? p.price) * p.quantity, 0);
           const lc = Number(r.actualLaborCost ?? 0);
           return {
             time:         (r.paidAt as Date).toISOString(),

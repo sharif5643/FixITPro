@@ -238,10 +238,10 @@ export class DashboardService {
       `),
       this.prisma.$queryRaw<[{ parts: number; labor: number }]>(Prisma.sql`
         SELECT
-          COALESCE(SUM(rp.price::float8 * rp.quantity), 0) as parts,
-          COALESCE(SUM(r."actualLaborCost"::float8), 0)    as labor
+          COALESCE(SUM(COALESCE(rp."costPrice", rp.price)::float8 * rp.quantity), 0) as parts,
+          COALESCE(SUM(r."actualLaborCost"::float8), 0)                               as labor
         FROM "Repair" r
-        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id
+        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id AND rp."isVoided" = false
         WHERE r."paidAt" >= ${start}
           AND r."paidAt" < ${end}
           AND r."paymentStatus" = 'PAID'
@@ -534,10 +534,10 @@ export class DashboardService {
       `),
       this.prisma.$queryRaw<[{ parts: number; labor: number }]>(Prisma.sql`
         SELECT
-          COALESCE(SUM(rp.price::float8 * rp.quantity), 0) as parts,
-          COALESCE(SUM(r."actualLaborCost"::float8), 0)    as labor
+          COALESCE(SUM(COALESCE(rp."costPrice", rp.price)::float8 * rp.quantity), 0) as parts,
+          COALESCE(SUM(r."actualLaborCost"::float8), 0)                               as labor
         FROM "Repair" r
-        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id
+        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id AND rp."isVoided" = false
         WHERE r."paidAt" >= ${todayStart} AND r."paidAt" < ${todayEnd}
           AND r."paymentStatus" = 'PAID' ${repairBSql}
       `),
@@ -550,10 +550,10 @@ export class DashboardService {
       `),
       this.prisma.$queryRaw<[{ parts: number; labor: number }]>(Prisma.sql`
         SELECT
-          COALESCE(SUM(rp.price::float8 * rp.quantity), 0) as parts,
-          COALESCE(SUM(r."actualLaborCost"::float8), 0)    as labor
+          COALESCE(SUM(COALESCE(rp."costPrice", rp.price)::float8 * rp.quantity), 0) as parts,
+          COALESCE(SUM(r."actualLaborCost"::float8), 0)                               as labor
         FROM "Repair" r
-        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id
+        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id AND rp."isVoided" = false
         WHERE r."paidAt" >= ${monthStart} AND r."paidAt" < ${todayEnd}
           AND r."paymentStatus" = 'PAID' ${repairBSql}
       `),

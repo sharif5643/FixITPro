@@ -355,8 +355,10 @@ export default function RepairWorkspacePage() {
     console.log('[REPAIR PARTS] total products:', allPartProducts.length, '| in-stock:', partProducts.length, '| filtered:', filteredPartProducts.length, '| search:', debouncedSearch)
   }
 
+  // sellPrice = snapshot of product.price at time of adding (what customer is charged)
+  // costPrice = snapshot of product.costPrice (COGS — used in profit reports only)
   const computedPartsCost = repair
-    ? repair.parts.reduce((sum, p) => sum + Number(p.price) * p.quantity, 0)
+    ? repair.parts.reduce((sum, p) => sum + Number(p.sellPrice ?? p.price) * p.quantity, 0)
     : 0
   const computedTotal = (Number(laborCost) || 0) + computedPartsCost
 
@@ -750,18 +752,22 @@ export default function RepairWorkspacePage() {
               {repair.parts.length > 0 ? (
                 <div className="space-y-1.5">
                   {repair.parts.map((part) => {
-                    const deducted = part.stockMovements.length > 0
+                    const sell = Number(part.sellPrice ?? part.price)
+                    const cost = Number(part.costPrice ?? part.price)
                     return (
                       <div key={part.id} className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{part.product.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            ×{part.quantity} · {formatThaiMoney(Number(part.price))}/ชิ้น
-                            {deducted && <span className="ml-1.5 text-green-600 font-medium">ตัดสต็อกแล้ว</span>}
+                            ×{part.quantity} · {formatThaiMoney(sell)}/ชิ้น
+                            {cost !== sell && (
+                              <span className="ml-1.5 text-slate-400">(ทุน {formatThaiMoney(cost)})</span>
+                            )}
+                            <span className="ml-1.5 text-green-600 font-medium">ตัดสต็อกแล้ว</span>
                           </p>
                         </div>
                         <span className="text-sm font-semibold tabular-nums shrink-0">
-                          {formatThaiMoney(Number(part.price) * part.quantity)}
+                          {formatThaiMoney(sell * part.quantity)}
                         </span>
                         {!isLocked && (
                           <button

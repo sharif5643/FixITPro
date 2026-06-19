@@ -22,9 +22,13 @@ const REPAIR_INCLUDE = {
   branch:    { select: { id: true, name: true } },
   images: { orderBy: { createdAt: 'asc' as const } },
   parts: {
+    where: { isVoided: false },
     include: {
-      product: { select: { id: true, name: true, sku: true, stock: true, costPrice: true, price: true } },
-      stockMovements: { select: { id: true } },
+      product: { select: { id: true, name: true, sku: true, costPrice: true, price: true } },
+      stockMovements: {
+        where: { type: 'REPAIR_USE' as const },
+        select: { id: true },
+      },
     },
   },
   additionalPayments: {
@@ -323,98 +327,63 @@ export class RepairsService {
     if (dto.status === 'DELIVERED') updateData.deliveredAt = new Date();
     if (dto.status === 'APPROVED') updateData.approvedAt = new Date();
 
-    // Deduct stock for all un-deducted parts when status → COMPLETED
+    // Safety-net deduction for legacy parts (added before immediate-deduction migration).
+    // New parts created after migration are already deducted at addPart time.
+    // We only touch active parts that still have no REPAIR_USE movement.
     if (dto.status === 'COMPLETED') {
-      const repairBranchId = repair.branchId ?? null;
+      const repairBranchId = (repair as any).branchId ?? null;
 
-      // B-4 FIX: Always open a transaction for COMPLETED so the idempotency
-      // check (no existing stockMovements) is re-evaluated INSIDE the tx.
-      // Concurrent requests both reading `repair.parts` outside would bypass
-      // the guard; re-querying inside tx under a write lock prevents double deduction.
       return this.prisma.$transaction(async (tx) => {
-        // Re-fetch un-deducted parts inside the transaction for race-safety
-        const freshParts = await tx.repairPart.findMany({
+        const legacyParts = await tx.repairPart.findMany({
           where: {
             repairId: id,
+            isVoided: false,
             stockMovements: { none: {} },
           },
-          // Include stock for global-path check in first pass (avoids extra queries)
           include: { product: { select: { name: true, stock: true } } },
         });
 
-        // UX-3 FIX: First pass — collect ALL insufficient parts before throwing.
-        // Previously failed on the first short part; now the technician sees every
-        // shortage in a single message ("Battery (have 0, need 1), Screen (have 1, need 2)").
+        // Collect shortages for legacy parts before deducting
         const shortages: Array<{ productName: string; available: number; needed: number }> = [];
-
-        for (const part of freshParts) {
+        for (const part of legacyParts) {
           const productName = part.product?.name ?? `[ID: ${part.productId}]`;
           if (repairBranchId) {
             const bs = await (tx as any).branchStock.findUnique({
               where: { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
             });
             const available = bs?.quantity ?? 0;
-            if (available < part.quantity) {
-              shortages.push({ productName, available, needed: part.quantity });
-            }
+            if (available < part.quantity) shortages.push({ productName, available, needed: part.quantity });
           } else {
             const available = part.product?.stock ?? 0;
-            if (available < part.quantity) {
-              shortages.push({ productName, available, needed: part.quantity });
-            }
+            if (available < part.quantity) shortages.push({ productName, available, needed: part.quantity });
           }
         }
-
         if (shortages.length > 0) {
-          const detail = shortages
-            .map(s => `"${s.productName}" (มี ${s.available} ต้องการ ${s.needed})`)
-            .join(', ');
+          const detail = shortages.map(s => `"${s.productName}" (มี ${s.available} ต้องการ ${s.needed})`).join(', ');
           throw new BadRequestException(`สต็อกไม่พอ: ${detail}`);
         }
 
-        // Second pass — deduct (only reached when all parts have sufficient stock)
-        for (const part of freshParts) {
-            if (repairBranchId) {
-              await (tx as any).branchStock.update({
-                where: { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
-                data: { quantity: { decrement: part.quantity } },
-              });
-            } else {
-              const product = await tx.product.findUnique({ where: { id: part.productId } });
-              if (!product) throw new NotFoundException(`Product not found`);
-            }
-
-            await tx.product.update({
-              where: { id: part.productId },
-              data: { stock: { decrement: part.quantity } },
-            });
-
-            await tx.stockMovement.create({
-              data: {
-                productId:    part.productId,
-                type:         'REPAIR_USE',
-                quantity:     part.quantity,
-                repairPartId: part.id,
-                branchId:     repairBranchId,
-                note:         `Repair ${repair.ticketNumber}`,
-              },
+        for (const part of legacyParts) {
+          if (repairBranchId) {
+            await (tx as any).branchStock.update({
+              where: { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
+              data: { quantity: { decrement: part.quantity } },
             });
           }
+          await tx.product.update({ where: { id: part.productId }, data: { stock: { decrement: part.quantity } } });
+          await tx.stockMovement.create({
+            data: {
+              productId: part.productId, type: 'REPAIR_USE', quantity: part.quantity,
+              repairPartId: part.id, branchId: repairBranchId,
+              note: `เบิกอะไหล่งานซ่อม ${repair.ticketNumber} (legacy)`,
+            },
+          });
+        }
 
-          const updated = await tx.repair.update({
-            where: { id },
-            data: updateData,
-            include: REPAIR_INCLUDE,
-          });
-          await this.auditLog.log({
-            actorId, actorName,
-            action: 'REPAIR_UPDATED',
-            entityType: 'Repair',
-            entityId: id,
-            afterData: updateData,
-          });
-          return updated;
-        });
+        const updated = await tx.repair.update({ where: { id }, data: updateData, include: REPAIR_INCLUDE });
+        await this.auditLog.log({ actorId, actorName, action: 'REPAIR_UPDATED', entityType: 'Repair', entityId: id, afterData: updateData });
+        return updated;
+      });
     }
 
     const updated = await this.prisma.repair.update({
@@ -457,64 +426,106 @@ export class RepairsService {
     }
 
     const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
-    if (!product) throw new NotFoundException('Product not found');
+    if (!product) throw new NotFoundException('ไม่พบสินค้า');
 
-    // Stock check: branch-scoped if repair has a branch context
-    if (repair.branchId) {
-      const bs = await (this.prisma as any).branchStock.findUnique({
-        where: { branchId_productId: { branchId: repair.branchId, productId: dto.productId } },
-      });
-      const available = bs?.quantity ?? 0;
-      if (available < dto.quantity) {
-        throw new BadRequestException(
-          `สต็อกสาขาไม่พอสำหรับ "${product.name}" มีอยู่ในสาขา: ${available} ชิ้น`,
-        );
+    const repairBranchId = (repair as any).branchId ?? null;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Stock check + deduction — branch-scoped when repair has branchId
+      if (repairBranchId) {
+        const bs = await (tx as any).branchStock.findUnique({
+          where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
+        });
+        const available = bs?.quantity ?? 0;
+        if (available < dto.quantity) {
+          throw new BadRequestException(
+            `สต็อกสาขาไม่พอสำหรับ "${product.name}" มีอยู่ในสาขา: ${available} ชิ้น`,
+          );
+        }
+        await (tx as any).branchStock.update({
+          where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
+          data: { quantity: { decrement: dto.quantity } },
+        });
+      } else {
+        if (product.stock < dto.quantity) {
+          throw new BadRequestException(
+            `สต็อกไม่พอสำหรับ "${product.name}" มีอยู่: ${product.stock} ชิ้น`,
+          );
+        }
       }
-    } else if (product.stock < dto.quantity) {
-      throw new BadRequestException(
-        `สต็อกไม่พอสำหรับ "${product.name}" มีอยู่: ${product.stock} ชิ้น`,
-      );
-    }
+      // Always decrement shadow stock
+      await tx.product.update({
+        where: { id: dto.productId },
+        data: { stock: { decrement: dto.quantity } },
+      });
 
-    // Use provided price or fall back to product cost price
-    const price = dto.price !== undefined ? dto.price : Number(product.costPrice);
+      // Snapshot prices at time of adding
+      const costPrice = Number(product.costPrice);
+      const sellPrice = dto.price !== undefined ? dto.price : Number(product.price);
 
-    await this.prisma.repairPart.create({
-      data: {
-        repairId,
-        productId: dto.productId,
-        quantity: dto.quantity,
-        price,
-      },
+      const part = await tx.repairPart.create({
+        data: {
+          repairId,
+          productId: dto.productId,
+          quantity:  dto.quantity,
+          price:     costPrice,       // legacy field = costPrice
+          costPrice,                  // COGS snapshot
+          sellPrice,                  // customer-charge snapshot
+        },
+      });
+
+      // Immediate REPAIR_USE movement — audit trail + removePart guard
+      await tx.stockMovement.create({
+        data: {
+          productId:    dto.productId,
+          type:         'REPAIR_USE',
+          quantity:     dto.quantity,
+          repairPartId: part.id,
+          branchId:     repairBranchId,
+          note:         `เบิกอะไหล่งานซ่อม ${(repair as any).ticketNumber}`,
+        },
+      });
+
+      return this.findOne(repairId);
     });
-
-    return this.findOne(repairId);
   }
 
   async removePart(repairId: string, partId: string, tenantId?: string | null) {
     const repairWhere: any = { id: repairId };
     if (tenantId) repairWhere.branch = { tenantId };
-    const repairStatus = await this.prisma.repair.findFirst({
+    const repairRow = await this.prisma.repair.findFirst({
       where: repairWhere,
-      select: { status: true, branchId: true },
+      select: { status: true, branchId: true, ticketNumber: true },
     });
-    if (!repairStatus) throw new NotFoundException('Repair not found');
-    if (['COMPLETED', 'DELIVERED'].includes(repairStatus.status)) {
+    if (!repairRow) throw new NotFoundException('Repair not found');
+    if (['COMPLETED', 'DELIVERED'].includes(repairRow.status)) {
       throw new BadRequestException('ไม่สามารถลบอะไหล่หลังงานซ่อมเสร็จแล้ว');
     }
 
     const part = await this.prisma.repairPart.findFirst({
       where: { id: partId, repairId },
-      include: { stockMovements: { select: { id: true } } },
+      include: {
+        stockMovements: {
+          where: { type: 'REPAIR_USE' },
+          select: { id: true },
+        },
+      },
     });
+    if (!part) throw new NotFoundException('ไม่พบอะไหล่');
+    if ((part as any).isVoided) throw new BadRequestException('อะไหล่นี้ถูกลบออกจากงานซ่อมแล้ว');
 
-    if (!part) throw new NotFoundException('Part not found');
+    const repairBranchId = repairRow.branchId ?? null;
+    const wasDeducted    = part.stockMovements.length > 0;
 
-    // If stock was already deducted, reverse it
-    if (part.stockMovements.length > 0) {
-      await this.prisma.$transaction(async (tx) => {
-        const repairBranchId = repairStatus.branchId ?? null;
-        await tx.stockMovement.deleteMany({ where: { repairPartId: partId } });
+    await this.prisma.$transaction(async (tx) => {
+      // Soft-delete the part
+      await tx.repairPart.update({
+        where: { id: partId },
+        data: { isVoided: true, voidedAt: new Date() },
+      });
+
+      if (wasDeducted) {
+        // Restore BranchStock
         if (repairBranchId) {
           await (tx as any).branchStock.upsert({
             where: { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
@@ -522,15 +533,24 @@ export class RepairsService {
             update: { quantity: { increment: part.quantity } },
           });
         }
+        // Restore shadow stock
         await tx.product.update({
           where: { id: part.productId },
           data: { stock: { increment: part.quantity } },
         });
-        await tx.repairPart.delete({ where: { id: partId } });
-      });
-    } else {
-      await this.prisma.repairPart.delete({ where: { id: partId } });
-    }
+        // Create REPAIR_RETURN movement — preserves audit trail (does NOT delete REPAIR_USE)
+        await tx.stockMovement.create({
+          data: {
+            productId:    part.productId,
+            type:         'REPAIR_RETURN',
+            quantity:     part.quantity,
+            repairPartId: partId,
+            branchId:     repairBranchId,
+            note:         `คืนอะไหล่งานซ่อม ${repairRow.ticketNumber}`,
+          },
+        });
+      }
+    });
 
     return this.findOne(repairId);
   }

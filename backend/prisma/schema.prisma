@@ -49,6 +49,7 @@ enum StockMovementType {
   ADJUST
   SALE
   REPAIR_USE
+  REPAIR_RETURN
   REFUND
   TRANSFER_IN
   TRANSFER_OUT
@@ -820,9 +821,13 @@ model RepairImage {
 }
 
 model RepairPart {
-  id       String  @id @default(cuid())
-  quantity Int
-  price    Decimal @db.Decimal(10, 2)
+  id        String   @id @default(cuid())
+  quantity  Int
+  price     Decimal  @db.Decimal(10, 2)   // legacy field kept for backward compat (= costPrice)
+  costPrice Decimal? @db.Decimal(10, 2)   // snapshot of product.costPrice at add time (COGS)
+  sellPrice Decimal? @db.Decimal(10, 2)   // snapshot of product.price at add time (customer charge)
+  isVoided  Boolean  @default(false)      // soft delete — set true on removePart
+  voidedAt  DateTime?
 
   repairId String
   repair   Repair @relation(fields: [repairId], references: [id])
@@ -834,6 +839,7 @@ model RepairPart {
 
   @@index([repairId])
   @@index([productId])
+  @@index([isVoided])
 }
 
 model Supplier {

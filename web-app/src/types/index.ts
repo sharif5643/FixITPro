@@ -501,9 +501,13 @@ export interface Sale {
 export interface RepairPart {
   id: string
   quantity: number
-  price: number
+  price: number          // legacy field (= costPrice)
+  costPrice: number | null  // COGS snapshot — use for profit calculation
+  sellPrice: number | null  // customer charge snapshot — use for display
+  isVoided: boolean
+  voidedAt: string | null
   productId: string
-  product: Pick<Product, 'id' | 'name' | 'sku' | 'stock' | 'costPrice' | 'price'>
+  product: Pick<Product, 'id' | 'name' | 'sku' | 'costPrice' | 'price'>
   stockMovements: { id: string }[]
 }
 
