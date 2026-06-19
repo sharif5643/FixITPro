@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, Max, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsBoolean, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AddRepairPartDto {
@@ -12,9 +12,13 @@ export class AddRepairPartDto {
   quantity: number;
 
   @IsOptional()
+  @IsBoolean()
+  chargeToCustomer?: boolean;   // default false — parts are COGS only unless explicitly set
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   @Max(1_000_000)
-  price?: number;
+  price?: number;   // sellPrice override — only used when chargeToCustomer=true
 }

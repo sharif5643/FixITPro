@@ -501,9 +501,11 @@ export interface Sale {
 export interface RepairPart {
   id: string
   quantity: number
-  price: number          // legacy field (= costPrice)
-  costPrice: number | null  // COGS snapshot — use for profit calculation
-  sellPrice: number | null  // customer charge snapshot — use for display
+  price: number                 // legacy field (= costPrice)
+  costPrice: number | null      // COGS — used in profit reports
+  sellPrice: number | null      // extra customer charge — only set when chargeToCustomer=true
+  productName: string | null    // snapshot of product.name at add time
+  chargeToCustomer: boolean     // true = sellPrice is billed on top of repair price
   isVoided: boolean
   voidedAt: string | null
   productId: string

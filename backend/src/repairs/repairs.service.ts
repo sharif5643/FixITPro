@@ -476,17 +476,23 @@ export class RepairsService {
       });
 
       // Snapshot prices at add time
-      const costPrice = Number(product.costPrice ?? 0);
-      const sellPrice = dto.price !== undefined ? dto.price : Number(product.price ?? 0);
+      const costPrice        = Number(product.costPrice ?? 0);
+      const chargeToCustomer = dto.chargeToCustomer ?? false;
+      // sellPrice = 0 by default; only set when chargeToCustomer=true (extra line item on customer bill)
+      const sellPrice = chargeToCustomer
+        ? (dto.price !== undefined ? dto.price : Number(product.price ?? 0))
+        : 0;
 
       const part = await tx.repairPart.create({
         data: {
           repairId,
-          productId: dto.productId,
-          quantity:  dto.quantity,
-          price:     costPrice,
+          productId:       dto.productId,
+          productName:     product.name,    // snapshot — survives product rename/delete
+          quantity:        dto.quantity,
+          price:           costPrice,       // legacy field = costPrice
           costPrice,
           sellPrice,
+          chargeToCustomer,
         },
       });
 

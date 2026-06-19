@@ -280,7 +280,8 @@ export default function RepairWorkspacePage() {
   const [partSearch, setPartSearch] = useState('')
   const [addingPart, setAddingPart] = useState<Product | null>(null)
   const [partQty, setPartQty] = useState(1)
-  const [partPrice, setPartPrice] = useState('')
+  const [chargeCustomer, setChargeCustomer] = useState(false)  // chargeToCustomer toggle
+  const [partSellPrice, setPartSellPrice] = useState('')        // sellPrice when chargeCustomer=true
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const debouncedSearch = useDebounce(partSearch, 300)
@@ -343,27 +344,27 @@ export default function RepairWorkspacePage() {
     enabled: !!repair,
     staleTime: 30_000,
   })
-  // Source of truth: BranchStock.qty only — NO product.stock fallback
-  // branchQuantity > 0  = in stock in this branch (can add)
-  // branchQuantity = 0  = out of stock in this branch (cannot add)
-  // branchQuantity = null = product not enrolled in this branch (cannot add)
+  // Only show products available in repair's branch (BranchStock.qty > 0)
   const filteredPartProducts = debouncedSearch
     ? allPartProducts.filter((p) =>
-        p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        p.sku.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        (p.barcode ?? '').toLowerCase().includes(debouncedSearch.toLowerCase()),
+        (p.branchQuantity != null && p.branchQuantity > 0) &&
+        (p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+         p.sku.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+         (p.barcode ?? '').toLowerCase().includes(debouncedSearch.toLowerCase())),
       )
     : []
-  if (process.env.NODE_ENV === 'development' && searchOpen) {
-    console.log('[REPAIR PARTS] total products:', allPartProducts.length, '| filtered:', filteredPartProducts.length, '| search:', debouncedSearch)
-  }
 
-  // sellPrice = snapshot of product.price at time of adding (what customer is charged)
-  // costPrice = snapshot of product.costPrice (COGS — used in profit reports only)
-  const computedPartsCost = repair
-    ? repair.parts.reduce((sum, p) => sum + Number(p.sellPrice ?? p.price) * p.quantity, 0)
+  // Extra parts charged on top of repair price (chargeToCustomer=true only)
+  const computedPartsCharge = repair
+    ? repair.parts.reduce((sum, p) => p.chargeToCustomer ? sum + Number(p.sellPrice ?? 0) * p.quantity : sum, 0)
     : 0
-  const computedTotal = (Number(laborCost) || 0) + computedPartsCost
+  // COGS for all non-voided parts (internal cost, not shown to customer)
+  const computedPartsCOGS = repair
+    ? repair.parts.reduce((sum, p) => sum + Number(p.costPrice ?? p.price) * p.quantity, 0)
+    : 0
+  // Keep computedPartsCost as alias for backward compat in other UI references
+  const computedPartsCost = computedPartsCharge
+  const computedTotal = (Number(laborCost) || 0) + computedPartsCharge
 
   const repairTotal = repair ? Number(repair.estimatedTotal ?? repair.estimateCost ?? 0) : 0
   const repairDeposit = repair ? Number(repair.deposit ?? 0) : 0
@@ -379,14 +380,15 @@ export default function RepairWorkspacePage() {
   }
 
   const addPartMutation = useMutation({
-    mutationFn: (data: { productId: string; quantity: number; price?: number }) =>
+    mutationFn: (data: { productId: string; quantity: number; chargeToCustomer: boolean; price?: number }) =>
       api.post(`/repairs/${repairId}/parts`, data),
     onSuccess: () => {
       invalidateRepair()
       setAddingPart(null)
       setPartSearch('')
       setPartQty(1)
-      setPartPrice('')
+      setChargeCustomer(false)
+      setPartSellPrice('')
       toast.success('เพิ่มอะไหล่แล้ว')
     },
     onError: (err: any) => {
@@ -503,12 +505,12 @@ export default function RepairWorkspacePage() {
 
   const handleAddPart = () => {
     if (!addingPart) return
-    const payload = {
-      productId: addingPart.id,
-      quantity: partQty,
-      price: partPrice ? Number(partPrice) : undefined,
+    const payload: { productId: string; quantity: number; chargeToCustomer: boolean; price?: number } = {
+      productId:       addingPart.id,
+      quantity:        partQty,
+      chargeToCustomer: chargeCustomer,
     }
-    console.log('[AddPart] payload →', payload, '| repair.branchId →', repair?.branchId, '| product.branchQty →', addingPart.branchQuantity)
+    if (chargeCustomer && partSellPrice) payload.price = Number(partSellPrice)
     addPartMutation.mutate(payload)
   }
 
@@ -757,23 +759,34 @@ export default function RepairWorkspacePage() {
               {repair.parts.length > 0 ? (
                 <div className="space-y-1.5">
                   {repair.parts.map((part) => {
-                    const sell = Number(part.sellPrice ?? part.price)
-                    const cost = Number(part.costPrice ?? part.price)
+                    const cost    = Number(part.costPrice ?? part.price)
+                    const sell    = Number(part.sellPrice ?? 0)
+                    const partName = part.productName ?? part.product.name
                     return (
                       <div key={part.id} className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{part.product.name}</p>
+                          <p className="text-sm font-medium text-gray-900 truncate">{partName}</p>
                           <p className="text-xs text-muted-foreground">
-                            ×{part.quantity} · {formatThaiMoney(sell)}/ชิ้น
-                            {cost !== sell && (
-                              <span className="ml-1.5 text-slate-400">(ทุน {formatThaiMoney(cost)})</span>
+                            ×{part.quantity}
+                            {' · '}ทุน {formatThaiMoney(cost)}/ชิ้น
+                            {part.chargeToCustomer && sell > 0 && (
+                              <span className="ml-1.5 text-blue-600 font-medium">
+                                · คิดลูกค้า {formatThaiMoney(sell)}/ชิ้น
+                              </span>
                             )}
-                            <span className="ml-1.5 text-green-600 font-medium">ตัดสต็อกแล้ว</span>
+                            <span className="ml-1.5 text-green-600 font-medium">· ตัดสต็อกแล้ว</span>
                           </p>
                         </div>
-                        <span className="text-sm font-semibold tabular-nums shrink-0">
-                          {formatThaiMoney(sell * part.quantity)}
-                        </span>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-semibold tabular-nums text-orange-700">
+                            ทุน {formatThaiMoney(cost * part.quantity)}
+                          </p>
+                          {part.chargeToCustomer && sell > 0 && (
+                            <p className="text-xs text-blue-600 tabular-nums">
+                              +{formatThaiMoney(sell * part.quantity)}
+                            </p>
+                          )}
+                        </div>
                         {!isLocked && (
                           <button
                             onClick={() => removePartMutation.mutate(part.id)}
@@ -786,9 +799,17 @@ export default function RepairWorkspacePage() {
                       </div>
                     )
                   })}
-                  <div className="flex justify-between text-sm font-semibold border-t pt-2">
-                    <span>รวมค่าอะไหล่</span>
-                    <span className="tabular-nums text-blue-700">{formatThaiMoney(computedPartsCost)}</span>
+                  <div className="space-y-1 border-t pt-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">ต้นทุนอะไหล่รวม</span>
+                      <span className="font-semibold text-orange-700 tabular-nums">{formatThaiMoney(computedPartsCOGS)}</span>
+                    </div>
+                    {computedPartsCharge > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">ค่าอะไหล่เพิ่มที่คิดลูกค้า</span>
+                        <span className="font-semibold text-blue-700 tabular-nums">+{formatThaiMoney(computedPartsCharge)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -805,52 +826,40 @@ export default function RepairWorkspacePage() {
                       </button>
                     </div>
                     {(() => {
-                      const bqty = addingPart.branchQuantity  // null | 0 | N
-                      const canAdd = bqty != null && bqty > 0
+                      const bqty = addingPart.branchQuantity ?? 0  // guaranteed > 0 (filtered in picker)
                       return (
                         <>
-                          {/* Stock status banner — 3 states */}
-                          {bqty == null ? (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 flex gap-2">
-                              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-amber-700">ยังไม่ได้เพิ่มเข้าสาขานี้</p>
-                                <p className="text-xs text-amber-600 mt-0.5">สินค้านี้ไม่มี BranchStock สำหรับสาขาของงานซ่อม</p>
-                                <Link
-                                  href={`/products?search=${encodeURIComponent(addingPart.name)}`}
-                                  className="text-xs text-blue-600 hover:underline font-medium mt-1 inline-block"
-                                  onClick={() => setSearchOpen(false)}
-                                >
-                                  ไปหน้าจัดการสต็อก →
-                                </Link>
-                              </div>
-                            </div>
-                          ) : bqty === 0 ? (
-                            <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 flex gap-2">
-                              <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                              <div>
-                                <p className="text-xs font-semibold text-red-700">หมดสต็อกในสาขานี้</p>
-                                <p className="text-xs text-red-600 mt-0.5">SKU: {addingPart.sku} · ทุน: {formatThaiMoney(Number(addingPart.costPrice))}</p>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              SKU: {addingPart.sku} · <span className="text-emerald-700 font-medium">สต็อกสาขานี้: {bqty} ชิ้น</span> · ราคาทุน: {formatThaiMoney(Number(addingPart.costPrice))}
-                            </p>
-                          )}
-                          {/* Quantity + price inputs — only when can add */}
-                          {canAdd && (
-                            <div className="flex gap-2">
-                              <div className="space-y-1 flex-1">
-                                <label className="text-xs text-muted-foreground">จำนวน (สูงสุด {bqty} ชิ้น)</label>
-                                <Input type="number" min={1} max={bqty} value={partQty}
-                                  onChange={(e) => setPartQty(Number(e.target.value))} className="h-8 text-sm" />
-                              </div>
-                              <div className="space-y-1 flex-1">
-                                <label className="text-xs text-muted-foreground">ราคา/ชิ้น (ว่าง=ราคาทุน)</label>
-                                <Input type="number" min={0} placeholder={String(addingPart.costPrice)} value={partPrice}
-                                  onChange={(e) => setPartPrice(e.target.value)} className="h-8 text-sm" />
-                              </div>
+                          <p className="text-xs text-muted-foreground">
+                            SKU: {addingPart.sku}
+                            {' · '}<span className="text-emerald-700 font-medium">สต็อกสาขานี้: {bqty} ชิ้น</span>
+                            {' · '}ทุน: {formatThaiMoney(Number(addingPart.costPrice))}
+                          </p>
+                          <div className="space-y-1">
+                            <label className="text-xs text-muted-foreground">จำนวน (สูงสุด {bqty} ชิ้น)</label>
+                            <Input type="number" min={1} max={bqty} value={partQty}
+                              onChange={(e) => setPartQty(Number(e.target.value))} className="h-8 text-sm" />
+                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={chargeCustomer}
+                              onChange={(e) => { setChargeCustomer(e.target.checked); setPartSellPrice('') }}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                            />
+                            <span className="text-xs text-gray-700">คิดค่าอะไหล่เพิ่มจากราคาซ่อม</span>
+                          </label>
+                          {chargeCustomer && (
+                            <div className="space-y-1">
+                              <label className="text-xs text-muted-foreground">
+                                ราคาที่คิดลูกค้า/ชิ้น (ว่าง = ราคาขาย {formatThaiMoney(Number(addingPart.price))})
+                              </label>
+                              <Input
+                                type="number" min={0}
+                                placeholder={String(addingPart.price ?? addingPart.costPrice)}
+                                value={partSellPrice}
+                                onChange={(e) => setPartSellPrice(e.target.value)}
+                                className="h-8 text-sm"
+                              />
                             </div>
                           )}
                         </>
@@ -858,8 +867,8 @@ export default function RepairWorkspacePage() {
                     })()}
                     <Button size="sm" className="w-full gap-1.5" onClick={handleAddPart}
                       disabled={
-                        addingPart.branchQuantity == null ||
-                        addingPart.branchQuantity === 0 ||
+                        !addingPart.branchQuantity ||
+                        addingPart.branchQuantity <= 0 ||
                         partQty < 1 ||
                         partQty > (addingPart.branchQuantity ?? 0) ||
                         addPartMutation.isPending
@@ -879,38 +888,26 @@ export default function RepairWorkspacePage() {
                     />
                     {searchOpen && filteredPartProducts.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {filteredPartProducts.map((p) => {
-                          // branchQuantity = null  → ยังไม่ได้เพิ่มเข้าสาขานี้
-                          // branchQuantity = 0     → หมดสต็อกในสาขานี้
-                          // branchQuantity > 0     → มีสต็อก พร้อมเบิก
-                          const bqty = p.branchQuantity
-                          const canAdd = bqty != null && bqty > 0
-                          return (
+                        {filteredPartProducts.map((p) => (
                             <button
                               key={p.id}
-                              className={`w-full text-left px-3 py-2.5 border-b last:border-0 transition-colors ${canAdd ? 'hover:bg-blue-50' : 'hover:bg-gray-50'}`}
+                              className="w-full text-left px-3 py-2.5 border-b last:border-0 transition-colors hover:bg-blue-50"
                               onClick={() => {
                                 setAddingPart(p)
                                 setPartSearch('')
                                 setSearchOpen(false)
                                 setPartQty(1)
-                                setPartPrice('')
+                                setChargeCustomer(false)
+                                setPartSellPrice('')
                               }}
                             >
-                              <p className={`text-sm font-medium ${canAdd ? 'text-gray-900' : 'text-gray-400'}`}>{p.name}</p>
+                              <p className="text-sm font-medium text-gray-900">{p.name}</p>
                               <p className="text-xs mt-0.5 flex items-center gap-1.5">
-                                {bqty == null ? (
-                                  <span className="text-amber-600 font-medium">⚠ ยังไม่ได้เพิ่มเข้าสาขานี้</span>
-                                ) : bqty === 0 ? (
-                                  <span className="text-red-500 font-medium">หมดสต็อกในสาขานี้</span>
-                                ) : (
-                                  <span className="text-emerald-700 font-medium">สต็อกสาขานี้ {bqty} ชิ้น</span>
-                                )}
+                                <span className="text-emerald-700 font-medium">สต็อกสาขา {p.branchQuantity} ชิ้น</span>
                                 <span className="text-muted-foreground">· SKU: {p.sku} · ทุน: {formatThaiMoney(Number(p.costPrice))}</span>
                               </p>
                             </button>
-                          )
-                        })}
+                          ))}
                       </div>
                     )}
                     {searchOpen && debouncedSearch && filteredPartProducts.length === 0 && (
@@ -929,20 +926,33 @@ export default function RepairWorkspacePage() {
                 <SectionTitle icon={DollarSign} title="ประมาณราคาซ่อม" />
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <label className="text-sm text-gray-700 w-28 shrink-0">ค่าแรง (บาท)</label>
+                    <label className="text-sm text-gray-700 w-28 shrink-0">ราคาซ่อม (บาท)</label>
                     <Input
                       type="number" min={0} placeholder="0" value={laborCost}
                       onChange={(e) => setLaborCost(e.target.value)} className="h-8 text-sm flex-1 bg-white"
                     />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-700 w-28 shrink-0">ค่าอะไหล่</span>
-                    <span className="text-sm font-medium tabular-nums">{formatThaiMoney(computedPartsCost)}</span>
-                  </div>
+                  {computedPartsCharge > 0 && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-gray-700 w-28 shrink-0">ค่าอะไหล่เพิ่ม</span>
+                      <span className="text-sm font-medium text-blue-700 tabular-nums">+{formatThaiMoney(computedPartsCharge)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 border-t pt-2">
-                    <span className="text-sm font-bold text-gray-900 w-28 shrink-0">รวมประมาณ</span>
+                    <span className="text-sm font-bold text-gray-900 w-28 shrink-0">รวมที่คิดลูกค้า</span>
                     <span className="text-base font-bold text-blue-700 tabular-nums">{formatThaiMoney(computedTotal)}</span>
                   </div>
+                  {Number(laborCost) > 0 && computedPartsCOGS > 0 && (
+                    <div className="flex items-center gap-3 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
+                      <span className="text-sm font-medium text-emerald-800 w-28 shrink-0">กำไรงานนี้</span>
+                      <span className="text-sm font-bold text-emerald-700 tabular-nums">
+                        {formatThaiMoney(computedTotal - computedPartsCOGS)}
+                      </span>
+                      <span className="text-xs text-emerald-600 ml-auto">
+                        = {formatThaiMoney(computedTotal)} - {formatThaiMoney(computedPartsCOGS)}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 {repair.estimatedTotal != null && (
                   <div className="text-xs text-muted-foreground bg-white rounded-lg border px-3 py-2 space-y-0.5">
