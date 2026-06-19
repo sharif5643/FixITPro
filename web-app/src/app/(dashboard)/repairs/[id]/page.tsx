@@ -804,23 +804,31 @@ export default function RepairWorkspacePage() {
                         <X className="h-4 w-4" />
                       </button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      SKU: {addingPart.sku} · สต็อก: {addingPart.branchQuantity ?? 0} ชิ้น · ราคาทุน: {formatThaiMoney(Number(addingPart.costPrice))}
-                    </p>
-                    <div className="flex gap-2">
-                      <div className="space-y-1 flex-1">
-                        <label className="text-xs text-muted-foreground">จำนวน</label>
-                        <Input type="number" min={1} max={addingPart.branchQuantity ?? undefined} value={partQty}
-                          onChange={(e) => setPartQty(Number(e.target.value))} className="h-8 text-sm" />
-                      </div>
-                      <div className="space-y-1 flex-1">
-                        <label className="text-xs text-muted-foreground">ราคา/ชิ้น (ว่าง=ราคาทุน)</label>
-                        <Input type="number" min={0} placeholder={String(addingPart.costPrice)} value={partPrice}
-                          onChange={(e) => setPartPrice(e.target.value)} className="h-8 text-sm" />
-                      </div>
-                    </div>
+                    {(() => {
+                      const addQty = addingPart.branchQuantity != null ? addingPart.branchQuantity : ((addingPart as any).stock ?? 0)
+                      const addIsGlobal = addingPart.branchQuantity == null
+                      return (
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            SKU: {addingPart.sku} · สต็อก: {addQty} ชิ้น{addIsGlobal ? ' (สต็อกรวม)' : ''} · ราคาทุน: {formatThaiMoney(Number(addingPart.costPrice))}
+                          </p>
+                          <div className="flex gap-2">
+                            <div className="space-y-1 flex-1">
+                              <label className="text-xs text-muted-foreground">จำนวน</label>
+                              <Input type="number" min={1} max={addQty || undefined} value={partQty}
+                                onChange={(e) => setPartQty(Number(e.target.value))} className="h-8 text-sm" />
+                            </div>
+                            <div className="space-y-1 flex-1">
+                              <label className="text-xs text-muted-foreground">ราคา/ชิ้น (ว่าง=ราคาทุน)</label>
+                              <Input type="number" min={0} placeholder={String(addingPart.costPrice)} value={partPrice}
+                                onChange={(e) => setPartPrice(e.target.value)} className="h-8 text-sm" />
+                            </div>
+                          </div>
+                        </>
+                      )
+                    })()}
                     <Button size="sm" className="w-full gap-1.5" onClick={handleAddPart}
-                      disabled={partQty < 1 || (addingPart.branchQuantity != null && partQty > addingPart.branchQuantity) || addPartMutation.isPending}>
+                      disabled={partQty < 1 || partQty > (addingPart.branchQuantity != null ? addingPart.branchQuantity : ((addingPart as any).stock ?? 0)) || addPartMutation.isPending}>
                       {addPartMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                       เพิ่มอะไหล่
                     </Button>
@@ -837,7 +845,10 @@ export default function RepairWorkspacePage() {
                     {searchOpen && filteredPartProducts.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                         {filteredPartProducts.map((p) => {
-                          const qty = p.branchQuantity ?? 0
+                          // branchQuantity = BranchStock for repair's branch (enrolled)
+                          // null = product exists globally but not enrolled in this branch → use product.stock
+                          const effectiveQty = p.branchQuantity != null ? p.branchQuantity : ((p as any).stock ?? 0)
+                          const isGlobal = p.branchQuantity == null
                           return (
                             <button
                               key={p.id}
@@ -852,7 +863,7 @@ export default function RepairWorkspacePage() {
                             >
                               <p className="text-sm font-medium text-gray-900">{p.name}</p>
                               <p className="text-xs text-muted-foreground">
-                                SKU: {p.sku} · สต็อก: {qty} ชิ้น · ราคาทุน: {formatThaiMoney(Number(p.costPrice))}
+                                SKU: {p.sku} · สต็อก: {effectiveQty} ชิ้น{isGlobal ? ' (สต็อกรวม)' : ''} · ราคาทุน: {formatThaiMoney(Number(p.costPrice))}
                               </p>
                             </button>
                           )
