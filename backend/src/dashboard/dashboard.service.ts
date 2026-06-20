@@ -98,7 +98,7 @@ export class DashboardService {
         _sum: { paidAmount: true },
       }),
       this.prisma.packageSale.aggregate({
-        where: { createdAt: { gte: start, lt: end } },
+        where: { createdAt: { gte: start, lt: end }, ...(tenantId ? { createdBy: { tenantId } } : {}) },
         _sum: { profit: true },
         _count: { id: true },
       }),
@@ -124,14 +124,17 @@ export class DashboardService {
         where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' }, ...bFilter },
         select: { finalCost: true, estimateCost: true, deposit: true },
       }),
-      this.prisma.product.count({ where: { isActive: true, stock: 0 } }),
-      this.prisma.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*) as count FROM "Product"
-        WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"
-      `,
-      this.prisma.warranty.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.product.count({ where: { isActive: true, stock: 0, ...this.tenantSvc.scope(tenantId) } }),
+      tenantId
+        ? this.prisma.$queryRaw<[{ count: bigint }]>`
+            SELECT COUNT(*) as count FROM "Product"
+            WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock" AND "tenantId" = ${tenantId}`
+        : this.prisma.$queryRaw<[{ count: bigint }]>`
+            SELECT COUNT(*) as count FROM "Product"
+            WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"`,
+      this.prisma.warranty.count({ where: { status: 'ACTIVE', ...(tenantId ? { customer: { tenantId } } : {}) } }),
       this.prisma.warranty.count({
-        where: { status: 'ACTIVE', endDate: { gte: now, lte: sevenDaysFromNow } },
+        where: { status: 'ACTIVE', endDate: { gte: now, lte: sevenDaysFromNow }, ...(tenantId ? { customer: { tenantId } } : {}) },
       }),
       this.prisma.notification.count({ where: { isRead: false, ...notifWhere } }),
       this.prisma.notification.findMany({
@@ -186,12 +189,23 @@ export class DashboardService {
         include: { user: { select: { name: true, role: true } } },
         orderBy: { openedAt: 'desc' },
       }),
-      this.prisma.claim.count({ where: { status: { notIn: ['CLOSED', 'CANCELLED'] } } }),
+      this.prisma.claim.count({
+        where: {
+          status: { notIn: ['CLOSED', 'CANCELLED'] },
+          ...(tenantId ? { serialNumber: { product: { tenantId } } } : {}),
+        },
+      }),
       this.prisma.purchaseOrder.count({
-        where: { dueDate: { lt: now }, paymentStatus: { not: 'PAID' }, status: { not: 'CANCELLED' } },
+        where: {
+          dueDate: { lt: now }, paymentStatus: { not: 'PAID' }, status: { not: 'CANCELLED' },
+          ...(tenantId ? { supplier: { tenantId } } : {}),
+        },
       }),
       this.prisma.purchaseOrder.aggregate({
-        where: { paymentStatus: { not: 'PAID' }, status: { not: 'CANCELLED' } },
+        where: {
+          paymentStatus: { not: 'PAID' }, status: { not: 'CANCELLED' },
+          ...(tenantId ? { supplier: { tenantId } } : {}),
+        },
         _sum: { total: true, paidTotal: true },
       }),
       // Branch performance (scoped to tenant)
