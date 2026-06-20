@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, Max, Min, IsDateString } from 'class-validator';
+import { IsString, IsNumber, IsOptional, Max, Min, IsDateString, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateRepairDto {
@@ -12,10 +12,12 @@ export class CreateRepairDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   customerName?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   customerPhone?: string;
 
   @IsOptional()
@@ -23,24 +25,30 @@ export class CreateRepairDto {
   technicianId?: string;
 
   @IsString()
+  @MaxLength(100)
   deviceBrand: string;
 
   @IsString()
+  @MaxLength(100)
   deviceModel: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   deviceColor?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   deviceImei?: string;
 
   @IsString()
+  @MaxLength(2000)
   issue: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   accessories?: string;
 
   @IsOptional()
@@ -77,5 +85,6 @@ export class CreateRepairDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   note?: string;
 }

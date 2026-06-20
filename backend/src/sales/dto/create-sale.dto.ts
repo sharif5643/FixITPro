@@ -5,6 +5,7 @@ import {
   IsArray,
   ValidateNested,
   Max,
+  MaxLength,
   Min,
   IsIn,
 } from 'class-validator';
@@ -46,10 +47,12 @@ export class CreateSaleDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   customerName?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   customerPhone?: string;
 
   @IsOptional()
@@ -80,6 +83,7 @@ export class CreateSaleDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   note?: string;
 
   @IsArray()

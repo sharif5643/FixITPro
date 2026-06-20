@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsInt,
   Max,
+  MaxLength,
   Min,
   IsIn,
 } from 'class-validator';
@@ -13,13 +14,16 @@ import { Type } from 'class-transformer';
 
 export class CreateProductDto {
   @IsString()
+  @MaxLength(200)
   name: string;
 
   @IsString()
+  @MaxLength(100)
   sku: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   barcode?: string;
 
   @IsIn(['PHONE', 'SIM', 'ACCESSORY', 'PART'])
@@ -53,10 +57,12 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   description?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   imageUrl?: string;
 
   @IsOptional()

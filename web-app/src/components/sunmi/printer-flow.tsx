@@ -363,20 +363,21 @@ function PreviewStep({
         printerId: printer.id,
         jobName,
       })
-      // Log debug fields from Kotlin so they appear in the browser/webview console
-      console.log('[PRINTER_DBG]', JSON.stringify({
-        success:    res.success,
-        error:      res.error,
-        density:    res.dbg_density,
-        renderW:    res.dbg_renderW,
-        cssH:       res.dbg_cssH,
-        viewScale:  res.dbg_viewScale,
-        contentH:   res.dbg_contentH,
-        rawBmp:     `${res.dbg_rawW}×${res.dbg_rawH}`,
-        scaledBmp:  `${res.dbg_scaledW}×${res.dbg_scaledH}`,
-        bpr:        res.dbg_bpr,
-        bytes:      res.dbg_bytes,
-      }))
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PRINTER_DBG]', JSON.stringify({
+          success:   res.success,
+          error:     res.error,
+          density:   res.dbg_density,
+          renderW:   res.dbg_renderW,
+          cssH:      res.dbg_cssH,
+          viewScale: res.dbg_viewScale,
+          contentH:  res.dbg_contentH,
+          rawBmp:    `${res.dbg_rawW}×${res.dbg_rawH}`,
+          scaledBmp: `${res.dbg_scaledW}×${res.dbg_scaledH}`,
+          bpr:       res.dbg_bpr,
+          bytes:     res.dbg_bytes,
+        }))
+      }
       if (!res.success) throw new Error(res.error ?? 'Print failed')
     } else {
       // Web: popup window.print()

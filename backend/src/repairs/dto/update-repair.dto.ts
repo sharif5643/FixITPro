@@ -3,6 +3,7 @@ import {
   IsNumber,
   IsOptional,
   Max,
+  MaxLength,
   Min,
   IsIn,
 } from 'class-validator';
@@ -50,6 +51,7 @@ export class UpdateRepairDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   note?: string;
 
   @IsOptional()
@@ -75,6 +77,7 @@ export class UpdateRepairDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   approvalNote?: string;
 
   @IsOptional()

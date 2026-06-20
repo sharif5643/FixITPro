@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsIn,
   Max,
+  MaxLength,
   ValidateNested,
   Min,
 } from 'class-validator';
@@ -62,6 +63,7 @@ export class CreatePurchaseOrderDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   note?: string;
 
   @IsArray()
