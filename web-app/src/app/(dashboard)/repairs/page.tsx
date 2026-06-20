@@ -83,10 +83,13 @@ export default function RepairsPage() {
   }
 
   const { data: repairs = [], isLoading, isError, error, refetch } = useQuery<Repair[]>({
-    queryKey: ['repairs', branchId],
+    queryKey: ['repairs', branchId, viewMode],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (isSafeBranchId(branchId)) params.set('branchId', branchId)
+      // Board view only needs active repairs — exclude DELIVERED/CANCELLED history
+      // so old archived jobs never push current work out of the 2000-row window.
+      if (viewMode === 'board') params.set('activeOnly', 'true')
       return (await api.get(`/repairs?${params.toString()}`)).data
     },
     placeholderData: keepPreviousData,

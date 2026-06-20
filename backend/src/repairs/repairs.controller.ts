@@ -82,7 +82,7 @@ export class RepairsController {
 
   @Get()
   findAll(
-    @Query() query: { status?: string; customerId?: string; date?: string; branchId?: string },
+    @Query() query: { status?: string; customerId?: string; date?: string; branchId?: string; activeOnly?: string },
     @CurrentUser('role') role: string,
     @CurrentUser('branchId') userBranchId: string | null,
     @CurrentUser('tenantId') tenantId: string | null,
@@ -94,7 +94,8 @@ export class RepairsController {
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
       ? query.branchId
       : (userBranchId ?? undefined);
-    return this.repairsService.findAll({ ...query, branchId: effectiveBranchId }, tenantId);
+    const activeOnly = query.activeOnly === 'true';
+    return this.repairsService.findAll({ ...query, branchId: effectiveBranchId, activeOnly }, tenantId);
   }
 
   @Get('outstanding')

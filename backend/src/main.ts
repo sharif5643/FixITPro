@@ -1,6 +1,6 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
 import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
@@ -50,7 +50,10 @@ async function bootstrap() {
   // CHB-01: parse cookies so req.cookies.access_token is available in JwtStrategy
   app.use(cookieParser());
 
-  app.setGlobalPrefix('api/v1');
+  // Exclude /health from the api/v1 prefix so uptime monitors can hit a clean URL.
+  app.setGlobalPrefix('api/v1', {
+    exclude: [{ path: 'health', method: RequestMethod.GET }],
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

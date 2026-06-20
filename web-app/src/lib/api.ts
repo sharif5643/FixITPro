@@ -35,8 +35,9 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// ── Response interceptor: retry + 401 redirect ───────────────
-// Guard prevents multiple concurrent 401s from firing multiple redirects
+// ── Response interceptor: silent refresh → retry → 401 redirect ─────────────
+// Guard prevents multiple concurrent 401s from triggering multiple refreshes
+let _refreshing: Promise<boolean> | null = null
 let _redirectingToLogin = false
 
 api.interceptors.response.use(
@@ -45,16 +46,33 @@ api.interceptors.response.use(
     const config = error.config as RetryConfig
     const status: number | undefined = error.response?.status
 
-    // 401 → force logout (except on login/register — those handle their own errors)
-    // /auth/me and /auth/logout are NOT excluded so an expired cookie clears properly.
     const isLoginOrRegister = /\/auth\/(login|register)/.test(config?.url ?? '')
-    const isLogout = /\/auth\/logout/.test(config?.url ?? '')
-    if (status === 401 && typeof window !== 'undefined' && !isLoginOrRegister && !isLogout) {
+    const isLogout          = /\/auth\/logout/.test(config?.url ?? '')
+    const isRefresh         = /\/auth\/refresh/.test(config?.url ?? '')
+
+    if (status === 401 && typeof window !== 'undefined' && !isLoginOrRegister && !isLogout && !isRefresh) {
+      // Try silent refresh once before giving up
+      if (!config._retryCount) {
+        try {
+          if (!_refreshing) {
+            _refreshing = api.post('/auth/refresh').then(() => true).catch(() => false)
+          }
+          const refreshed = await _refreshing
+          _refreshing = null
+
+          if (refreshed) {
+            config._retryCount = 1
+            return api(config)
+          }
+        } catch {
+          _refreshing = null
+        }
+      }
+
+      // Refresh failed or already retried — send to login
       if (_redirectingToLogin) return Promise.reject(error)
       _redirectingToLogin = true
       useAuthStore.getState().clearAuth()
-      // Clear the invalid/expired HttpOnly cookie server-side so the Next.js
-      // middleware won't redirect /login → /dashboard in a loop.
       try { await api.post('/auth/logout') } catch { /* best-effort */ }
       window.location.href = '/login'
       return Promise.reject(error)
@@ -65,7 +83,7 @@ api.interceptors.response.use(
     const isNetworkError = !error.response
     const isServerError  = status !== undefined && status >= 500
 
-    const isAuthEndpoint = isLoginOrRegister || isLogout || /\/auth\//.test(config?.url ?? '')
+    const isAuthEndpoint = isLoginOrRegister || isLogout || isRefresh || /\/auth\//.test(config?.url ?? '')
     if ((isNetworkError || isServerError) && config && !isAuthEndpoint) {
       config._retryCount = (config._retryCount ?? 0) + 1
       if (config._retryCount <= MAX_RETRIES) {

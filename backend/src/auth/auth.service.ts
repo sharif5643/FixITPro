@@ -7,11 +7,14 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ALL_PERMISSIONS } from './strategies/jwt.strategy';
 import { ModulesService } from '../modules/modules.service';
+
+const REFRESH_TOKEN_DAYS = 30;
 
 @Injectable()
 export class AuthService {
@@ -20,6 +23,29 @@ export class AuthService {
     private jwtService: JwtService,
     private modulesService: ModulesService,
   ) {}
+
+  private hashToken(raw: string): string {
+    return createHash('sha256').update(raw).digest('hex');
+  }
+
+  private async issueRefreshToken(userId: string): Promise<string> {
+    const raw = randomBytes(64).toString('hex');
+    const tokenHash = this.hashToken(raw);
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_DAYS * 86_400_000);
+
+    await this.prisma.refreshToken.create({ data: { tokenHash, userId, expiresAt } });
+    return raw;
+  }
+
+  private buildPayload(user: { id: string; email: string; role: string; branchId?: string | null; tenantId?: string | null }) {
+    return {
+      sub:      user.id,
+      email:    user.email,
+      role:     user.role,
+      branchId: (user as any).branchId ?? null,
+      tenantId: (user as any).tenantId ?? null,
+    };
+  }
 
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
@@ -35,9 +61,8 @@ export class AuthService {
 
     const branchId = (user as any).branchId ?? null;
     const tenantId = (user as any).tenantId ?? null;
-    // CHB-07: tenantId added to payload — downstream guards can scope tenant
-    // isolation from the token without an extra DB round-trip.
-    const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role, branchId, tenantId });
+    const token = this.jwtService.sign(this.buildPayload(user));
+    const refreshToken = await this.issueRefreshToken(user.id);
 
     let permissions: string[];
     if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') {
@@ -66,6 +91,7 @@ export class AuthService {
 
     return {
       accessToken: token,
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,
@@ -81,6 +107,40 @@ export class AuthService {
       enabledModules,
       redirectTo,
     };
+  }
+
+  async refresh(rawRefreshToken: string) {
+    const tokenHash = this.hashToken(rawRefreshToken);
+    const stored = await this.prisma.refreshToken.findUnique({ where: { tokenHash } });
+
+    if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: stored.userId },
+      select: { id: true, email: true, role: true, branchId: true, tenantId: true, isActive: true },
+    });
+    if (!user || !user.isActive) throw new UnauthorizedException('User not found or inactive');
+
+    // Rotate: revoke old token and issue new pair
+    await this.prisma.refreshToken.update({
+      where: { id: stored.id },
+      data:  { revokedAt: new Date() },
+    });
+
+    const accessToken  = this.jwtService.sign(this.buildPayload(user));
+    const refreshToken = await this.issueRefreshToken(user.id);
+
+    return { accessToken, refreshToken };
+  }
+
+  async revokeRefreshToken(rawRefreshToken: string) {
+    const tokenHash = this.hashToken(rawRefreshToken);
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data:  { revokedAt: new Date() },
+    });
   }
 
   async register(dto: RegisterDto) {

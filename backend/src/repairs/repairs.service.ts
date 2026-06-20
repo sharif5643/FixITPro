@@ -187,7 +187,7 @@ export class RepairsService {
     return repair;
   }
 
-  async findAll(query: { status?: string; customerId?: string; date?: string; branchId?: string }, tenantId?: string | null) {
+  async findAll(query: { status?: string; customerId?: string; date?: string; branchId?: string; activeOnly?: boolean }, tenantId?: string | null) {
     const where: any = {};
 
     if (query.status)     where.status     = query.status;
@@ -225,8 +225,12 @@ export class RepairsService {
       where.receivedAt = { gte: start, lt: end };
     }
 
-    // N-2 FIX: cap list at 200 rows to prevent unbounded queries when a branch
-    // has a large backlog. Pagination can be added in a future phase if needed.
+    // activeOnly=true (kanban board): exclude terminal statuses so archived
+    // repairs don't push active work out of the result window.
+    if (query.activeOnly) {
+      where.status = { notIn: ['DELIVERED', 'CANCELLED'] };
+    }
+
     return this.prisma.repair.findMany({
       where,
       include: {
@@ -236,7 +240,7 @@ export class RepairsService {
         parts: { include: { product: { select: { name: true } } } },
       },
       orderBy: { receivedAt: 'desc' },
-      take: 200,
+      take: query.activeOnly ? 2000 : 500,
     });
   }
 
