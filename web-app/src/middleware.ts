@@ -13,6 +13,20 @@ const PUBLIC_EXACT = ['/']
 
 const GRACE_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
+// Decode JWT exp claim without verifying signature.
+// Returns true when the token is expired or malformed — both mean "don't trust it".
+function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return true
+    const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(padded))
+    return typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)
+  } catch {
+    return true
+  }
+}
+
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('access_token')?.value
   const { pathname } = request.nextUrl
@@ -26,8 +40,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Already authenticated and trying to hit login → send to dashboard
-  if (token && pathname === '/login') {
+  // Already authenticated and trying to hit login → send to dashboard.
+  // Skip if the JWT is expired — stale cookie causes an infinite loop between
+  // middleware (→ /dashboard) and the auth interceptor (→ /login) when the
+  // logout call fails (e.g. CORS on raw-IP access). Expired token holders
+  // should just see the login form and get a fresh session.
+  if (token && pathname === '/login' && !isJwtExpired(token)) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
