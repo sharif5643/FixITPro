@@ -32,14 +32,16 @@ export class CategoriesService {
     return this.prisma.categoryType.create({ data: { name: dto.name, slug } });
   }
 
-  async findAllTypes() {
+  async findAllTypes(tenantId?: string | null) {
+    const tenantWhere = this.tenantSvc.scope(tenantId);
     return this.prisma.categoryType.findMany({
       include: {
         categories: {
+          where: tenantWhere,
           include: { _count: { select: { products: true } } },
           orderBy: { name: 'asc' },
         },
-        _count: { select: { categories: true } },
+        _count: { select: { categories: { where: tenantWhere } } },
       },
       orderBy: { name: 'asc' },
     });

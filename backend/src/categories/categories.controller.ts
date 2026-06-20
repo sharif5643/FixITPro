@@ -28,8 +28,8 @@ export class CategoriesController {
   }
 
   @Get('types')
-  findAllTypes() {
-    return this.categoriesService.findAllTypes();
+  findAllTypes(@CurrentUser('tenantId') tenantId: string) {
+    return this.categoriesService.findAllTypes(tenantId);
   }
 
   @Put('types/:id')
