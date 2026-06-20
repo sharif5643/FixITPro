@@ -38,7 +38,7 @@ export class AlertsService {
     const slaThreshold = new Date(now.getTime() - REPAIR_SLA_DAYS * 86_400_000);
 
     // ── 1. PENDING transfers — source branch needs to approve ─────────────────
-    const pendingXfers = await (this.prisma as any).stockTransfer.findMany({
+    const pendingXfers = await this.prisma.stockTransfer.findMany({
       where: {
         status: 'PENDING',
         ...(branchId ? { fromBranchId: branchId } : {}),
@@ -67,7 +67,7 @@ export class AlertsService {
     }
 
     // ── 2. IN_TRANSIT transfers — destination branch needs to receive ─────────
-    const inTransitXfers = await (this.prisma as any).stockTransfer.findMany({
+    const inTransitXfers = await this.prisma.stockTransfer.findMany({
       where: {
         status: 'IN_TRANSIT',
         ...(branchId ? { toBranchId: branchId } : {}),

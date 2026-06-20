@@ -76,7 +76,7 @@ export class StockService {
     const isDeduction = dto.type === 'OUT';
 
     // Branch-scoped adjustment — BranchStock is the source of truth
-    const bs = await (this.prisma as any).branchStock.findUnique({
+    const bs = await this.prisma.branchStock.findUnique({
       where: { branchId_productId: { branchId: dto.branchId, productId: dto.productId } },
     });
     const available = bs?.quantity ?? 0;
@@ -155,7 +155,7 @@ export class StockService {
     });
 
     if (isDeduction) {
-      const updatedBs = await (this.prisma as any).branchStock.findUnique({
+      const updatedBs = await this.prisma.branchStock.findUnique({
         where: { branchId_productId: { branchId: dto.branchId, productId: dto.productId } },
       });
       if (updatedBs && updatedBs.minStock > 0 && updatedBs.quantity <= updatedBs.minStock) {

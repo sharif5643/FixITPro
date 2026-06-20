@@ -230,7 +230,7 @@ export class ProductsService {
     // ── Enrich with branch-specific stock ────────────────────────────────────
     if (viewAll) {
       // OWNER "all branches": fetch every BranchStock + branch name, compute sum + breakdown
-      const allBs = await (this.prisma as any).branchStock.findMany({
+      const allBs = await this.prisma.branchStock.findMany({
         where: { productId: { in: productIds } },
         include: { branch: { select: { id: true, name: true } } },
       });
@@ -265,7 +265,7 @@ export class ProductsService {
     if (branchId) {
       // Fetch only BranchStock records that exist for this branch (INNER JOIN semantics).
       // Products with no BranchStock row for the branch are hidden entirely.
-      const bsList = await (this.prisma as any).branchStock.findMany({
+      const bsList = await this.prisma.branchStock.findMany({
         where: { branchId, productId: { in: productIds } },
       });
 
@@ -281,7 +281,7 @@ export class ProductsService {
 
       // Fetch other-branch totals only for enrolled products
       const enrolledIds = visibleIds.filter((id) => bsMap.has(id));
-      const otherBsList = await (this.prisma as any).branchStock.findMany({
+      const otherBsList = await this.prisma.branchStock.findMany({
         where: { branchId: { not: branchId }, productId: { in: enrolledIds } },
         select: { productId: true, quantity: true },
       });
@@ -330,7 +330,7 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
 
     if (branchId) {
-      const bs = await (this.prisma as any).branchStock.findUnique({
+      const bs = await this.prisma.branchStock.findUnique({
         where: { branchId_productId: { branchId, productId: id } },
       });
       return {
@@ -356,7 +356,7 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
 
     if (branchId) {
-      const bs = await (this.prisma as any).branchStock.findUnique({
+      const bs = await this.prisma.branchStock.findUnique({
         where: { branchId_productId: { branchId, productId: product.id } },
       });
       // No BranchStock record → product is not visible in this branch
@@ -526,7 +526,7 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
 
     // Filter by branch.tenantId so a tenant cannot see another tenant's branch stock
-    const stocks = await (this.prisma as any).branchStock.findMany({
+    const stocks = await this.prisma.branchStock.findMany({
       where: { productId: id, branch: { tenantId } },
       include: { branch: { select: { id: true, name: true } } },
       orderBy: { quantity: 'desc' },

@@ -151,7 +151,7 @@ export class DataRepairService {
       });
 
       for (const product of products) {
-        const existingRows = await (this.prisma as any).branchStock.findMany({
+        const existingRows = await this.prisma.branchStock.findMany({
           where: { productId: product.id },
           select: { branchId: true },
         });
@@ -161,7 +161,7 @@ export class DataRepairService {
           if (existingBranchIds.has(branch.id)) {
             skipped++;
           } else {
-            await (this.prisma as any).branchStock.create({
+            await this.prisma.branchStock.create({
               data: {
                 branchId:  branch.id,
                 productId: product.id,

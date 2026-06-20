@@ -106,7 +106,7 @@ export class TechniciansService {
     const deliveredIds = delivered.map((r) => r.id);
     let warrantyClaims = 0;
     if (deliveredIds.length > 0) {
-      warrantyClaims = await (this.prisma as any).warranty.count({
+      warrantyClaims = await this.prisma.warranty.count({
         where: { repairId: { in: deliveredIds }, status: 'CLAIMED' },
       });
     }

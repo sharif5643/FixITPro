@@ -373,7 +373,7 @@ export class NotificationsService implements OnModuleInit {
 
       if (delivered.length < 3) continue;
 
-      const claimCount = await (this.prisma as any).warranty.count({
+      const claimCount = await this.prisma.warranty.count({
         where: { repairId: { in: delivered.map((r: any) => r.id) }, status: 'CLAIMED' },
       }).catch(() => 0);
 
@@ -397,12 +397,12 @@ export class NotificationsService implements OnModuleInit {
     const warnDate = new Date();
     warnDate.setDate(warnDate.getDate() + 7);
 
-    await (this.prisma as any).warranty.updateMany({
+    await this.prisma.warranty.updateMany({
       where: { status: 'ACTIVE', endDate: { lt: now } },
       data:  { status: 'EXPIRED' },
     }).catch((e: any) => this.logger.warn(`warranty expire update error: ${(e as Error).message}`));
 
-    const expiring = await (this.prisma as any).warranty.findMany({
+    const expiring = await this.prisma.warranty.findMany({
       where: {
         status:  'ACTIVE',
         endDate: { gt: now, lte: warnDate },

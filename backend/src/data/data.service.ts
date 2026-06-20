@@ -233,7 +233,7 @@ export class DataService {
   }
 
   private async exportWarranties(q: { startDate?: string; endDate?: string }, tenantId?: string | null): Promise<ExportResult> {
-    const rows = await (this.prisma as any).warranty.findMany({
+    const rows = await this.prisma.warranty.findMany({
       where: { ...buildWhere(q.startDate, q.endDate), ...(tenantId ? { customer: { tenantId } } : {}) },
       include: {
         customer:  { select: { name: true, phone: true } },

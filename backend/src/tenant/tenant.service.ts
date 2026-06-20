@@ -72,10 +72,14 @@ export class TenantService {
     id: string,
   ): Promise<void> {
     if (!tenantId) return;
-    const record = await (this.prisma as any)[model].findFirst({
-      where: { id, tenantId },
-      select: { id: true },
-    });
+    const clients = {
+      product:  this.prisma.product,
+      customer: this.prisma.customer,
+      category: this.prisma.category,
+      supplier: this.prisma.supplier,
+    };
+    const record = await (clients[model] as { findFirst: (a: any) => Promise<{ id: string } | null> })
+      .findFirst({ where: { id, tenantId }, select: { id: true } });
     if (!record) throw new ForbiddenException(`ไม่มีสิทธิ์เข้าถึงข้อมูลนี้`);
   }
 }
