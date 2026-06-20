@@ -60,6 +60,10 @@ services:
       UPLOADS_BASE_DIR:     /app/uploads
       REPAIR_UPLOADS_DIR:   /app/uploads/repairs
       LOGS_DIR:             /app/logs
+    labels:
+      # Explicit Traefik service port so the Docker provider resolves the service URL correctly.
+      # Without this, Traefik v3 may fail to link the auto-generated router to the container.
+      - "traefik.http.services.http-0-z9m1c1i9nr6kbyo4qn0vuv1b-backend.loadbalancer.server.port=3000"
     volumes:
       - uploads_data:/app/uploads
       - backups_data:/app/backups
@@ -69,6 +73,7 @@ services:
         condition: service_healthy
     networks:
       - app_network
+      - coolify
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
       interval: 30s
@@ -96,10 +101,13 @@ services:
     environment:
       NODE_ENV: production
       PORT:     3000
+    labels:
+      - "traefik.http.services.http-0-z9m1c1i9nr6kbyo4qn0vuv1b-frontend.loadbalancer.server.port=3000"
     depends_on:
       - backend
     networks:
       - app_network
+      - coolify
     logging:
       driver: "json-file"
       options:
@@ -124,3 +132,6 @@ volumes:
 networks:
   app_network:
     driver: bridge
+  coolify:
+    external: true
+    name: coolify
