@@ -582,6 +582,7 @@ model Sale {
   @@index([customerId])
   @@index([shiftId])
   @@index([branchId])
+  @@index([branchId, createdAt])
   @@index([status])
 }
 
@@ -713,6 +714,8 @@ model Repair {
   @@index([paymentShiftId])
   @@index([deviceImei])
   @@index([branchId])
+  @@index([branchId, status])
+  @@index([branchId, receivedAt])
 }
 
 model RepairPaymentReversal {

@@ -1,7 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
-const GRACE_DAYS = 7;
+const GRACE_DAYS = 2;
 
 @Injectable()
 export class TenantActiveGuard implements CanActivate {

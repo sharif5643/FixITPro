@@ -99,37 +99,6 @@ export class SalesService {
       });
       for (const r of bsRows) branchStockMap.set(r.productId, r.quantity);
 
-      // DEBUG: log BranchStock lookup result
-      console.log('[CHECKOUT DEBUG] ─────────────────────────────────');
-      console.log(`[CHECKOUT DEBUG] userId    = ${userId}`);
-      console.log(`[CHECKOUT DEBUG] tenantId  = ${tenantId ?? 'null'}`);
-      console.log(`[CHECKOUT DEBUG] branchId  = ${branchId}`);
-      console.log(`[CHECKOUT DEBUG] productIds= ${productIds.join(', ')}`);
-      console.log(`[CHECKOUT DEBUG] bsRows found (${bsRows.length}):`);
-      for (const r of bsRows) {
-        console.log(`[CHECKOUT DEBUG]   productId=${r.productId} qty=${r.quantity}`);
-      }
-      if (bsRows.length === 0) {
-        console.log('[CHECKOUT DEBUG]   *** NO BranchStock rows found for this branchId+products — will fail with qty=0 ***');
-        // Show what BranchStock rows DO exist for these products (cross-branch)
-        const allBsRows = await this.prisma.branchStock.findMany({
-          where: { productId: { in: productIds } },
-          select: { productId: true, branchId: true, quantity: true },
-        });
-        console.log(`[CHECKOUT DEBUG] All BranchStock rows for these products (any branch):`);
-        for (const r of allBsRows) {
-          console.log(`[CHECKOUT DEBUG]   productId=${r.productId} branchId=${r.branchId} qty=${r.quantity}`);
-        }
-      }
-    } else {
-      console.log('[CHECKOUT DEBUG] ─────────────────────────────────');
-      console.log(`[CHECKOUT DEBUG] userId    = ${userId}`);
-      console.log(`[CHECKOUT DEBUG] tenantId  = ${tenantId ?? 'null'}`);
-      console.log(`[CHECKOUT DEBUG] branchId  = null (NO-BRANCH path)`);
-      console.log(`[CHECKOUT DEBUG] productIds= ${productIds.join(', ')}`);
-      for (const p of products) {
-        console.log(`[CHECKOUT DEBUG]   product.name=${p.name} product.stock=${p.stock}`);
-      }
     }
 
     // N-1 NOTE: these pre-transaction checks are optimistic fast-fails using a
@@ -140,14 +109,12 @@ export class SalesService {
       const product = products.find((p) => p.id === pid);
       if (branchId) {
         const available = branchStockMap.get(pid) ?? 0;
-        console.log(`[CHECKOUT DEBUG] PRE-CHECK: product="${product.name}" available=${available} demanded=${totalQty} → ${available >= totalQty ? 'PASS' : 'FAIL'}`);
         if (available < totalQty) {
           throw new BadRequestException(
             `สต็อกสาขาไม่พอสำหรับ "${product.name}" คงเหลือ: ${available} ชิ้น (ต้องการ: ${totalQty})`,
           );
         }
       } else if (product.stock < totalQty) {
-        console.log(`[CHECKOUT DEBUG] PRE-CHECK (no-branch): product="${product.name}" stock=${product.stock} demanded=${totalQty} → FAIL`);
         throw new BadRequestException(
           `Insufficient stock for "${product.name}". Available: ${product.stock} (needed: ${totalQty})`,
         );
@@ -242,7 +209,6 @@ export class SalesService {
               where: { branchId_productId: { branchId, productId: item.productId } },
               select: { quantity: true },
             });
-            console.log(`[CHECKOUT DEBUG] TX FAIL: branchId=${branchId} productId=${item.productId} bsQty=${bs?.quantity ?? 'NO_ROW'} demanded=${item.quantity}`);
             throw new BadRequestException(
               `สต็อกสาขาไม่พอสำหรับ "${product.name}" คงเหลือ: ${bs?.quantity ?? 0} ชิ้น (ต้องการ: ${item.quantity})`,
             );
