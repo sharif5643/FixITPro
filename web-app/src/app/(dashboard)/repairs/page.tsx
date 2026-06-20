@@ -1,7 +1,5 @@
 'use client'
 
-console.log('[BUILD] repairs-page')
-
 import { useState, useMemo, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'

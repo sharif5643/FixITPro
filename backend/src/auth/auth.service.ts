@@ -4,8 +4,10 @@ import {
   ConflictException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
@@ -18,11 +20,21 @@ const REFRESH_TOKEN_DAYS = 30;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private modulesService: ModulesService,
   ) {}
+
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async cleanupExpiredRefreshTokens() {
+    const { count } = await this.prisma.refreshToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    if (count > 0) this.logger.log(`Cleaned up ${count} expired refresh tokens`);
+  }
 
   private hashToken(raw: string): string {
     return createHash('sha256').update(raw).digest('hex');

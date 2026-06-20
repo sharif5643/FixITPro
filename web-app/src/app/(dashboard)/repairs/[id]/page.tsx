@@ -1,7 +1,5 @@
 'use client'
 
-console.log('[BUILD] repairs-id-page')
-
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
