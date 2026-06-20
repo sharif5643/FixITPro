@@ -24,6 +24,10 @@ services:
   postgres:
     image: postgres:15-alpine
     restart: unless-stopped
+    # hostname avoids DNS collision: the `coolify` network also exposes a
+    # container named "postgres" (coolify-db). Using a unique hostname lets
+    # the backend connect to our postgres regardless of network ordering.
+    hostname: fixitpro-postgres
     environment:
       POSTGRES_DB:       fixitpro
       POSTGRES_USER:     fixitpro
@@ -52,7 +56,7 @@ services:
     environment:
       NODE_ENV:       production
       PORT:           3000
-      DATABASE_URL:   postgresql://fixitpro:FixITPro2026Secure@postgres:5432/fixitpro?schema=public&connection_limit=10&pool_timeout=30
+      DATABASE_URL:   postgresql://fixitpro:FixITPro2026Secure@fixitpro-postgres:5432/fixitpro?schema=public&connection_limit=10&pool_timeout=30
       JWT_SECRET:     FixITProJWTSecret2026UltraSecureRandomKey
       JWT_EXPIRES_IN: 7d
       CORS_ORIGIN:          "*"
