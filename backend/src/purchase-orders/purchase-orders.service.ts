@@ -43,7 +43,7 @@ export class PurchaseOrdersService {
     return `${prefix}${String(lastNum + 1).padStart(4, '0')}`;
   }
 
-  async create(dto: CreatePurchaseOrderDto, userId: string) {
+  async create(dto: CreatePurchaseOrderDto, userId: string, tenantId?: string | null) {
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('ต้องมีสินค้าอย่างน้อย 1 รายการ');
     }
@@ -52,8 +52,12 @@ export class PurchaseOrdersService {
 
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: dto.supplierId },
-      select: { creditDays: true },
+      select: { creditDays: true, tenantId: true },
     });
+    if (!supplier) throw new NotFoundException('ไม่พบ Supplier');
+    if (tenantId && supplier.tenantId !== tenantId) {
+      throw new NotFoundException('ไม่พบ Supplier');
+    }
     const orderDate = new Date();
     const dueDate =
       supplier && supplier.creditDays > 0

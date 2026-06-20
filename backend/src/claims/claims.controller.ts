@@ -49,8 +49,12 @@ export class ClaimsController {
 
   @RequirePermission('claims.manage')
   @Post()
-  create(@Body() dto: CreateClaimDto, @CurrentUser('id') userId: string) {
-    return this.service.create(dto, userId);
+  create(
+    @Body() dto: CreateClaimDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.create(dto, userId, tenantId);
   }
 
   @RequirePermission('claims.manage')

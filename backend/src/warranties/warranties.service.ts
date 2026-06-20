@@ -25,17 +25,20 @@ export class WarrantiesService {
     description?: string,
     actorId?: string,
     actorName?: string,
+    tenantId?: string | null,
   ) {
-    // N-4 FIX: warranty must cover at least 1 day
     if (!warrantyDays || warrantyDays < 1) {
       throw new BadRequestException('Warranty duration must be at least 1 day');
     }
 
     const repair = await this.prisma.repair.findUnique({
       where: { id: repairId },
-      select: { id: true, ticketNumber: true, customerId: true },
+      select: { id: true, ticketNumber: true, customerId: true, branch: { select: { tenantId: true } } },
     });
     if (!repair) throw new NotFoundException('Repair not found');
+    if (tenantId && repair.branch?.tenantId !== tenantId) {
+      throw new NotFoundException('Repair not found');
+    }
 
     const startDate = new Date();
     const endDate = new Date();
@@ -75,17 +78,23 @@ export class WarrantiesService {
     description?: string,
     actorId?: string,
     actorName?: string,
+    tenantId?: string | null,
   ) {
-    // N-4 FIX: warranty must cover at least 1 day
     if (!warrantyDays || warrantyDays < 1) {
       throw new BadRequestException('Warranty duration must be at least 1 day');
     }
 
     const saleItem = await this.prisma.saleItem.findUnique({
       where: { id: saleItemId },
-      include: { sale: { select: { customerId: true, receiptNumber: true } }, product: { select: { name: true } } },
+      include: {
+        sale: { select: { customerId: true, receiptNumber: true, branch: { select: { tenantId: true } } } },
+        product: { select: { name: true } },
+      },
     });
     if (!saleItem) throw new NotFoundException('SaleItem not found');
+    if (tenantId && saleItem.sale?.branch?.tenantId !== tenantId) {
+      throw new NotFoundException('SaleItem not found');
+    }
 
     const startDate = new Date();
     const endDate = new Date();

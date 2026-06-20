@@ -45,8 +45,9 @@ export class PurchaseOrdersController {
   create(
     @Body() dto: CreatePurchaseOrderDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.poService.create(dto, userId);
+    return this.poService.create(dto, userId, tenantId);
   }
 
   @Patch(':id')

@@ -69,8 +69,9 @@ export class WarrantiesController {
     @Body() dto: CreateRepairWarrantyDto,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.svc.createForRepair(dto.repairId, dto.warrantyDays, dto.description, actorId, actorName);
+    return this.svc.createForRepair(dto.repairId, dto.warrantyDays, dto.description, actorId, actorName, tenantId);
   }
 
   @Post('product')
@@ -79,8 +80,9 @@ export class WarrantiesController {
     @Body() dto: CreateProductWarrantyDto,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.svc.createForSaleItem(dto.saleItemId, dto.warrantyDays, dto.serialNumberId, dto.description, actorId, actorName);
+    return this.svc.createForSaleItem(dto.saleItemId, dto.warrantyDays, dto.serialNumberId, dto.description, actorId, actorName, tenantId);
   }
 
   @Patch(':id')

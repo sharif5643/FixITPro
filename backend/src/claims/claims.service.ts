@@ -74,14 +74,18 @@ export class ClaimsService {
 
   // ─── Create ──────────────────────────────────────────────────────────────────
 
-  async create(dto: CreateClaimDto, userId: string) {
+  async create(dto: CreateClaimDto, userId: string, tenantId?: string | null) {
     const serial = await this.prisma.serialNumber.findUnique({
       where: { id: dto.serialNumberId },
       include: {
+        product: { select: { tenantId: true } },
         saleItem: { include: { sale: { select: { customerId: true } } } },
       },
     });
     if (!serial) throw new NotFoundException('ไม่พบ Serial');
+    if (tenantId && serial.product?.tenantId !== tenantId) {
+      throw new NotFoundException('ไม่พบ Serial');
+    }
     if (serial.status !== 'SOLD') {
       throw new BadRequestException(
         `Serial "${serial.serial}" ไม่อยู่ในสถานะที่เคลมได้ (สถานะปัจจุบัน: ${serial.status})`,
