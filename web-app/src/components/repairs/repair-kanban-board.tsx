@@ -34,10 +34,10 @@ export const KANBAN_COLUMNS: Array<{
 }> = [
   { status: 'RECEIVED',         label: 'รับงาน',       accent: 'border-t-blue-500' },
   { status: 'DIAGNOSING',       label: 'ตรวจสอบ',      accent: 'border-t-yellow-500' },
-  { status: 'WAITING_PARTS',    label: 'รออะไหล่',     accent: 'border-t-orange-500' },
-  { status: 'IN_PROGRESS',      label: 'กำลังซ่อม',    accent: 'border-t-purple-500' },
   { status: 'WAITING_APPROVAL', label: 'รออนุมัติ',    accent: 'border-t-amber-500' },
   { status: 'APPROVED',         label: 'อนุมัติแล้ว',  accent: 'border-t-teal-500' },
+  { status: 'WAITING_PARTS',    label: 'รออะไหล่',     accent: 'border-t-orange-500' },
+  { status: 'IN_PROGRESS',      label: 'กำลังซ่อม',    accent: 'border-t-purple-500' },
   { status: 'COMPLETED',        label: 'พร้อมรับ',     accent: 'border-t-green-500' },
   { status: 'DELIVERED',        label: 'ส่งคืนแล้ว',   accent: 'border-t-slate-400' },
 ]
