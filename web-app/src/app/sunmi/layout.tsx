@@ -11,7 +11,9 @@ import { ReminderPopup } from '@/components/alerts/reminder-popup'
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function log(msg: string) {
-  console.log(`[SunmiStartup] ${msg}`)
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[SunmiStartup] ${msg}`)
+  }
 }
 
 function Spinner() {

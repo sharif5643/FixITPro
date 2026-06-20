@@ -102,7 +102,8 @@ export class AuthController {
     return { message: 'Logged out' };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @Throttle({ auth_change_pwd: { limit: 5, ttl: 15 * 60 * 1000 } })
   @Post('change-password')
   changePassword(@CurrentUser('id') userId: string, @Body() dto: ChangePasswordDto) {
     return this.authService.changePassword(userId, dto.currentPassword, dto.newPassword);

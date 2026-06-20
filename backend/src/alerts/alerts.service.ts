@@ -32,7 +32,7 @@ const CAT_LIMIT = 10;
 export class AlertsService {
   constructor(private prisma: PrismaService) {}
 
-  async getOperationalAlerts(branchId: string | null, isPrivileged: boolean): Promise<OperationalAlert[]> {
+  async getOperationalAlerts(branchId: string | null, isPrivileged: boolean, tenantId?: string | null): Promise<OperationalAlert[]> {
     const alerts: OperationalAlert[] = [];
     const now = new Date();
     const slaThreshold = new Date(now.getTime() - REPAIR_SLA_DAYS * 86_400_000);
@@ -42,6 +42,7 @@ export class AlertsService {
       where: {
         status: 'PENDING',
         ...(branchId ? { fromBranchId: branchId } : {}),
+        ...(tenantId ? { fromBranch: { tenantId } } : {}),
       },
       include: {
         toBranch: { select: { name: true } },
@@ -70,6 +71,7 @@ export class AlertsService {
       where: {
         status: 'IN_TRANSIT',
         ...(branchId ? { toBranchId: branchId } : {}),
+        ...(tenantId ? { toBranch: { tenantId } } : {}),
       },
       include: {
         fromBranch: { select: { name: true } },
@@ -98,6 +100,7 @@ export class AlertsService {
         receivedAt: { lt: slaThreshold },
         status:     { notIn: ['DELIVERED', 'CANCELLED'] },
         ...(branchId ? { branchId } : {}),
+        ...(tenantId ? { branch: { tenantId } } : {}),
       },
       select: { id: true, ticketNumber: true, receivedAt: true, branchId: true },
       orderBy: { receivedAt: 'asc' },
@@ -135,6 +138,19 @@ export class AlertsService {
               AND  bs.quantity <= bs."minStock"
               AND  b."isActive" = true
               AND  bs."branchId" = ${branchId}
+            ORDER  BY bs.quantity ASC
+            LIMIT  ${CAT_LIMIT}`
+        : tenantId
+        ? await this.prisma.$queryRaw`
+            SELECT bs.id, bs."branchId", bs."productId", bs.quantity, bs."minStock",
+                   p.name AS "productName"
+            FROM   "BranchStock" bs
+            JOIN   "Product" p ON p.id = bs."productId"
+            JOIN   "Branch"  b ON b.id = bs."branchId"
+            WHERE  bs."minStock" > 0
+              AND  bs.quantity <= bs."minStock"
+              AND  b."isActive" = true
+              AND  b."tenantId" = ${tenantId}
             ORDER  BY bs.quantity ASC
             LIMIT  ${CAT_LIMIT}`
         : await this.prisma.$queryRaw`

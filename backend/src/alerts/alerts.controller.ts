@@ -17,12 +17,13 @@ export class AlertsController {
   getOperational(
     @CurrentUser('role')     actorRole: string,
     @CurrentUser('branchId') actorBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
     @Query('branchId')       queryBranchId?: string,
   ) {
     const isPrivileged = actorRole === 'OWNER' || actorRole === 'SUPER_ADMIN';
     const effectiveBranchId = isPrivileged
       ? (queryBranchId ?? null)
       : (actorBranchId ?? null);
-    return this.svc.getOperationalAlerts(effectiveBranchId, isPrivileged);
+    return this.svc.getOperationalAlerts(effectiveBranchId, isPrivileged, tenantId);
   }
 }
