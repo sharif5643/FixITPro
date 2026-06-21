@@ -54,8 +54,8 @@ export class AuthService {
       sub:      user.id,
       email:    user.email,
       role:     user.role,
-      branchId: (user as any).branchId ?? null,
-      tenantId: (user as any).tenantId ?? null,
+      branchId: user.branchId ?? null,
+      tenantId: user.tenantId ?? null,
     };
   }
 
@@ -71,8 +71,8 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
-    const branchId = (user as any).branchId ?? null;
-    const tenantId = (user as any).tenantId ?? null;
+    const branchId = user.branchId ?? null;
+    const tenantId = user.tenantId ?? null;
     const token = this.jwtService.sign(this.buildPayload(user));
     const refreshToken = await this.issueRefreshToken(user.id);
 
@@ -186,8 +186,8 @@ export class AuthService {
     });
 
     // B-6: Use identical JWT payload shape as login() — include branchId + tenantId (CHB-07)
-    const branchId = (user as any).branchId ?? null;
-    const tenantId = (user as any).tenantId ?? null;
+    const branchId = user.branchId ?? null;
+    const tenantId = user.tenantId ?? null;
     const token = this.jwtService.sign({ sub: user.id, email: user.email, role: user.role, branchId, tenantId });
     return {
       accessToken: token,

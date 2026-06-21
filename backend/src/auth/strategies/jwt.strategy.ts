@@ -78,7 +78,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: user.role,
       name: user.name,
       tenantId: user.tenantId,
-      branchId: (user as any).branchId ?? null,
+      branchId: user.branchId ?? null,
       permissions,
     };
   }

@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   OnModuleInit,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -353,9 +354,9 @@ export class BranchesService implements OnModuleInit {
     });
   }
 
-  private async syncProductShadowStock(productId: string, tx?: any): Promise<number> {
+  private async syncProductShadowStock(productId: string, tx?: Prisma.TransactionClient): Promise<number> {
     const db = tx ?? this.prisma;
-    const result = await (db as any).branchStock.aggregate({
+    const result = await db.branchStock.aggregate({
       where: { productId },
       _sum: { quantity: true },
     });
@@ -366,7 +367,7 @@ export class BranchesService implements OnModuleInit {
 
   async setBranchStock(branchId: string, dto: SetBranchStockDto, actorId?: string, actorName?: string) {
     const branch = await this.findOne(branchId);
-    if ((branch as any).status !== 'ACTIVE') {
+    if (branch.status !== 'ACTIVE') {
       throw new ForbiddenException('สาขานี้ยังไม่ได้รับการอนุมัติหรือถูกระงับการใช้งาน');
     }
 
@@ -494,13 +495,13 @@ export class BranchesService implements OnModuleInit {
 
     // Validate all three resources belong to the calling tenant
     if (tenantId) {
-      if ((fromBranch as any).tenantId !== tenantId) throw new NotFoundException('ไม่พบสาขาต้นทาง');
-      if ((toBranch as any).tenantId   !== tenantId) throw new NotFoundException('ไม่พบสาขาปลายทาง');
+      if (fromBranch.tenantId !== tenantId) throw new NotFoundException('ไม่พบสาขาต้นทาง');
+      if (toBranch.tenantId   !== tenantId) throw new NotFoundException('ไม่พบสาขาปลายทาง');
       if (product.tenantId             !== tenantId) throw new NotFoundException('ไม่พบสินค้า');
     }
 
-    if ((fromBranch as any).status === 'SUSPENDED') throw new BadRequestException('สาขาต้นทางถูกระงับ');
-    if ((toBranch as any).status === 'SUSPENDED')   throw new BadRequestException('สาขาปลายทางถูกระงับ');
+    if (fromBranch.status === 'SUSPENDED') throw new BadRequestException('สาขาต้นทางถูกระงับ');
+    if (toBranch.status === 'SUSPENDED')   throw new BadRequestException('สาขาปลายทางถูกระงับ');
 
     const fromStock = await this.prisma.branchStock.findUnique({
       where: { branchId_productId: { branchId: dto.fromBranchId, productId: dto.productId } },
@@ -585,7 +586,7 @@ export class BranchesService implements OnModuleInit {
 
     await this.prisma.$transaction(async (tx) => {
       // Atomic debit: guard against negative inventory under concurrent completes
-      const deducted = await (tx as any).branchStock.updateMany({
+      const deducted = await tx.branchStock.updateMany({
         where: {
           branchId:  transfer.fromBranchId,
           productId: transfer.productId,
@@ -604,7 +605,7 @@ export class BranchesService implements OnModuleInit {
         ? await this.generateStockCode(transfer.toBranchId, tx)
         : null;
 
-      await (tx as any).branchStock.upsert({
+      await tx.branchStock.upsert({
         where: { branchId_productId: { branchId: transfer.toBranchId, productId: transfer.productId } },
         create: {
           branchId:  transfer.toBranchId,
@@ -616,7 +617,7 @@ export class BranchesService implements OnModuleInit {
         update: { quantity: { increment: transfer.quantity } },
       });
 
-      await (tx as any).stockTransfer.update({
+      await tx.stockTransfer.update({
         where: { id },
         data: {
           status:          'COMPLETED',
@@ -883,7 +884,7 @@ export class BranchesService implements OnModuleInit {
     const updated = await this.prisma.$transaction(async (tx) => {
       // Atomic debit: only succeeds when source has sufficient stock.
       // Using updateMany+WHERE guard prevents negative inventory under concurrent receives.
-      const deducted = await (tx as any).branchStock.updateMany({
+      const deducted = await tx.branchStock.updateMany({
         where: {
           branchId:  transfer.fromBranchId,
           productId: transfer.productId,
@@ -902,7 +903,7 @@ export class BranchesService implements OnModuleInit {
         ? await this.generateStockCode(transfer.toBranchId, tx)
         : null;
 
-      await (tx as any).branchStock.upsert({
+      await tx.branchStock.upsert({
         where: { branchId_productId: { branchId: transfer.toBranchId, productId: transfer.productId } },
         create: {
           branchId:  transfer.toBranchId,
@@ -941,7 +942,7 @@ export class BranchesService implements OnModuleInit {
       // Sync shadow stock
       await this.syncProductShadowStock(transfer.productId, tx);
 
-      return (tx as any).stockTransfer.update({
+      return tx.stockTransfer.update({
         where: { id },
         data: {
           status:          'RECEIVED',
