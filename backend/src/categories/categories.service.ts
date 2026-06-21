@@ -34,7 +34,7 @@ export class CategoriesService {
 
   async findAllTypes(tenantId?: string | null) {
     const tenantWhere = this.tenantSvc.scope(tenantId);
-    return this.prisma.categoryType.findMany({
+    const types = await this.prisma.categoryType.findMany({
       include: {
         categories: {
           where: tenantWhere,
@@ -45,6 +45,25 @@ export class CategoriesService {
       },
       orderBy: { name: 'asc' },
     });
+
+    // Get in-stock counts (stock > 0 AND isActive) per category in one query
+    const catIds = types.flatMap((t) => t.categories.map((c) => c.id));
+    const inStockRows = catIds.length
+      ? await this.prisma.product.groupBy({
+          by: ['categoryId'],
+          where: { categoryId: { in: catIds }, stock: { gt: 0 }, isActive: true },
+          _count: { id: true },
+        })
+      : [];
+    const inStockMap = new Map(inStockRows.map((r) => [r.categoryId, r._count.id]));
+
+    return types.map((type) => ({
+      ...type,
+      categories: type.categories.map((cat) => ({
+        ...cat,
+        inStockCount: inStockMap.get(cat.id) ?? 0,
+      })),
+    }));
   }
 
   async updateType(id: string, dto: Partial<CreateCategoryTypeDto>) {

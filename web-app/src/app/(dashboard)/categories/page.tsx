@@ -37,6 +37,7 @@ interface Category {
   slug: string
   categoryTypeId?: string
   _count: { products: number }
+  inStockCount: number
 }
 
 interface CategoryType {
@@ -278,7 +279,12 @@ function TypeSection({
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium text-gray-900 text-sm truncate">{cat.name}</p>
-                      <p className="text-xs text-muted-foreground">{cat._count.products} สินค้า</p>
+                      <p className="text-xs text-muted-foreground">
+                        {cat._count.products} สินค้า
+                        {cat.inStockCount < cat._count.products && (
+                          <span className="ml-1 text-orange-500 font-medium">(มีสต็อก {cat.inStockCount})</span>
+                        )}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0 ml-2">
