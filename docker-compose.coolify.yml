@@ -34,7 +34,7 @@ services:
     environment:
       POSTGRES_DB:       fixitpro
       POSTGRES_USER:     fixitpro
-      POSTGRES_PASSWORD: FixITPro2026Secure
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
       PGDATA:            /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -59,8 +59,8 @@ services:
     environment:
       NODE_ENV:       production
       PORT:           3000
-      DATABASE_URL:   postgresql://fixitpro:FixITPro2026Secure@fixitpro-postgres:5432/fixitpro?schema=public&connection_limit=10&pool_timeout=30
-      JWT_SECRET:     FixITProJWTSecret2026UltraSecureRandomKey
+      DATABASE_URL:   "${DATABASE_URL}"
+      JWT_SECRET:     "${JWT_SECRET}"
       JWT_EXPIRES_IN: 7d
       CORS_ORIGIN:          "http://91.98.151.10"
       BACKUP_DIR:           /app/backups
