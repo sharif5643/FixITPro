@@ -71,7 +71,9 @@ const REPAIR_LABEL: Record<string, string> = {
   IN_PROGRESS:      'กำลังซ่อม',
   WAITING_APPROVAL: 'รออนุมัติ',
   APPROVED:         'อนุมัติแล้ว',
-  COMPLETED:        'พร้อมรับ',
+  QC_PENDING:       'รอ QC',
+  COMPLETED:        'ซ่อมเสร็จ',
+  READY_PICKUP:     'พร้อมรับ',
   DELIVERED:        'ส่งคืนแล้ว',
   CANCELLED:        'ยกเลิก',
 }

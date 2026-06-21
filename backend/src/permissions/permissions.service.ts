@@ -12,7 +12,7 @@ export const ROLE_PRESETS: Record<string, string[]> = {
   MANAGER: [
     'products.view', 'products.create', 'products.edit', 'products.view_cost',
     'sales.create', 'sales.discount', 'sales.refund',
-    'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate',
+    'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
     'stock.adjust', 'stock.transfer',
     'purchase.create', 'purchase.receive',
     'supplier.pay',
@@ -35,7 +35,7 @@ export const ROLE_PRESETS: Record<string, string[]> = {
   ],
   TECHNICIAN: [
     'products.view',
-    'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate',
+    'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
     'serials.manage',
     'warranty.view', 'warranty.manage',
     'technician.view',

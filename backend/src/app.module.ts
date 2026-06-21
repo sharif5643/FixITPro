@@ -37,6 +37,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { AlertsModule }     from './alerts/alerts.module';
 import { RemindersModule }  from './reminders/reminders.module';
 import { PublicRegisterModule } from './public-register/public-register.module';
+import { PublicTrackingModule } from './public-tracking/public-tracking.module';
+import { LineMessagingModule } from './line-messaging/line-messaging.module';
 import { FilesModule } from './files/files.module';
 import { ModulesModule } from './modules/modules.module';
 import { TenantModule } from './tenant/tenant.module';
@@ -91,6 +93,8 @@ import { TenantModule } from './tenant/tenant.module';
     AlertsModule,
     RemindersModule,
     PublicRegisterModule,
+    PublicTrackingModule,
+    LineMessagingModule,
     FilesModule,
     ModulesModule,
     TenantModule,

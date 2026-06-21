@@ -32,14 +32,16 @@ export const KANBAN_COLUMNS: Array<{
   label: string
   accent: string  // Tailwind border-top color class
 }> = [
-  { status: 'RECEIVED',         label: 'รับงาน',       accent: 'border-t-blue-500' },
-  { status: 'DIAGNOSING',       label: 'ตรวจสอบ',      accent: 'border-t-yellow-500' },
-  { status: 'WAITING_APPROVAL', label: 'รออนุมัติ',    accent: 'border-t-amber-500' },
-  { status: 'APPROVED',         label: 'อนุมัติแล้ว',  accent: 'border-t-teal-500' },
-  { status: 'WAITING_PARTS',    label: 'รออะไหล่',     accent: 'border-t-orange-500' },
-  { status: 'IN_PROGRESS',      label: 'กำลังซ่อม',    accent: 'border-t-purple-500' },
-  { status: 'COMPLETED',        label: 'พร้อมรับ',     accent: 'border-t-green-500' },
-  { status: 'DELIVERED',        label: 'ส่งคืนแล้ว',   accent: 'border-t-slate-400' },
+  { status: 'RECEIVED',         label: 'รับงาน',          accent: 'border-t-blue-500' },
+  { status: 'DIAGNOSING',       label: 'ตรวจสอบ',         accent: 'border-t-yellow-500' },
+  { status: 'WAITING_APPROVAL', label: 'รออนุมัติ',       accent: 'border-t-amber-500' },
+  { status: 'APPROVED',         label: 'อนุมัติแล้ว',     accent: 'border-t-teal-500' },
+  { status: 'WAITING_PARTS',    label: 'รออะไหล่',        accent: 'border-t-orange-500' },
+  { status: 'IN_PROGRESS',      label: 'กำลังซ่อม',       accent: 'border-t-purple-500' },
+  { status: 'QC_PENDING',       label: 'รอ QC',            accent: 'border-t-indigo-500' },
+  { status: 'COMPLETED',        label: 'ซ่อมเสร็จ',       accent: 'border-t-green-500' },
+  { status: 'READY_PICKUP',     label: 'พร้อมรับเครื่อง', accent: 'border-t-emerald-500' },
+  { status: 'DELIVERED',        label: 'ส่งคืนแล้ว',      accent: 'border-t-slate-400' },
 ]
 
 const ACTIVE_STATUSES = KANBAN_COLUMNS.map((c) => c.status) as RepairStatus[]
@@ -55,9 +57,13 @@ export function canMoveStatus(
   if (repair.status === 'CANCELLED' && ACTIVE_STATUSES.includes(toStatus) && !isOwner) {
     return { ok: false, reason: 'เฉพาะเจ้าของร้านเท่านั้นที่สามารถยกเลิกการยกเลิกงานได้' }
   }
-  // Block COMPLETED → DELIVERED unless paid
-  if (repair.status === 'COMPLETED' && toStatus === 'DELIVERED' && repair.paymentStatus !== 'PAID') {
+  // Block COMPLETED/READY_PICKUP → DELIVERED unless paid
+  if (['COMPLETED', 'READY_PICKUP'].includes(repair.status) && toStatus === 'DELIVERED' && repair.paymentStatus !== 'PAID') {
     return { ok: false, reason: 'ยังไม่ได้รับชำระเงิน — กรุณารับเงินก่อนส่งคืนสินค้า' }
+  }
+  // QC_PENDING: can only move via QC dialog (not drag-and-drop)
+  if (repair.status === 'QC_PENDING' && (toStatus === 'COMPLETED' || toStatus === 'IN_PROGRESS')) {
+    return { ok: false, reason: 'ใช้ปุ่ม QC เพื่อตรวจสอบและเปลี่ยนสถานะ' }
   }
   return { ok: true }
 }
@@ -153,6 +159,7 @@ interface RepairCardProps {
   onOpenDetail: (id: string) => void
   onPayment: (id: string) => void
   onPrint: (id: string) => void
+  onQc: (id: string) => void
 }
 
 function RepairCard({
@@ -162,6 +169,7 @@ function RepairCard({
   onOpenDetail,
   onPayment,
   onPrint,
+  onQc,
 }: RepairCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: repair.id,
@@ -268,7 +276,16 @@ function RepairCard({
           className="flex items-center gap-1 pt-1 border-t border-slate-100 dark:border-slate-700"
           onPointerDown={(e) => e.stopPropagation()} // prevent drag when clicking actions
         >
-          {hasBalance && (
+          {repair.status === 'QC_PENDING' && (
+            <button
+              onClick={() => onQc(repair.id)}
+              className="flex items-center gap-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 px-2 py-1 text-[10px] font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            >
+              <Wrench className="h-3 w-3" />
+              QC
+            </button>
+          )}
+          {hasBalance && repair.status !== 'QC_PENDING' && (
             <button
               onClick={() => onPayment(repair.id)}
               className="flex items-center gap-1 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2 py-1 text-[10px] font-semibold hover:bg-green-100 dark:hover:bg-green-900/40 active:bg-green-200 dark:active:bg-green-900/60 transition-colors"
@@ -307,11 +324,12 @@ interface KanbanColumnProps {
   onOpenDetail: (id: string) => void
   onPayment: (id: string) => void
   onPrint: (id: string) => void
+  onQc: (id: string) => void
 }
 
 function KanbanColumn({
   status, label, accent, repairs, now,
-  onOpenDetail, onPayment, onPrint,
+  onOpenDetail, onPayment, onPrint, onQc,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
 
@@ -354,6 +372,7 @@ function KanbanColumn({
               onOpenDetail={onOpenDetail}
               onPayment={onPayment}
               onPrint={onPrint}
+              onQc={onQc}
             />
           ))
         )}
@@ -370,12 +389,14 @@ function CancelledSection({
   onOpenDetail,
   onPayment,
   onPrint,
+  onQc,
 }: {
   repairs: Repair[]
   now: number
   onOpenDetail: (id: string) => void
   onPayment: (id: string) => void
   onPrint: (id: string) => void
+  onQc: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -403,6 +424,7 @@ function CancelledSection({
                 onOpenDetail={onOpenDetail}
                 onPayment={onPayment}
                 onPrint={onPrint}
+                onQc={onQc}
               />
             </div>
           ))}
@@ -419,6 +441,7 @@ export interface RepairKanbanBoardProps {
   onOpenDetail: (id: string) => void
   onPayment: (id: string) => void
   onPrint: (id: string) => void
+  onQc: (id: string) => void
   /** Called after status change so parent can invalidate query if needed */
   onStatusChanged?: () => void
 }
@@ -428,6 +451,7 @@ export function RepairKanbanBoard({
   onOpenDetail,
   onPayment,
   onPrint,
+  onQc,
   onStatusChanged,
 }: RepairKanbanBoardProps) {
   const qc      = useQueryClient()
@@ -556,6 +580,7 @@ export function RepairKanbanBoard({
               onOpenDetail={onOpenDetail}
               onPayment={onPayment}
               onPrint={onPrint}
+              onQc={onQc}
             />
           ))}
         </div>
@@ -570,6 +595,7 @@ export function RepairKanbanBoard({
               onOpenDetail={() => {}}
               onPayment={() => {}}
               onPrint={() => {}}
+              onQc={() => {}}
             />
           )}
         </DragOverlay>
@@ -582,6 +608,7 @@ export function RepairKanbanBoard({
         onOpenDetail={onOpenDetail}
         onPayment={onPayment}
         onPrint={onPrint}
+        onQc={onQc}
       />
     </div>
   )

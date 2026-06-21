@@ -25,10 +25,13 @@ import { AddRepairPartDto } from './dto/add-repair-part.dto';
 import { RepairPaymentDto } from './dto/repair-payment.dto';
 import { ReversePaymentDto } from './dto/reverse-payment.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
+import { RepairQcDto } from './dto/repair-qc.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 const UPLOADS_DIR = repairsUploadDir;
@@ -215,5 +218,18 @@ export class RepairsController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.repairsService.addAdditionalPayment(id, dto, userId, tenantId);
+  }
+
+  @Post(':id/qc')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repairs.qc.perform')
+  submitQc(
+    @Param('id') id: string,
+    @Body() dto: RepairQcDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('name') userName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.submitQc(id, dto, userId, userName, tenantId);
   }
 }

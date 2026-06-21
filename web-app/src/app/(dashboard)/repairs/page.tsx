@@ -23,6 +23,7 @@ import {
   DataTableRow, DataTableCell, DataTableLoadingRows,
 } from '@/components/ui/data-table'
 import { RepairStatusBadge } from '@/components/ui/status-badge'
+import { QcDialog } from '@/components/repairs/qc-dialog'
 import { formatThaiMoney, cn } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar, GlobalModeBanner } from '@/components/layout/branch-context-bar'
@@ -40,15 +41,17 @@ const RepairDetailDialog = dynamic(
 
 const STATUS_FILTERS: Array<{ value: RepairStatus | 'ALL'; label: string; dot?: string }> = [
   { value: 'ALL',              label: 'ทั้งหมด' },
-  { value: 'RECEIVED',         label: 'รับงาน',      dot: 'bg-blue-500'   },
-  { value: 'DIAGNOSING',       label: 'ตรวจสอบ',    dot: 'bg-yellow-500' },
-  { value: 'WAITING_APPROVAL', label: 'รออนุมัติ',  dot: 'bg-amber-500'  },
-  { value: 'APPROVED',         label: 'อนุมัติแล้ว', dot: 'bg-teal-500'   },
-  { value: 'WAITING_PARTS',    label: 'รออะไหล่',   dot: 'bg-orange-500' },
-  { value: 'IN_PROGRESS',      label: 'กำลังซ่อม',  dot: 'bg-purple-500' },
-  { value: 'COMPLETED',        label: 'ซ่อมเสร็จ',  dot: 'bg-green-500'  },
-  { value: 'DELIVERED',        label: 'ส่งคืนแล้ว', dot: 'bg-slate-400'  },
-  { value: 'CANCELLED',        label: 'ยกเลิก',      dot: 'bg-red-400'    },
+  { value: 'RECEIVED',         label: 'รับงาน',        dot: 'bg-blue-500'   },
+  { value: 'DIAGNOSING',       label: 'ตรวจสอบ',      dot: 'bg-yellow-500' },
+  { value: 'WAITING_APPROVAL', label: 'รออนุมัติ',    dot: 'bg-amber-500'  },
+  { value: 'APPROVED',         label: 'อนุมัติแล้ว',  dot: 'bg-teal-500'   },
+  { value: 'WAITING_PARTS',    label: 'รออะไหล่',     dot: 'bg-orange-500' },
+  { value: 'IN_PROGRESS',      label: 'กำลังซ่อม',    dot: 'bg-purple-500' },
+  { value: 'QC_PENDING',       label: 'รอ QC',         dot: 'bg-indigo-500' },
+  { value: 'COMPLETED',        label: 'ซ่อมเสร็จ',    dot: 'bg-green-500'  },
+  { value: 'READY_PICKUP',     label: 'พร้อมรับเครื่อง', dot: 'bg-emerald-500' },
+  { value: 'DELIVERED',        label: 'ส่งคืนแล้ว',   dot: 'bg-slate-400'  },
+  { value: 'CANCELLED',        label: 'ยกเลิก',        dot: 'bg-red-400'    },
 ]
 
 const VIEW_MODE_KEY = 'repairViewMode'
@@ -61,6 +64,7 @@ export default function RepairsPage() {
   const [statusFilter, setStatusFilter] = useState<RepairStatus | 'ALL'>('ALL')
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedRepairId, setSelectedRepairId] = useState<string | null>(null)
+  const [qcRepairId, setQcRepairId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list')
 
   const { branchId, isGlobalMode } = useBranchContext()
@@ -176,6 +180,7 @@ export default function RepairsPage() {
             onOpenDetail={setSelectedRepairId}
             onPayment={(id) => setSelectedRepairId(id)}
             onPrint={() => toast.info('กำลังพัฒนาระบบพิมพ์ใบงาน')}
+            onQc={setQcRepairId}
             onStatusChanged={invalidate}
           />
         </div>
@@ -184,8 +189,11 @@ export default function RepairsPage() {
           setCreateOpen={setCreateOpen}
           selectedRepairId={selectedRepairId}
           setSelectedRepairId={setSelectedRepairId}
+          qcRepairId={qcRepairId}
+          setQcRepairId={setQcRepairId}
           invalidate={invalidate}
           branchId={branchId}
+          repairs={repairs}
         />
       </div>
     )
@@ -357,8 +365,11 @@ export default function RepairsPage() {
         setCreateOpen={setCreateOpen}
         selectedRepairId={selectedRepairId}
         setSelectedRepairId={setSelectedRepairId}
+        qcRepairId={qcRepairId}
+        setQcRepairId={setQcRepairId}
         invalidate={invalidate}
         branchId={branchId}
+        repairs={repairs}
       />
     </div>
   )
@@ -391,15 +402,23 @@ function ViewToggle({ viewMode, onSwitch }: { viewMode: 'list' | 'board'; onSwit
 }
 
 function Dialogs({
-  createOpen, setCreateOpen, selectedRepairId, setSelectedRepairId, invalidate, branchId,
+  createOpen, setCreateOpen,
+  selectedRepairId, setSelectedRepairId,
+  qcRepairId, setQcRepairId,
+  invalidate, branchId, repairs,
 }: {
   createOpen: boolean
   setCreateOpen: (v: boolean) => void
   selectedRepairId: string | null
   setSelectedRepairId: (v: string | null) => void
+  qcRepairId: string | null
+  setQcRepairId: (v: string | null) => void
   invalidate: () => void
   branchId: string | undefined
+  repairs: Repair[]
 }) {
+  const qcRepair = repairs.find((r) => r.id === qcRepairId) ?? null
+
   return (
     <>
       <RepairFormDialog
@@ -413,6 +432,13 @@ function Dialogs({
         onClose={() => setSelectedRepairId(null)}
         onStatusChange={invalidate}
       />
+      {qcRepair && (
+        <QcDialog
+          repair={qcRepair}
+          open={!!qcRepairId}
+          onClose={() => { setQcRepairId(null); invalidate() }}
+        />
+      )}
     </>
   )
 }

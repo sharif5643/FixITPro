@@ -7,7 +7,7 @@ import { PrismaService } from '../../database/prisma.service';
 export const ALL_PERMISSIONS = [
   'products.view', 'products.create', 'products.edit', 'products.delete', 'products.view_cost',
   'sales.create', 'sales.discount', 'sales.refund',
-  'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate',
+  'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
   'stock.adjust',
   'purchase.create', 'purchase.receive',
   'supplier.pay',

@@ -2,13 +2,15 @@ import { Module } from '@nestjs/common';
 import { RepairsController } from './repairs.controller';
 import { RepairsService } from './repairs.service';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { WarrantiesModule } from '../warranties/warranties.module';
+import { LineMessagingModule } from '../line-messaging/line-messaging.module';
 
 @Module({
-  imports:     [AuditLogModule, WarrantiesModule],
+  imports:     [AuditLogModule, WarrantiesModule, LineMessagingModule],
   controllers: [RepairsController],
-  providers:   [RepairsService, TenantActiveGuard],
+  providers:   [RepairsService, TenantActiveGuard, PermissionGuard],
   exports:     [RepairsService],
 })
 export class RepairsModule {}

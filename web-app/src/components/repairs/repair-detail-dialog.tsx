@@ -43,7 +43,9 @@ const STATUS_LABEL: Record<RepairStatus, string> = {
   APPROVED:         'อนุมัติแล้ว',
   WAITING_PARTS:    'รออะไหล่',
   IN_PROGRESS:      'กำลังซ่อม',
+  QC_PENDING:       'รอ QC',
   COMPLETED:        'ซ่อมเสร็จ',
+  READY_PICKUP:     'พร้อมรับเครื่อง',
   DELIVERED:        'ส่งคืนแล้ว',
   CANCELLED:        'ยกเลิก',
 }
@@ -55,7 +57,9 @@ const STATUS_COLOR: Record<RepairStatus, string> = {
   APPROVED:         'bg-teal-100 text-teal-700',
   WAITING_PARTS:    'bg-orange-100 text-orange-700',
   IN_PROGRESS:      'bg-purple-100 text-purple-700',
+  QC_PENDING:       'bg-indigo-100 text-indigo-700',
   COMPLETED:        'bg-green-100 text-green-700',
+  READY_PICKUP:     'bg-emerald-100 text-emerald-700',
   DELIVERED:        'bg-gray-100 text-gray-700',
   CANCELLED:        'bg-red-100 text-red-700',
 }

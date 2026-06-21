@@ -9,18 +9,21 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { WarrantiesService } from '../warranties/warranties.service';
+import { LineMessagingService } from '../line-messaging/line-messaging.service';
 import { CreateRepairDto } from './dto/create-repair.dto';
 import { UpdateRepairDto } from './dto/update-repair.dto';
 import { AddRepairPartDto } from './dto/add-repair-part.dto';
 import { RepairPaymentDto } from './dto/repair-payment.dto';
 import { ReversePaymentDto } from './dto/reverse-payment.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
+import { RepairQcDto } from './dto/repair-qc.dto';
 
 const REPAIR_INCLUDE = {
   customer: true,
   technician: { select: { id: true, name: true } },
   branch:    { select: { id: true, name: true } },
   images: { orderBy: { createdAt: 'asc' as const } },
+  qc: true,
   parts: {
     where: { isVoided: false },
     include: {
@@ -49,6 +52,7 @@ export class RepairsService {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private warranties: WarrantiesService,
+    private lineMsg: LineMessagingService,
   ) {}
 
   private async assertBranchActive(branchId: string) {
@@ -184,6 +188,11 @@ export class RepairsService {
         afterData: { technicianId: dto.technicianId, ticketNumber: repair.ticketNumber },
       });
     }
+
+    // LINE notify: "รับงานใหม่" — fire-and-forget, never block create
+    const createTenantId = (repair as any).branch?.tenantId ?? tenantId ?? null;
+    this.lineMsg.notifyRepairStatus(repair.id, 'RECEIVED', createTenantId).catch(() => {});
+
     return repair;
   }
 
@@ -296,15 +305,19 @@ export class RepairsService {
       const ALLOWED: Record<string, string[]> = {
         'RECEIVED':         ['DIAGNOSING'],
         'DIAGNOSING':       ['WAITING_APPROVAL', 'APPROVED', 'IN_PROGRESS'],
-        // DIAGNOSING→APPROVED: owner pre-approves without estimate (simple repair)
-        // DIAGNOSING→IN_PROGRESS: no estimate needed at all
         'WAITING_APPROVAL': ['APPROVED'],
         'APPROVED':         ['WAITING_PARTS', 'IN_PROGRESS'],
-        // APPROVED→IN_PROGRESS: skip parts wait if technician already has parts
         'WAITING_PARTS':    ['IN_PROGRESS'],
-        'IN_PROGRESS':      ['COMPLETED', 'WAITING_PARTS'],
-        // IN_PROGRESS→WAITING_PARTS: more parts discovered during repair
-        'COMPLETED':        [],
+        'IN_PROGRESS':      ['QC_PENDING', 'WAITING_PARTS', 'COMPLETED'],
+        // IN_PROGRESS→QC_PENDING: tech marks done, QC officer must verify
+        // IN_PROGRESS→COMPLETED: fallback for shops not enforcing QC workflow
+        'QC_PENDING':       ['IN_PROGRESS'],
+        // QC_PENDING→COMPLETED is BLOCKED here — must go through POST :id/qc
+        // QC_PENDING→IN_PROGRESS: manual reset or QC fail path
+        'COMPLETED':        ['READY_PICKUP'],
+        // COMPLETED→READY_PICKUP: notify customer, ready for collection + payment
+        'READY_PICKUP':     [],
+        // READY_PICKUP→DELIVERED: only via processPayment endpoint
       };
       const allowed = ALLOWED[repair.status] ?? [];
       if (!allowed.includes(dto.status)) {
@@ -402,6 +415,15 @@ export class RepairsService {
       entityId: id,
       afterData: updateData,
     });
+
+    // Send LINE notification on key status transitions
+    if (dto.status && dto.status !== repair.status) {
+      const tenantId = (repair as any).branch?.tenantId ?? null;
+      this.lineMsg
+        .notifyRepairStatus(id, dto.status, tenantId)
+        .catch(() => {});
+    }
+
     if (
       dto.technicianId !== undefined &&
       dto.technicianId !== repair.technicianId
@@ -602,8 +624,8 @@ export class RepairsService {
 
     if (!repair) throw new NotFoundException('Repair not found');
 
-    if (repair.status !== 'COMPLETED') {
-      throw new BadRequestException('งานซ่อมต้องเสร็จก่อนจึงจะรับเงินได้ (status ต้องเป็น COMPLETED)');
+    if (!['COMPLETED', 'READY_PICKUP'].includes(repair.status)) {
+      throw new BadRequestException('งานซ่อมต้องเสร็จก่อนจึงจะรับเงินได้ (status ต้องเป็น COMPLETED หรือ READY_PICKUP)');
     }
 
     if (repair.paymentStatus === 'PAID') {
@@ -643,6 +665,10 @@ export class RepairsService {
       entityId: repairId,
       afterData: { finalCost: total, paymentMethod: dto.paymentMethod, amountPaid: dto.amountPaid },
     });
+
+    // Send LINE notification on DELIVERED
+    const lineTenantId = (paid as any).branch?.tenantId ?? tenantId ?? null;
+    this.lineMsg.notifyRepairStatus(repairId, 'DELIVERED', lineTenantId).catch(() => {});
 
     // Auto-create warranty if warrantyDays provided
     if (dto.warrantyDays && dto.warrantyDays > 0) {
@@ -742,6 +768,91 @@ export class RepairsService {
       afterData: { amount: Number(dto.amount), paymentMethod: dto.paymentMethod },
     });
     return payment;
+  }
+
+  async submitQc(
+    repairId: string,
+    dto: RepairQcDto,
+    actorId: string,
+    actorName: string,
+    tenantId?: string | null,
+  ) {
+    const repair = await this.findOne(repairId, tenantId);
+
+    if (repair.status !== 'QC_PENDING') {
+      throw new BadRequestException('ต้องเปลี่ยนสถานะเป็น QC_PENDING ก่อนทำ QC');
+    }
+
+    const allPassed =
+      dto.touchScreen &&
+      dto.speaker &&
+      dto.microphone &&
+      dto.charging &&
+      dto.camera &&
+      dto.wifi &&
+      dto.biometric;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.repairQc.upsert({
+        where: { repairId },
+        create: {
+          repairId,
+          touchScreen: dto.touchScreen,
+          speaker: dto.speaker,
+          microphone: dto.microphone,
+          charging: dto.charging,
+          camera: dto.camera,
+          wifi: dto.wifi,
+          biometric: dto.biometric,
+          allPassed,
+          note: dto.note,
+          passedById: actorId,
+          passedByName: actorName,
+        },
+        update: {
+          touchScreen: dto.touchScreen,
+          speaker: dto.speaker,
+          microphone: dto.microphone,
+          charging: dto.charging,
+          camera: dto.camera,
+          wifi: dto.wifi,
+          biometric: dto.biometric,
+          allPassed,
+          note: dto.note,
+          passedById: actorId,
+          passedByName: actorName,
+        },
+      });
+
+      // QC passed → COMPLETED; QC failed → back to IN_PROGRESS
+      const nextStatus = allPassed ? 'COMPLETED' : 'IN_PROGRESS';
+      await tx.repair.update({
+        where: { id: repairId },
+        data: {
+          status: nextStatus,
+          ...(allPassed ? { completedAt: new Date() } : {}),
+        },
+      });
+    });
+
+    await this.auditLog.log({
+      actorId,
+      actorName,
+      action: 'REPAIR_QC_SUBMITTED',
+      entityType: 'Repair',
+      entityId: repairId,
+      afterData: { allPassed, ...dto },
+    });
+
+    const updatedRepair = await this.findOne(repairId, tenantId);
+
+    // Send LINE notification if QC passed → COMPLETED
+    if (allPassed) {
+      const tenantCtx = (updatedRepair as any).branch?.tenantId ?? tenantId ?? null;
+      this.lineMsg.notifyRepairStatus(repairId, 'COMPLETED', tenantCtx).catch(() => {});
+    }
+
+    return updatedRepair;
   }
 
   async getOutstandingRepairs(branchId?: string, tenantId?: string | null) {

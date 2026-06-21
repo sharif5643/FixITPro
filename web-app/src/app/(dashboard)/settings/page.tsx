@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import {
   Loader2, Save, Store, Receipt, DollarSign, Settings2, Bell, Image, BellRing, ChevronRight,
+  MessageSquare, Database,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -472,6 +473,42 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-blue-400 shrink-0" />
+                  </Link>
+                </SectionCard>
+
+                <SectionCard title="LINE Notification" description="แจ้งเตือนลูกค้าผ่าน LINE อัตโนมัติ" icon={MessageSquare}>
+                  <Link
+                    href="/settings/line"
+                    className="flex items-center justify-between p-4 rounded-xl border border-green-100 bg-green-50 hover:bg-green-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-green-500 flex items-center justify-center shrink-0">
+                        <MessageSquare className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-green-900">ตั้งค่า LINE OA</p>
+                        <p className="text-xs text-green-600 mt-0.5">Channel Access Token · Webhook URL · เหตุการณ์แจ้งเตือน</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-green-400 shrink-0" />
+                  </Link>
+                </SectionCard>
+
+                <SectionCard title="Backup & Restore" description="สำรองและกู้คืนข้อมูลระบบ" icon={Database}>
+                  <Link
+                    href="/settings/backup"
+                    className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-slate-700 flex items-center justify-center shrink-0">
+                        <Database className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">จัดการ Backup</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Auto backup 02:00 น. ทุกวัน · ดาวน์โหลดไฟล์ · Backup ทันที</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
                   </Link>
                 </SectionCard>
               </>

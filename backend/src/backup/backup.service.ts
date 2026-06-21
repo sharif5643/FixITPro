@@ -8,7 +8,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as path from 'path';
-import { backupDir as defaultBackupDir } from '../common/storage-paths';
+import { backupDir as defaultBackupDir, uploadsBaseDir } from '../common/storage-paths';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import { exec } from 'child_process';
@@ -166,11 +166,15 @@ export class BackupService {
         severity: 'INFO',
       });
 
+      // Also archive the uploads folder — non-fatal; pg_dump is the primary backup
+      const uploadsArchive = await this.createUploadsArchive(db.dbName, timestamp);
+
       return {
         filename,
         sizeBytes:     stat.size,
         sizeFormatted: this.formatSize(stat.size),
         createdAt:     stat.birthtime,
+        uploadsArchive,
       };
     } catch (err) {
       this.logger.error('pg_dump failed', err);
@@ -188,12 +192,36 @@ export class BackupService {
     }
   }
 
+  private async createUploadsArchive(
+    dbName: string,
+    timestamp: string,
+  ): Promise<{ filename: string; sizeBytes: number; sizeFormatted: string } | null> {
+    const archiveFilename = `uploads_${dbName}_${timestamp}.tar.gz`;
+    const archivePath = path.join(this.backupDir, archiveFilename);
+
+    try {
+      if (!fs.existsSync(uploadsBaseDir)) return null;
+      const parentDir = path.dirname(uploadsBaseDir);
+      const dirName   = path.basename(uploadsBaseDir);
+      await execAsync(`tar -czf "${archivePath}" -C "${parentDir}" "${dirName}"`);
+      const stat = await fsPromises.stat(archivePath);
+      this.logger.log(`Uploads archive created: ${archiveFilename} (${this.formatSize(stat.size)})`);
+      return { filename: archiveFilename, sizeBytes: stat.size, sizeFormatted: this.formatSize(stat.size) };
+    } catch (err) {
+      this.logger.warn(`Uploads archive skipped (non-fatal): ${(err as Error).message}`);
+      if (fs.existsSync(archivePath)) {
+        try { fs.unlinkSync(archivePath); } catch { /* ignore */ }
+      }
+      return null;
+    }
+  }
+
   async listBackups() {
     if (!fs.existsSync(this.backupDir)) return [];
 
     const files = await fsPromises.readdir(this.backupDir);
     const backupFiles = files.filter(
-      (f) => f.endsWith('.sql') || f.endsWith('.dump'),
+      (f) => f.endsWith('.sql') || f.endsWith('.dump') || f.endsWith('.tar.gz'),
     );
 
     const stats = await Promise.all(

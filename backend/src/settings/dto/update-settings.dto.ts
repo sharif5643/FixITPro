@@ -92,4 +92,12 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   showLogo?: boolean;
+
+  @IsOptional()
+  @IsString()
+  lineChannelAccessToken?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  lineNotifyEnabled?: boolean;
 }

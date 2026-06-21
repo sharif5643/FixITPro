@@ -18,11 +18,17 @@ export class SettingsService {
   // SUPER_ADMIN (tenantId=null) gets an in-memory default; they don't own a shop.
   async getSettings(tenantId: string | null) {
     if (!tenantId) return this.defaultSettings();
-    return this.prisma.shopSettings.upsert({
+    const result = await this.prisma.shopSettings.upsert({
       where:  { tenantId },
       create: { tenantId },
       update: {},
     });
+    // Mask LINE token — never expose the raw token to the frontend
+    if ((result as any).lineChannelAccessToken) {
+      const raw: string = (result as any).lineChannelAccessToken;
+      (result as any).lineChannelAccessToken = `****${raw.slice(-6)}`;
+    }
+    return result;
   }
 
   // Lightweight read used by sidebar / navbar (no permission gate needed).
@@ -46,11 +52,27 @@ export class SettingsService {
       return this.defaultSettings();
     }
 
+    // If the frontend echoes back a masked token (starts with ****), skip updating it
+    const updateData = { ...dto };
+    if (updateData.lineChannelAccessToken?.startsWith('****')) {
+      delete updateData.lineChannelAccessToken;
+    }
+    // Treat empty string as "clear token"
+    if (updateData.lineChannelAccessToken === '') {
+      updateData.lineChannelAccessToken = undefined;
+    }
+
     const result = await this.prisma.shopSettings.upsert({
       where:  { tenantId },
-      create: { tenantId, ...dto },
-      update: dto,
+      create: { tenantId, ...updateData },
+      update: updateData,
     });
+
+    // Mask token in response — same rule as getSettings
+    if ((result as any).lineChannelAccessToken) {
+      const raw: string = (result as any).lineChannelAccessToken;
+      (result as any).lineChannelAccessToken = `****${raw.slice(-6)}`;
+    }
 
     await this.auditLog.log({
       actorId,
@@ -58,7 +80,7 @@ export class SettingsService {
       action:     'SETTINGS_UPDATED',
       entityType: 'ShopSettings',
       entityId:   String(result.id),
-      afterData:  { ...dto },
+      afterData:  { ...updateData, lineChannelAccessToken: updateData.lineChannelAccessToken ? '****' : undefined },
     });
 
     await this.notif.notify({

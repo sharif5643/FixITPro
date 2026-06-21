@@ -21,6 +21,8 @@ export interface ShopSettings {
   paymentQrUrl?: string | null
   showTaxId: boolean
   showLogo: boolean
+  lineChannelAccessToken?: string | null
+  lineNotifyEnabled: boolean
 }
 
 export const ROLE_LABEL: Record<AppRole, string> = {
@@ -419,6 +421,7 @@ export interface Customer {
   note?: string
   points: number
   tags: string[]
+  lineUserId?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -554,7 +557,9 @@ export interface Repair {
     | 'APPROVED'
     | 'WAITING_PARTS'
     | 'IN_PROGRESS'
+    | 'QC_PENDING'
     | 'COMPLETED'
+    | 'READY_PICKUP'
     | 'DELIVERED'
     | 'CANCELLED'
   estimateCost?: number
@@ -587,6 +592,24 @@ export interface Repair {
   paymentMethod?: 'CASH' | 'TRANSFER' | 'CARD'
   paidAmount?: number
   paidAt?: string
+  qc?: RepairQc | null
+}
+
+export interface RepairQc {
+  id: string
+  repairId: string
+  touchScreen: boolean
+  speaker: boolean
+  microphone: boolean
+  charging: boolean
+  camera: boolean
+  wifi: boolean
+  biometric: boolean
+  allPassed: boolean
+  note?: string | null
+  passedById: string
+  passedByName: string
+  createdAt: string
 }
 
 export interface Shift {

@@ -70,7 +70,9 @@ export const repairStatusColor: Record<string, BadgeColor> = {
   IN_PROGRESS:      'purple',
   WAITING_APPROVAL: 'yellow',
   APPROVED:         'teal',
+  QC_PENDING:       'purple',
   COMPLETED:        'green',
+  READY_PICKUP:     'green',
   DELIVERED:        'slate',
   CANCELLED:        'red',
 }

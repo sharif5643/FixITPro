@@ -80,7 +80,9 @@ enum RepairStatus {
   APPROVED
   WAITING_PARTS
   IN_PROGRESS
+  QC_PENDING
   COMPLETED
+  READY_PICKUP
   DELIVERED
   CANCELLED
 }
@@ -511,10 +513,11 @@ model Customer {
   email     String?
   address   String?
   note      String?
-  points    Int      @default(0)
-  tags      String[]  @default([])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  points     Int      @default(0)
+  tags       String[] @default([])
+  lineUserId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -708,6 +711,7 @@ model Repair {
   paymentReversals   RepairPaymentReversal[]
   claims             Claim[]
   warranties         Warranty[]
+  qc                 RepairQc?
 
   @@index([status, receivedAt])
   @@index([customerId])
@@ -776,9 +780,11 @@ model ShopSettings {
   lowStockAlert   Int      @default(5)
   repairWarrantyText String?
   paymentQrUrl       String?
-  showTaxId          Boolean @default(true)
-  showLogo           Boolean @default(true)
-  updatedAt       DateTime @updatedAt
+  showTaxId              Boolean  @default(true)
+  showLogo               Boolean  @default(true)
+  lineChannelAccessToken String?
+  lineNotifyEnabled      Boolean  @default(false)
+  updatedAt              DateTime @updatedAt
 
   tenantId String? @unique
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -821,6 +827,27 @@ model RepairImage {
   repair    Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
   url       String
   createdAt DateTime @default(now())
+
+  @@index([repairId])
+}
+
+model RepairQc {
+  id           String   @id @default(cuid())
+  repairId     String   @unique
+  repair       Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  touchScreen  Boolean  @default(false)
+  speaker      Boolean  @default(false)
+  microphone   Boolean  @default(false)
+  charging     Boolean  @default(false)
+  camera       Boolean  @default(false)
+  wifi         Boolean  @default(false)
+  biometric    Boolean  @default(false)
+  allPassed    Boolean  @default(false)
+  note         String?
+  passedById   String
+  passedByName String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([repairId])
 }
