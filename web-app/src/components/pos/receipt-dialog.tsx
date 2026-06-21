@@ -94,20 +94,20 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
         <DialogContent className="max-w-sm">
           {/* Success header */}
           <div className="flex flex-col items-center gap-1.5 pt-2">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
-              <CheckCircle2 className="h-10 w-10 text-green-500" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-50 dark:bg-green-950/30">
+              <CheckCircle2 className="h-10 w-10 text-green-500 dark:text-green-400" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mt-1">ชำระเงินสำเร็จ!</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-1">ชำระเงินสำเร็จ!</h2>
             <p className="text-sm text-muted-foreground">ขอบคุณที่ใช้บริการ</p>
           </div>
 
           {/* Receipt preview */}
-          <div className="rounded-xl border bg-gray-50 p-4 font-mono text-sm space-y-3">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60 p-4 font-mono text-sm space-y-3">
             {/* Shop header */}
-            <div className="text-center space-y-0.5 border-b border-dashed pb-3">
+            <div className="text-center space-y-0.5 border-b border-dashed border-slate-300 dark:border-slate-600 pb-3">
               <p className="font-bold text-base tracking-wide">{settings?.shopName ?? 'FixITPro'}</p>
               <p className="text-xs text-muted-foreground">{saleDate}</p>
-              <p className="text-xs font-semibold bg-white border rounded px-2 py-0.5 inline-block mt-1">
+              <p className="text-xs font-semibold bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded px-2 py-0.5 inline-block mt-1">
                 {sale.receiptNumber}
               </p>
             </div>
@@ -129,18 +129,18 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
             </div>
 
             {/* Totals */}
-            <div className="border-t border-dashed pt-2.5 space-y-1.5">
+            <div className="border-t border-dashed border-slate-300 dark:border-slate-600 pt-2.5 space-y-1.5">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>ยอดรวม</span>
                 <span className="tabular-nums">{formatThaiMoney(Number(sale.subtotal))}</span>
               </div>
               {Number(sale.discount) > 0 && (
-                <div className="flex justify-between text-xs text-red-600">
+                <div className="flex justify-between text-xs text-red-600 dark:text-red-400">
                   <span>ส่วนลด</span>
                   <span className="tabular-nums">- {formatThaiMoney(Number(sale.discount))}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold text-base border-t border-dashed pt-2">
+              <div className="flex justify-between font-bold text-base border-t border-dashed border-slate-300 dark:border-slate-600 pt-2">
                 <span>ยอดสุทธิ</span>
                 <span className="tabular-nums">{formatThaiMoney(Number(sale.total))}</span>
               </div>
@@ -149,7 +149,7 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
                 <span className="tabular-nums">{formatThaiMoney(Number(sale.amountPaid))}</span>
               </div>
               {Number(sale.change) > 0 && (
-                <div className="flex justify-between text-xs font-medium text-green-700">
+                <div className="flex justify-between text-xs font-medium text-green-700 dark:text-green-400">
                   <span>เงินทอน</span>
                   <span className="tabular-nums">{formatThaiMoney(Number(sale.change))}</span>
                 </div>
