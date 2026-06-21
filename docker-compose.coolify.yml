@@ -14,8 +14,11 @@ version: '3.8'
 #   JWT_SECRET          — min 32 chars random string
 #   JWT_EXPIRES_IN      — e.g. 8h  (optional, defaults to 8h)
 #   CORS_ORIGIN         — comma-separated frontend origin(s), e.g. https://app.yourshop.com
-#   NEXT_PUBLIC_API_URL — full backend URL, e.g. https://api.yourshop.com/api/v1
-#                         (baked into the frontend image at BUILD TIME — must be set before building)
+#   NEXT_PUBLIC_API_URL — API path prefix. Use /api/v1 (relative) so the frontend
+#                         works on any server/domain without rebuilding. Set an
+#                         absolute URL (e.g. https://api.yourshop.com/api/v1) only
+#                         if frontend and backend are on different domains.
+#                         (baked into the frontend image at BUILD TIME)
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
