@@ -139,19 +139,15 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
 
         return (
           <div key={si} className="mb-1">
-            {/* Section separator + label — only visible when expanded */}
             {section.label && (
-              <div className="mx-3 mb-1 mt-3 overflow-hidden">
-                {si > 0 && (
-                  <div className="h-px bg-slate-100 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75" />
-                )}
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75 select-none">
+              <div className="mx-3 mb-1 mt-3">
+                {si > 0 && <div className="h-px bg-slate-100 dark:bg-slate-800 mb-2" />}
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 select-none">
                   {section.label}
                 </p>
               </div>
             )}
 
-            {/* Items */}
             {visibleItems.map((item) => {
               const active = isActive(item.href)
               const Icon = item.icon
@@ -160,31 +156,22 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'group/item relative flex items-center gap-3 mx-2 my-0.5 px-2 py-2.5 rounded-xl transition-all',
+                    'relative flex items-center gap-3 mx-2 my-0.5 px-3 py-2.5 rounded-xl transition-all',
                     active
                       ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
+                      : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100',
                   )}
                 >
-                  {/* Icon */}
                   <Icon className={cn(
-                    'h-5 w-5 flex-shrink-0 transition-colors',
-                    active ? 'text-white' : 'text-slate-400 group-hover/item:text-slate-700',
+                    'h-5 w-5 flex-shrink-0',
+                    active ? 'text-white' : 'text-slate-400 dark:text-slate-500',
                   )} />
-
-                  {/* Label — appears on expand */}
                   <span className={cn(
-                    'text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-150 delay-75',
-                    'opacity-0 group-hover:opacity-100 max-w-0 group-hover:max-w-[200px]',
-                    active ? 'text-white' : '',
+                    'text-sm font-medium truncate',
+                    active ? 'text-white' : 'text-slate-700 dark:text-slate-300',
                   )}>
                     {item.label}
                   </span>
-
-                  {/* Active indicator dot (collapsed only — hidden on expand) */}
-                  {active && (
-                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-white/70 group-hover:hidden flex-shrink-0" />
-                  )}
                 </Link>
               )
             })}
@@ -205,40 +192,32 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         />
       )}
 
-      {/* Sidebar shell */}
+      {/* Sidebar shell — always expanded (w-60) on desktop, overlay on mobile */}
       <aside
         className={cn(
-          // Base styles
-          'group flex flex-col flex-shrink-0',
+          'flex flex-col flex-shrink-0',
           'bg-white dark:bg-slate-900',
           'border-r border-slate-200 dark:border-slate-800',
           'overflow-hidden',
-          // Desktop: always visible, collapses to icon rail
-          'hidden md:flex md:relative md:w-16 md:hover:w-60',
-          'md:transition-[width] md:duration-200 md:ease-in-out',
+          // Desktop: fixed width, always visible
+          'hidden md:flex md:relative md:w-60',
           // Mobile: overlay when open
           open && 'fixed inset-y-0 left-0 z-50 !flex !w-60 shadow-2xl',
         )}
       >
         {/* Logo bar */}
         <div className="flex h-14 items-center flex-shrink-0 px-3 border-b border-slate-100 overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700">
-          {/* Brand icon */}
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 shadow-sm backdrop-blur-sm border border-white/20">
             <Smartphone className="h-5 w-5 text-white" />
           </div>
-
-          {/* Brand name (hidden when collapsed) */}
-          <div className="ml-3 min-w-0 flex-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75 overflow-hidden">
-            <p className="text-sm font-bold text-white truncate leading-none">
-              {shopName}
-            </p>
+          <div className="ml-3 min-w-0 flex-1 overflow-hidden">
+            <p className="text-sm font-bold text-white truncate leading-none">{shopName}</p>
             <p className="text-[10px] text-blue-200 mt-0.5">{portalLabel}</p>
           </div>
-
           {/* Mobile close button */}
           <button
             onClick={onClose}
-            className="ml-2 flex-shrink-0 p-1.5 rounded-lg hover:bg-white/20 md:hidden opacity-0 group-hover:opacity-100 transition-opacity"
+            className="ml-2 flex-shrink-0 p-1.5 rounded-lg hover:bg-white/20 md:hidden"
             aria-label="ปิดเมนู"
           >
             <X className="h-4 w-4 text-white/80" />
@@ -249,18 +228,18 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         {navContent}
 
         {/* Bottom: user info */}
-        <div className="flex-shrink-0 border-t border-slate-100 p-3 overflow-hidden">
+        <div className="flex-shrink-0 border-t border-slate-100 dark:border-slate-800 p-3 overflow-hidden">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 shadow-sm">
               <span className="text-xs font-bold text-white">
                 {(user?.name ?? 'U').charAt(0).toUpperCase()}
               </span>
             </div>
-            <div className="min-w-0 flex-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-75">
-              <p className="text-xs font-semibold text-slate-900 truncate leading-none">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate leading-none">
                 {user?.name}
               </p>
-              <span className="inline-flex items-center mt-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 text-[9px] font-semibold">
+              <span className="inline-flex items-center mt-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 px-1.5 py-0.5 text-[9px] font-semibold">
                 {portalLabel}
               </span>
             </div>
