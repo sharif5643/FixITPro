@@ -19,12 +19,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let status  = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Internal server error';
+    let retryAfter: number | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const body = exception.getResponse();
-      if (typeof body === 'object' && body !== null && 'message' in body) {
-        message = (body as any).message;
+      if (typeof body === 'object' && body !== null) {
+        if ('message' in body) message = (body as any).message;
+        if ('retryAfter' in body) retryAfter = (body as any).retryAfter;
       } else if (typeof body === 'string') {
         message = body;
       }
@@ -41,11 +43,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       );
     }
 
-    response.status(status).json({
+    const responseBody: Record<string, unknown> = {
       statusCode: status,
       message,
       path: request.url,
       timestamp: new Date().toISOString(),
-    });
+    };
+    if (retryAfter !== undefined) responseBody.retryAfter = retryAfter;
+
+    response.status(status).json(responseBody);
   }
 }

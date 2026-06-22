@@ -54,7 +54,7 @@ import { TenantModule } from './tenant/tenant.module';
     // P0-3: Named throttlers — each auth endpoint gets its own independent counter.
     // No APP_GUARD registered: only routes that explicitly add @UseGuards(ThrottlerGuard) are affected.
     ThrottlerModule.forRoot([
-      { name: 'auth_login',      ttl: 15 * 60 * 1000, limit: 20 }, // 20 per 15 min
+      { name: 'auth_login',      ttl: 60 * 1000, limit: 10 }, // 10 per minute
       { name: 'auth_register',   ttl: 60 * 60 * 1000, limit: 3  }, // 3 per hour
       { name: 'auth_change_pwd', ttl: 15 * 60 * 1000, limit: 5  }, // 5 per 15 min
     ]),

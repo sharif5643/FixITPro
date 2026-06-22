@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Body, UseGuards, Res, Req, UnauthorizedException } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { AuthThrottlerGuard } from '../common/guards/auth-throttler.guard';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -42,8 +43,8 @@ export class AuthController {
     }
   }
 
-  @UseGuards(ThrottlerGuard)
-  @Throttle({ auth_login: { limit: 20, ttl: 15 * 60 * 1000 } })
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ auth_login: { limit: 10, ttl: 60 * 1000 } })
   @Post('login')
   async login(
     @Body() dto: LoginDto,

@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Smartphone, Loader2, Eye, EyeOff } from 'lucide-react'
+import { Smartphone, Loader2, Eye, EyeOff, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,6 +26,8 @@ export default function LoginPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [throttleCountdown, setThrottleCountdown] = useState(0)
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const { setAuth, user } = useAuthStore()
 
   useEffect(() => {
@@ -37,6 +39,22 @@ export default function LoginPage() {
       }
     }
   }, [user, router])
+
+  useEffect(() => {
+    if (throttleCountdown <= 0) return
+    countdownRef.current = setInterval(() => {
+      setThrottleCountdown(prev => {
+        if (prev <= 1) {
+          if (countdownRef.current) clearInterval(countdownRef.current)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current)
+    }
+  }, [throttleCountdown])
 
   const {
     register,
@@ -51,6 +69,7 @@ export default function LoginPage() {
   })
 
   const onSubmit = async (data: LoginForm) => {
+    if (throttleCountdown > 0) return
     setIsLoading(true)
     const normalizedEmail = data.email.trim().toLowerCase()
     try {
@@ -75,11 +94,16 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       if (error.response) {
-        // HTTP error — show backend message
-        const msg = error.response.data?.message
-        toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'))
+        const { status, data: resData } = error.response
+        if (status === 429) {
+          const retryAfter = resData?.retryAfter ?? 60
+          setThrottleCountdown(retryAfter)
+          toast.error(`เข้าสู่ระบบบ่อยเกินไป กรุณารอ ${retryAfter} วินาที`, { duration: 5000 })
+        } else {
+          const msg = resData?.message
+          toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'))
+        }
       } else {
-        // Network error — server unreachable / CORS
         const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1'
         toast.error(`ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่า Backend รันอยู่ที่ ${apiUrl}`)
       }
@@ -153,17 +177,28 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full h-11 text-base font-semibold mt-2"
-                disabled={isLoading}
+                disabled={isLoading || throttleCountdown > 0}
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     กำลังเข้าสู่ระบบ...
                   </>
+                ) : throttleCountdown > 0 ? (
+                  <>
+                    <Clock className="mr-2 h-4 w-4" />
+                    รอ {throttleCountdown} วินาที
+                  </>
                 ) : (
                   'เข้าสู่ระบบ'
                 )}
               </Button>
+
+              {throttleCountdown > 0 && (
+                <p className="text-center text-xs text-red-500 mt-1">
+                  เข้าสู่ระบบผิดพลาดบ่อยเกินไป — ปลดล็อกใน {throttleCountdown} วินาที
+                </p>
+              )}
             </form>
 
             <div className="mt-5 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
