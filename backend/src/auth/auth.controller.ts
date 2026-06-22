@@ -44,7 +44,7 @@ export class AuthController {
   }
 
   @UseGuards(AuthThrottlerGuard)
-  @Throttle({ auth_login: { limit: 10, ttl: 60 * 1000 } })
+  @Throttle({ auth_login: { limit: 20, ttl: 60 * 1000 } })
   @Post('login')
   async login(
     @Body() dto: LoginDto,
