@@ -86,4 +86,38 @@ export class UpdateRepairDto {
   @Min(0)
   @Max(10_000_000)
   actualLaborCost?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  deviceImei?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  deviceBrand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  deviceModel?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  deviceColor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  issue?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  accessories?: string;
+
+  @IsOptional()
+  @IsString()
+  dueDate?: string;
 }

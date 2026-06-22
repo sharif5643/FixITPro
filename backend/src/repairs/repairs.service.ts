@@ -339,6 +339,13 @@ export class RepairsService {
     if (dto.estimatedTotal !== undefined) updateData.estimatedTotal = dto.estimatedTotal;
     if (dto.approvalNote !== undefined) updateData.approvalNote = dto.approvalNote;
     if (dto.actualLaborCost !== undefined) updateData.actualLaborCost = dto.actualLaborCost;
+    if (dto.deviceImei !== undefined) updateData.deviceImei = dto.deviceImei.trim() || null;
+    if (dto.deviceBrand !== undefined) updateData.deviceBrand = dto.deviceBrand.trim();
+    if (dto.deviceModel !== undefined) updateData.deviceModel = dto.deviceModel.trim();
+    if (dto.deviceColor !== undefined) updateData.deviceColor = dto.deviceColor.trim() || null;
+    if (dto.issue !== undefined) updateData.issue = dto.issue.trim();
+    if (dto.accessories !== undefined) updateData.accessories = dto.accessories.trim() || null;
+    if (dto.dueDate !== undefined) updateData.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
 
     if (dto.status === 'COMPLETED') updateData.completedAt = new Date();
     if (dto.status === 'DELIVERED') updateData.deliveredAt = new Date();

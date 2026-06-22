@@ -10,6 +10,7 @@ import {
   Plus, Trash2, Package, CheckCircle2, Clock, DollarSign, X,
   Banknote, CreditCard as CardIcon, Smartphone as TransferIcon, Lock,
   Camera, ChevronLeft, ChevronRight, ArrowRightLeft, History, ChevronDown,
+  Pencil, Check,
 } from 'lucide-react'
 import {
   Dialog,
@@ -129,6 +130,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [printOpen, setPrintOpen] = useState(false)
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
   const [deviceHistoryOpen, setDeviceHistoryOpen] = useState(false)
+  const [imeiEditing, setImeiEditing] = useState(false)
+  const [imeiValue, setImeiValue] = useState('')
 
   const { data: deviceHistory = [] } = useQuery<any[]>({
     queryKey: ['device-history', repair?.deviceImei],
@@ -445,7 +448,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     <Smartphone className="h-3.5 w-3.5" />
                     ข้อมูลอุปกรณ์
                   </div>
-                  {repair.deviceImei && (
+                  {repair.deviceImei && !imeiEditing && (
                     <button
                       onClick={() => setDeviceHistoryOpen(!deviceHistoryOpen)}
                       className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
@@ -457,7 +460,53 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                   )}
                 </div>
                 <InfoRow label="ยี่ห้อ / รุ่น" value={`${repair.deviceBrand} ${repair.deviceModel}`} />
-                <InfoRow label="IMEI / Serial" value={repair.deviceImei} />
+
+                {/* IMEI inline edit */}
+                {imeiEditing ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-24 shrink-0">IMEI / Serial</span>
+                    <input
+                      autoFocus
+                      value={imeiValue}
+                      onChange={(e) => setImeiValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          updateMutation.mutate({ deviceImei: imeiValue.trim() || null })
+                          setImeiEditing(false)
+                        }
+                        if (e.key === 'Escape') setImeiEditing(false)
+                      }}
+                      placeholder="กรอก IMEI หรือ Serial"
+                      className="flex-1 h-7 px-2 text-xs border rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    />
+                    <button
+                      onClick={() => { updateMutation.mutate({ deviceImei: imeiValue.trim() || null }); setImeiEditing(false) }}
+                      disabled={updateMutation.isPending}
+                      className="h-7 w-7 flex items-center justify-center rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {updateMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                      onClick={() => setImeiEditing(false)}
+                      className="h-7 w-7 flex items-center justify-center rounded-md border hover:bg-gray-100"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between group">
+                    <InfoRow label="IMEI / Serial" value={repair.deviceImei ?? <span className="italic text-muted-foreground text-xs">ยังไม่ระบุ</span>} />
+                    {repair.status !== 'DELIVERED' && repair.status !== 'CANCELLED' && (
+                      <button
+                        onClick={() => { setImeiValue(repair.deviceImei ?? ''); setImeiEditing(true) }}
+                        className="opacity-0 group-hover:opacity-100 h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-all ml-1"
+                        title="แก้ไข IMEI"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
                 {deviceHistoryOpen && repair.deviceImei && (
                   <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
                     <p className="text-xs font-semibold text-muted-foreground">ประวัติซ่อม IMEI นี้</p>
