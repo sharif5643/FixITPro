@@ -29,9 +29,9 @@ import type { Expense, ExpenseCategory } from '@/types'
 
 const PM_LABEL: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอน', CARD: 'บัตร' }
 const PM_COLOR: Record<string, string> = {
-  CASH:     'bg-emerald-100 text-emerald-700',
-  TRANSFER: 'bg-blue-100 text-blue-700',
-  CARD:     'bg-purple-100 text-purple-700',
+  CASH:     'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400',
+  TRANSFER: 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400',
+  CARD:     'bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400',
 }
 const PM_ICON: Record<string, React.ElementType> = {
   CASH: Banknote, TRANSFER: Smartphone, CARD: CreditCard,
@@ -85,10 +85,10 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h2 className="font-bold text-slate-900">บันทึกค่าใช้จ่าย</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">
+      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md border dark:border-slate-800">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="font-bold text-slate-900 dark:text-slate-50">บันทึกค่าใช้จ่าย</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -96,22 +96,22 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
         <form onSubmit={submit} className="px-5 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-700">วันที่</label>
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">วันที่</label>
               <input
                 type="date"
                 value={form.expenseDate}
                 max={todayStr()}
                 onChange={(e) => set('expenseDate', e.target.value)}
-                className="w-full h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-700">หมวดหมู่</label>
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">หมวดหมู่</label>
               <select
                 value={form.categoryId}
                 onChange={(e) => set('categoryId', e.target.value)}
-                className="w-full h-9 px-3 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
                 <option value="">-- เลือก --</option>
@@ -123,7 +123,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-700">รายการ</label>
+            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">รายการ</label>
             <Input
               placeholder="เช่น ค่าเช่าเดือนพฤษภาคม 2568"
               value={form.description}
@@ -135,7 +135,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-700">จำนวนเงิน (บาท)</label>
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">จำนวนเงิน (บาท)</label>
               <Input
                 type="number"
                 placeholder="0.00"
@@ -147,11 +147,11 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-700">วิธีชำระ</label>
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">วิธีชำระ</label>
               <select
                 value={form.paymentMethod}
                 onChange={(e) => set('paymentMethod', e.target.value as any)}
-                className="w-full h-9 px-3 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="CASH">เงินสด</option>
                 <option value="TRANSFER">โอนเงิน</option>
@@ -162,7 +162,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-700">เลขอ้างอิง (ถ้ามี)</label>
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">เลขอ้างอิง (ถ้ามี)</label>
               <Input
                 placeholder="เลขใบเสร็จ..."
                 value={form.referenceNo}
@@ -171,7 +171,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-700">หมายเหตุ</label>
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">หมายเหตุ</label>
               <Input
                 placeholder="—"
                 value={form.note}
@@ -221,15 +221,15 @@ function VoidExpenseDialog({ expense, onClose, onSuccess }: VoidDialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm">
+      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-xl border dark:border-slate-800 w-full max-w-sm">
         <div className="px-5 py-5 space-y-4">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
+            <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900">ยกเลิกรายการ</h3>
-              <p className="text-sm text-slate-500 mt-0.5">
+              <h3 className="font-bold text-slate-900 dark:text-slate-50">ยกเลิกรายการ</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                 {expense.description} · {formatThaiMoney(expense.amount)}
               </p>
             </div>
@@ -369,29 +369,29 @@ export default function ExpensesPage() {
 
       {/* Month navigation + filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1">
+        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1">
           <button
             onClick={() => setViewMonth((m) => subMonths(m, 1))}
-            className="p-1.5 rounded hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            <ChevronLeft className="h-4 w-4 text-slate-600" />
+            <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400" />
           </button>
-          <span className="text-sm font-medium px-2 min-w-[120px] text-center text-slate-700">
+          <span className="text-sm font-medium px-2 min-w-[120px] text-center text-slate-700 dark:text-slate-300">
             {format(viewMonth, 'MMMM yyyy', { locale: th })}
           </span>
           <button
             onClick={() => setViewMonth((m) => addMonths(m, 1))}
             disabled={viewMonth >= startOfMonth(new Date())}
-            className="p-1.5 rounded hover:bg-slate-100 transition-colors disabled:opacity-30"
+            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-30"
           >
-            <ChevronRight className="h-4 w-4 text-slate-600" />
+            <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
           </button>
         </div>
 
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="h-9 px-3 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+          className="h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">ทุกหมวดหมู่</option>
           {categories.filter((c) => c.isActive).map((c) => (
@@ -399,7 +399,7 @@ export default function ExpensesPage() {
           ))}
         </select>
 
-        <label className="flex items-center gap-1.5 text-sm text-slate-500 cursor-pointer select-none">
+        <label className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={showVoided}
@@ -420,7 +420,7 @@ export default function ExpensesPage() {
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                 c.id === categoryFilter
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400'
               }`}
             >
               {c.name}
@@ -467,12 +467,12 @@ export default function ExpensesPage() {
                       </span>
                     </DataTableCell>
                     <DataTableCell hidden>
-                      <span className="text-xs font-medium text-slate-700">
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                         {expense.category.name}
                       </span>
                     </DataTableCell>
                     <DataTableCell className="max-w-[200px]">
-                      <p className={`text-sm truncate ${isVoided ? 'line-through text-slate-400' : 'text-slate-900 font-medium'}`}>
+                      <p className={`text-sm truncate ${isVoided ? 'line-through text-slate-400 dark:text-slate-600' : 'text-slate-900 dark:text-slate-50 font-medium'}`}>
                         {expense.description}
                       </p>
                       {isVoided && (
@@ -489,7 +489,7 @@ export default function ExpensesPage() {
                       <span className="text-xs">{expense.referenceNo ?? '—'}</span>
                     </DataTableCell>
                     <DataTableCell right>
-                      <span className={`tabular-nums font-bold ${isVoided ? 'text-slate-400' : 'text-slate-900'}`}>
+                      <span className={`tabular-nums font-bold ${isVoided ? 'text-slate-400 dark:text-slate-600' : 'text-slate-900 dark:text-slate-50'}`}>
                         {formatThaiMoney(Number(expense.amount))}
                       </span>
                     </DataTableCell>
@@ -500,7 +500,7 @@ export default function ExpensesPage() {
                       {!isVoided && (
                         <button
                           onClick={() => setVoidTarget(expense)}
-                          className="text-xs text-red-400 hover:text-red-600 transition-colors px-2 py-1 rounded hover:bg-red-50"
+                          className="text-xs text-red-400 hover:text-red-600 dark:hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
                         >
                           ยกเลิก
                         </button>
@@ -515,11 +515,11 @@ export default function ExpensesPage() {
 
         {/* Totals footer */}
         {expenses.length > 0 && (
-          <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700">
+          <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 px-4 py-3 flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
               รวม {expenses.filter((e) => !e.voidedAt).length} รายการ
             </span>
-            <span className="font-bold text-slate-900 tabular-nums">
+            <span className="font-bold text-slate-900 dark:text-slate-50 tabular-nums">
               {formatThaiMoney(monthlyTotal)}
             </span>
           </div>

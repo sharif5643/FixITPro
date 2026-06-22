@@ -151,8 +151,8 @@ export default function SalesPage() {
           <Globe className="h-8 w-8 text-blue-500" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">กรุณาเลือกสาขาก่อนขายสินค้า</h2>
-          <p className="text-sm text-slate-500 mt-1">ไม่สามารถขายสินค้าในโหมดทุกสาขา</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">กรุณาเลือกสาขาก่อนขายสินค้า</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">ไม่สามารถขายสินค้าในโหมดทุกสาขา</p>
         </div>
       </div>
     )
@@ -165,8 +165,8 @@ export default function SalesPage() {
           <Lock className="h-8 w-8 text-amber-500" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">ยังไม่ได้เปิดกะ</h2>
-          <p className="text-sm text-slate-500 mt-1">กรุณาเปิดกะก่อนทำรายการขาย</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">ยังไม่ได้เปิดกะ</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">กรุณาเปิดกะก่อนทำรายการขาย</p>
         </div>
         <Link href="/shifts">
           <Button className="gap-2">
@@ -260,7 +260,7 @@ export default function SalesPage() {
           mobileTab === 'products' ? 'flex flex-1 min-w-0' : 'hidden md:flex md:flex-1 md:min-w-0',
         )}>
           {/* Mobile category chips — scrollable strip */}
-          <div className="flex md:hidden gap-1.5 px-2.5 py-2 overflow-x-auto scrollbar-none border-b border-slate-100 shrink-0">
+          <div className="flex md:hidden gap-1.5 px-2.5 py-2 overflow-x-auto scrollbar-none border-b border-slate-100 dark:border-slate-800 shrink-0">
             {CATEGORIES.map(({ value, label, emoji }) => (
               <button
                 key={value}
@@ -270,7 +270,7 @@ export default function SalesPage() {
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all shrink-0',
                   selectedCategory === value
                     ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600',
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400',
                 )}
               >
                 <span>{emoji}</span>

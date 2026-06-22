@@ -165,8 +165,8 @@ export default function SuppliersPage() {
                   <DataTableCell className="text-center">
                     <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
                       s.isActive
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-slate-100 text-slate-500 border-slate-200'
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                     }`}>
                       {s.isActive ? 'ใช้งาน' : 'ปิดการใช้'}
                     </span>
@@ -203,19 +203,21 @@ export default function SuppliersPage() {
           <SectionCard noPadding><EmptyState preset="default" size="md" title={search ? 'ไม่พบซัพพลายเออร์' : 'ยังไม่มีซัพพลายเออร์'} /></SectionCard>
         ) : (
           suppliers.map((s) => (
-            <div key={s.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+            <div key={s.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-slate-900">{s.name}</p>
-                  {s.taxId && <p className="text-xs text-slate-400">{s.taxId}</p>}
+                  <p className="font-semibold text-slate-900 dark:text-slate-50">{s.name}</p>
+                  {s.taxId && <p className="text-xs text-slate-400 dark:text-slate-500">{s.taxId}</p>}
                 </div>
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold shrink-0 ${
-                  s.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                  s.isActive
+                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                 }`}>
                   {s.isActive ? 'ใช้งาน' : 'ปิดการใช้'}
                 </span>
               </div>
-              <div className="text-sm text-slate-500 space-y-0.5">
+              <div className="text-sm text-slate-500 dark:text-slate-400 space-y-0.5">
                 {s.phone && <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />{s.phone}</p>}
                 {s.email && <p className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" />{s.email}</p>}
                 <p className="flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5" />เครดิต {s.creditDays} วัน</p>
