@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { RepairFormDialog } from '@/components/repairs/repair-form-dialog'
 import { RepairKanbanBoard } from '@/components/repairs/repair-kanban-board'
+import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import {
@@ -80,6 +81,8 @@ export default function RepairsPage() {
   const [selectedRepairId, setSelectedRepairId] = useState<string | null>(null)
   const [qcRepairId, setQcRepairId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list')
+  const [scanOpen, setScanOpen] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const { branchId, isGlobalMode } = useBranchContext()
   const hasModule = useAuthStore((s) => s.hasModule)
@@ -87,6 +90,10 @@ export default function RepairsPage() {
   useEffect(() => {
     const saved = localStorage.getItem(VIEW_MODE_KEY)
     if (saved === 'board' || saved === 'list') setViewMode(saved)
+    // Auto-open scanner if ?scan=1 in URL
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('scan') === '1') {
+      setScanOpen(true)
+    }
   }, [])
 
   function switchView(mode: 'list' | 'board') {
@@ -138,6 +145,17 @@ export default function RepairsPage() {
     () => [...repairs].sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()).slice(0, 6),
     [repairs],
   )
+
+  function handleScanResult(text: string) {
+    const trimmed = text.trim()
+    // Match ticketNumber pattern REP-YYYYMMDD-XXXXXX or UUID
+    const byTicket = repairs.find((r) => r.ticketNumber === trimmed)
+    if (byTicket) { setSelectedRepairId(byTicket.id); return }
+    // Try UUID match
+    const byId = repairs.find((r) => r.id === trimmed)
+    if (byId) { setSelectedRepairId(byId.id); return }
+    toast.error(`ไม่พบใบงาน: ${trimmed}`)
+  }
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['repairs'] })
@@ -200,6 +218,7 @@ export default function RepairsPage() {
             onStatusChanged={invalidate}
           />
         </div>
+        <QrScannerDialog open={scanOpen} onOpenChange={setScanOpen} onScan={handleScanResult} />
         <Dialogs
           createOpen={createOpen} setCreateOpen={setCreateOpen}
           selectedRepairId={selectedRepairId} setSelectedRepairId={setSelectedRepairId}
@@ -271,6 +290,7 @@ export default function RepairsPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -411,9 +431,13 @@ export default function RepairsPage() {
             isGlobalMode={isGlobalMode}
             onCreateOpen={() => { if (!isGlobalMode) setCreateOpen(true) }}
             onOpenDetail={setSelectedRepairId}
+            onFocusSearch={() => { searchInputRef.current?.focus(); searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }}
+            onOpenScanner={() => setScanOpen(true)}
           />
         </div>
       </div>
+
+      <QrScannerDialog open={scanOpen} onOpenChange={setScanOpen} onScan={handleScanResult} />
 
       <Dialogs
         createOpen={createOpen} setCreateOpen={setCreateOpen}
@@ -428,13 +452,15 @@ export default function RepairsPage() {
 // ── Right Sidebar ─────────────────────────────────────────────────────────────
 
 function RepairSidebar({
-  repairs, recentRepairs, isGlobalMode, onCreateOpen, onOpenDetail,
+  repairs, recentRepairs, isGlobalMode, onCreateOpen, onOpenDetail, onFocusSearch, onOpenScanner,
 }: {
   repairs: Repair[]
   recentRepairs: Repair[]
   isGlobalMode: boolean
   onCreateOpen: () => void
   onOpenDetail: (id: string) => void
+  onFocusSearch: () => void
+  onOpenScanner: () => void
 }) {
   const overdueCount = repairs.filter((r) =>
     r.dueDate && new Date(r.dueDate) < new Date() &&
@@ -454,14 +480,14 @@ function RepairSidebar({
           <Plus className="h-4 w-4 shrink-0" />
           สร้างงานซ่อมใหม่
         </button>
-        <Link href="/repairs" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+        <button onClick={onFocusSearch} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors">
           <Search className="h-4 w-4 shrink-0 text-slate-400" />
           ค้นหาใบงาน
-        </Link>
-        <Link href="/repairs?scan=1" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+        </button>
+        <button onClick={onOpenScanner} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors">
           <ScanBarcode className="h-4 w-4 shrink-0 text-slate-400" />
           สแกน QR / Barcode
-        </Link>
+        </button>
         <Link href="/reminders" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors">
           <CalendarDays className="h-4 w-4 shrink-0 text-slate-400" />
           รายการนัดหมาย
