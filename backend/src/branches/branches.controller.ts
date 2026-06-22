@@ -78,9 +78,10 @@ export class BranchesController {
   @RequirePermission('stock.adjust')
   getBranchStock(
     @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string,
     @Query('search') search?: string,
   ) {
-    return this.svc.getBranchStock(id, { search });
+    return this.svc.getBranchStock(id, tenantId, { search });
   }
 
   @Post(':id/stock')
@@ -88,10 +89,11 @@ export class BranchesController {
   setBranchStock(
     @Param('id') id: string,
     @Body() dto: SetBranchStockDto,
-    @CurrentUser('id')   actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.svc.setBranchStock(id, dto, actorId, actorName);
+    return this.svc.setBranchStock(id, dto, actorId, actorName, tenantId);
   }
 
   // ── Stock Transfers ───────────────────────────────────────────────────────
@@ -173,12 +175,14 @@ export class BranchesController {
 
   @Patch('transfers/:id/complete')
   @RequirePermission('stock.transfer')
+  @Roles('OWNER', 'SUPER_ADMIN')
   completeTransfer(
     @Param('id') id: string,
-    @CurrentUser('id')   actorId: string,
-    @CurrentUser('name') actorName: string,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.svc.completeTransfer(id, actorId, actorName);
+    return this.svc.completeTransfer(id, actorId, actorName, tenantId);
   }
 
   @Patch('transfers/:id/cancel')

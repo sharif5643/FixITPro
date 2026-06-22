@@ -328,8 +328,8 @@ export class BranchesService implements OnModuleInit {
 
   // ── Branch Stock ────────────────────────────────────────────────────────────
 
-  async getBranchStock(branchId: string, query?: { search?: string }) {
-    await this.findOne(branchId);
+  async getBranchStock(branchId: string, tenantId: string | null | undefined, query?: { search?: string }) {
+    await this.findOne(branchId, tenantId);
 
     return this.prisma.branchStock.findMany({
       where: {
@@ -365,8 +365,8 @@ export class BranchesService implements OnModuleInit {
     return total;
   }
 
-  async setBranchStock(branchId: string, dto: SetBranchStockDto, actorId?: string, actorName?: string) {
-    const branch = await this.findOne(branchId);
+  async setBranchStock(branchId: string, dto: SetBranchStockDto, actorId?: string, actorName?: string, tenantId?: string | null) {
+    const branch = await this.findOne(branchId, tenantId);
     if (branch.status !== 'ACTIVE') {
       throw new ForbiddenException('สาขานี้ยังไม่ได้รับการอนุมัติหรือถูกระงับการใช้งาน');
     }
@@ -475,7 +475,7 @@ export class BranchesService implements OnModuleInit {
         product:    { select: { id: true, name: true, sku: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      take: 500,
     });
   }
 
@@ -556,11 +556,11 @@ export class BranchesService implements OnModuleInit {
     return transfer;
   }
 
-  async completeTransfer(id: string, actorId?: string, actorName?: string) {
+  async completeTransfer(id: string, actorId?: string, actorName?: string, tenantId?: string | null) {
     const transfer = await this.prisma.stockTransfer.findUnique({
       where: { id },
       include: {
-        fromBranch: { select: { name: true } },
+        fromBranch: { select: { name: true, tenantId: true } },
         toBranch:   { select: { name: true } },
         product:    { select: { name: true } },
       },
@@ -568,6 +568,11 @@ export class BranchesService implements OnModuleInit {
     if (!transfer) throw new NotFoundException('ไม่พบรายการโอน');
     if (transfer.status !== 'PENDING') {
       throw new BadRequestException('รายการนี้ไม่ได้อยู่ในสถานะ PENDING');
+    }
+
+    // Tenant isolation
+    if (tenantId && (transfer.fromBranch as any).tenantId !== tenantId) {
+      throw new NotFoundException('ไม่พบรายการโอน');
     }
 
     const fromStock = await this.prisma.branchStock.findUnique({
@@ -579,13 +584,11 @@ export class BranchesService implements OnModuleInit {
       );
     }
 
-    // Check if destination already has a BranchStock record (needed for stock-code generation)
     const toStockExisting = await this.prisma.branchStock.findUnique({
       where: { branchId_productId: { branchId: transfer.toBranchId, productId: transfer.productId } },
     });
 
     await this.prisma.$transaction(async (tx) => {
-      // Atomic debit: guard against negative inventory under concurrent completes
       const deducted = await tx.branchStock.updateMany({
         where: {
           branchId:  transfer.fromBranchId,
@@ -600,7 +603,6 @@ export class BranchesService implements OnModuleInit {
         );
       }
 
-      // Credit destination branch — generate stock code if this is a new BranchStock
       const toStockCode = !toStockExisting
         ? await this.generateStockCode(transfer.toBranchId, tx)
         : null;
@@ -617,6 +619,31 @@ export class BranchesService implements OnModuleInit {
         update: { quantity: { increment: transfer.quantity } },
       });
 
+      await tx.stockMovement.createMany({
+        data: [
+          {
+            type: 'TRANSFER_OUT',
+            quantity:      transfer.quantity,
+            productId:     transfer.productId,
+            branchId:      transfer.fromBranchId,
+            referenceType: 'StockTransfer',
+            referenceId:   id,
+            note: `โอนออก → ${transfer.toBranch.name} (${transfer.transferNumber}) [สำเร็จทันที]`,
+          },
+          {
+            type: 'TRANSFER_IN',
+            quantity:      transfer.quantity,
+            productId:     transfer.productId,
+            branchId:      transfer.toBranchId,
+            referenceType: 'StockTransfer',
+            referenceId:   id,
+            note: `โอนเข้า ← ${transfer.fromBranch.name} (${transfer.transferNumber}) [สำเร็จทันที]`,
+          },
+        ],
+      });
+
+      await this.syncProductShadowStock(transfer.productId, tx);
+
       await tx.stockTransfer.update({
         where: { id },
         data: {
@@ -627,23 +654,6 @@ export class BranchesService implements OnModuleInit {
         },
       });
     });
-
-    try {
-      const toStock = await this.prisma.branchStock.findUnique({
-        where: { branchId_productId: { branchId: transfer.toBranchId, productId: transfer.productId } },
-      });
-      if (toStock && toStock.minStock > 0 && toStock.quantity <= toStock.minStock) {
-        await this.notif.notify({
-          type: 'BRANCH_LOW_STOCK',
-          title: 'สต็อกสาขาต่ำ',
-          message: `${transfer.product.name} ที่ ${transfer.toBranch.name} เหลือ ${toStock.quantity} ชิ้น`,
-          severity: 'WARNING',
-          entityType: 'BranchStock',
-          entityId: toStock.id,
-          branchId: transfer.toBranchId,
-        });
-      }
-    } catch { /* non-blocking */ }
 
     this.auditLog.log({
       actorId, actorName, action: 'STOCK_TRANSFER',
@@ -801,19 +811,61 @@ export class BranchesService implements OnModuleInit {
       throw new ForbiddenException('เฉพาะสาขาต้นทางเท่านั้นที่จัดส่งได้');
     }
 
-    const updated = await this.prisma.stockTransfer.update({
-      where: { id },
-      data: {
-        status:          'IN_TRANSIT',
-        inTransitById:   actorId,
-        inTransitByName: actorName,
-        inTransitAt:     new Date(),
-      },
-      include: {
-        fromBranch: { select: { id: true, name: true } },
-        toBranch:   { select: { id: true, name: true } },
-        product:    { select: { id: true, name: true, sku: true } },
-      },
+    // Pre-check (informational — atomic guard is inside transaction)
+    const fromStockBefore = await this.prisma.branchStock.findUnique({
+      where: { branchId_productId: { branchId: transfer.fromBranchId, productId: transfer.productId } },
+    });
+    if (!fromStockBefore || fromStockBefore.quantity < transfer.quantity) {
+      throw new BadRequestException(
+        `สต็อกสาขาต้นทางไม่เพียงพอ (มี ${fromStockBefore?.quantity ?? 0} ชิ้น ต้องการ ${transfer.quantity} ชิ้น)`,
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // Atomic debit — prevents negative stock under concurrent sales/transfers
+      const deducted = await tx.branchStock.updateMany({
+        where: {
+          branchId:  transfer.fromBranchId,
+          productId: transfer.productId,
+          quantity:  { gte: transfer.quantity },
+        },
+        data: { quantity: { decrement: transfer.quantity } },
+      });
+      if (deducted.count === 0) {
+        throw new BadRequestException(
+          `สต็อกสาขาต้นทางไม่เพียงพอในขณะส่งของ (อาจมีการขายหรือโอนพร้อมกัน)`,
+        );
+      }
+
+      // Record TRANSFER_OUT movement
+      await tx.stockMovement.create({
+        data: {
+          type:          'TRANSFER_OUT',
+          quantity:      transfer.quantity,
+          productId:     transfer.productId,
+          branchId:      transfer.fromBranchId,
+          referenceType: 'StockTransfer',
+          referenceId:   id,
+          note: `โอนออก → ${transfer.toBranch.name} (${transfer.transferNumber})`,
+        },
+      });
+
+      await this.syncProductShadowStock(transfer.productId, tx);
+
+      return tx.stockTransfer.update({
+        where: { id },
+        data: {
+          status:          'IN_TRANSIT',
+          inTransitById:   actorId,
+          inTransitByName: actorName,
+          inTransitAt:     new Date(),
+        },
+        include: {
+          fromBranch: { select: { id: true, name: true } },
+          toBranch:   { select: { id: true, name: true } },
+          product:    { select: { id: true, name: true, sku: true } },
+        },
+      });
     });
 
     this.auditLog.log({
@@ -858,47 +910,16 @@ export class BranchesService implements OnModuleInit {
       throw new BadRequestException(`ไม่สามารถยืนยันรับของได้ (สถานะปัจจุบัน: ${transfer.status})`);
     }
     const isPrivileged = actorRole === 'OWNER' || actorRole === 'SUPER_ADMIN';
-    if (!isPrivileged && actorBranchId) {
-      if (actorBranchId === transfer.fromBranchId) {
-        throw new ForbiddenException('เฉพาะสาขาปลายทางเท่านั้นที่รับสินค้าได้');
-      }
-      if (actorBranchId !== transfer.toBranchId) {
-        throw new ForbiddenException('เฉพาะสาขาปลายทางเท่านั้นที่รับสินค้าได้');
-      }
+    if (!isPrivileged && actorBranchId && actorBranchId !== transfer.toBranchId) {
+      throw new ForbiddenException('เฉพาะสาขาปลายทางเท่านั้นที่รับสินค้าได้');
     }
 
-    // Re-check source stock inside the transaction guard
-    const fromStock = await this.prisma.branchStock.findUnique({
-      where: { branchId_productId: { branchId: transfer.fromBranchId, productId: transfer.productId } },
-    });
-    if (!fromStock || fromStock.quantity < transfer.quantity) {
-      throw new BadRequestException(
-        `สต็อกสาขาต้นทางไม่เพียงพอ (มี ${fromStock?.quantity ?? 0} ชิ้น ต้องการ ${transfer.quantity} ชิ้น)`,
-      );
-    }
-
+    // Stock was already deducted from source at dispatch — only need to credit destination
     const toStockExisting = await this.prisma.branchStock.findUnique({
       where: { branchId_productId: { branchId: transfer.toBranchId, productId: transfer.productId } },
     });
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      // Atomic debit: only succeeds when source has sufficient stock.
-      // Using updateMany+WHERE guard prevents negative inventory under concurrent receives.
-      const deducted = await tx.branchStock.updateMany({
-        where: {
-          branchId:  transfer.fromBranchId,
-          productId: transfer.productId,
-          quantity:  { gte: transfer.quantity },
-        },
-        data: { quantity: { decrement: transfer.quantity } },
-      });
-      if (deducted.count === 0) {
-        throw new BadRequestException(
-          `สต็อกสาขาต้นทางไม่เพียงพอ ไม่สามารถโอนได้ (อาจมีการโอนพร้อมกัน)`,
-        );
-      }
-
-      // Credit destination
       const toStockCode = !toStockExisting
         ? await this.generateStockCode(transfer.toBranchId, tx)
         : null;
@@ -915,31 +936,19 @@ export class BranchesService implements OnModuleInit {
         update: { quantity: { increment: transfer.quantity } },
       });
 
-      // Stock movements
-      await tx.stockMovement.createMany({
-        data: [
-          {
-            type: 'TRANSFER_OUT',
-            quantity:      transfer.quantity,
-            productId:     transfer.productId,
-            branchId:      transfer.fromBranchId,
-            referenceType: 'StockTransfer',
-            referenceId:   id,
-            note: `โอนออก → ${transfer.toBranch.name} (${transfer.transferNumber})`,
-          },
-          {
-            type: 'TRANSFER_IN',
-            quantity:      transfer.quantity,
-            productId:     transfer.productId,
-            branchId:      transfer.toBranchId,
-            referenceType: 'StockTransfer',
-            referenceId:   id,
-            note: `โอนเข้า ← ${transfer.fromBranch.name} (${transfer.transferNumber})`,
-          },
-        ],
+      // TRANSFER_IN only — TRANSFER_OUT was already recorded at dispatch
+      await tx.stockMovement.create({
+        data: {
+          type:          'TRANSFER_IN',
+          quantity:      transfer.quantity,
+          productId:     transfer.productId,
+          branchId:      transfer.toBranchId,
+          referenceType: 'StockTransfer',
+          referenceId:   id,
+          note: `โอนเข้า ← ${transfer.fromBranch.name} (${transfer.transferNumber})`,
+        },
       });
 
-      // Sync shadow stock
       await this.syncProductShadowStock(transfer.productId, tx);
 
       return tx.stockTransfer.update({
@@ -989,24 +998,97 @@ export class BranchesService implements OnModuleInit {
   }
 
   async cancelTransfer(id: string, reason: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string) {
-    const transfer = await this.prisma.stockTransfer.findUnique({ where: { id } });
+    const transfer = await this.prisma.stockTransfer.findUnique({
+      where: { id },
+      include: {
+        fromBranch: { select: { name: true } },
+        toBranch:   { select: { name: true } },
+        product:    { select: { name: true } },
+      },
+    });
     if (!transfer) throw new NotFoundException('ไม่พบรายการโอน');
 
-    const cancellable: string[] = ['PENDING', 'APPROVED'];
+    const cancellable: string[] = ['PENDING', 'APPROVED', 'IN_TRANSIT'];
     if (!cancellable.includes(transfer.status)) {
       throw new BadRequestException(`ไม่สามารถยกเลิกได้ (สถานะปัจจุบัน: ${transfer.status})`);
     }
+
     const isPrivileged = actorRole === 'OWNER' || actorRole === 'SUPER_ADMIN';
+
+    // IN_TRANSIT: stock already deducted at dispatch — only OWNER can cancel and must refund
+    if (transfer.status === 'IN_TRANSIT') {
+      if (!isPrivileged) {
+        throw new ForbiddenException(
+          'เฉพาะ Owner เท่านั้นที่ยกเลิกการโอนระหว่างจัดส่งได้ (สต็อกต้นทางถูกหักไปแล้วตอนจัดส่ง)',
+        );
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        // Return stock to source
+        await tx.branchStock.upsert({
+          where: { branchId_productId: { branchId: transfer.fromBranchId, productId: transfer.productId } },
+          create: {
+            branchId:  transfer.fromBranchId,
+            productId: transfer.productId,
+            quantity:  transfer.quantity,
+            minStock:  0,
+          },
+          update: { quantity: { increment: transfer.quantity } },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            type:          'TRANSFER_IN',
+            quantity:      transfer.quantity,
+            productId:     transfer.productId,
+            branchId:      transfer.fromBranchId,
+            referenceType: 'StockTransfer',
+            referenceId:   id,
+            note: `ยกเลิกระหว่างจัดส่ง — คืนสต็อกต้นทาง (${transfer.transferNumber})`,
+          },
+        });
+
+        await this.syncProductShadowStock(transfer.productId, tx);
+
+        await tx.stockTransfer.update({
+          where: { id },
+          data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason },
+        });
+      });
+
+      this.auditLog.log({
+        actorId, actorName, action: 'STOCK_TRANSFER_CANCELLED',
+        entityType: 'StockTransfer', entityId: id,
+        beforeData: { status: 'IN_TRANSIT' },
+        afterData: {
+          status: 'CANCELLED', cancelReason: reason,
+          stockRefunded: transfer.quantity,
+          refundedTo: transfer.fromBranch.name,
+        },
+      });
+
+      return this.prisma.stockTransfer.findUnique({
+        where: { id },
+        include: {
+          fromBranch: { select: { id: true, name: true } },
+          toBranch:   { select: { id: true, name: true } },
+          product:    { select: { id: true, name: true, sku: true } },
+        },
+      });
+    }
+
+    // PENDING or APPROVED — no stock to refund
     if (!isPrivileged && actorBranchId && actorBranchId !== transfer.toBranchId) {
       throw new ForbiddenException('เฉพาะสาขาที่ขอโอนเท่านั้นที่ยกเลิกได้');
     }
 
     const updated = await this.prisma.stockTransfer.update({
       where: { id },
-      data: {
-        status:       'CANCELLED',
-        cancelledAt:  new Date(),
-        cancelReason: reason,
+      data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason },
+      include: {
+        fromBranch: { select: { id: true, name: true } },
+        toBranch:   { select: { id: true, name: true } },
+        product:    { select: { id: true, name: true, sku: true } },
       },
     });
 

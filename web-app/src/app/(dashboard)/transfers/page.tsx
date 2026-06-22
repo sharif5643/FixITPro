@@ -18,12 +18,15 @@ import { EmptyState } from '@/components/ui/empty-state'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ActionKind = 'approve' | 'reject' | 'dispatch' | 'receive' | 'cancel'
+type ActionKind = 'approve' | 'reject' | 'dispatch' | 'receive' | 'cancel' | 'cancelInTransit'
 type PendingAction = { kind: ActionKind; transfer: StockTransfer } | null
 
 // ── Dialog config ─────────────────────────────────────────────────────────────
 
-function getDialogConfig(kind: ActionKind) {
+function getDialogConfig(kind: ActionKind): {
+  title: string; description: string; icon: React.ElementType; variant: 'info' | 'danger' | 'warning' | 'success'
+  confirmLabel: string; requireReason?: boolean; reasonLabel?: string; reasonPlaceholder?: string
+} {
   switch (kind) {
     case 'approve':  return {
       title:       'ยืนยันอนุมัติคำขอโอน',
@@ -65,6 +68,16 @@ function getDialogConfig(kind: ActionKind) {
       requireReason:  true,
       reasonLabel:    'เหตุผลที่ยกเลิก',
       reasonPlaceholder: 'ระบุเหตุผล...',
+    }
+    case 'cancelInTransit': return {
+      title:          'ยกเลิกระหว่างจัดส่ง',
+      description:    'สต็อกสาขาต้นทางจะถูกคืนกลับโดยอัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
+      icon:           XCircle,
+      variant:        'danger' as const,
+      confirmLabel:   'ยืนยันยกเลิกและคืนสต็อก',
+      requireReason:  true,
+      reasonLabel:    'เหตุผล (เช่น ของหาย, ส่งผิด)',
+      reasonPlaceholder: 'ระบุเหตุผลที่ยกเลิก...',
     }
   }
 }
@@ -246,7 +259,8 @@ function TransfersContent() {
       case 'reject':   rejectMut.mutate({ id, rejectReason: reason || undefined }); break
       case 'dispatch': dispatchMut.mutate(id); break
       case 'receive':  receiveMut.mutate(id); break
-      case 'cancel':   if (reason) cancelMut.mutate({ id, reason }); break
+      case 'cancel':          if (reason) cancelMut.mutate({ id, reason }); break
+      case 'cancelInTransit': if (reason) cancelMut.mutate({ id, reason }); break
     }
   }
 
@@ -439,6 +453,7 @@ function TransfersContent() {
 
                     {t.status === 'IN_TRANSIT' && (
                       <>
+                        {/* Destination branch: can receive */}
                         {dst && !src && (
                           <button
                             onClick={() => openAction('receive', t)}
@@ -448,17 +463,30 @@ function TransfersContent() {
                             รับสินค้าแล้ว
                           </button>
                         )}
-                        {src && !dst && (
-                          <span className="text-xs text-slate-400 dark:text-slate-500 italic">รอสาขาปลายทางรับ</span>
+
+                        {/* Source branch: waiting, cannot act */}
+                        {src && !dst && !isOwner && (
+                          <span className="text-xs text-slate-400 dark:text-slate-500 italic">รอสาขาปลายทางยืนยันรับ</span>
                         )}
+
+                        {/* Owner: can receive on behalf OR cancel (with stock refund) */}
                         {isOwner && (
-                          <button
-                            onClick={() => openAction('receive', t)}
-                            className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
-                          >
-                            <PackageCheck className="h-3.5 w-3.5" />
-                            รับสินค้า (override)
-                          </button>
+                          <>
+                            <button
+                              onClick={() => openAction('receive', t)}
+                              className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                            >
+                              <PackageCheck className="h-3.5 w-3.5" />
+                              รับสินค้า
+                            </button>
+                            <button
+                              onClick={() => openAction('cancelInTransit', t)}
+                              className="flex items-center gap-1 rounded-lg border border-red-300 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                              ยกเลิก (คืนสต็อก)
+                            </button>
+                          </>
                         )}
                       </>
                     )}
