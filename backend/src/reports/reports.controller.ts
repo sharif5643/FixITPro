@@ -1,6 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
@@ -8,7 +9,7 @@ import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @RequireModule('report')
-@UseGuards(JwtAuthGuard, PermissionGuard, ModuleGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard, ModuleGuard)
 @Controller('reports')
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}

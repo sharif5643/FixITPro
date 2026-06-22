@@ -2,10 +2,10 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
-  RefreshCw, Printer, Download,
+  RefreshCw, Printer, Download, ChevronLeft, ChevronRight as ChevronRightIcon,
   ShoppingCart, Wrench, Wifi, TrendingUp, TrendingDown,
   AlertTriangle, Clock, Package, Users, ChevronRight,
   Banknote, Smartphone, CreditCard,
@@ -438,13 +438,45 @@ export default function DailyClosingReportPage() {
           subtitle="สรุปรายได้ · การซ่อม · กะ · แจ้งเตือน"
           className="print:hidden"
           secondaryActions={
-            <input
-              type="date"
-              value={dateStr}
-              max={todayStr()}
-              onChange={(e) => setDateStr(e.target.value)}
-              className="h-9 px-3 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Quick date nav */}
+              <button
+                onClick={() => setDateStr(format(subDays(new Date(dateStr), 1), 'yyyy-MM-dd'))}
+                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
+                title="วันก่อน"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => setDateStr(todayStr())}
+                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === todayStr() ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+              >
+                วันนี้
+              </button>
+              <button
+                onClick={() => setDateStr(format(subDays(new Date(), 1), 'yyyy-MM-dd'))}
+                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+              >
+                เมื่อวาน
+              </button>
+              <button
+                onClick={() => {
+                  if (dateStr < todayStr()) setDateStr(format(new Date(new Date(dateStr).getTime() + 86400000), 'yyyy-MM-dd'))
+                }}
+                disabled={dateStr >= todayStr()}
+                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="วันถัดไป"
+              >
+                <ChevronRightIcon className="h-3.5 w-3.5" />
+              </button>
+              <input
+                type="date"
+                value={dateStr}
+                max={todayStr()}
+                onChange={(e) => setDateStr(e.target.value)}
+                className="h-7 px-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           }
           primaryAction={
             <div className="flex items-center gap-2">

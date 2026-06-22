@@ -9,7 +9,7 @@ import {
   Loader2, Wrench, User, Smartphone, ClipboardList, Printer,
   Plus, Trash2, Package, CheckCircle2, Clock, DollarSign, X,
   Banknote, CreditCard as CardIcon, Smartphone as TransferIcon, Lock,
-  Camera, ChevronLeft, ChevronRight, ArrowRightLeft,
+  Camera, ChevronLeft, ChevronRight, ArrowRightLeft, History, ChevronDown,
 } from 'lucide-react'
 import {
   Dialog,
@@ -128,6 +128,14 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [localStatus, setLocalStatus] = useState<RepairStatus>('RECEIVED')
   const [printOpen, setPrintOpen] = useState(false)
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
+  const [deviceHistoryOpen, setDeviceHistoryOpen] = useState(false)
+
+  const { data: deviceHistory = [] } = useQuery<any[]>({
+    queryKey: ['device-history', repair?.deviceImei],
+    queryFn: async () => (await api.get('/repairs/device-history', { params: { imei: repair!.deviceImei } })).data,
+    enabled: !!repair?.deviceImei && deviceHistoryOpen,
+    staleTime: 60_000,
+  })
 
   // Parts search
   const [partSearch, setPartSearch] = useState('')
@@ -432,12 +440,49 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
 
               {/* Device */}
               <div className="rounded-xl border bg-gray-50 p-4 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                  <Smartphone className="h-3.5 w-3.5" />
-                  ข้อมูลอุปกรณ์
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    <Smartphone className="h-3.5 w-3.5" />
+                    ข้อมูลอุปกรณ์
+                  </div>
+                  {repair.deviceImei && (
+                    <button
+                      onClick={() => setDeviceHistoryOpen(!deviceHistoryOpen)}
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                      ประวัติ
+                      <ChevronDown className={`h-3 w-3 transition-transform ${deviceHistoryOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
                 </div>
                 <InfoRow label="ยี่ห้อ / รุ่น" value={`${repair.deviceBrand} ${repair.deviceModel}`} />
                 <InfoRow label="IMEI / Serial" value={repair.deviceImei} />
+                {deviceHistoryOpen && repair.deviceImei && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground">ประวัติซ่อม IMEI นี้</p>
+                    {deviceHistory.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">ยังไม่มีประวัติการซ่อม</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {deviceHistory.filter((h) => h.id !== repair.id).map((h: any) => (
+                          <div key={h.id} className="flex items-start justify-between gap-2 text-xs bg-white rounded-lg border px-2.5 py-1.5">
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-800 truncate">{h.issue}</p>
+                              <p className="text-muted-foreground">{h.status} · {h.technician?.name ?? 'ไม่ระบุช่าง'}</p>
+                            </div>
+                            <span className="text-muted-foreground shrink-0 whitespace-nowrap">
+                              {h.receivedAt ? format(new Date(h.receivedAt), 'dd/MM/yy', { locale: th }) : ''}
+                            </span>
+                          </div>
+                        ))}
+                        {deviceHistory.filter((h) => h.id !== repair.id).length === 0 && (
+                          <p className="text-xs text-muted-foreground italic">ไม่มีประวัติก่อนหน้า</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Issue */}

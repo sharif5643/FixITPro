@@ -1,6 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
@@ -12,7 +13,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 const IS_ELEVATED = (role: string) => role === 'OWNER' || role === 'SUPER_ADMIN';
 
 @RequireModule('report')
-@UseGuards(JwtAuthGuard, PermissionGuard, ModuleGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard, ModuleGuard)
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}

@@ -1,10 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AlertsService } from './alerts.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Controller('alerts')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard)
 export class AlertsController {
   constructor(private readonly svc: AlertsService) {}
 

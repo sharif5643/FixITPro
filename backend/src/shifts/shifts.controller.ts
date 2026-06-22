@@ -12,9 +12,10 @@ import { ShiftsService } from './shifts.service';
 import { OpenShiftDto } from './dto/open-shift.dto';
 import { CloseShiftDto } from './dto/close-shift.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard)
 @Controller('shifts')
 export class ShiftsController {
   private readonly logger = new Logger(ShiftsController.name);

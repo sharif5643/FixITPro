@@ -2,11 +2,12 @@ import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
 import { DebtPaymentsService } from './debt-payments.service';
 import { CreateDebtPaymentDto } from './dto/create-debt-payment.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard)
 @Controller('debt-payments')
 export class DebtPaymentsController {
   constructor(private readonly service: DebtPaymentsService) {}

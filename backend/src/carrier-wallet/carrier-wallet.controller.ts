@@ -10,9 +10,10 @@ import { CarrierWalletService } from './carrier-wallet.service';
 import { PackageSaleDto } from './dto/package-sale.dto';
 import { TopupDto } from './dto/topup.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard)
 @Controller('carrier-wallet')
 export class CarrierWalletController {
   constructor(private readonly service: CarrierWalletService) {}

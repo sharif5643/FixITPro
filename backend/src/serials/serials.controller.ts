@@ -13,11 +13,12 @@ import { CreateSerialDto } from './dto/create-serial.dto';
 import { CreateBulkSerialDto } from './dto/create-bulk-serial.dto';
 import { UpdateSerialDto } from './dto/update-serial.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard)
 @Controller('serials')
 export class SerialsController {
   constructor(private service: SerialsService) {}

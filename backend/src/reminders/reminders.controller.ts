@@ -3,6 +3,7 @@ import {
   Body, Query, UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard }      from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard }   from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser }       from '../common/decorators/current-user.decorator';
@@ -11,7 +12,7 @@ import { SnoozeReminderDto }           from './dto/snooze-reminder.dto';
 import { UpdateReminderSettingsDto }   from './dto/update-reminder-settings.dto';
 
 @Controller('reminders')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard)
 export class RemindersController {
   constructor(private readonly svc: RemindersService) {}
 

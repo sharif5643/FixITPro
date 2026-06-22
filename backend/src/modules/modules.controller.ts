@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { ModulesService } from './modules.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -11,7 +12,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 // ── Authenticated user endpoint ───────────────────────────────────────────────
 
 @Controller('modules')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard)
 export class ModulesController {
   constructor(private modulesService: ModulesService) {}
 

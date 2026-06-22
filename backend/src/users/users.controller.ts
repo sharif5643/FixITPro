@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -40,7 +41,7 @@ class AssignBranchDto {
 
 
 @RequireModule('user_management')
-@UseGuards(JwtAuthGuard, RolesGuard, ModuleGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard, RolesGuard, ModuleGuard)
 @Roles('OWNER', 'MANAGER')
 @Controller('users')
 export class UsersController {

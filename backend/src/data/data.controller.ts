@@ -6,6 +6,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -13,7 +14,7 @@ import { DataService } from './data.service';
 
 const csvStorage = memoryStorage();
 
-@UseGuards(JwtAuthGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard)
 @Controller('data')
 export class DataController {
   constructor(private readonly svc: DataService) {}

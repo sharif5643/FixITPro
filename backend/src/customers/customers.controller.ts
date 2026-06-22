@@ -13,6 +13,7 @@ import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateTagsDto } from './dto/update-tags.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
@@ -27,7 +28,7 @@ class AddNoteDto {
 }
 
 @RequireModule('crm')
-@UseGuards(JwtAuthGuard, PermissionGuard, ModuleGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard, ModuleGuard)
 @Controller('customers')
 export class CustomersController {
   constructor(private customersService: CustomersService) {}

@@ -150,9 +150,9 @@ export class TechniciansService {
     };
   }
 
-  async findAll(query: { startDate?: string; endDate?: string }) {
+  async findAll(query: { startDate?: string; endDate?: string }, tenantId?: string) {
     const techs = await this.prisma.user.findMany({
-      where: { role: { in: ['TECHNICIAN', 'MANAGER'] as any[] }, isActive: true },
+      where: { role: { in: ['TECHNICIAN', 'MANAGER'] as any[] }, isActive: true, ...(tenantId ? { tenantId } : {}) },
       select: {
         id: true,
         name: true,
@@ -193,9 +193,9 @@ export class TechniciansService {
     return sorted;
   }
 
-  async findOne(id: string, query: { startDate?: string; endDate?: string }) {
+  async findOne(id: string, query: { startDate?: string; endDate?: string }, tenantId?: string) {
     const tech = await this.prisma.user.findUnique({
-      where: { id },
+      where: { id, ...(tenantId ? { tenantId } : {}) },
       select: { id: true, name: true, email: true, phone: true, isActive: true, createdAt: true },
     });
     if (!tech) return null;
@@ -248,8 +248,8 @@ export class TechniciansService {
     return Array.from(map.entries()).map(([date, v]) => ({ date, ...v }));
   }
 
-  async getLeaderboard(query: { startDate?: string; endDate?: string; limit?: string }) {
-    const all = await this.findAll(query);
+  async getLeaderboard(query: { startDate?: string; endDate?: string; limit?: string }, tenantId?: string) {
+    const all = await this.findAll(query, tenantId);
     const limit = Math.min(20, Math.max(1, parseInt(query.limit ?? '10')));
     return all.slice(0, limit);
   }

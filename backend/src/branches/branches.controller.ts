@@ -3,6 +3,7 @@ import {
   UseGuards, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
@@ -14,7 +15,7 @@ import { UpdateBranchDto } from './dto/update-branch.dto';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 import { SetBranchStockDto } from './dto/set-branch-stock.dto';
 
-@UseGuards(JwtAuthGuard, PermissionGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard, RolesGuard)
 @Controller('branches')
 export class BranchesController {
   constructor(private readonly svc: BranchesService) {}
