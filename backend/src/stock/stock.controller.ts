@@ -55,8 +55,13 @@ export class StockController {
   getMovements(
     @Param('productId')      productId: string,
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('branchId') userBranchId: string | null,
+    @CurrentUser('role')     role: string,
+    @Query('branchId')       queryBranchId?: string,
   ) {
-    return this.stockService.getMovements(productId, tenantId);
+    const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
+    const branchId = isElevated ? (queryBranchId ?? undefined) : (userBranchId ?? undefined);
+    return this.stockService.getMovements(productId, tenantId, branchId);
   }
 
   @Get('low-stock')

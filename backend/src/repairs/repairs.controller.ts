@@ -65,6 +65,8 @@ export class RepairsController {
   constructor(private repairsService: RepairsService) {}
 
   @Post()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.create')
   create(
     @Body() dto: CreateRepairDto,
     @CurrentUser('id') actorId: string,
@@ -133,6 +135,8 @@ export class RepairsController {
   }
 
   @Patch(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.edit')
   update(
     @Param('id') id: string,
     @Body() dto: UpdateRepairDto,
@@ -144,6 +148,8 @@ export class RepairsController {
   }
 
   @Post(':id/parts')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.edit')
   addPart(
     @Param('id') id: string,
     @Body() dto: AddRepairPartDto,
@@ -153,6 +159,8 @@ export class RepairsController {
   }
 
   @Delete(':id/parts/:partId')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.edit')
   removePart(
     @Param('id') id: string,
     @Param('partId') partId: string,
@@ -191,6 +199,8 @@ export class RepairsController {
   }
 
   @Post(':id/payment')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.close')
   processPayment(
     @Param('id') id: string,
     @Body() dto: RepairPaymentDto,
@@ -201,6 +211,8 @@ export class RepairsController {
   }
 
   @Post(':id/reverse-payment')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.close')
   reversePayment(
     @Param('id') id: string,
     @Body() dto: ReversePaymentDto,
@@ -211,6 +223,8 @@ export class RepairsController {
   }
 
   @Post(':id/additional-payment')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.close')
   addAdditionalPayment(
     @Param('id') id: string,
     @Body() dto: AdditionalPaymentDto,

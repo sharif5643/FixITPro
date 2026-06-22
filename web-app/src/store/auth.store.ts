@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import axios from 'axios'
 
 export interface AuthUser {
   id: string
@@ -25,6 +26,7 @@ interface AuthState {
   hasPermission: (permission: string) => boolean
   hasModule: (moduleKey: string) => boolean
   isSuperAdmin: () => boolean
+  refreshPermissions: () => Promise<void>
 }
 
 let _set: ((partial: Partial<AuthState>) => void) | null = null
@@ -55,6 +57,18 @@ export const useAuthStore = create<AuthState>()(
           return enabledModules.includes(moduleKey)
         },
         isSuperAdmin: () => get().user?.role === 'SUPER_ADMIN',
+        refreshPermissions: async () => {
+          const { user } = get()
+          if (!user) return
+          try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL
+            const res = await axios.get(`${apiUrl}/auth/me`, { withCredentials: true })
+            const { permissions = [], enabledModules = [] } = res.data
+            set({ permissions, enabledModules })
+          } catch {
+            // silent — don't logout on refresh failure
+          }
+        },
       }
     },
     {

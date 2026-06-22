@@ -13,9 +13,11 @@ import { SuppliersService } from './suppliers.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 function defaultMonthRange(): { startDate: string; endDate: string } {
@@ -54,6 +56,8 @@ export class SuppliersController {
   }
 
   @Post()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create')
   create(
     @Body() dto: CreateSupplierDto,
     @CurrentUser('tenantId') tenantId: string,
@@ -62,6 +66,8 @@ export class SuppliersController {
   }
 
   @Patch(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create')
   update(
     @Param('id') id: string,
     @Body() dto: UpdateSupplierDto,
@@ -71,6 +77,8 @@ export class SuppliersController {
   }
 
   @Delete(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create')
   remove(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string,

@@ -14,9 +14,11 @@ import { UpdatePurchaseOrderDto } from './dto/update-po.dto';
 import { ReceiveGoodsDto } from './dto/receive-goods.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @RequireModule('finance')
@@ -42,6 +44,8 @@ export class PurchaseOrdersController {
   }
 
   @Post()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create')
   create(
     @Body() dto: CreatePurchaseOrderDto,
     @CurrentUser('id') userId: string,
@@ -51,6 +55,8 @@ export class PurchaseOrdersController {
   }
 
   @Patch(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create')
   update(
     @Param('id') id: string,
     @Body() dto: UpdatePurchaseOrderDto,
@@ -61,6 +67,8 @@ export class PurchaseOrdersController {
   }
 
   @Post(':id/receive')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.receive')
   receiveGoods(
     @Param('id') id: string,
     @Body() dto: ReceiveGoodsDto,
@@ -79,6 +87,8 @@ export class PurchaseOrdersController {
   }
 
   @Post(':id/payments')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('supplier.pay')
   createPayment(
     @Param('id') id: string,
     @Body() dto: CreatePaymentDto,

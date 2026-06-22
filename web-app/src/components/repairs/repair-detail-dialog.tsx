@@ -191,11 +191,10 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   }, [])
 
   const { data: partProducts = [] } = useQuery<Product[]>({
-    queryKey: ['products', 'parts', debouncedSearch, repairBranchId],
+    queryKey: ['products', 'repair-stock', debouncedSearch, repairBranchId],
     queryFn: async () => {
       const products = (await api.get('/products', {
         params: {
-          type: 'PART',
           search: debouncedSearch || undefined,
           ...(repairBranchId ? { branchId: repairBranchId } : {}),
         },
@@ -600,7 +599,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                   ) : (
                     <div ref={searchRef} className="relative">
                       <Input
-                        placeholder="ค้นหาอะไหล่..."
+                        placeholder="ค้นหาสินค้า/อะไหล่..."
                         value={partSearch}
                         onChange={(e) => { setPartSearch(e.target.value); setSearchOpen(true) }}
                         onFocus={() => setSearchOpen(true)}
@@ -632,7 +631,17 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                                     setPartPrice('')
                                   }}
                                 >
-                                  <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                                  <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                                    {p.name}
+                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                      p.type === 'PHONE'     ? 'bg-blue-100 text-blue-700' :
+                                      p.type === 'SIM'       ? 'bg-green-100 text-green-700' :
+                                      p.type === 'ACCESSORY' ? 'bg-purple-100 text-purple-700' :
+                                      'bg-orange-100 text-orange-700'
+                                    }`}>
+                                      {p.type === 'PHONE' ? 'มือถือ' : p.type === 'SIM' ? 'ซิม' : p.type === 'ACCESSORY' ? 'อุปกรณ์เสริม' : 'อะไหล่'}
+                                    </span>
+                                  </p>
                                   <p className="text-xs text-muted-foreground">
                                     SKU: {p.sku} · สต็อก: {isOut ? <span className="text-red-500">หมด</span> : stockQty}{canViewCost && ` · ราคาทุน: ${formatThaiMoney(Number(p.costPrice))}`}
                                   </p>
@@ -657,7 +666,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                       )}
                       {searchOpen && debouncedSearch && partProducts.length === 0 && (
                         <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg p-3 text-sm text-muted-foreground text-center">
-                          ไม่พบอะไหล่
+                          ไม่พบสินค้า
                         </div>
                       )}
                     </div>

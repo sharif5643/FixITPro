@@ -14,9 +14,11 @@ import { UpdateExpenseCategoryDto } from './dto/update-expense-category.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { VoidExpenseDto } from './dto/void-expense.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @RequireModule('finance')
@@ -33,6 +35,8 @@ export class ExpensesController {
   }
 
   @Post('categories')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('expenses.manage')
   createCategory(
     @Body() dto: CreateExpenseCategoryDto,
     @CurrentUser('role')     role: string,
@@ -42,6 +46,8 @@ export class ExpensesController {
   }
 
   @Patch('categories/:id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('expenses.manage')
   updateCategory(
     @Param('id') id: string,
     @Body() dto: UpdateExpenseCategoryDto,
@@ -76,6 +82,8 @@ export class ExpensesController {
   // ── CRUD ─────────────────────────────────────────────────────────────────────
 
   @Post()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('expenses.manage')
   create(
     @Body() dto: CreateExpenseDto,
     @CurrentUser('id') userId: string,
@@ -118,6 +126,8 @@ export class ExpensesController {
   }
 
   @Post(':id/void')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('expenses.manage')
   voidExpense(
     @Param('id') id: string,
     @Body() dto: VoidExpenseDto,

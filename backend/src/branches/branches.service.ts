@@ -373,6 +373,9 @@ export class BranchesService implements OnModuleInit {
 
     const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
     if (!product) throw new NotFoundException('ไม่พบสินค้า');
+    if (tenantId && product.tenantId !== tenantId) {
+      throw new ForbiddenException('สินค้านี้ไม่ได้อยู่ใน tenant ของสาขา');
+    }
 
     // Check if record already exists (needed for stock-code generation)
     const existing = await this.prisma.branchStock.findUnique({

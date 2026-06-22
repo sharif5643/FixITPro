@@ -1,10 +1,27 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Toaster } from 'sonner'
 import { PlatformBody } from '@/components/apk/platform-body'
 import { ThemeProvider } from '@/components/providers/theme-provider'
+import { useAuthStore } from '@/store/auth.store'
+
+function PermissionRefresher() {
+  const refreshPermissions = useAuthStore((s) => s.refreshPermissions)
+  const user = useAuthStore((s) => s.user)
+
+  useEffect(() => {
+    if (!user) return
+    const onFocus = () => refreshPermissions()
+    window.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') onFocus()
+    })
+    return () => window.removeEventListener('visibilitychange', onFocus)
+  }, [user, refreshPermissions])
+
+  return null
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -32,6 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
+        <PermissionRefresher />
         <PlatformBody />
         {children}
         <Toaster position="top-right" richColors closeButton />

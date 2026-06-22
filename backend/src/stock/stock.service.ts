@@ -166,14 +166,17 @@ export class StockService {
     return { success: true, productId: dto.productId, branchId: dto.branchId ?? null };
   }
 
-  async getMovements(productId: string, tenantId?: string) {
+  async getMovements(productId: string, tenantId?: string, branchId?: string) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId, ...(tenantId ? { tenantId } : {}) },
     });
     if (!product) throw new NotFoundException('Product not found');
 
+    const where: any = { productId };
+    if (branchId) where.branchId = branchId;
+
     return this.prisma.stockMovement.findMany({
-      where: { productId },
+      where,
       orderBy: { createdAt: 'desc' },
       include: { product: { select: { name: true, sku: true } } },
     });

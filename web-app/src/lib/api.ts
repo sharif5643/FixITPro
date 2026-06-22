@@ -50,6 +50,15 @@ api.interceptors.response.use(
     const isLogout          = /\/auth\/logout/.test(config?.url ?? '')
     const isRefresh         = /\/auth\/refresh/.test(config?.url ?? '')
 
+    // On 403 (permission denied): refresh permissions silently so UI reflects reality
+    // without forcing a re-login. Don't retry the original request — it will still fail.
+    if (status === 403 && typeof window !== 'undefined' && !isLoginOrRegister) {
+      try {
+        await useAuthStore.getState().refreshPermissions()
+      } catch { /* silent */ }
+      return Promise.reject(error)
+    }
+
     if (status === 401 && typeof window !== 'undefined' && !isLoginOrRegister && !isLogout && !isRefresh) {
       // Try silent refresh once before giving up
       if (!config._retryCount) {

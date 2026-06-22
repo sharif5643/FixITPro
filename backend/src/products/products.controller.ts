@@ -14,8 +14,10 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { EnrollBranchDto } from './dto/enroll-branch.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @RequireModule('stock')
@@ -25,6 +27,8 @@ export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @Post()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('products.create')
   create(
     @Body() dto: CreateProductDto,
     @CurrentUser('id')       actorId: string,
@@ -105,6 +109,8 @@ export class ProductsController {
   }
 
   @Post(':id/enroll-branch')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('products.edit')
   enrollBranch(
     @Param('id')             id: string,
     @Body()                  dto: EnrollBranchDto,
@@ -118,6 +124,8 @@ export class ProductsController {
   }
 
   @Patch(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('products.edit')
   update(
     @Param('id') id: string,
     @Body() dto: UpdateProductDto,
@@ -129,6 +137,8 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('products.delete')
   remove(
     @Param('id') id: string,
     @CurrentUser('id')       actorId: string,
