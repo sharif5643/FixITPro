@@ -285,7 +285,7 @@ export class ReportsService {
         ? this.prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Product" WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock" AND "tenantId" = ${tenantId}`
         : this.prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Product" WHERE "isActive" = true AND "stock" > 0 AND "stock" <= "minStock"`,
       this.prisma.shift.findFirst({
-        where: { isActive: true },
+        where: { isActive: true, ...(tenantId ? { user: { tenantId } } : {}) },
         include: { user: { select: { name: true, role: true } } },
         orderBy: { openedAt: 'desc' },
       }),
@@ -615,6 +615,7 @@ export class ReportsService {
             { openedAt: { gte: start, lt: end } },
             { isActive: true, openedAt: { lt: end } },
           ],
+          ...(tenantId ? { user: { tenantId } } : {}),
         },
         include: { user: { select: { id: true, name: true } } },
         orderBy: { openedAt: 'asc' },
