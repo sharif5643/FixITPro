@@ -513,7 +513,7 @@ export default function DailyClosingReportPage() {
           <>
             {/* ── 1. Revenue Summary ── */}
             <section>
-              <SectionHeader icon={TrendingUp} title="สรุปรายได้วันนี้" />
+              <SectionHeader icon={TrendingUp} title={dateStr === todayStr() ? 'สรุปรายได้วันนี้' : `สรุปรายได้ — ${format(new Date(dateStr + 'T12:00:00'), 'd MMM yyyy', { locale: th })}`} />
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <MetricCard
                   label="ขายสินค้า (POS)"
