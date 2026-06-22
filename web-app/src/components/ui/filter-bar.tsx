@@ -1,7 +1,6 @@
 import { cn } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 
 interface FilterBarProps {
   searchValue?: string
@@ -34,17 +33,17 @@ export function FilterBar({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center flex-1 min-w-0">
         {hasSearch && (
           <div className="relative flex-1 sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
             <Input
               value={searchValue}
               onChange={e => onSearchChange!(e.target.value)}
               placeholder={searchPlaceholder}
-              className="pl-9 pr-8 h-9 text-sm bg-white border-slate-200 focus:border-blue-400"
+              className="pl-9 pr-8 h-9 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-blue-400 dark:focus:border-blue-500"
             />
             {searchValue && (
               <button
                 onClick={() => onSearchChange!('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

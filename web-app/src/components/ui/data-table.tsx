@@ -23,7 +23,7 @@ export function DataTable({
 export function DataTableHead({ children }: { children: React.ReactNode }) {
   return (
     <thead>
-      <tr className="border-b border-slate-100">
+      <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
         {children}
       </tr>
     </thead>
@@ -43,7 +43,7 @@ export function DataTableHeadCell({
 }) {
   return (
     <th className={cn(
-      'py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap',
+      'py-2.5 px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap',
       right ? 'text-right' : 'text-left',
       hidden && 'hidden sm:table-cell',
       className,
@@ -57,7 +57,7 @@ export function DataTableHeadCell({
 
 export function DataTableBody({ children }: { children: React.ReactNode }) {
   return (
-    <tbody className="divide-y divide-slate-50">
+    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
       {children}
     </tbody>
   )
@@ -76,7 +76,7 @@ export function DataTableRow({
     <tr
       onClick={onClick}
       className={cn(
-        'hover:bg-slate-50 transition-colors',
+        'hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors',
         onClick && 'cursor-pointer',
         className,
       )}
@@ -104,7 +104,7 @@ export function DataTableCell({
       'py-3 px-3',
       right ? 'text-right' : 'text-left',
       hidden && 'hidden sm:table-cell',
-      muted ? 'text-slate-400' : 'text-slate-700',
+      muted ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200',
       className,
     )}>
       {children}
@@ -124,7 +124,7 @@ export function DataTableEmptyRow({
   return (
     <tr>
       <td colSpan={colSpan} className="py-16 text-center">
-        <p className="text-sm text-slate-400">{message}</p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">{message}</p>
       </td>
     </tr>
   )
@@ -142,10 +142,13 @@ export function DataTableLoadingRows({
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
-        <tr key={i} className="border-b border-slate-50">
+        <tr key={i} className="border-b border-slate-50 dark:border-slate-800">
           {Array.from({ length: cols }).map((_, j) => (
             <td key={j} className="py-3 px-3">
-              <div className="h-4 bg-slate-100 rounded animate-pulse" style={{ width: `${60 + (j * 10) % 40}%` }} />
+              <div
+                className="h-4 bg-slate-100 dark:bg-slate-800 rounded animate-pulse"
+                style={{ width: `${60 + (j * 10) % 40}%` }}
+              />
             </td>
           ))}
         </tr>

@@ -6,7 +6,7 @@ import { X,
   LayoutDashboard, Package, ShoppingCart, Wrench, Users,
   Clock, Smartphone, Tag, Barcode, Settings, CreditCard, Building2,
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
-  BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database, BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft,
+  BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database, BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
@@ -39,7 +39,8 @@ const navSections: NavSection[] = [
     label: 'การขาย',
     items: [
       { href: '/sales',    icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create',    module: 'pos'     },
-      { href: '/repairs',  icon: Wrench,       label: 'งานซ่อม',          permission: 'repair.create',   module: 'repair'  },
+      { href: '/repairs',   icon: Wrench,       label: 'งานซ่อม',          permission: 'repair.create',   module: 'repair'  },
+      { href: '/reminders', icon: CalendarDays, label: 'นัดหมาย',           permission: 'repair.create',   module: 'repair'  },
       { href: '/shifts',   icon: Clock,        label: 'เปิด/ปิดกะ',       permission: null },
       { href: '/expenses', icon: Receipt,      label: 'ค่าใช้จ่าย',        permission: 'expenses.manage', module: 'finance' },
     ],
