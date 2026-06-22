@@ -15,6 +15,9 @@ export default function RepairPrintPage() {
   const searchParams = useSearchParams()
   const paperWidth = (searchParams.get('paper') as PW) || '80mm'
   const [printed, setPrinted] = useState(false)
+  const [origin, setOrigin]   = useState('')
+
+  useEffect(() => { setOrigin(window.location.origin) }, [])
 
   const { data, isLoading, isError } = useQuery<Repair>({
     queryKey: ['repairs', id],
@@ -85,7 +88,7 @@ export default function RepairPrintPage() {
           <p className="text-red-600 py-20">ไม่สามารถโหลดข้อมูลได้</p>
         ) : data ? (
           <div className="bg-white shadow-md p-4">
-            <RepairReceipt repair={data} paperWidth={paperWidth} settings={settings} />
+            <RepairReceipt repair={data} paperWidth={paperWidth} settings={settings} trackingBaseUrl={origin} />
           </div>
         ) : null}
       </div>

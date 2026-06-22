@@ -1,5 +1,8 @@
+'use client'
+
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
+import { QRCodeSVG } from 'qrcode.react'
 import { formatThaiMoney } from '@/lib/utils'
 import type { Repair, ShopSettings } from '@/types'
 
@@ -7,6 +10,7 @@ interface RepairReceiptProps {
   repair: Repair
   paperWidth?: '58mm' | '80mm' | 'A4'
   settings?: ShopSettings | null
+  trackingBaseUrl?: string
 }
 
 function fmtDate(iso: string) {
@@ -14,13 +18,24 @@ function fmtDate(iso: string) {
   catch { return iso }
 }
 
+function buildTrackingUrl(baseUrl: string | undefined, ticketNumber: string, phone: string | undefined) {
+  if (!baseUrl) return null
+  const url = `${baseUrl}/track/${encodeURIComponent(ticketNumber)}`
+  return phone ? `${url}?phone=${encodeURIComponent(phone)}` : url
+}
+
 // ── 58mm / 80mm thermal layout ───────────────────────────────────────────────
-function ThermalReceipt({ repair, paperWidth, settings }: { repair: Repair; paperWidth: '58mm' | '80mm'; settings?: ShopSettings | null }) {
+function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
+  repair: Repair; paperWidth: '58mm' | '80mm'; settings?: ShopSettings | null; trackingBaseUrl?: string
+}) {
   const widthClass    = paperWidth === '58mm' ? 'w-[200px]' : 'w-[280px]'
+  const qrSize        = paperWidth === '58mm' ? 90 : 110
   const shopName      = settings?.shopName  || 'FixITPro'
   const shopPhone     = settings?.shopPhone || ''
   const receiptFooter = settings?.receiptFooter || ''
   const logoUrl       = settings?.logoUrl   || ''
+
+  const trackingUrl = buildTrackingUrl(trackingBaseUrl, repair.ticketNumber, repair.customer?.phone)
 
   const Divider = () => <div className="border-b border-dashed border-gray-400 my-2" />
   const Row = ({ label, value, bold }: { label: string; value: string; bold?: boolean }) => (
@@ -106,6 +121,21 @@ function ThermalReceipt({ repair, paperWidth, settings }: { repair: Repair; pape
       </div>
       <Divider />
 
+      {/* QR Code — tracking */}
+      {trackingUrl && (
+        <>
+          <div className="text-center space-y-1.5 py-2">
+            <p className="font-bold text-[10px] tracking-wide">ติดตามสถานะซ่อมออนไลน์</p>
+            <p className="text-[9px] text-gray-500">สแกน QR Code เพื่อดูสถานะ</p>
+            <div className="flex justify-center py-1">
+              <QRCodeSVG value={trackingUrl} size={qrSize} level="M" />
+            </div>
+            <p className="text-[8px] text-gray-400 break-all leading-tight px-1">{trackingUrl}</p>
+          </div>
+          <Divider />
+        </>
+      )}
+
       {/* Footer */}
       <div className="text-center space-y-0.5 pt-1 pb-2">
         {receiptFooter ? (
@@ -122,7 +152,9 @@ function ThermalReceipt({ repair, paperWidth, settings }: { repair: Repair; pape
 }
 
 // ── A4 layout ────────────────────────────────────────────────────────────────
-function RepairReceiptA4({ repair, settings }: { repair: Repair; settings?: ShopSettings | null }) {
+function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
+  repair: Repair; settings?: ShopSettings | null; trackingBaseUrl?: string
+}) {
   const shopName      = settings?.shopName      || 'FixITPro'
   const shopPhone     = settings?.shopPhone     || ''
   const logoUrl       = settings?.logoUrl       || ''
@@ -130,6 +162,8 @@ function RepairReceiptA4({ repair, settings }: { repair: Repair; settings?: Shop
 
   const estimateCost = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
   const deposit      = Number(repair.deposit ?? 0)
+
+  const trackingUrl = buildTrackingUrl(trackingBaseUrl, repair.ticketNumber, repair.customer?.phone)
 
   const Field = ({ label, value, placeholder }: { label: string; value?: string | null; placeholder?: string }) => (
     <div className="mb-3">
@@ -238,9 +272,25 @@ function RepairReceiptA4({ repair, settings }: { repair: Repair; settings?: Shop
         </div>
       </div>
 
+      {/* QR Code + tracking link */}
+      {trackingUrl && (
+        <div className="mt-6 pt-5 border-t border-gray-200 flex items-start gap-5">
+          <div className="shrink-0 p-2 border border-gray-200 rounded-lg">
+            <QRCodeSVG value={trackingUrl} size={110} level="M" />
+          </div>
+          <div className="flex-1 min-w-0 pt-1">
+            <p className="text-sm font-bold text-gray-800">ติดตามสถานะซ่อมออนไลน์</p>
+            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+              สแกน QR Code หรือเปิดลิงก์ด้านล่างเพื่อตรวจสอบสถานะงานซ่อมของคุณแบบ real-time
+            </p>
+            <p className="text-xs font-mono text-blue-600 mt-2 break-all leading-relaxed">{trackingUrl}</p>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       {receiptFooter && (
-        <div className="text-center mt-6 pt-4 border-t border-gray-100 text-xs text-gray-500">
+        <div className="text-center mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
           <p className="whitespace-pre-wrap">{receiptFooter}</p>
         </div>
       )}
@@ -249,9 +299,9 @@ function RepairReceiptA4({ repair, settings }: { repair: Repair; settings?: Shop
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
-export function RepairReceipt({ repair, paperWidth = '80mm', settings }: RepairReceiptProps) {
+export function RepairReceipt({ repair, paperWidth = '80mm', settings, trackingBaseUrl }: RepairReceiptProps) {
   if (paperWidth === 'A4') {
-    return <RepairReceiptA4 repair={repair} settings={settings} />
+    return <RepairReceiptA4 repair={repair} settings={settings} trackingBaseUrl={trackingBaseUrl} />
   }
-  return <ThermalReceipt repair={repair} paperWidth={paperWidth} settings={settings} />
+  return <ThermalReceipt repair={repair} paperWidth={paperWidth} settings={settings} trackingBaseUrl={trackingBaseUrl} />
 }
