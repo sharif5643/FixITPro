@@ -88,6 +88,7 @@ export class ShiftsService {
   async closeShift(shiftId: string, dto: CloseShiftDto, userId: string) {
     const shift = await this.prisma.shift.findFirst({
       where: { id: shiftId, userId, isActive: true },
+      include: { user: { select: { tenantId: true } } },
     });
 
     if (!shift) throw new NotFoundException('Active shift not found');
@@ -102,7 +103,10 @@ export class ShiftsService {
         select: { paidAmount: true, paymentMethod: true },
       }),
       this.prisma.supplierPayment.findMany({
-        where: { paidAt: { gte: shift.openedAt, lt: shift.closedAt ?? new Date() } },
+        where: {
+          paidAt: { gte: shift.openedAt, lt: shift.closedAt ?? new Date() },
+          ...(shift.user?.tenantId ? { purchaseOrder: { supplier: { tenantId: shift.user.tenantId } } } : {}),
+        },
         select: { amount: true, paymentMethod: true },
       }),
       this.prisma.packageSale.findMany({
@@ -234,7 +238,7 @@ export class ShiftsService {
     const shift = await this.prisma.shift.findFirst({
       where: { userId, isActive: true },
       include: {
-        user: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, tenantId: true } },
       },
     });
 
@@ -250,7 +254,10 @@ export class ShiftsService {
         select: { paidAmount: true, paymentMethod: true },
       }),
       this.prisma.supplierPayment.findMany({
-        where: { paidAt: { gte: shift.openedAt, lt: shift.closedAt ?? new Date() } },
+        where: {
+          paidAt: { gte: shift.openedAt, lt: shift.closedAt ?? new Date() },
+          ...(shift.user?.tenantId ? { purchaseOrder: { supplier: { tenantId: shift.user.tenantId } } } : {}),
+        },
         select: { amount: true, paymentMethod: true },
       }),
       this.prisma.packageSale.findMany({
@@ -304,9 +311,8 @@ export class ShiftsService {
     }
 
     if (query.date) {
-      const start = new Date(query.date);
-      const end = new Date(query.date);
-      end.setDate(end.getDate() + 1);
+      const start = new Date(`${query.date}T00:00:00+07:00`);
+      const end   = new Date(start.getTime() + 24 * 60 * 60 * 1000);
       where.openedAt = { gte: start, lt: end };
     }
 

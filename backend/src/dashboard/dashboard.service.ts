@@ -47,6 +47,11 @@ export class DashboardService {
       ? { OR: [{ branchId: params.branchId }, { branchId: null as string | null }] }
       : tenantId ? { branch: { tenantId } } : {};
 
+    // Pre-fetch tenant user IDs for scoping AuditLog (no direct tenantId field)
+    const tenantUserIds = tenantId
+      ? (await this.prisma.user.findMany({ where: { tenantId }, select: { id: true } })).map((u) => u.id)
+      : null;
+
     const [
       salesAgg,
       salesByMethod,
@@ -176,16 +181,17 @@ export class DashboardService {
         select: { paidAmount: true, paidAt: true },
       }),
       this.prisma.packageSale.findMany({
-        where: { createdAt: { gte: weekAgoStart, lt: todayEnd } },
+        where: { createdAt: { gte: weekAgoStart, lt: todayEnd }, ...(tenantId ? { createdBy: { tenantId } } : {}) },
         select: { profit: true, createdAt: true },
       }),
       this.prisma.auditLog.findMany({
+        where: tenantUserIds ? { actorId: { in: tenantUserIds } } : {},
         orderBy: { createdAt: 'desc' },
         take: 8,
         select: { id: true, action: true, entityType: true, actorName: true, createdAt: true },
       }),
       this.prisma.shift.findFirst({
-        where: { isActive: true },
+        where: { isActive: true, ...(tenantId ? { user: { tenantId } } : {}) },
         include: { user: { select: { name: true, role: true } } },
         orderBy: { openedAt: 'desc' },
       }),
