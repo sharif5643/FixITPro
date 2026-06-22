@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Body, UseGuards, Res, Req, UnauthorizedException } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthThrottlerGuard } from '../common/guards/auth-throttler.guard';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -45,6 +45,7 @@ export class AuthController {
 
   @UseGuards(AuthThrottlerGuard)
   @Throttle({ auth_login: { limit: 20, ttl: 60 * 1000 } })
+  @SkipThrottle({ auth_register: true, auth_change_pwd: true })
   @Post('login')
   async login(
     @Body() dto: LoginDto,
@@ -60,6 +61,7 @@ export class AuthController {
 
   @UseGuards(ThrottlerGuard)
   @Throttle({ auth_register: { limit: 3, ttl: 60 * 60 * 1000 } })
+  @SkipThrottle({ auth_login: true, auth_change_pwd: true })
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
@@ -105,6 +107,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard, ThrottlerGuard)
   @Throttle({ auth_change_pwd: { limit: 5, ttl: 15 * 60 * 1000 } })
+  @SkipThrottle({ auth_login: true, auth_register: true })
   @Post('change-password')
   changePassword(@CurrentUser('id') userId: string, @Body() dto: ChangePasswordDto) {
     return this.authService.changePassword(userId, dto.currentPassword, dto.newPassword);
