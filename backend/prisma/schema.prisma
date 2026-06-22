@@ -673,6 +673,10 @@ model Repair {
   deposit      Decimal      @default(0) @db.Decimal(10, 2)
   note                String?
   accessories         String?
+  deviceType          String?
+  deviceConditions    Json?
+  issueTags           Json?
+  discount            Decimal?     @db.Decimal(10, 2)
   dueDate             DateTime?
   estimatedLaborCost  Decimal?     @db.Decimal(10, 2)
   estimatedPartsCost  Decimal?     @db.Decimal(10, 2)
@@ -826,6 +830,7 @@ model RepairImage {
   repairId  String
   repair    Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
   url       String
+  category  String?
   createdAt DateTime @default(now())
 
   @@index([repairId])

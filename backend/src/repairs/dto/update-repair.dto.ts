@@ -6,6 +6,7 @@ import {
   MaxLength,
   Min,
   IsIn,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -106,6 +107,26 @@ export class UpdateRepairDto {
   @IsString()
   @MaxLength(50)
   deviceColor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  deviceType?: string;
+
+  @IsOptional()
+  @IsArray()
+  deviceConditions?: string[];
+
+  @IsOptional()
+  @IsArray()
+  issueTags?: string[];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000_000)
+  discount?: number;
 
   @IsOptional()
   @IsString()

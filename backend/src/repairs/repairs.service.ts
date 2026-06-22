@@ -154,6 +154,10 @@ export class RepairsService {
           deviceImei:         dto.deviceImei,
           issue:              dto.issue,
           accessories:        dto.accessories,
+          deviceType:         dto.deviceType,
+          deviceConditions:   dto.deviceConditions ?? [],
+          issueTags:          dto.issueTags ?? [],
+          discount:           dto.discount ?? 0,
           dueDate:            dto.dueDate ? new Date(dto.dueDate) : undefined,
           estimateCost:       total ?? dto.estimateCost,
           estimatedLaborCost: laborCost,
@@ -343,6 +347,10 @@ export class RepairsService {
     if (dto.deviceBrand !== undefined) updateData.deviceBrand = dto.deviceBrand.trim();
     if (dto.deviceModel !== undefined) updateData.deviceModel = dto.deviceModel.trim();
     if (dto.deviceColor !== undefined) updateData.deviceColor = dto.deviceColor.trim() || null;
+    if (dto.deviceType !== undefined) updateData.deviceType = dto.deviceType.trim() || null;
+    if (dto.deviceConditions !== undefined) updateData.deviceConditions = dto.deviceConditions;
+    if (dto.issueTags !== undefined) updateData.issueTags = dto.issueTags;
+    if (dto.discount !== undefined) updateData.discount = dto.discount;
     if (dto.issue !== undefined) updateData.issue = dto.issue.trim();
     if (dto.accessories !== undefined) updateData.accessories = dto.accessories.trim() || null;
     if (dto.dueDate !== undefined) updateData.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;

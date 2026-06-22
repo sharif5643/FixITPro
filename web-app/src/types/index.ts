@@ -581,6 +581,10 @@ export interface Repair {
   technicianId?: string
   technician?: { id: string; name: string }
   parts: RepairPart[]
+  deviceType?: string
+  deviceConditions?: string[]
+  issueTags?: string[]
+  discount?: number
   images?: { id: string; url: string; createdAt: string }[]
   _count?: { images: number }
   additionalPayments?: RepairAdditionalPayment[]
