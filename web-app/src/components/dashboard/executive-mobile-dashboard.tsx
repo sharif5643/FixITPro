@@ -134,8 +134,11 @@ export function ExecutiveMobileDashboard() {
       {/* ── Sticky header ── */}
       <div className="bg-white px-4 pt-3 pb-3 flex items-center justify-between sticky top-0 z-40 border-b border-slate-100">
         <div className="flex items-center gap-3">
-          {/* Hamburger */}
-          <button className="p-1.5 -ml-1 rounded-lg hover:bg-slate-100 flex flex-col gap-1">
+          {/* Hamburger — dispatches event caught by layout */}
+          <button
+            className="p-1.5 -ml-1 rounded-lg hover:bg-slate-100 flex flex-col gap-1"
+            onClick={() => window.dispatchEvent(new CustomEvent('toggle-sidebar'))}
+          >
             <span className="block w-5 h-0.5 bg-slate-600 rounded" />
             <span className="block w-3.5 h-0.5 bg-slate-600 rounded" />
             <span className="block w-5 h-0.5 bg-slate-600 rounded" />

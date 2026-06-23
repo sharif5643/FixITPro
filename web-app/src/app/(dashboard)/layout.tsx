@@ -59,6 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const user = useAuthStore((state) => state.user)
   const setAuth = useAuthStore((state) => state.setAuth)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const isOwnerOrManager = user?.role === 'OWNER' || user?.role === 'MANAGER'
   // 'pending' while /auth/me is in-flight; 'done' when resolved; 'error' on timeout/failure
   const [meStatus, setMeStatus] = useState<'pending' | 'done' | 'error'>('pending')
   // Incrementing this triggers a fresh auth check (used by the retry button)
@@ -145,6 +146,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Close mobile drawer whenever route changes
   useEffect(() => { setSidebarOpen(false) }, [pathname])
 
+  // Custom event from executive mobile dashboard hamburger button
+  useEffect(() => {
+    const handler = () => setSidebarOpen((o) => !o)
+    window.addEventListener('toggle-sidebar', handler)
+    return () => window.removeEventListener('toggle-sidebar', handler)
+  }, [])
+
   // Waiting for zustand to read localStorage
   if (!hasHydrated) {
     return <LoadingScreen />
@@ -192,7 +200,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <SubscriptionBanner />
-        <Header onMenuToggle={() => setSidebarOpen((o) => !o)} />
+        {/* Hide standard header on mobile when executive dashboard is active */}
+        <div className={isOwnerOrManager && pathname === '/dashboard' ? 'hidden md:block' : undefined}>
+          <Header onMenuToggle={() => setSidebarOpen((o) => !o)} />
+        </div>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
       <OperationalAlertCenter variant="desktop" />
