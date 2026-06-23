@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  useState, useMemo, useCallback, useEffect, useRef,
+  useState, useMemo, useEffect, useRef,
 } from 'react'
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor,
@@ -9,11 +9,11 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
-  Banknote, Printer, Image, Package, ExternalLink, Wrench,
-  ChevronDown, ChevronUp, User, AlertTriangle, Clock,
+  Banknote, Printer, Package, ExternalLink, Wrench,
+  ChevronDown, ChevronUp, User, AlertTriangle, UserCog, X, CalendarClock,
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -67,6 +67,10 @@ export function canMoveStatus(
   }
   return { ok: true }
 }
+
+// ── Shared type ──────────────────────────────────────────────────────────────
+
+interface TechUser { id: string; name: string }
 
 // ── Technician queue bar ──────────────────────────────────────────────────────
 
@@ -156,21 +160,42 @@ interface RepairCardProps {
   repair: Repair
   now: number
   isDragOverlay?: boolean
+  techUsers: TechUser[]
   onOpenDetail: (id: string) => void
   onPayment: (id: string) => void
   onPrint: (id: string) => void
   onQc: (id: string) => void
+  onAssignTech: (repairId: string, technicianId: string | null) => void
 }
 
 function RepairCard({
   repair,
   now,
   isDragOverlay = false,
+  techUsers,
   onOpenDetail,
   onPayment,
   onPrint,
   onQc,
+  onAssignTech,
 }: RepairCardProps) {
+  const [showTechPicker, setShowTechPicker] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showTechPicker) return
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowTechPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showTechPicker])
+
+  const currentUser = useAuthStore((s) => s.user)
+  const isTechSelfAssign = currentUser?.role === 'TECHNICIAN' && !repair.technician
+
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: repair.id,
     data: { repair },
@@ -185,6 +210,19 @@ function RepairCard({
   const hasBalance  = repair.paymentStatus !== 'PAID'
   const hasParts    = (repair.parts?.length ?? 0) > 0
   const partsWaiting = repair.status === 'WAITING_PARTS'
+
+  // Due date badge
+  const dueBadge = useMemo(() => {
+    if (!repair.dueDate) return null
+    const due = new Date(repair.dueDate)
+    const todayMs = new Date().setHours(0, 0, 0, 0)
+    const dueMs   = new Date(due).setHours(0, 0, 0, 0)
+    const diffDays = Math.round((dueMs - todayMs) / 86_400_000)
+    if (diffDays < 0)    return { label: `เกิน ${Math.abs(diffDays)} วัน`, cls: 'text-red-600 dark:text-red-400' }
+    if (diffDays === 0)  return { label: 'นัดรับวันนี้', cls: 'text-amber-600 dark:text-amber-400' }
+    if (diffDays === 1)  return { label: 'นัดรับพรุ่งนี้', cls: 'text-amber-500 dark:text-amber-400' }
+    return { label: `นัดรับ ${format(due, 'd MMM', { locale: th })}`, cls: 'text-slate-500 dark:text-slate-400' }
+  }, [repair.dueDate])
 
   const balance = useMemo(() => {
     if (!hasBalance) return 0
@@ -243,6 +281,14 @@ function RepairCard({
           {repair.issue}
         </p>
 
+        {/* Due date row */}
+        {dueBadge && (
+          <div className={cn('flex items-center gap-1 text-[10px] font-medium', dueBadge.cls)}>
+            <CalendarClock className="h-3 w-3 shrink-0" />
+            {dueBadge.label}
+          </div>
+        )}
+
         {/* Row 5: badges */}
         <div className="flex flex-wrap gap-1">
           {partsWaiting && (
@@ -257,12 +303,52 @@ function RepairCard({
               {repair.parts.length} ชิ้น
             </span>
           )}
-          {repair.technician && (
-            <span className="flex items-center gap-0.5 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 px-2 py-0.5 text-[10px]">
-              <TechnicianAvatar name={repair.technician.name} size="xs" />
-              {repair.technician.name}
-            </span>
-          )}
+          {/* Assign technician badge/button */}
+          <div className="relative" ref={pickerRef} onPointerDown={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowTechPicker((v) => !v)}
+              className={cn(
+                'flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors',
+                repair.technician
+                  ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40'
+                  : 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40',
+              )}
+            >
+              {repair.technician ? (
+                <><TechnicianAvatar name={repair.technician.name} size="xs" />{repair.technician.name}</>
+              ) : (
+                <><UserCog className="h-2.5 w-2.5" />เลือกช่าง</>
+              )}
+            </button>
+            {showTechPicker && (
+              <div className="absolute bottom-full left-0 mb-1 z-50 w-44 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg py-1 text-xs">
+                {repair.technician && (
+                  <button
+                    onClick={() => { onAssignTech(repair.id, null); setShowTechPicker(false) }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    <X className="h-3 w-3" /> ยกเลิกช่าง
+                  </button>
+                )}
+                {techUsers.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { onAssignTech(repair.id, t.id); setShowTechPicker(false) }}
+                    className={cn(
+                      'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200',
+                      repair.technician?.id === t.id && 'font-semibold text-purple-700 dark:text-purple-400',
+                    )}
+                  >
+                    <TechnicianAvatar name={t.name} size="xs" />
+                    {t.name}
+                  </button>
+                ))}
+                {techUsers.length === 0 && (
+                  <p className="px-3 py-2 text-slate-400 dark:text-slate-500">ไม่มีช่างในระบบ</p>
+                )}
+              </div>
+            )}
+          </div>
           {hasBalance && balance > 0 && (
             <span className="flex items-center gap-0.5 rounded-full bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-2 py-0.5 text-[10px] font-semibold">
               <Banknote className="h-2.5 w-2.5" />
@@ -300,6 +386,15 @@ function RepairCard({
           >
             <Printer className="h-3 w-3" />
           </button>
+          {isTechSelfAssign && (
+            <button
+              onClick={() => onAssignTech(repair.id, currentUser!.id)}
+              className="flex items-center gap-1 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 px-2 py-1 text-[10px] font-semibold hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+            >
+              <UserCog className="h-3 w-3" />
+              รับงานนี้
+            </button>
+          )}
           <button
             onClick={() => onOpenDetail(repair.id)}
             className="ml-auto flex items-center gap-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 px-2 py-1 text-[10px] hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
@@ -321,15 +416,17 @@ interface KanbanColumnProps {
   accent: string
   repairs: Repair[]
   now: number
+  techUsers: TechUser[]
   onOpenDetail: (id: string) => void
   onPayment: (id: string) => void
   onPrint: (id: string) => void
   onQc: (id: string) => void
+  onAssignTech: (repairId: string, technicianId: string | null) => void
 }
 
 function KanbanColumn({
-  status, label, accent, repairs, now,
-  onOpenDetail, onPayment, onPrint, onQc,
+  status, label, accent, repairs, now, techUsers,
+  onOpenDetail, onPayment, onPrint, onQc, onAssignTech,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
 
@@ -369,10 +466,12 @@ function KanbanColumn({
               key={repair.id}
               repair={repair}
               now={now}
+              techUsers={techUsers}
               onOpenDetail={onOpenDetail}
               onPayment={onPayment}
               onPrint={onPrint}
               onQc={onQc}
+              onAssignTech={onAssignTech}
             />
           ))
         )}
@@ -386,17 +485,21 @@ function KanbanColumn({
 function CancelledSection({
   repairs,
   now,
+  techUsers,
   onOpenDetail,
   onPayment,
   onPrint,
   onQc,
+  onAssignTech,
 }: {
   repairs: Repair[]
   now: number
+  techUsers: TechUser[]
   onOpenDetail: (id: string) => void
   onPayment: (id: string) => void
   onPrint: (id: string) => void
   onQc: (id: string) => void
+  onAssignTech: (repairId: string, technicianId: string | null) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -421,10 +524,12 @@ function CancelledSection({
               <RepairCard
                 repair={r}
                 now={now}
+                techUsers={techUsers}
                 onOpenDetail={onOpenDetail}
                 onPayment={onPayment}
                 onPrint={onPrint}
                 onQc={onQc}
+                onAssignTech={onAssignTech}
               />
             </div>
           ))}
@@ -462,17 +567,54 @@ export function RepairKanbanBoard({
   const [activeRepair, setActiveRepair] = useState<Repair | null>(null)
   const [filterTechId, setFilterTechId] = useState<string | null>(null)
 
+  const { data: techUsers = [] } = useQuery<TechUser[]>({
+    queryKey: ['technicians-simple'],
+    queryFn: () => api.get('/technicians').then((r) => r.data?.data ?? r.data ?? []),
+    staleTime: 5 * 60_000,
+  })
+
+  const assignMutation = useMutation({
+    mutationFn: ({ repairId, technicianId }: { repairId: string; technicianId: string | null }) =>
+      api.patch(`/repairs/${repairId}`, { technicianId }),
+    onSuccess: (_, vars) => {
+      haptic(30)
+      const patchCache = (key: unknown[]) => {
+        qc.setQueryData<Repair[]>(key, (old) =>
+          old?.map((r) => {
+            if (r.id !== vars.repairId) return r
+            const tech = vars.technicianId
+              ? techUsers.find((t) => t.id === vars.technicianId)
+              : undefined
+            return { ...r, technician: tech ? { id: tech.id, name: tech.name } : undefined }
+          }) ?? old,
+        )
+      }
+      patchCache(['repairs', undefined])
+      patchCache(['repairs', user?.branchId])
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message
+      toast.error(Array.isArray(msg) ? msg[0] : msg ?? 'มอบหมายช่างไม่สำเร็จ')
+    },
+  })
+
   // Tick SLA timers every 60 s
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000)
     return () => clearInterval(id)
   }, [])
 
+  // If current user is TECHNICIAN: only show their own + unassigned repairs
+  const visibleRepairs = useMemo(() => {
+    if (user?.role !== 'TECHNICIAN') return repairs
+    return repairs.filter((r) => !r.technician || r.technician.id === user.id)
+  }, [repairs, user])
+
   // Grouped by status (memoized)
   const grouped = useMemo(() => {
     const display = filterTechId
-      ? repairs.filter((r) => r.technician?.id === filterTechId)
-      : repairs
+      ? visibleRepairs.filter((r) => r.technician?.id === filterTechId)
+      : visibleRepairs
 
     const result: Record<string, Repair[]> = {}
     for (const col of KANBAN_COLUMNS) result[col.status] = []
@@ -561,7 +703,7 @@ export function RepairKanbanBoard({
     <div className="flex flex-col h-full gap-0 min-h-0">
       {/* Technician queue */}
       <TechnicianQueueBar
-        repairs={repairs}
+        repairs={visibleRepairs}
         filterTechId={filterTechId}
         onFilterChange={setFilterTechId}
       />
@@ -577,10 +719,12 @@ export function RepairKanbanBoard({
               accent={col.accent}
               repairs={grouped[col.status] ?? []}
               now={now}
+              techUsers={techUsers}
               onOpenDetail={onOpenDetail}
               onPayment={onPayment}
               onPrint={onPrint}
               onQc={onQc}
+              onAssignTech={(repairId, technicianId) => assignMutation.mutate({ repairId, technicianId })}
             />
           ))}
         </div>
@@ -592,10 +736,12 @@ export function RepairKanbanBoard({
               repair={activeRepair}
               now={now}
               isDragOverlay
+              techUsers={techUsers}
               onOpenDetail={() => {}}
               onPayment={() => {}}
               onPrint={() => {}}
               onQc={() => {}}
+              onAssignTech={() => {}}
             />
           )}
         </DragOverlay>
@@ -605,10 +751,12 @@ export function RepairKanbanBoard({
       <CancelledSection
         repairs={grouped['CANCELLED'] ?? []}
         now={now}
+        techUsers={techUsers}
         onOpenDetail={onOpenDetail}
         onPayment={onPayment}
         onPrint={onPrint}
         onQc={onQc}
+        onAssignTech={(repairId, technicianId) => assignMutation.mutate({ repairId, technicianId })}
       />
     </div>
   )

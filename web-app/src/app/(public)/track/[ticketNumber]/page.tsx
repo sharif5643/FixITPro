@@ -23,7 +23,16 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import axios from 'axios'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1'
+// Derive API base from current browser origin so QR codes work from any network.
+// Falls back to env var only when origins match (local dev) or on SSR.
+const API_URL = (() => {
+  const env = process.env.NEXT_PUBLIC_API_URL
+  if (typeof window === 'undefined') return env ?? '/api/v1'
+  try {
+    if (env && new URL(env).hostname === window.location.hostname) return env
+  } catch { /* malformed env URL */ }
+  return `${window.location.origin}/api/v1`
+})()
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode; step: number }> = {
   RECEIVED:         { label: 'รับงานแล้ว',             color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',       icon: <Package className="h-4 w-4" />,      step: 1 },

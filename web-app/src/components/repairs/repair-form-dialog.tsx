@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   Loader2, User, X, Wrench, ShoppingCart, Printer, FileText, CheckCircle2,
-  Smartphone, Tablet, Laptop, Watch, HelpCircle, Tag,
+  Smartphone, Tablet, Laptop, Watch, HelpCircle, Tag, UserCog, Camera, ImagePlus,
 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatThaiMoney, cn } from '@/lib/utils'
 import api from '@/lib/api'
+import { TechnicianAvatar } from '@/components/ui/technician-avatar'
 import type { Customer, RepairStatus } from '@/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -136,6 +137,14 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
   const [accessories,     setAccessories]     = useState<string[]>([])
   const [deviceConditions, setDeviceConditions] = useState<string[]>([])
   const [issueTags,       setIssueTags]       = useState<string[]>([])
+  const [selectedTechId,  setSelectedTechId]  = useState<string | null>(null)
+  const [photos,          setPhotos]          = useState<File[]>([])
+
+  const { data: techUsers = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['technicians-simple'],
+    queryFn: () => api.get('/technicians').then((r) => r.data?.data ?? r.data ?? []),
+    staleTime: 5 * 60_000,
+  })
 
   // Receipt state after creation
   const [createdRepair, setCreatedRepair] = useState<{ id: string; ticketNumber: string } | null>(null)
@@ -158,6 +167,8 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
       setAccessories([])
       setDeviceConditions([])
       setIssueTags([])
+      setSelectedTechId(null)
+      setPhotos([])
     }
   }, [open, reset])
 
@@ -222,8 +233,15 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
         estimateCost:      data.estimateCost || undefined,
         discount:          data.discount || undefined,
         dueDate:           data.dueDate || undefined,
+        technicianId:      selectedTechId || undefined,
       })
-      return res.data
+      const repair = res.data
+      if (photos.length > 0) {
+        const fd = new FormData()
+        photos.forEach((f) => fd.append('files', f))
+        await api.post(`/repairs/${repair.id}/images`, fd)
+      }
+      return repair
     },
     onSuccess: (repair) => {
       toast.success(`สร้างงานซ่อม ${repair.ticketNumber} สำเร็จ`)
@@ -544,6 +562,92 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                 <Input type="date" {...register('dueDate')} />
               </div>
             </div>
+
+            {/* ── Section 6: ถ่ายรูปเครื่อง ── */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <SectionLabel num={6} label="ถ่ายรูปเครื่อง (ไม่บังคับ)" />
+              <div className="space-y-3">
+                {photos.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {photos.map((f, i) => (
+                      <div key={i} className="relative h-20 w-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                        <img
+                          src={URL.createObjectURL(f)}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPhotos(photos.filter((_, j) => j !== i))}
+                          className="absolute top-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {photos.length < 6 && (
+                      <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors shrink-0">
+                        <ImagePlus className="h-5 w-5" />
+                        <span className="text-[10px] mt-1">เพิ่ม</span>
+                        <input type="file" accept="image/*" multiple className="hidden"
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files ?? [])
+                            setPhotos((prev) => [...prev, ...files].slice(0, 6))
+                            e.target.value = ''
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
+                {photos.length === 0 && (
+                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-slate-200 p-4 text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors">
+                    <Camera className="h-6 w-6 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">แนบรูปสภาพเครื่อง</p>
+                      <p className="text-xs">รองรับสูงสุด 6 รูป · JPG, PNG, WEBP</p>
+                    </div>
+                    <input type="file" accept="image/*" multiple className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? [])
+                        setPhotos(files.slice(0, 6))
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* ── Section 7: มอบหมายช่าง ── */}
+            {techUsers.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <SectionLabel num={7} label="มอบหมายช่าง (ไม่บังคับ)" />
+                <div className="flex flex-wrap gap-2">
+                  {techUsers.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTechId(selectedTechId === t.id ? null : t.id)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-all',
+                        selectedTechId === t.id
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300',
+                      )}
+                    >
+                      <TechnicianAvatar name={t.name} size="sm" />
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  {selectedTechId
+                    ? <span className="text-purple-700 font-medium flex items-center gap-1"><UserCog className="h-3 w-3" />ช่างคนอื่นจะไม่เห็นงานนี้ใน Kanban</span>
+                    : 'ถ้าไม่เลือก ช่างทุกคนจะเห็นงานนี้'}
+                </p>
+              </div>
+            )}
 
             <DialogFooter className="pt-1">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={createMutation.isPending}>

@@ -3,17 +3,13 @@ import {
   Get,
   Query,
   BadRequestException,
-  UseGuards,
 } from '@nestjs/common';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { PublicTrackingService } from './public-tracking.service';
 
 @Controller('public/tracking')
 export class PublicTrackingController {
   constructor(private readonly svc: PublicTrackingService) {}
 
-  @Throttle({ public_tracking: { ttl: 60_000, limit: 60 } })
-  @UseGuards(ThrottlerGuard)
   @Get('repair')
   track(
     @Query('ticketNumber') ticketNumber?: string,

@@ -10,7 +10,14 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import axios from 'axios'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1'
+const API_URL = (() => {
+  const env = process.env.NEXT_PUBLIC_API_URL
+  if (typeof window === 'undefined') return env ?? '/api/v1'
+  try {
+    if (env && new URL(env).hostname === window.location.hostname) return env
+  } catch { /* malformed env URL */ }
+  return `${window.location.origin}/api/v1`
+})()
 
 type InputType = 'ticket' | 'phone' | 'unknown'
 
