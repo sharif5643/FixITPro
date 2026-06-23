@@ -34,6 +34,6 @@ export const Platform = {
     )
   },
 
-  /** True when the app is running in the SUNMI shell — native device or explicit env override */
-  isSunmiShell: (): boolean => Platform.isNative() || Platform.isSunmiMode(),
+  /** True when the app is running in the SUNMI shell — actual SUNMI hardware or explicit env override */
+  isSunmiShell: (): boolean => Platform.isSunmi() || Platform.isSunmiMode(),
 }
