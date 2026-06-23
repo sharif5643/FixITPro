@@ -12,7 +12,7 @@ import { PublicTrackingService } from './public-tracking.service';
 export class PublicTrackingController {
   constructor(private readonly svc: PublicTrackingService) {}
 
-  @Throttle({ auth_login: { ttl: 60_000, limit: 20 } })
+  @Throttle({ public_tracking: { ttl: 60_000, limit: 60 } })
   @UseGuards(ThrottlerGuard)
   @Get('repair')
   track(
