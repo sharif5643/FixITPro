@@ -4,6 +4,8 @@ import type { NextRequest } from 'next/server'
 // CHB-01: routes accessible without an access_token cookie
 const PUBLIC_PATHS = [
   '/login', '/403', '/sunmi-health',
+  // Public customer portal
+  '/track',
   // Public website routes
   '/register', '/features', '/pricing', '/billing', '/contact', '/about',
 ]
