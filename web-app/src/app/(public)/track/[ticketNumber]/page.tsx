@@ -90,12 +90,13 @@ export default function TrackDetailPage() {
   const [lightbox, setLightbox] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!ticketNumber || !phone) {
+    if (!ticketNumber) {
       setError('ข้อมูลไม่ครบถ้วน กรุณาค้นหาใหม่')
       setLoading(false)
       return
     }
-    const qs = new URLSearchParams({ ticketNumber, phone })
+    const qs = new URLSearchParams({ ticketNumber })
+    if (phone) qs.set('phone', phone)
     axios
       .get<TrackData>(`${API_URL}/public/tracking/repair?${qs}`)
       .then((r) => setData(r.data))

@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 
-// Only safe, customer-visible status labels — no internal ops info
 const STATUS_LABEL: Record<string, string> = {
   RECEIVED:         'รับงานแล้ว',
   DIAGNOSING:       'กำลังวินิจฉัยอาการ',
@@ -20,9 +19,9 @@ const STATUS_LABEL: Record<string, string> = {
 export class PublicTrackingService {
   constructor(private prisma: PrismaService) {}
 
-  async trackRepair(ticketNumber: string, phone: string) {
+  // ── Search by ticket number (phone optional for full verification) ─────────
+  async trackRepair(ticketNumber: string, phone?: string) {
     if (!ticketNumber?.trim()) throw new BadRequestException('กรุณาระบุหมายเลขงานซ่อม');
-    if (!phone?.trim()) throw new BadRequestException('กรุณาระบุหมายเลขโทรศัพท์');
 
     const repair = await this.prisma.repair.findUnique({
       where: { ticketNumber: ticketNumber.trim().toUpperCase() },
@@ -53,11 +52,7 @@ export class PublicTrackingService {
           select: { id: true, url: true, createdAt: true },
         },
         qc: {
-          select: {
-            allPassed: true,
-            note: true,
-            updatedAt: true,
-          },
+          select: { allPassed: true, note: true, updatedAt: true },
         },
         warranties: {
           where: { status: 'ACTIVE' },
@@ -75,50 +70,100 @@ export class PublicTrackingService {
 
     if (!repair) throw new NotFoundException('ไม่พบงานซ่อม กรุณาตรวจสอบหมายเลขงานซ่อม');
 
-    // Phone verification — match last 9 digits (handles different formats)
-    const customerPhone = repair.customer?.phone?.replace(/\D/g, '') ?? '';
-    const inputPhone    = phone.replace(/\D/g, '');
-    const digits        = Math.min(customerPhone.length, inputPhone.length, 9);
-    const phoneOk       =
-      digits > 0 &&
-      customerPhone.slice(-digits) === inputPhone.slice(-digits);
+    // Phone verification — only when phone is provided
+    if (phone?.trim()) {
+      const customerPhone = repair.customer?.phone?.replace(/\D/g, '') ?? '';
+      const inputPhone    = phone.replace(/\D/g, '');
+      const digits        = Math.min(customerPhone.length, inputPhone.length, 9);
+      const phoneOk       =
+        digits > 0 &&
+        customerPhone.slice(-digits) === inputPhone.slice(-digits);
 
-    if (!phoneOk) {
-      throw new BadRequestException('หมายเลขโทรศัพท์ไม่ตรงกับข้อมูลในระบบ');
+      if (!phoneOk) {
+        throw new BadRequestException('หมายเลขโทรศัพท์ไม่ตรงกับข้อมูลในระบบ');
+      }
     }
 
-    // Calculate outstanding amount
     const total       = Number(repair.finalCost ?? repair.estimatedTotal ?? repair.estimateCost ?? 0);
     const deposit     = Number(repair.deposit ?? 0);
     const paid        = Number(repair.paidAmount ?? 0);
     const outstanding = Math.max(0, total - deposit - paid);
 
-    // Build status history from audit logs — safe because repairId is already verified above
     const statusHistory = await this.buildStatusHistory(repair.id, repair.receivedAt);
 
     return {
-      ticketNumber:     repair.ticketNumber,
-      status:           repair.status,
-      statusLabel:      STATUS_LABEL[repair.status] ?? repair.status,
-      deviceBrand:      repair.deviceBrand,
-      deviceModel:      repair.deviceModel,
-      deviceColor:      repair.deviceColor,
-      receivedAt:       repair.receivedAt,
-      dueDate:          repair.dueDate,
-      completedAt:      repair.completedAt,
-      deliveredAt:      repair.deliveredAt,
-      customerName:     repair.customer?.name,
-      images:           repair.images,
-      qcPassed:         repair.qc?.allPassed ?? null,
-      qcNote:           repair.qc?.note ?? null,
-      qcAt:             repair.qc?.updatedAt ?? null,
+      ticketNumber:      repair.ticketNumber,
+      status:            repair.status,
+      statusLabel:       STATUS_LABEL[repair.status] ?? repair.status,
+      deviceBrand:       repair.deviceBrand,
+      deviceModel:       repair.deviceModel,
+      deviceColor:       repair.deviceColor,
+      receivedAt:        repair.receivedAt,
+      dueDate:           repair.dueDate,
+      completedAt:       repair.completedAt,
+      deliveredAt:       repair.deliveredAt,
+      customerName:      repair.customer?.name,
+      images:            repair.images,
+      qcPassed:          repair.qc?.allPassed ?? null,
+      qcNote:            repair.qc?.note ?? null,
+      qcAt:              repair.qc?.updatedAt ?? null,
       outstanding,
-      paymentStatus:    repair.paymentStatus,
-      warranties:       repair.warranties,
+      paymentStatus:     repair.paymentStatus,
+      warranties:        repair.warranties,
       warrantyExpiresAt: repair.warrantyExpiresAt,
-      warrantyNote:     repair.warrantyNote,
+      warrantyNote:      repair.warrantyNote,
       statusHistory,
     };
+  }
+
+  // ── Search by phone — returns list of repairs for that number ─────────────
+  async searchByPhone(phone: string) {
+    if (!phone?.trim()) throw new BadRequestException('กรุณาระบุหมายเลขโทรศัพท์');
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length < 9) throw new BadRequestException('หมายเลขโทรศัพท์ไม่ถูกต้อง');
+
+    // Find customers whose phone ends with the last 9 digits
+    const suffix = cleanPhone.slice(-9);
+    const customers = await this.prisma.customer.findMany({
+      where: { phone: { endsWith: suffix } },
+      select: { id: true },
+    });
+
+    if (customers.length === 0) return [];
+
+    const customerIds = customers.map((c) => c.id);
+
+    const repairs = await this.prisma.repair.findMany({
+      where: {
+        customerId: { in: customerIds },
+        status: { not: 'CANCELLED' },
+      },
+      select: {
+        ticketNumber: true,
+        status: true,
+        deviceBrand: true,
+        deviceModel: true,
+        deviceColor: true,
+        receivedAt: true,
+        dueDate: true,
+        completedAt: true,
+      },
+      orderBy: { receivedAt: 'desc' },
+      take: 20,
+    });
+
+    return repairs.map((r) => ({
+      ticketNumber: r.ticketNumber,
+      status:       r.status,
+      statusLabel:  STATUS_LABEL[r.status] ?? r.status,
+      deviceBrand:  r.deviceBrand,
+      deviceModel:  r.deviceModel,
+      deviceColor:  r.deviceColor,
+      receivedAt:   r.receivedAt,
+      dueDate:      r.dueDate,
+      completedAt:  r.completedAt,
+    }));
   }
 
   private async buildStatusHistory(
@@ -152,7 +197,6 @@ export class PublicTrackingService {
       }
 
       if (status) {
-        // Deduplicate consecutive identical statuses
         const last = history[history.length - 1];
         if (!last || last.status !== status) {
           history.push({
@@ -164,7 +208,6 @@ export class PublicTrackingService {
       }
     }
 
-    // Fallback: if audit logs are missing, synthesise from the receivedAt
     if (history.length === 0) {
       history.push({ status: 'RECEIVED', label: 'รับงานแล้ว', changedAt: receivedAt });
     }
