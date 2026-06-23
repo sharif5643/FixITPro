@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { RepairFormDialog } from '@/components/repairs/repair-form-dialog'
 import { RepairKanbanBoard } from '@/components/repairs/repair-kanban-board'
+import { RepairMobileList } from '@/components/repairs/repair-mobile-list'
 import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -231,7 +232,31 @@ export default function RepairsPage() {
 
   // ── List view ─────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
+    <>
+      {/* Mobile card view */}
+      <div className="-m-4 sm:-m-6 md:hidden">
+        <RepairMobileList
+          repairs={repairs}
+          isLoading={isLoading}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          search={search}
+          setSearch={setSearch}
+          onOpenRepair={setSelectedRepairId}
+          onCreateRepair={() => { if (!isGlobalMode) setCreateOpen(true) }}
+          statusCounts={statusCounts}
+        />
+        <Dialogs
+          createOpen={createOpen} setCreateOpen={setCreateOpen}
+          selectedRepairId={selectedRepairId} setSelectedRepairId={setSelectedRepairId}
+          qcRepairId={qcRepairId} setQcRepairId={setQcRepairId}
+          invalidate={invalidate} branchId={branchId} repairs={repairs}
+        />
+        <QrScannerDialog open={scanOpen} onOpenChange={setScanOpen} onScan={handleScanResult} />
+      </div>
+
+    {/* Desktop list view */}
+    <div className="hidden md:block space-y-4">
 
       {/* Header */}
       <PageHeader
@@ -446,6 +471,7 @@ export default function RepairsPage() {
         invalidate={invalidate} branchId={branchId} repairs={repairs}
       />
     </div>
+  </>
   )
 }
 
