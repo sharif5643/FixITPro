@@ -14,6 +14,7 @@ export default function RepairPrintPage() {
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const paperWidth = (searchParams.get('paper') as PW) || '80mm'
+  const dual       = searchParams.get('copies') === '2'
   const [printed, setPrinted] = useState(false)
   const [origin, setOrigin]   = useState('')
 
@@ -57,7 +58,7 @@ export default function RepairPrintPage() {
       {/* Print controls — hidden when printing */}
       <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-2 bg-white border-b px-4 py-2 shadow-sm">
         <span className="text-sm font-semibold text-gray-700">
-          ใบรับงานซ่อม — {paperWidth === 'A4' ? 'A4' : paperWidth}
+          ใบรับงานซ่อม — {paperWidth === 'A4' ? 'A4' : paperWidth}{dual ? ' (2 ฉบับ)' : ''}
         </span>
         <div className="flex gap-2">
           <button
@@ -88,7 +89,30 @@ export default function RepairPrintPage() {
           <p className="text-red-600 py-20">ไม่สามารถโหลดข้อมูลได้</p>
         ) : data ? (
           <div className="bg-white shadow-md p-4">
-            <RepairReceipt repair={data} paperWidth={paperWidth} settings={settings} trackingBaseUrl={origin} />
+            {dual ? (
+              <>
+                {/* ใบร้าน */}
+                <div className="relative">
+                  <span className="absolute top-0 right-0 text-[8px] text-slate-400 font-medium">ใบร้าน</span>
+                  <RepairReceipt repair={data} paperWidth={paperWidth} settings={settings} />
+                </div>
+
+                {/* เส้นฉีก */}
+                <div className="flex items-center gap-1 my-3 px-1">
+                  <div className="flex-1 border-t-2 border-dashed border-slate-300" />
+                  <span className="text-[9px] text-slate-400 shrink-0 select-none">✂&nbsp;ฉีกตรงนี้</span>
+                  <div className="flex-1 border-t-2 border-dashed border-slate-300" />
+                </div>
+
+                {/* ใบลูกค้า */}
+                <div className="relative">
+                  <span className="absolute top-0 right-0 text-[8px] text-slate-400 font-medium">ใบลูกค้า</span>
+                  <RepairReceipt repair={data} paperWidth={paperWidth} settings={settings} trackingBaseUrl={origin} />
+                </div>
+              </>
+            ) : (
+              <RepairReceipt repair={data} paperWidth={paperWidth} settings={settings} trackingBaseUrl={origin} />
+            )}
           </div>
         ) : null}
       </div>

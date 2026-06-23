@@ -280,13 +280,21 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
               <p className="font-semibold text-gray-900">เลขงาน: {createdRepair.ticketNumber}</p>
               <p className="text-sm text-muted-foreground">เลือกรูปแบบพิมพ์ใบรับงานซ่อม</p>
             </div>
+            {/* พิมพ์ 2 ฉบับ — primary action */}
+            <button type="button"
+              onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm&copies=2`, '_blank')}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-blue-600 bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+              <Printer className="h-5 w-5" />
+              พิมพ์ 2 ฉบับ (ร้าน + ลูกค้า) ✂
+            </button>
+
             <div className="grid grid-cols-3 gap-2">
               <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm&copy=shop`, '_blank')}
-                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-blue-200 bg-blue-50 px-3 py-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors">
+                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
                 <Printer className="h-5 w-5" />58mm<br />(ใบร้าน)
               </button>
               <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm`, '_blank')}
-                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-blue-200 bg-blue-50 px-3 py-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors">
+                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
                 <Printer className="h-5 w-5" />58mm<br />(ใบลูกค้า)
               </button>
               <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=A4`, '_blank')}
