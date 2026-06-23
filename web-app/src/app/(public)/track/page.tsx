@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Wrench, Loader2, Package, Clock, CheckCircle2, AlertCircle, ChevronRight } from 'lucide-react'
+import { Search, Wrench, Loader2, Package, Clock, CheckCircle2, AlertCircle, ChevronRight, ScanLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import axios from 'axios'
+import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
 
 const API_URL = (() => {
   const env = process.env.NEXT_PUBLIC_API_URL
@@ -67,6 +68,26 @@ export default function TrackPage() {
   const [error, setError]               = useState('')
   const [loading, setLoading]           = useState(false)
   const [phoneResults, setPhoneResults] = useState<RepairSummary[] | null>(null)
+  const [scanOpen, setScanOpen]         = useState(false)
+
+  function handleScan(text: string) {
+    setScanOpen(false)
+    const raw = text.trim()
+    // If the QR contains a full URL (e.g. http://host/track/REP-XXX?phone=...)
+    try {
+      const url = new URL(raw)
+      if (url.pathname.startsWith('/track/')) {
+        router.push(url.pathname + url.search)
+        return
+      }
+    } catch { /* not a URL */ }
+    // Otherwise treat as ticket number / phone
+    const upper = raw.toUpperCase()
+    setQuery(upper)
+    if (detectType(upper) !== 'phone') {
+      router.push(`/track/${encodeURIComponent(upper)}`)
+    }
+  }
 
   useEffect(() => {
     setInputType(detectType(query))
@@ -164,13 +185,25 @@ export default function TrackPage() {
                 </p>
               )}
 
-              <Button type="submit" className="w-full gap-2 h-11" size="lg" disabled={loading}>
-                {loading
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Search className="h-4 w-4" />
-                }
-                {loading ? 'กำลังค้นหา...' : 'ค้นหา'}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1 gap-2 h-11" size="lg" disabled={loading}>
+                  {loading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Search className="h-4 w-4" />
+                  }
+                  {loading ? 'กำลังค้นหา...' : 'ค้นหา'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="h-11 px-4 border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20 shrink-0"
+                  onClick={() => setScanOpen(true)}
+                  title="สแกน QR จากใบรับซ่อม"
+                >
+                  <ScanLine className="h-5 w-5" />
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -239,9 +272,18 @@ export default function TrackPage() {
           <p className="text-xs text-slate-400 dark:text-slate-500">
             หรือ <span className="font-medium text-slate-500 dark:text-slate-400">เบอร์โทร</span> เพื่อดูงานซ่อมทั้งหมดของคุณ
           </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            หรือกด <ScanLine className="inline h-3 w-3" /> <span className="font-medium text-slate-500 dark:text-slate-400">สแกน QR</span> จากใบรับซ่อม
+          </p>
         </div>
 
       </div>
+
+      <QrScannerDialog
+        open={scanOpen}
+        onOpenChange={setScanOpen}
+        onScan={handleScan}
+      />
     </div>
   )
 }
