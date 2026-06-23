@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { useQuery } from '@tanstack/react-query'
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  AreaChart, Area, BarChart, Bar, LabelList, PieChart, Pie, Cell,
   ResponsiveContainer, Tooltip, XAxis,
 } from 'recharts'
 import {
@@ -375,6 +375,12 @@ export function ExecutiveMobileDashboard() {
                     cursor={{ fill: 'rgba(59,130,246,0.05)' }}
                   />
                   <Bar dataKey="total" radius={[5, 5, 0, 0]} isAnimationActive={false}>
+                    <LabelList
+                      dataKey="total"
+                      position="top"
+                      formatter={(v) => { const n = Number(v ?? 0); return n > 0 ? `฿${(n/1000).toFixed(n%1000===0?0:1)}K` : '' }}
+                      style={{ fontSize: 8, fill: '#64748B', fontWeight: 600 }}
+                    />
                     {barData.map((entry, i) => (
                       <Cell key={i} fill={entry.last ? '#3B82F6' : '#BFDBFE'} />
                     ))}
