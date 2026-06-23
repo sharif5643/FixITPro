@@ -11,6 +11,7 @@ import { Platform } from '@/lib/platform'
 import { getTenantExpiryState } from '@/lib/tenant-expiry'
 import { OperationalAlertCenter } from '@/components/alerts/operational-alert-center'
 import { ReminderPopup } from '@/components/alerts/reminder-popup'
+import { BottomNav } from '@/components/layout/bottom-nav'
 import api from '@/lib/api'
 
 const AUTH_TIMEOUT_MS = 10_000
@@ -196,6 +197,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
       <OperationalAlertCenter variant="desktop" />
       <ReminderPopup variant="desktop" />
+      {(user?.role === 'OWNER' || user?.role === 'MANAGER') && <BottomNav />}
     </div>
   )
 }

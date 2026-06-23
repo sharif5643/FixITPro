@@ -22,6 +22,7 @@ import { useBranchContext } from '@/hooks/useBranchContext'
 import { useShopName } from '@/hooks/useShopName'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
 import { RevenueBarChart } from '@/components/charts/revenue-bar-chart'
+import { ExecutiveMobileDashboard } from '@/components/dashboard/executive-mobile-dashboard'
 import type { OperationalAlert } from '@/components/alerts/operational-alert-center'
 import type { Repair } from '@/types'
 
@@ -610,7 +611,15 @@ export default function DashboardPage() {
     : `${startDate} ถึง ${endDate}`
 
   return (
-    <div className="space-y-6 max-w-7xl pb-10">
+    <>
+      {/* Executive mobile dashboard — OWNER/MANAGER only, mobile only */}
+      {isOwnerOrManager && (
+        <div className="-m-4 sm:-m-6 md:hidden">
+          <ExecutiveMobileDashboard />
+        </div>
+      )}
+
+    <div className={cn('space-y-6 max-w-7xl pb-10', isOwnerOrManager && 'hidden md:block')}>
 
       {/* ── Greeting card ─────────────────────────────────────────────────────── */}
       <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 px-5 py-5 sm:px-6 text-white overflow-hidden relative">
@@ -1627,5 +1636,6 @@ export default function DashboardPage() {
       </div>
 
     </div>
+    </>
   )
 }
