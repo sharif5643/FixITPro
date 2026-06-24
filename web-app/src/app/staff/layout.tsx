@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { StaffBottomNav } from '@/components/staff/staff-bottom-nav'
 import api from '@/lib/api'
 
-const AUTH_PAGES = ['/staff/login', '/staff/register', '/staff/splash']
+const AUTH_PAGES = ['/staff/login', '/staff/register', '/staff/splash', '/staff/branch']
 const AUTH_TIMEOUT_MS = 10_000
 
 export default function StaffLayout({ children }: { children: React.ReactNode }) {
@@ -70,7 +70,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
   // Loading states for protected pages
   if (!hasHydrated || meStatus === 'pending') {
     return (
-      <div className="flex h-screen items-center justify-center bg-white">
+      <div className="flex h-screen items-center justify-center bg-brand-light">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-yellow border-t-transparent" />
           <p className="text-sm text-slate-400">กำลังโหลด...</p>
@@ -106,8 +106,8 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <main className="pb-[76px]">{children}</main>
+    <div className="min-h-screen bg-brand-light">
+      <main>{children}</main>
       <StaffBottomNav />
     </div>
   )

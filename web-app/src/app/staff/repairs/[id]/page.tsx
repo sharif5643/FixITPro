@@ -2,109 +2,172 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, MessageCircle, X, Clock, CheckCircle2, Package, Loader2, Star } from 'lucide-react'
+import {
+  ChevronLeft, MessageCircle, Phone, Printer, Star,
+  Wrench, User, Smartphone, Clock, CheckCircle2,
+  Package, Loader2, Edit2, X,
+} from 'lucide-react'
 import api from '@/lib/api'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
+import { toast } from 'sonner'
 
 interface Repair {
-  id: string
-  ticketNumber: string
-  status: string
-  createdAt: string
-  deviceBrand?: string
-  deviceModel?: string
+  id:              string
+  ticketNumber:    string
+  status:          string
+  customerName:    string
+  customerPhone:   string
+  customerLineId?: string
+  deviceBrand:     string
+  deviceModel:     string
+  deviceColor?:    string
+  deviceImei?:     string
+  deviceSerial?:   string
+  issueTitle?:     string
   issueDescription?: string
   technicianName?: string
-  estimatedCost?: number
-  customerName?: string
-  customerPhone?: string
-  repairType?: string
+  estimatedCost?:  number
+  createdAt:       string
+  updatedAt:       string
+  statusHistory?:  { status: string; note?: string; actorName?: string; createdAt: string }[]
 }
 
-const STEPS = [
-  { key: 'PENDING',     label: 'รอตรวจสอบ',       icon: Clock          },
-  { key: 'IN_PROGRESS', label: 'กำลังดำเนินการ',    icon: Package        },
-  { key: 'WAIT_PICKUP', label: 'รอรับ',             icon: CheckCircle2   },
-  { key: 'COMPLETED',   label: 'เสร็จสิ้น',         icon: CheckCircle2   },
+const TIMELINE = [
+  { key: 'PENDING',     label: 'รับเครื่อง',    icon: <Clock className="h-4 w-4" /> },
+  { key: 'IN_PROGRESS', label: 'กำลังซ่อม',    icon: <Wrench className="h-4 w-4" /> },
+  { key: 'WAIT_PARTS',  label: 'รออะไหล่',     icon: <Package className="h-4 w-4" /> },
+  { key: 'WAIT_PICKUP', label: 'รอส่งมอบ',     icon: <CheckCircle2 className="h-4 w-4" /> },
+  { key: 'COMPLETED',   label: 'ส่งมอบแล้ว',   icon: <CheckCircle2 className="h-4 w-4" /> },
 ]
 
-const STATUS_ORDER = ['PENDING', 'IN_PROGRESS', 'WAIT_PICKUP', 'COMPLETED']
+const ORDER = ['PENDING', 'IN_PROGRESS', 'WAIT_PARTS', 'WAIT_PICKUP', 'COMPLETED']
 
-export default function StaffRepairDetailPage() {
+const STATUS_COLOR: Record<string, string> = {
+  PENDING:     'bg-amber-100 text-amber-700',
+  IN_PROGRESS: 'bg-blue-100 text-blue-700',
+  WAIT_PARTS:  'bg-purple-100 text-purple-700',
+  WAIT_PICKUP: 'bg-green-100 text-green-700',
+  COMPLETED:   'bg-emerald-100 text-emerald-700',
+  CANCELLED:   'bg-red-100 text-red-600',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING:     'รอตรวจสอบ',
+  IN_PROGRESS: 'กำลังซ่อม',
+  WAIT_PARTS:  'รออะไหล่',
+  WAIT_PICKUP: 'รอรับเครื่อง',
+  COMPLETED:   'เสร็จสิ้น',
+  CANCELLED:   'ยกเลิก',
+}
+
+export default function RepairDetailPage() {
   const router = useRouter()
   const { id } = useParams<{ id: string }>()
-  const [repair, setRepair] = useState<Repair | null>(null)
+  const [repair,  setRepair]  = useState<Repair | null>(null)
   const [loading, setLoading] = useState(true)
+  const [cancelling, setCancelling] = useState(false)
 
   useEffect(() => {
-    api.get(`/repairs/${id}`)
-      .then((res) => setRepair(res.data))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    api.get(`/repairs/${id}`).then((r) => setRepair(r.data)).catch(() => toast.error('ไม่พบงานซ่อม')).finally(() => setLoading(false))
   }, [id])
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-white">
-      <Loader2 className="h-7 w-7 animate-spin text-brand-yellow" />
-    </div>
-  )
+  async function cancelRepair() {
+    if (!confirm('ยืนยันการยกเลิกงานซ่อม?')) return
+    setCancelling(true)
+    try {
+      await api.patch(`/repairs/${id}`, { status: 'CANCELLED' })
+      toast.success('ยกเลิกงานซ่อมแล้ว')
+      router.back()
+    } catch {
+      toast.error('ยกเลิกไม่สำเร็จ')
+    } finally {
+      setCancelling(false)
+    }
+  }
 
-  if (!repair) return (
-    <div className="flex h-screen flex-col items-center justify-center bg-white gap-4 px-6">
-      <p className="text-slate-400">ไม่พบข้อมูลงานซ่อม</p>
-      <button onClick={() => router.back()} className="text-brand-yellow font-semibold text-sm">กลับ</button>
-    </div>
-  )
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-brand-light">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-yellow" />
+      </div>
+    )
+  }
 
-  const currentStepIdx = STATUS_ORDER.indexOf(repair.status)
+  if (!repair) return null
+
+  const currentStep = ORDER.indexOf(repair.status)
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-brand-light pb-28">
       {/* Header */}
-      <div className="flex items-center gap-3 bg-white px-5 pt-12 pb-4 shadow-[0_1px_0_rgba(0,0,0,0.06)]">
-        <button onClick={() => router.back()} className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
-          <ArrowLeft className="h-5 w-5 text-slate-600" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-base font-bold text-brand-black">รายละเอียดงาน</h1>
-          <p className="text-xs text-slate-400 font-mono">{repair.ticketNumber || repair.id.slice(0, 8)}</p>
+      <div className="bg-white px-5 pb-4 pt-14 shadow-sm">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.back()} className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-light">
+            <ChevronLeft className="h-5 w-5 text-slate-600" />
+          </button>
+          <div className="flex-1">
+            <p className="text-xs text-slate-400">หมายเลขซ่อม</p>
+            <p className="font-bold text-brand-black">{repair.ticketNumber}</p>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-xs font-bold ${STATUS_COLOR[repair.status] || 'bg-slate-100 text-slate-500'}`}>
+            {STATUS_LABEL[repair.status] || repair.status}
+          </span>
         </div>
       </div>
 
-      <div className="px-5 py-4 space-y-4">
-        {/* Status badge */}
-        <div className="rounded-2xl bg-white p-4 shadow-card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-brand-black">สถานะงาน</h2>
-            <span className="rounded-full bg-brand-yellow px-3 py-1 text-xs font-bold text-brand-black">
-              {STEPS.find((s) => s.key === repair.status)?.label ?? repair.status}
-            </span>
-          </div>
+      <div className="p-5 flex flex-col gap-4">
+        {/* Customer info */}
+        <SectionCard title="ข้อมูลลูกค้า" icon={<User className="h-4 w-4 text-brand-info" />}>
+          <InfoRow label="ชื่อ" value={repair.customerName} />
+          <InfoRow label="เบอร์โทร" value={repair.customerPhone} />
+          {repair.customerLineId && <InfoRow label="LINE ID" value={repair.customerLineId} />}
+        </SectionCard>
 
-          {/* Timeline */}
-          <div className="relative">
-            {STEPS.map((step, idx) => {
-              const done    = idx <= currentStepIdx
-              const current = idx === currentStepIdx
-              const Icon    = step.icon
+        {/* Device info */}
+        <SectionCard title="ข้อมูลอุปกรณ์" icon={<Smartphone className="h-4 w-4 text-brand-yellow" />}>
+          <InfoRow label="ยี่ห้อ" value={repair.deviceBrand} />
+          <InfoRow label="รุ่น"   value={repair.deviceModel} />
+          {repair.deviceColor  && <InfoRow label="สี"     value={repair.deviceColor} />}
+          {repair.deviceImei   && <InfoRow label="IMEI"   value={repair.deviceImei} />}
+          {repair.deviceSerial && <InfoRow label="S/N"    value={repair.deviceSerial} />}
+          {repair.issueTitle   && <InfoRow label="อาการ"  value={repair.issueTitle} />}
+          {repair.technicianName && <InfoRow label="ช่างรับผิดชอบ" value={repair.technicianName} />}
+          {repair.estimatedCost != null && (
+            <InfoRow label="ราคาประเมิน" value={`฿${repair.estimatedCost.toLocaleString()}`} highlight />
+          )}
+        </SectionCard>
+
+        {/* Timeline */}
+        <div className="rounded-[20px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+          <p className="mb-4 text-sm font-semibold text-brand-black">ขั้นตอนการซ่อม</p>
+          <div className="flex flex-col gap-0">
+            {TIMELINE.map((step, i) => {
+              const done    = i <= currentStep
+              const current = i === currentStep
+              const isLast  = i === TIMELINE.length - 1
               return (
-                <div key={step.key} className="flex items-start gap-3 pb-4 last:pb-0">
-                  {/* Line connector */}
-                  <div className="relative flex flex-col items-center">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-full flex-shrink-0 ${
-                      current ? 'bg-brand-yellow' : done ? 'bg-brand-black' : 'bg-slate-100'
+                <div key={step.key} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                      current ? 'bg-brand-yellow text-brand-black shadow-[0_4px_12px_rgba(255,193,7,0.5)]' :
+                      done    ? 'bg-brand-success text-white' : 'bg-slate-100 text-slate-300'
                     }`}>
-                      <Icon className={`h-4 w-4 ${done || current ? 'text-white' : 'text-slate-300'}`} strokeWidth={2} />
+                      {step.icon}
                     </div>
-                    {idx < STEPS.length - 1 && (
-                      <div className={`absolute top-8 h-4 w-0.5 ${done ? 'bg-brand-black' : 'bg-slate-200'}`} />
+                    {!isLast && (
+                      <div className={`mt-1 mb-1 w-0.5 h-6 ${done && i < currentStep ? 'bg-brand-success' : 'bg-slate-100'}`} />
                     )}
                   </div>
-                  <div className="pt-1">
-                    <p className={`text-sm font-semibold ${current ? 'text-brand-black' : done ? 'text-slate-700' : 'text-slate-300'}`}>
+                  <div className={`flex-1 pb-2 ${isLast ? '' : ''}`}>
+                    <p className={`text-sm font-semibold pt-1 ${current ? 'text-brand-black' : done ? 'text-brand-success' : 'text-slate-300'}`}>
                       {step.label}
                     </p>
+                    {current && (
+                      <p className="text-[11px] text-slate-400">
+                        {format(new Date(repair.updatedAt), "d MMM yyyy HH:mm", { locale: th })}
+                      </p>
+                    )}
                   </div>
                 </div>
               )
@@ -112,51 +175,88 @@ export default function StaffRepairDetailPage() {
           </div>
         </div>
 
-        {/* Details */}
-        <div className="rounded-2xl bg-white p-4 shadow-card space-y-3">
-          <h2 className="text-sm font-semibold text-brand-black">ข้อมูลงาน</h2>
-          {[
-            { label: 'ชื่อลูกค้า',    value: repair.customerName },
-            { label: 'เบอร์โทร',       value: repair.customerPhone },
-            { label: 'อุปกรณ์',        value: [repair.deviceBrand, repair.deviceModel].filter(Boolean).join(' ') || '—' },
-            { label: 'ประเภทซ่อม',     value: repair.repairType },
-            { label: 'ปัญหา',          value: repair.issueDescription },
-            { label: 'ช่างที่รับผิดชอบ', value: repair.technicianName },
-            { label: 'ค่าบริการ',       value: repair.estimatedCost ? `฿${repair.estimatedCost.toLocaleString()}` : undefined },
-            { label: 'วันที่รับงาน',    value: format(new Date(repair.createdAt), 'd MMM yyyy', { locale: th }) },
-          ].filter((r) => r.value).map((row) => (
-            <div key={row.label} className="flex justify-between gap-4">
-              <span className="text-xs text-slate-400 flex-shrink-0">{row.label}</span>
-              <span className="text-xs font-medium text-brand-black text-right">{row.value}</span>
-            </div>
-          ))}
-        </div>
-
         {/* Action buttons */}
-        <div className="flex gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => router.push(`/staff/chat?repairId=${repair.id}`)}
-            className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl bg-brand-yellow font-semibold text-sm text-brand-black"
+            onClick={() => repair.customerPhone && (window.location.href = `tel:${repair.customerPhone}`)}
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-50"
           >
-            <MessageCircle className="h-4 w-4" />
+            <Phone className="h-4 w-4 text-brand-success" />
+            โทรหาลูกค้า
+          </button>
+          <button
+            onClick={() => router.push(`/staff/chat/${repair.id}`)}
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-50"
+          >
+            <MessageCircle className="h-4 w-4 text-brand-info" />
             แชทกับช่าง
           </button>
-          {repair.status === 'COMPLETED' && (
-            <button
-              onClick={() => router.push(`/staff/review/${repair.id}`)}
-              className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl bg-brand-black text-white font-semibold text-sm"
-            >
-              <Star className="h-4 w-4" />
-              รีวิวงาน
-            </button>
-          )}
-          {repair.status === 'PENDING' && (
-            <button className="flex items-center justify-center gap-2 h-12 w-12 rounded-xl bg-red-50 text-red-500">
-              <X className="h-5 w-5" />
-            </button>
-          )}
         </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => router.push(`/repairs/${repair.id}/edit`)}
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-50"
+          >
+            <Edit2 className="h-4 w-4 text-brand-warning" />
+            แก้ไข
+          </button>
+          <button
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-brand-yellow text-sm font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)] active:opacity-90"
+          >
+            <Printer className="h-4 w-4" />
+            พิมพ์ใบรับซ่อม
+          </button>
+        </div>
+
+        {repair.status === 'COMPLETED' && (
+          <button
+            onClick={() => router.push(`/staff/review/${repair.id}`)}
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-brand-black text-sm font-bold text-white active:opacity-90"
+          >
+            <Star className="h-4 w-4 text-brand-yellow" />
+            รีวิวงาน
+          </button>
+        )}
+
+        {repair.status === 'PENDING' && (
+          <button
+            onClick={cancelRepair}
+            disabled={cancelling}
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl border-2 border-brand-danger/20 text-sm font-semibold text-brand-danger active:bg-red-50"
+          >
+            {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+            ยกเลิกงานซ่อม
+          </button>
+        )}
       </div>
+    </div>
+  )
+}
+
+function SectionCard({ title, icon, children }: {
+  title:    string
+  icon:     React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-[20px] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.06)]">
+      <div className="flex items-center gap-2 mb-3">
+        {icon}
+        <p className="text-sm font-semibold text-brand-black">{title}</p>
+      </div>
+      <div className="flex flex-col gap-2">{children}</div>
+    </div>
+  )
+}
+
+function InfoRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="flex items-start gap-2">
+      <p className="w-28 shrink-0 text-xs text-slate-400">{label}</p>
+      <p className={`flex-1 text-sm ${highlight ? 'font-bold text-brand-yellow' : 'font-medium text-slate-700'}`}>
+        {value}
+      </p>
     </div>
   )
 }

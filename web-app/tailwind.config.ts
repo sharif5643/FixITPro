@@ -18,12 +18,18 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          yellow:  '#F5C200',
-          'yellow-hover': '#E6B400',
-          'yellow-light': '#FFF8D6',
-          black:   '#111111',
-          'gray':  '#6B7280',
-          'light': '#F5F5F5',
+          yellow:         '#FFC107',
+          'yellow-hover': '#E6AC00',
+          'yellow-light': '#FFF8E1',
+          'yellow-dark':  '#CC9A00',
+          black:          '#111111',
+          gray:           '#6B7280',
+          light:          '#F8F9FB',
+          'card-bg':      '#FFFFFF',
+          success:        '#22C55E',
+          warning:        '#F59E0B',
+          danger:         '#EF4444',
+          info:           '#3B82F6',
         },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -71,7 +77,8 @@ const config: Config = {
         'panel':      '0 4px 16px -4px rgb(0 0 0 / 0.08)',
       },
       fontFamily: {
-        sans: ['var(--font-inter)', 'var(--font-noto-thai)', 'Noto Sans Thai', 'system-ui', 'sans-serif'],
+        sans:   ['var(--font-prompt)', 'var(--font-noto-thai)', 'Prompt', 'Noto Sans Thai', 'system-ui', 'sans-serif'],
+        prompt: ['var(--font-prompt)', 'Prompt', 'sans-serif'],
       },
       keyframes: {
         'accordion-down': {
