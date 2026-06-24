@@ -23,6 +23,8 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!hasHydrated) return
     if (user) { setMeStatus('done'); return }
+    // On auth pages (login/splash/etc.) skip /auth/me — no token yet
+    if (isAuthPage) { setMeStatus('done'); return }
 
     const controller = new AbortController()
     const timeout = setTimeout(() => {
