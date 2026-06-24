@@ -63,6 +63,7 @@ services:
       JWT_SECRET:     "${JWT_SECRET}"
       JWT_EXPIRES_IN: 7d
       CORS_ORIGIN:          "${CORS_ORIGIN:-https://fixitpro.in.th}"
+      COOKIE_SECURE:        "true"
       BACKUP_DIR:           /app/backups
       UPLOADS_BASE_DIR:     /app/uploads
       REPAIR_UPLOADS_DIR:   /app/uploads/repairs
