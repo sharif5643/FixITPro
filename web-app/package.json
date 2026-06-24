@@ -22,7 +22,7 @@
     "apk:live": "npx cap run android",
     "apk:release": "npx cap sync android && cd android && gradlew assembleRelease",
     "apk:release:install": "adb install -r android/app/build/outputs/apk/release/app-release.apk",
-    "apk:staff:sync": "cross-env CAPACITOR_SERVER_URL=https://fixitpro.in.th/staff/splash CAPACITOR_APP_ID=com.fixitpro.staff \"CAPACITOR_APP_NAME=FixITPro\" npx cap sync android",
+    "apk:staff:sync": "cross-env CAPACITOR_SERVER_URL=https://fixitpro.in.th/staff/splash CAPACITOR_APP_ID=com.fixitpro.staff \"CAPACITOR_APP_NAME=FixIT+\" npx cap sync android",
     "apk:staff:build": "cd android && .\\gradlew assembleStaffRelease",
     "apk:staff": "npm run apk:staff:sync && npm run apk:staff:build"
   },

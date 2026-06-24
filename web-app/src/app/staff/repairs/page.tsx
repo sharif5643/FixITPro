@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, Wrench, Loader2, ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
@@ -47,7 +47,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 const PAGE_SIZE = 10
 
-export default function RepairsPage() {
+function RepairsPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const [search,  setSearch]  = useState('')
@@ -190,4 +190,8 @@ export default function RepairsPage() {
       </div>
     </div>
   )
+}
+
+export default function RepairsPage() {
+  return <Suspense><RepairsPageInner /></Suspense>
 }
