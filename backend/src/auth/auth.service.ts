@@ -268,4 +268,59 @@ export class AuthService {
       enabledModules,
     };
   }
+
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Social OAuth — find-or-create user, then issue tokens exactly like login()
+  // ──────────────────────────────────────────────────────────────────────────────
+
+  async loginOrCreateSocialUser(opts: {
+    provider: 'google' | 'line';
+    externalId: string;
+    email: string;
+    name: string;
+  }) {
+    const idField = opts.provider === 'google' ? 'googleId' : 'lineUserId';
+
+    // 1. Find by social ID
+    let user = await this.prisma.user.findFirst({
+      where: { [idField]: opts.externalId },
+    });
+
+    if (!user) {
+      // 2. Find by email and link social ID
+      user = await this.prisma.user.findUnique({ where: { email: opts.email } });
+      if (user) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { [idField]: opts.externalId },
+        });
+      }
+    }
+
+    if (!user) {
+      // 3. Create new user (no tenant — admin assigns them later)
+      const randomPw = randomBytes(32).toString('hex');
+      const hashedPw = await bcrypt.hash(randomPw, 12);
+      user = await this.prisma.user.create({
+        data: {
+          email: opts.email,
+          name: opts.name,
+          password: hashedPw,
+          role: 'CASHIER',
+          isActive: true,
+          [idField]: opts.externalId,
+        },
+      });
+      this.logger.log(`Social auth: created new user ${user.email} via ${opts.provider}`);
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    const accessToken  = this.jwtService.sign(this.buildPayload(user));
+    const refreshToken = await this.issueRefreshToken(user.id);
+    return { accessToken, refreshToken, user };
+  }
 }

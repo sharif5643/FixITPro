@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -18,10 +18,18 @@ type Form = z.infer<typeof schema>
 
 export default function StaffLoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const setAuth = useAuthStore((s) => s.setAuth)
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<'login' | 'register'>('login')
+
+  useEffect(() => {
+    const err = searchParams.get('error')
+    if (err === 'google_failed') toast.error('เข้าสู่ระบบด้วย Google ไม่สำเร็จ')
+    if (err === 'line_failed')  toast.error('เข้าสู่ระบบด้วย LINE ไม่สำเร็จ')
+    if (err === 'line_not_configured') toast.error('LINE login ยังไม่ได้ตั้งค่า')
+  }, [searchParams])
 
   const { register, handleSubmit, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
@@ -132,7 +140,7 @@ export default function StaffLoginPage() {
           {/* Social login buttons */}
           <button
             type="button"
-            onClick={() => toast.info('Google login — กำลังพัฒนา')}
+            onClick={() => { window.location.href = '/api/v1/auth/google' }}
             className="flex h-12 items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 active:bg-slate-50"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -146,7 +154,7 @@ export default function StaffLoginPage() {
 
           <button
             type="button"
-            onClick={() => toast.info('LINE login — กำลังพัฒนา')}
+            onClick={() => { window.location.href = '/api/v1/auth/line' }}
             className="flex h-12 items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 active:bg-slate-50"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24" fill="#06C755">

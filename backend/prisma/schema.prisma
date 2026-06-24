@@ -354,6 +354,9 @@ model User {
   passwordResetById     String?
   lastPasswordChangedAt DateTime?
 
+  googleId   String? @unique
+  lineUserId String? @unique
+
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
@@ -718,6 +721,7 @@ model Repair {
   warranties         Warranty[]
   qc                 RepairQc?
   messages           RepairMessage[]
+  review             RepairReview?
 
   @@index([status, receivedAt])
   @@index([customerId])
@@ -870,6 +874,17 @@ model RepairMessage {
 
   @@index([repairId, createdAt])
   @@index([senderId])
+}
+
+model RepairReview {
+  id        String   @id @default(cuid())
+  repairId  String   @unique
+  repair    Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([repairId])
 }
 
 model RepairPart {

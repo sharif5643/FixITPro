@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Body, UseGuards, Res, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Res, Req, UnauthorizedException, Query } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
+import { AuthGuard } from '@nestjs/passport';
 import { AuthThrottlerGuard } from '../common/guards/auth-throttler.guard';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -8,6 +9,8 @@ import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import axios from 'axios';
+import { ConfigService } from '@nestjs/config';
 
 const REFRESH_COOKIE = 'refresh_token';
 const REFRESH_DAYS   = 30;
@@ -21,9 +24,14 @@ function parseExpiryToSeconds(expiry: string): number {
   return value * (multipliers[match[2]] ?? 3600);
 }
 
+const STAFF_HOME = '/staff/home';
+
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private config: ConfigService,
+  ) {}
 
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string, role: string, tenantExpiryDate?: string | null) {
     const secure   = process.env.COOKIE_SECURE === 'true';
@@ -117,5 +125,104 @@ export class AuthController {
   @Get('me')
   getProfile(@CurrentUser('id') userId: string) {
     return this.authService.getProfile(userId);
+  }
+
+  // ── Google OAuth ─────────────────────────────────────────────────────────────
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  googleAuth() {}
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleCallback(@Req() req: Request, @Res() res: Response) {
+    const profile = req.user as any;
+    if (!profile) return res.redirect('/staff/login?error=google_failed');
+
+    const result = await this.authService.loginOrCreateSocialUser({
+      provider:   'google',
+      externalId: profile.googleId,
+      email:      profile.email,
+      name:       profile.name,
+    });
+
+    this.setAuthCookies(res, result.accessToken, result.refreshToken, result.user.role);
+    return res.redirect(STAFF_HOME);
+  }
+
+  // ── LINE OAuth ───────────────────────────────────────────────────────────────
+
+  @Get('line')
+  lineAuth(@Res() res: Response) {
+    const channelId  = this.config.get<string>('LINE_CHANNEL_ID');
+    const callbackUrl = this.config.get<string>('LINE_CALLBACK_URL')
+      ?? 'https://fixitpro.in.th/api/v1/auth/line/callback';
+    const state = Math.random().toString(36).slice(2);
+
+    if (!channelId) return res.redirect('/staff/login?error=line_not_configured');
+
+    const url = new URL('https://access.line.me/oauth2/v2.1/authorize');
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('client_id', channelId);
+    url.searchParams.set('redirect_uri', callbackUrl);
+    url.searchParams.set('state', state);
+    url.searchParams.set('scope', 'profile openid email');
+    return res.redirect(url.toString());
+  }
+
+  @Get('line/callback')
+  async lineCallback(@Query('code') code: string, @Res() res: Response) {
+    if (!code) return res.redirect('/staff/login?error=line_failed');
+
+    try {
+      const channelId     = this.config.get<string>('LINE_CHANNEL_ID') ?? '';
+      const channelSecret = this.config.get<string>('LINE_CHANNEL_SECRET') ?? '';
+      const callbackUrl   = this.config.get<string>('LINE_CALLBACK_URL')
+        ?? 'https://fixitpro.in.th/api/v1/auth/line/callback';
+
+      // Exchange code for token
+      const tokenRes = await axios.post(
+        'https://api.line.me/oauth2/v2.1/token',
+        new URLSearchParams({
+          grant_type:    'authorization_code',
+          code,
+          redirect_uri:  callbackUrl,
+          client_id:     channelId,
+          client_secret: channelSecret,
+        }),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      );
+      const lineAccessToken: string = tokenRes.data.access_token;
+
+      // Get user profile
+      const profileRes = await axios.get('https://api.line.me/v2/profile', {
+        headers: { Authorization: `Bearer ${lineAccessToken}` },
+      });
+      const lineProfile = profileRes.data;
+
+      // Try to get email from id_token if available
+      let email = `line_${lineProfile.userId}@noemail.fixitpro`;
+      if (tokenRes.data.id_token) {
+        try {
+          const payload = JSON.parse(
+            Buffer.from(tokenRes.data.id_token.split('.')[1], 'base64').toString('utf8'),
+          );
+          if (payload.email) email = payload.email;
+        } catch { /* ignore */ }
+      }
+
+      const result = await this.authService.loginOrCreateSocialUser({
+        provider:   'line',
+        externalId: lineProfile.userId,
+        email,
+        name:       lineProfile.displayName ?? email,
+      });
+
+      this.setAuthCookies(res, result.accessToken, result.refreshToken, result.user.role);
+      return res.redirect(STAFF_HOME);
+    } catch (err) {
+      return res.redirect('/staff/login?error=line_failed');
+    }
   }
 }

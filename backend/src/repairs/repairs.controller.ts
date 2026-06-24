@@ -246,4 +246,12 @@ export class RepairsController {
   ) {
     return this.repairsService.submitQc(id, dto, userId, userName, tenantId);
   }
+
+  @Post(':id/review')
+  submitReview(
+    @Param('id') id: string,
+    @Body() body: { rating: number; comment?: string },
+  ) {
+    return this.repairsService.submitReview(id, body.rating, body.comment);
+  }
 }

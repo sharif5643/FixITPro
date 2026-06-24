@@ -939,4 +939,15 @@ export class RepairsService {
       orderBy: { receivedAt: 'desc' },
     });
   }
+
+  async submitReview(repairId: string, rating: number, comment?: string) {
+    if (rating < 1 || rating > 5) {
+      throw new Error('Rating must be between 1 and 5');
+    }
+    return this.prisma.repairReview.upsert({
+      where:  { repairId },
+      create: { repairId, rating, comment },
+      update: { rating, comment },
+    });
+  }
 }
