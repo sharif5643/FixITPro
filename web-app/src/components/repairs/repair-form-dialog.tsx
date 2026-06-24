@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatThaiMoney, cn } from '@/lib/utils'
+import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
 import { TechnicianAvatar } from '@/components/ui/technician-avatar'
 import type { Customer, RepairStatus } from '@/types'
@@ -278,30 +279,37 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
             <div className="flex flex-col items-center gap-2 text-center">
               <CheckCircle2 className="h-10 w-10 text-green-500" />
               <p className="font-semibold text-gray-900">เลขงาน: {createdRepair.ticketNumber}</p>
-              <p className="text-sm text-muted-foreground">เลือกรูปแบบพิมพ์ใบรับงานซ่อม</p>
+              <p className="text-sm text-muted-foreground">
+                {Platform.isNative() ? 'สร้างงานซ่อมสำเร็จ' : 'เลือกรูปแบบพิมพ์ใบรับงานซ่อม'}
+              </p>
             </div>
-            {/* พิมพ์ 2 ฉบับ — primary action */}
-            <button type="button"
-              onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm&copies=2`, '_blank')}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-blue-600 bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-              <Printer className="h-5 w-5" />
-              พิมพ์ 2 ฉบับ (ร้าน + ลูกค้า) ✂
-            </button>
 
-            <div className="grid grid-cols-3 gap-2">
-              <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm&copy=shop`, '_blank')}
-                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
-                <Printer className="h-5 w-5" />58mm<br />(ใบร้าน)
-              </button>
-              <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm`, '_blank')}
-                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
-                <Printer className="h-5 w-5" />58mm<br />(ใบลูกค้า)
-              </button>
-              <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=A4`, '_blank')}
-                className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors">
-                <FileText className="h-5 w-5" />A4<br />(เอกสาร)
-              </button>
-            </div>
+            {/* Print buttons — web/desktop only (window.open ไม่ทำงานใน APK) */}
+            {!Platform.isNative() && (
+              <>
+                <button type="button"
+                  onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm&copies=2`, '_blank')}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-blue-600 bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                  <Printer className="h-5 w-5" />
+                  พิมพ์ 2 ฉบับ (ร้าน + ลูกค้า) ✂
+                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm&copy=shop`, '_blank')}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+                    <Printer className="h-5 w-5" />58mm<br />(ใบร้าน)
+                  </button>
+                  <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm`, '_blank')}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+                    <Printer className="h-5 w-5" />58mm<br />(ใบลูกค้า)
+                  </button>
+                  <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=A4`, '_blank')}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors">
+                    <FileText className="h-5 w-5" />A4<br />(เอกสาร)
+                  </button>
+                </div>
+              </>
+            )}
+
             <Button className="w-full" onClick={handleClose}>ปิด</Button>
           </div>
         )}
@@ -598,6 +606,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                         <ImagePlus className="h-5 w-5" />
                         <span className="text-[10px] mt-1">เพิ่ม</span>
                         <input type="file" accept="image/*" multiple className="hidden"
+                          capture={Platform.isNative() ? 'environment' : undefined}
                           onChange={(e) => {
                             const files = Array.from(e.target.files ?? [])
                             setPhotos((prev) => [...prev, ...files].slice(0, 6))
@@ -616,6 +625,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                       <p className="text-xs">รองรับสูงสุด 6 รูป · JPG, PNG, WEBP</p>
                     </div>
                     <input type="file" accept="image/*" multiple className="hidden"
+                      capture={Platform.isNative() ? 'environment' : undefined}
                       onChange={(e) => {
                         const files = Array.from(e.target.files ?? [])
                         setPhotos(files.slice(0, 6))
