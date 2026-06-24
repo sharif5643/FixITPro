@@ -36,4 +36,8 @@ export const Platform = {
 
   /** True when the app is running in the SUNMI shell — actual SUNMI hardware or explicit env override */
   isSunmiShell: (): boolean => Platform.isSunmi() || Platform.isSunmiMode(),
+
+  /** True when NEXT_PUBLIC_APP_MODE=staff is set at build time (staff mobile APK) */
+  isStaffMode: (): boolean =>
+    process.env.NEXT_PUBLIC_APP_MODE === 'staff',
 }

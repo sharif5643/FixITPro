@@ -382,6 +382,7 @@ model User {
   voidedExpenses           Expense[]               @relation("ExpenseVoidedBy")
   reminderSettings         ReminderSettings?
   reminderSnoozes          ReminderSnooze[]
+  sentMessages             RepairMessage[]          @relation("SentMessages")
 
   @@index([role, isActive])
   @@index([tenantId])
@@ -716,6 +717,7 @@ model Repair {
   claims             Claim[]
   warranties         Warranty[]
   qc                 RepairQc?
+  messages           RepairMessage[]
 
   @@index([status, receivedAt])
   @@index([customerId])
@@ -855,6 +857,19 @@ model RepairQc {
   updatedAt    DateTime @updatedAt
 
   @@index([repairId])
+}
+
+model RepairMessage {
+  id        String   @id @default(cuid())
+  repairId  String
+  repair    Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id])
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([repairId, createdAt])
+  @@index([senderId])
 }
 
 model RepairPart {

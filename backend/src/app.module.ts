@@ -42,6 +42,7 @@ import { LineMessagingModule } from './line-messaging/line-messaging.module';
 import { FilesModule } from './files/files.module';
 import { ModulesModule } from './modules/modules.module';
 import { TenantModule } from './tenant/tenant.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   controllers: [HealthController],
@@ -99,6 +100,7 @@ import { TenantModule } from './tenant/tenant.module';
     FilesModule,
     ModulesModule,
     TenantModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

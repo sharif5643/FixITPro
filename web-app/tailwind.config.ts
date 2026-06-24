@@ -17,6 +17,14 @@ const config: Config = {
     },
     extend: {
       colors: {
+        brand: {
+          yellow:  '#F5C200',
+          'yellow-hover': '#E6B400',
+          'yellow-light': '#FFF8D6',
+          black:   '#111111',
+          'gray':  '#6B7280',
+          'light': '#F5F5F5',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

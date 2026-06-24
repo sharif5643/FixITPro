@@ -1,6 +1,7 @@
 import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
@@ -64,6 +65,9 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // Enable Socket.IO adapter for real-time chat
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // BLK-2: CORS_ORIGIN is required in production — a missing value silently
   // opens the API to all origins. Fail loudly at startup instead.
