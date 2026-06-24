@@ -78,12 +78,13 @@ api.interceptors.response.use(
         }
       }
 
-      // Refresh failed or already retried — send to login
+      // Refresh failed or already retried — send to appropriate login
       if (_redirectingToLogin) return Promise.reject(error)
       _redirectingToLogin = true
       useAuthStore.getState().clearAuth()
       try { await api.post('/auth/logout') } catch { /* best-effort */ }
-      window.location.href = '/login'
+      const isStaffPage = window.location.pathname.startsWith('/staff')
+      window.location.href = isStaffPage ? '/staff/login' : '/login'
       return Promise.reject(error)
     }
 

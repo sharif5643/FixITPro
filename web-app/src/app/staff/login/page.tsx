@@ -74,12 +74,17 @@ function LoginForm() {
   async function onSubmit(data: Form) {
     setLoading(true)
     try {
-      const res = await api.post('/auth/login', { email: data.email, password: data.password })
+      const res = await api.post('/auth/login', {
+        email:    data.email,
+        username: data.email,
+        password: data.password,
+      })
       const { permissions = [], enabledModules = [], ...user } = res.data
       setAuth(user, permissions, enabledModules)
       router.replace('/staff/home')
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง')
+      const msg = err?.response?.data?.message
+      toast.error(msg || 'อีเมล/รหัสผ่านไม่ถูกต้อง')
     } finally {
       setLoading(false)
     }
@@ -126,13 +131,13 @@ function LoginForm() {
 
             {/* Username */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[13px] font-semibold text-slate-500">ชื่อผู้ใช้ / เบอร์โทร</label>
+              <label className="text-[13px] font-semibold text-slate-500">อีเมล / ชื่อผู้ใช้</label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-slate-400"/>
                 <input
-                  type="text"
-                  autoComplete="username"
-                  placeholder="ชื่อผู้ใช้ / เบอร์โทร"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="อีเมลที่ใช้สมัคร"
                   {...register('email')}
                   className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#F8F9FB] pl-11 pr-11 text-sm text-[#111] outline-none transition-all focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20"
                 />
