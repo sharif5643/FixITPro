@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import axios from 'axios';
@@ -111,6 +112,13 @@ export class AuthController {
     res.clearCookie('tenant_role',     { path: '/' });
     res.clearCookie('tenant_expiry_ts', { path: '/' });
     return { message: 'Logged out' };
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ auth_login: { limit: 5, ttl: 15 * 60 * 1000 } })
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
   }
 
   @UseGuards(JwtAuthGuard, ThrottlerGuard)

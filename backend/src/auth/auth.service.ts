@@ -197,6 +197,23 @@ export class AuthService {
     };
   }
 
+  async forgotPassword(email: string) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let tempPassword = 'Tmp';
+    for (let i = 0; i < 8; i++) tempPassword += chars[Math.floor(Math.random() * chars.length)];
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user && user.isActive) {
+      const hashed = await bcrypt.hash(tempPassword, 12);
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashed, forcePasswordChange: true },
+      });
+      return { found: true, tempPassword, message: 'รหัสผ่านชั่วคราวสำหรับเข้าระบบ' };
+    }
+    return { found: false, tempPassword: null, message: 'ไม่พบอีเมลนี้ในระบบ' };
+  }
+
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('User not found');
