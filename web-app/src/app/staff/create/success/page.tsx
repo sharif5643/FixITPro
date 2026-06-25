@@ -87,8 +87,7 @@ function SuccessContent() {
     : []
 
   function handlePrint() {
-    toast.success('กำลังเปิดใบรับซ่อม...')
-    setTimeout(() => window.print(), 300)
+    window.print()
   }
   function handleQueue() {
     toast.success('ส่งเข้าคิวช่างแล้ว')
@@ -96,189 +95,377 @@ function SuccessContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] pb-36">
+    <>
+      {/* ── Print CSS ── */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          body * { visibility: hidden !important; }
+          #print-receipt, #print-receipt * { visibility: visible !important; }
+          #print-receipt {
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: white !important;
+          }
+          @page { margin: 8mm; size: A4; }
+        }
+      `}} />
 
-      {/* ── Success banner ── */}
-      <div className={`relative overflow-hidden bg-white px-6 pb-8 pt-14 text-center transition-all duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-        {/* Confetti dots */}
-        {['#FFC107','#22C55E','#EF4444','#3B82F6','#8B5CF6'].map((c,i) => (
-          <div key={i} className="pointer-events-none absolute h-2.5 w-2.5 rounded-full opacity-70"
-            style={{ backgroundColor:c, top:`${15+i*8}%`, left:`${10+i*16}%`, transform:'rotate(45deg)' }}/>
-        ))}
-        {['#FFC107','#EF4444','#22C55E'].map((c,i) => (
-          <div key={i} className="pointer-events-none absolute h-2 w-2 rounded-full opacity-60"
-            style={{ backgroundColor:c, top:`${20+i*10}%`, right:`${12+i*12}%` }}/>
-        ))}
+      {/* ── Hidden Print Receipt ── */}
+      <div id="print-receipt" style={{ display:'none' }}>
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media print {
+            #print-receipt { display: block !important; font-family: 'Sarabun', sans-serif; }
+          }
+        `}} />
+        {repair && (
+          <div style={{ maxWidth:620, margin:'0 auto', padding:'16px 20px', fontSize:13, color:'#111', lineHeight:1.6 }}>
 
-        <div className={`inline-flex h-[72px] w-[72px] items-center justify-center rounded-full bg-emerald-500 shadow-[0_8px_32px_rgba(34,197,94,0.35)] transition-all duration-500 delay-200 ${mounted ? 'scale-100' : 'scale-50'}`}>
-          <CheckCircle2 className="h-10 w-10 text-white" strokeWidth={2.5}/>
+            {/* Header */}
+            <div style={{ textAlign:'center', borderBottom:'2px solid #111', paddingBottom:10, marginBottom:12 }}>
+              <div style={{ fontSize:22, fontWeight:900, letterSpacing:1 }}>FIX<span style={{ color:'#FFC107' }}>⚡</span>T Pro</div>
+              <div style={{ fontSize:14, fontWeight:700, marginTop:2 }}>ใบรับซ่อมอุปกรณ์</div>
+              <div style={{ fontSize:11, color:'#555', marginTop:2 }}>Repair Service Receipt</div>
+            </div>
+
+            {/* Ticket + Date */}
+            <table style={{ width:'100%', marginBottom:10 }}>
+              <tbody>
+                <tr>
+                  <td style={{ width:'50%', verticalAlign:'top' }}>
+                    <div style={{ fontSize:11, color:'#888' }}>เลขที่ใบรับซ่อม</div>
+                    <div style={{ fontSize:16, fontWeight:900, letterSpacing:0.5 }}>{repair.ticketNumber}</div>
+                  </td>
+                  <td style={{ width:'50%', textAlign:'right', verticalAlign:'top' }}>
+                    <div style={{ fontSize:11, color:'#888' }}>วันที่รับเครื่อง</div>
+                    <div style={{ fontSize:12, fontWeight:700 }}>{fmtDate(repair.createdAt)}</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
+
+            {/* Customer */}
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>ข้อมูลลูกค้า</div>
+              <table style={{ width:'100%', fontSize:13 }}>
+                <tbody>
+                  <tr><td style={{ width:100, color:'#666', paddingBottom:2 }}>ชื่อลูกค้า</td><td style={{ fontWeight:700 }}>{repair.customerName}</td></tr>
+                  <tr><td style={{ color:'#666' }}>เบอร์โทร</td><td style={{ fontWeight:700 }}>{repair.customerPhone || '-'}</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
+
+            {/* Device */}
+            <div style={{ marginBottom:10 }}>
+              <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>ข้อมูลอุปกรณ์</div>
+              <table style={{ width:'100%', fontSize:13 }}>
+                <tbody>
+                  <tr><td style={{ width:100, color:'#666', paddingBottom:2 }}>ยี่ห้อ / รุ่น</td><td style={{ fontWeight:700 }}>{repair.deviceBrand} {repair.deviceModel}</td></tr>
+                  {repair.deviceColor && <tr><td style={{ color:'#666', paddingBottom:2 }}>สีเครื่อง</td><td>{repair.deviceColor}</td></tr>}
+                  {repair.deviceImei && <tr><td style={{ color:'#666', paddingBottom:2 }}>IMEI</td><td style={{ fontFamily:'monospace', fontSize:12 }}>{repair.deviceImei}</td></tr>}
+                  {repair.deviceSerial && <tr><td style={{ color:'#666', paddingBottom:2 }}>Serial</td><td style={{ fontFamily:'monospace', fontSize:12 }}>{repair.deviceSerial}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+
+            <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
+
+            {/* Symptoms */}
+            {symptoms.length > 0 && (
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>อาการเสีย</div>
+                <div style={{ fontSize:13, fontWeight:700 }}>{symptoms.join(' / ')}</div>
+                {repair.issueDescription && <div style={{ fontSize:12, color:'#555', marginTop:3 }}>{repair.issueDescription}</div>}
+              </div>
+            )}
+
+            {/* Conditions */}
+            {conditions.length > 0 && (
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>สภาพเครื่องก่อนซ่อม</div>
+                <div style={{ fontSize:13 }}>{conditions.map(c => `✓ ${c}`).join('  ')}</div>
+              </div>
+            )}
+
+            {/* Accessories */}
+            {accessories.length > 0 && (
+              <>
+                <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
+                <div style={{ marginBottom:10 }}>
+                  <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>อุปกรณ์ที่ฝาก</div>
+                  <div style={{ fontSize:13 }}>{(accessories as string[]).map(a => `☑ ${a}`).join('  ')}</div>
+                </div>
+              </>
+            )}
+
+            {/* Pricing */}
+            {total > 0 && (
+              <>
+                <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
+                <div style={{ marginBottom:10 }}>
+                  <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:6 }}>ค่าบริการ</div>
+                  <table style={{ width:'100%', fontSize:13 }}>
+                    <tbody>
+                      {labor > 0 && (
+                        <tr>
+                          <td style={{ color:'#666', paddingBottom:3 }}>ค่าแรง</td>
+                          <td style={{ textAlign:'right' }}>{labor.toLocaleString('th-TH')} บาท</td>
+                        </tr>
+                      )}
+                      {parts > 0 && (
+                        <tr>
+                          <td style={{ color:'#666', paddingBottom:3 }}>ค่าอะไหล่</td>
+                          <td style={{ textAlign:'right' }}>{parts.toLocaleString('th-TH')} บาท</td>
+                        </tr>
+                      )}
+                      <tr style={{ borderTop:'1px solid #ddd' }}>
+                        <td style={{ fontWeight:800, paddingTop:4 }}>รวมทั้งสิ้น</td>
+                        <td style={{ textAlign:'right', fontWeight:900, fontSize:15 }}>{total.toLocaleString('th-TH')} บาท</td>
+                      </tr>
+                      {deposit > 0 && (
+                        <tr>
+                          <td style={{ color:'#666', paddingBottom:2 }}>รับมัดจำ</td>
+                          <td style={{ textAlign:'right', color:'#16a34a' }}>-{deposit.toLocaleString('th-TH')} บาท</td>
+                        </tr>
+                      )}
+                      {deposit > 0 && remain > 0 && (
+                        <tr>
+                          <td style={{ fontWeight:700 }}>ยอดคงเหลือ</td>
+                          <td style={{ textAlign:'right', fontWeight:800 }}>{remain.toLocaleString('th-TH')} บาท</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* Technician */}
+            {repair.technicianName && (
+              <>
+                <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
+                <div style={{ fontSize:13, marginBottom:10 }}>
+                  <span style={{ color:'#666' }}>ช่างผู้รับผิดชอบ: </span>
+                  <span style={{ fontWeight:700 }}>{repair.technicianName}</span>
+                </div>
+              </>
+            )}
+
+            <hr style={{ border:'none', borderTop:'2px solid #111', margin:'12px 0' }}/>
+
+            {/* Signatures */}
+            <table style={{ width:'100%', marginTop:16 }}>
+              <tbody>
+                <tr>
+                  <td style={{ width:'48%', textAlign:'center', paddingTop:36, borderTop:'1px solid #aaa', fontSize:12, color:'#444' }}>
+                    ลงชื่อลูกค้า<br/><span style={{ fontSize:11, color:'#888' }}>Customer Signature</span>
+                  </td>
+                  <td style={{ width:'4%' }}></td>
+                  <td style={{ width:'48%', textAlign:'center', paddingTop:36, borderTop:'1px solid #aaa', fontSize:12, color:'#444' }}>
+                    ลงชื่อพนักงาน<br/><span style={{ fontSize:11, color:'#888' }}>Staff Signature</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Footer */}
+            <div style={{ textAlign:'center', marginTop:16, fontSize:11, color:'#aaa', borderTop:'1px dashed #ddd', paddingTop:8 }}>
+              ขอบคุณที่ใช้บริการ FIX⚡T Pro • กรุณาเก็บใบรับซ่อมไว้เป็นหลักฐาน
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Screen view ── */}
+      <div className="min-h-screen bg-[#F8F9FB] pb-36">
+
+        {/* ── Success banner ── */}
+        <div className={`relative overflow-hidden bg-white px-6 pb-8 pt-14 text-center transition-all duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+          {['#FFC107','#22C55E','#EF4444','#3B82F6','#8B5CF6'].map((c,i) => (
+            <div key={i} className="pointer-events-none absolute h-2.5 w-2.5 rounded-full opacity-70"
+              style={{ backgroundColor:c, top:`${15+i*8}%`, left:`${10+i*16}%`, transform:'rotate(45deg)' }}/>
+          ))}
+          {['#FFC107','#EF4444','#22C55E'].map((c,i) => (
+            <div key={i} className="pointer-events-none absolute h-2 w-2 rounded-full opacity-60"
+              style={{ backgroundColor:c, top:`${20+i*10}%`, right:`${12+i*12}%` }}/>
+          ))}
+
+          <div className={`inline-flex h-[72px] w-[72px] items-center justify-center rounded-full bg-emerald-500 shadow-[0_8px_32px_rgba(34,197,94,0.35)] transition-all duration-500 delay-200 ${mounted ? 'scale-100' : 'scale-50'}`}>
+            <CheckCircle2 className="h-10 w-10 text-white" strokeWidth={2.5}/>
+          </div>
+
+          <h2 className={`mt-4 text-[18px] font-extrabold text-[#111] transition-all duration-500 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            บันทึกงานซ่อมสำเร็จ!
+          </h2>
+
+          {repair && (
+            <div className={`mt-3 transition-all duration-500 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+              <p className="text-[12px] text-slate-400">หมายเลขงาน</p>
+              <p className="text-[28px] font-extrabold tracking-wide text-[#111]">{repair.ticketNumber}</p>
+              <p className="text-[12px] text-slate-400">{fmtDate(repair.createdAt)}</p>
+            </div>
+          )}
         </div>
 
-        <h2 className={`mt-4 text-[18px] font-extrabold text-[#111] transition-all duration-500 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          บันทึกงานซ่อมสำเร็จ!
-        </h2>
+        <div className="flex flex-col gap-4 p-4">
 
-        {repair && (
-          <div className={`mt-3 transition-all duration-500 delay-400 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            <p className="text-[12px] text-slate-400">หมายเลขงาน</p>
-            <p className="text-[28px] font-extrabold tracking-wide text-[#111]">{repair.ticketNumber}</p>
-            <p className="text-[12px] text-slate-400">{fmtDate(repair.createdAt)}</p>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-4 p-4">
-
-        {/* ── Customer ── */}
-        {repair && (
-          <div className={`rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] transition-all duration-500 delay-[500ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            <p className="mb-3 text-[13px] font-bold text-[#111]">ข้อมูลลูกค้า</p>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FFC107] text-sm font-bold text-[#111]">
-                <User className="h-5 w-5"/>
+          {/* ── Customer ── */}
+          {repair && (
+            <div className={`rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] transition-all duration-500 delay-[500ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+              <p className="mb-3 text-[13px] font-bold text-[#111]">ข้อมูลลูกค้า</p>
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FFC107] text-sm font-bold text-[#111]">
+                  <User className="h-5 w-5"/>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[14px] font-bold text-[#111]">{repair.customerName}</p>
+                  <p className="text-[12px] text-slate-400">{repair.customerPhone}</p>
+                </div>
+                {repair.isReturnCustomer && (
+                  <span className="rounded-full bg-[#FFF8E7] px-2.5 py-1 text-[10px] font-bold text-[#F59E0B]">ลูกค้าเก่า</span>
+                )}
               </div>
-              <div className="flex-1">
-                <p className="text-[14px] font-bold text-[#111]">{repair.customerName}</p>
-                <p className="text-[12px] text-slate-400">{repair.customerPhone}</p>
+            </div>
+          )}
+
+          {/* ── Device info ── */}
+          {repair && (
+            <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              <p className="mb-3 text-[13px] font-bold text-[#111]">ข้อมูลอุปกรณ์</p>
+              <div className="flex flex-col">
+                <Row label="ประเภท"      value={repair.deviceType === 'mobile' ? 'มือถือ' : repair.deviceType}/>
+                <Row label="ยี่ห้อ / รุ่น" value={`${repair.deviceBrand} / ${repair.deviceModel}`}/>
+                <Row label="IMEI"         value={repair.deviceImei}/>
+                <Row label="Serial Number" value={repair.deviceSerial}/>
+                <Row label="สีเครื่อง"    value={repair.deviceColor}/>
               </div>
-              {repair.isReturnCustomer && (
-                <span className="rounded-full bg-[#FFF8E7] px-2.5 py-1 text-[10px] font-bold text-[#F59E0B]">ลูกค้าเก่า</span>
+            </div>
+          )}
+
+          {/* ── Symptoms ── */}
+          {symptoms.length > 0 && (
+            <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              <p className="mb-3 text-[13px] font-bold text-[#111]">อาการเสีย</p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {symptoms.map(s => (
+                  <span key={s} className="rounded-full bg-[#FFF8E7] px-3 py-1.5 text-[12px] font-semibold text-[#F59E0B]">{s}</span>
+                ))}
+              </div>
+              {repair?.issueDescription && <p className="text-[12px] text-slate-500">{repair.issueDescription}</p>}
+            </div>
+          )}
+
+          {/* ── Condition + photos ── */}
+          {(conditions.length > 0 || (repair?.photos && repair.photos.length > 0)) && (
+            <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              {conditions.length > 0 && (
+                <>
+                  <p className="mb-3 text-[13px] font-bold text-[#111]">สภาพเครื่องก่อนซ่อม</p>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {conditions.map(c => (
+                      <span key={c} className="flex items-center gap-1 text-[12px] text-slate-600">
+                        <span className="text-emerald-500 font-bold">✓</span> {c}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+              {repair?.photos && repair.photos.length > 0 && (
+                <>
+                  <p className="mb-2 text-[13px] font-bold text-[#111]">รูปภาพก่อนซ่อม</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {repair.photos.slice(0,4).map((url, i) => (
+                      <img key={i} src={url} className="aspect-square w-full rounded-xl object-cover" alt=""/>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Device info ── */}
-        {repair && (
-          <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            <p className="mb-3 text-[13px] font-bold text-[#111]">ข้อมูลอุปกรณ์</p>
-            <div className="flex flex-col">
-              <Row label="ประเภท"      value={repair.deviceType === 'mobile' ? 'มือถือ' : repair.deviceType}/>
-              <Row label="ยี่ห้อ / รุ่น" value={`${repair.deviceBrand} / ${repair.deviceModel}`}/>
-              <Row label="IMEI"         value={repair.deviceImei}/>
-              <Row label="Serial Number" value={repair.deviceSerial}/>
-              <Row label="สีเครื่อง"    value={repair.deviceColor}/>
-            </div>
-          </div>
-        )}
-
-        {/* ── Symptoms ── */}
-        {symptoms.length > 0 && (
-          <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            <p className="mb-3 text-[13px] font-bold text-[#111]">อาการเสีย</p>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {symptoms.map(s => (
-                <span key={s} className="rounded-full bg-[#FFF8E7] px-3 py-1.5 text-[12px] font-semibold text-[#F59E0B]">{s}</span>
-              ))}
-            </div>
-            {repair?.issueDescription && <p className="text-[12px] text-slate-500">{repair.issueDescription}</p>}
-          </div>
-        )}
-
-        {/* ── Condition + photos ── */}
-        {(conditions.length > 0 || (repair?.photos && repair.photos.length > 0)) && (
-          <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            {conditions.length > 0 && (
-              <>
-                <p className="mb-3 text-[13px] font-bold text-[#111]">สภาพเครื่องก่อนซ่อม</p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {conditions.map(c => (
-                    <span key={c} className="flex items-center gap-1 text-[12px] text-slate-600">
-                      <span className="text-emerald-500 font-bold">✓</span> {c}
-                    </span>
-                  ))}
-                </div>
-              </>
-            )}
-            {repair?.photos && repair.photos.length > 0 && (
-              <>
-                <p className="mb-2 text-[13px] font-bold text-[#111]">รูปภาพก่อนซ่อม</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {repair.photos.slice(0,4).map((url, i) => (
-                    <img key={i} src={url} className="aspect-square w-full rounded-xl object-cover" alt=""/>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── Accessories ── */}
-        {accessories.length > 0 && (
-          <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            <p className="mb-3 text-[13px] font-bold text-[#111]">อุปกรณ์ที่ฝาก</p>
-            <div className="flex flex-wrap gap-2">
-              {accessories.map((a: string) => (
-                <span key={a} className="flex items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-[#F8F9FB] px-3 py-1.5">
-                  <Smartphone className="h-3.5 w-3.5 text-slate-400"/>
-                  <span className="text-[12px] font-semibold text-slate-600">{a}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Pricing ── */}
-        {total > 0 && (
-          <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            <p className="mb-2 text-[13px] font-bold text-[#111]">ค่าบริการ</p>
-            <div className="flex flex-col">
-              {labor > 0  && <Row label="ค่าแรง"    value={fmt(labor)}/>}
-              {parts > 0  && <Row label="ค่าอะไหล่" value={fmt(parts)}/>}
-              <Row label="รวม"       value={fmt(total)}   highlight/>
-              {deposit > 0 && <Row label="รับมัดจำ" value={fmt(deposit)}/>}
-              {deposit > 0 && remain > 0 && <Row label="คงเหลือ"   value={fmt(remain)}/>}
-            </div>
-          </div>
-        )}
-
-        {/* ── Technician + Status ── */}
-        {repair && (
-          <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            {repair.technicianName && (
-              <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F8F9FB]">
-                  <User className="h-5 w-5 text-slate-400"/>
-                </div>
-                <div>
-                  <p className="text-[11px] text-slate-400">ผู้รับผิดชอบ</p>
-                  <p className="text-[13px] font-bold text-[#111]">{repair.technicianName}</p>
-                </div>
+          {/* ── Accessories ── */}
+          {accessories.length > 0 && (
+            <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              <p className="mb-3 text-[13px] font-bold text-[#111]">อุปกรณ์ที่ฝาก</p>
+              <div className="flex flex-wrap gap-2">
+                {accessories.map((a: string) => (
+                  <span key={a} className="flex items-center gap-1.5 rounded-full border border-[#E5E7EB] bg-[#F8F9FB] px-3 py-1.5">
+                    <Smartphone className="h-3.5 w-3.5 text-slate-400"/>
+                    <span className="text-[12px] font-semibold text-slate-600">{a}</span>
+                  </span>
+                ))}
               </div>
-            )}
-            <div className="flex items-center justify-between">
-              <p className="text-[12px] text-slate-400">สถานะ</p>
-              <span className={`rounded-full px-3 py-1 text-[12px] font-bold ${STATUS_STYLE[repair.status] ?? 'bg-slate-100 text-slate-500'}`}>
-                {STATUS_LABEL[repair.status] ?? repair.status}
-              </span>
             </div>
-          </div>
-        )}
+          )}
 
-      </div>
+          {/* ── Pricing ── */}
+          {total > 0 && (
+            <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              <p className="mb-2 text-[13px] font-bold text-[#111]">ค่าบริการ</p>
+              <div className="flex flex-col">
+                {labor > 0  && <Row label="ค่าแรง"    value={fmt(labor)}/>}
+                {parts > 0  && <Row label="ค่าอะไหล่" value={fmt(parts)}/>}
+                <Row label="รวม"       value={fmt(total)}   highlight/>
+                {deposit > 0 && <Row label="รับมัดจำ" value={fmt(deposit)}/>}
+                {deposit > 0 && remain > 0 && <Row label="คงเหลือ"   value={fmt(remain)}/>}
+              </div>
+            </div>
+          )}
 
-      {/* ── Bottom actions ── */}
-      <div className="fixed bottom-0 left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
-        <button
-          onClick={handlePrint}
-          className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC107] text-[15px] font-bold text-[#111] shadow-[0_4px_20px_rgba(255,193,7,0.4)] active:scale-[0.98] transition-transform"
-        >
-          <Printer className="h-5 w-5"/> พิมพ์ใบรับซ่อม
-        </button>
-        <button
-          onClick={handleQueue}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#E5E7EB] bg-white text-[14px] font-semibold text-[#111] active:bg-slate-50"
-        >
-          <Send className="h-4 w-4"/> ส่งเข้าคิวช่าง
-        </button>
-        <button
-          onClick={() => router.replace('/staff/home')}
-          className="flex h-10 w-full items-center justify-center gap-2 text-[13px] font-medium text-slate-400"
-        >
-          <Home className="h-4 w-4"/> กลับหน้าหลัก
-        </button>
+          {/* ── Technician + Status ── */}
+          {repair && (
+            <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              {repair.technicianName && (
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F8F9FB]">
+                    <User className="h-5 w-5 text-slate-400"/>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-slate-400">ผู้รับผิดชอบ</p>
+                    <p className="text-[13px] font-bold text-[#111]">{repair.technicianName}</p>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <p className="text-[12px] text-slate-400">สถานะ</p>
+                <span className={`rounded-full px-3 py-1 text-[12px] font-bold ${STATUS_STYLE[repair.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                  {STATUS_LABEL[repair.status] ?? repair.status}
+                </span>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* ── Bottom actions ── */}
+        <div className="fixed bottom-0 left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+          <button
+            onClick={handlePrint}
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC107] text-[15px] font-bold text-[#111] shadow-[0_4px_20px_rgba(255,193,7,0.4)] active:scale-[0.98] transition-transform"
+          >
+            <Printer className="h-5 w-5"/> พิมพ์ใบรับซ่อม
+          </button>
+          <button
+            onClick={handleQueue}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#E5E7EB] bg-white text-[14px] font-semibold text-[#111] active:bg-slate-50"
+          >
+            <Send className="h-4 w-4"/> ส่งเข้าคิวช่าง
+          </button>
+          <button
+            onClick={() => router.replace('/staff/home')}
+            className="flex h-10 w-full items-center justify-center gap-2 text-[13px] font-medium text-slate-400"
+          >
+            <Home className="h-4 w-4"/> กลับหน้าหลัก
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
