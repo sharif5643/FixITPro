@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { StaffBottomNav } from '@/components/staff/staff-bottom-nav'
 import api from '@/lib/api'
 
-const AUTH_PAGES = ['/staff/login', '/staff/register', '/staff/splash', '/staff/branch', '/staff/change-password']
+const AUTH_PAGES = ['/staff/login', '/staff/register', '/staff/splash', '/staff/change-password']
 const AUTH_TIMEOUT_MS = 10_000
 
 export default function StaffLayout({ children }: { children: React.ReactNode }) {
