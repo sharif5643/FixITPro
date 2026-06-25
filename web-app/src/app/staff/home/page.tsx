@@ -7,7 +7,6 @@ import {
   ChevronRight, FileText, BarChart2, MessageCircle, Calendar,
   LayoutGrid, RefreshCw, AlertTriangle,
 } from 'lucide-react'
-import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatDistanceToNow, subDays, format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { useAuthStore } from '@/store/auth.store'
@@ -124,7 +123,6 @@ export default function HomePage() {
   const [weekly,  setWeekly]  = useState(last7Days())
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(false)
-  const [mounted, setMounted] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true); setError(false)
@@ -183,7 +181,7 @@ export default function HomePage() {
     }
   }, [])
 
-  useEffect(() => { setMounted(true); load() }, [load])
+  useEffect(() => { load() }, [load])
 
   const initials = user?.name?.split(' ').map((n:string) => n[0]).slice(0,2).join('').toUpperCase() ?? '??'
   const roleTH   = { OWNER:'เจ้าของร้าน', MANAGER:'ผู้จัดการ', TECHNICIAN:'ช่างซ่อม', STAFF:'พนักงาน' }[role] ?? 'พนักงาน'
@@ -400,33 +398,26 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* ── Revenue chart — owner/manager only (client-only: recharts uses ResizeObserver) ── */}
-        {mounted && canSeeRev && (
+        {/* ── Revenue chart — CSS bars, no external lib ── */}
+        {canSeeRev && (
           <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-            <div className="mb-1 flex items-start justify-between">
-              <div>
-                <p className="text-[13px] font-bold text-[#111]">ภาพรวมรายได้ (7 วัน)</p>
-                <p className="text-[20px] font-extrabold text-[#111]">฿{fmt(stats.todayRevenue * 7)}</p>
-                <ChangeBadge pct={stats.revenueChange}/>
-              </div>
-            </div>
-            <div className="mt-3 h-[100px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weekly} margin={{top:4,right:4,left:4,bottom:0}}>
-                  <defs>
-                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#FFC107" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#FFC107" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="label" tick={{fontSize:10, fill:'#94a3b8'}} axisLine={false} tickLine={false}/>
-                  <Tooltip
-                    contentStyle={{borderRadius:12, border:'none', boxShadow:'0 4px 12px rgba(0,0,0,0.12)', fontSize:12}}
-                    formatter={(v: any) => [`฿${fmt(Number(v))}`, 'รายได้'] as [string, string]}
-                  />
-                  <Area type="monotone" dataKey="revenue" stroke="#FFC107" strokeWidth={2.5} fill="url(#revGrad)" dot={false}/>
-                </AreaChart>
-              </ResponsiveContainer>
+            <p className="text-[13px] font-bold text-[#111]">ภาพรวมรายได้ (7 วัน)</p>
+            <p className="text-[20px] font-extrabold text-[#111]">฿{fmt(weekly.reduce((s,d)=>s+d.revenue,0))}</p>
+            <ChangeBadge pct={stats.revenueChange}/>
+            <div className="mt-4 flex items-end gap-1.5 h-[80px]">
+              {weekly.map((d, i) => {
+                const max = Math.max(...weekly.map(w => w.revenue), 1)
+                const pct = Math.max((d.revenue / max) * 100, 4)
+                return (
+                  <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                    <div
+                      className="w-full rounded-t-md"
+                      style={{ height: `${pct}%`, background: i === weekly.length-1 ? '#FFC107' : '#FEE9A0' }}
+                    />
+                    <span className="text-[9px] text-slate-400">{d.label}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
