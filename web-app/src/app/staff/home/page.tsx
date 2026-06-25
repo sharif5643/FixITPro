@@ -124,6 +124,7 @@ export default function HomePage() {
   const [weekly,  setWeekly]  = useState(last7Days())
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true); setError(false)
@@ -182,7 +183,7 @@ export default function HomePage() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { setMounted(true); load() }, [load])
 
   const initials = user?.name?.split(' ').map((n:string) => n[0]).slice(0,2).join('').toUpperCase() ?? '??'
   const roleTH   = { OWNER:'เจ้าของร้าน', MANAGER:'ผู้จัดการ', TECHNICIAN:'ช่างซ่อม', STAFF:'พนักงาน' }[role] ?? 'พนักงาน'
@@ -399,8 +400,8 @@ export default function HomePage() {
           ))}
         </div>
 
-        {/* ── Revenue chart — owner/manager only ── */}
-        {canSeeRev && (
+        {/* ── Revenue chart — owner/manager only (client-only: recharts uses ResizeObserver) ── */}
+        {mounted && canSeeRev && (
           <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
             <div className="mb-1 flex items-start justify-between">
               <div>

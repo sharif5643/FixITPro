@@ -78,7 +78,7 @@ function LoginForm() {
         email:    data.email.trim().toLowerCase(),
         password: data.password,
       })
-      const { permissions = [], enabledModules = [], ...user } = res.data
+      const { user, permissions = [], enabledModules = [] } = res.data
       setAuth(user, permissions, enabledModules)
       router.replace('/staff/home')
     } catch (err: any) {
