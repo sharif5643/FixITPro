@@ -31,6 +31,7 @@ import { BranchContextBar, GlobalModeBanner } from '@/components/layout/branch-c
 import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
 import api from '@/lib/api'
+import { printRepairReceipt } from '@/lib/print'
 import type { RepairStatus, Repair } from '@/types'
 
 const RepairDetailDialog = dynamic(
@@ -214,7 +215,7 @@ export default function RepairsPage() {
             repairs={repairs}
             onOpenDetail={setSelectedRepairId}
             onPayment={(id) => setSelectedRepairId(id)}
-            onPrint={() => toast.info('กำลังพัฒนาระบบพิมพ์ใบงาน')}
+            onPrint={(id) => printRepairReceipt(id, { paperWidth: '80mm' })}
             onQc={setQcRepairId}
             onStatusChanged={invalidate}
           />
