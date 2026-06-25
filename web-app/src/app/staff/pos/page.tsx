@@ -1,15 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Search, Scan, Plus, Minus, Trash2, Loader2, ShoppingCart } from 'lucide-react'
+import { ChevronLeft, Search, Scan, Plus, Minus, Loader2, ShoppingCart } from 'lucide-react'
 import api from '@/lib/api'
 import { toast } from 'sonner'
 
-interface Product { id:string; name:string; salePrice:number; stockQuantity:number; sku?:string; category?:{name:string} }
+interface Product { id:string; name:string; salePrice:number; stockQuantity:number; sku?:string; category?:{name:string}; type?:string }
 interface CartItem extends Product { qty:number }
-
-const CATS = ['ทั้งหมด','เคส','ฟิล์ม','สายชาร์จ','หูฟัง','อื่นๆ']
 
 export default function PosPage() {
   const router  = useRouter()
@@ -27,9 +25,15 @@ export default function PosPage() {
     }).catch(()=>{}).finally(()=>setLoading(false))
   }, [])
 
+  const cats = useMemo(() => {
+    const names = new Set<string>()
+    products.forEach(p => { if (p.category?.name) names.add(p.category.name) })
+    return ['ทั้งหมด', ...Array.from(names)]
+  }, [products])
+
   const filtered = products.filter(p =>
     (search ? p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku??'').includes(search) : true) &&
-    (cat === 'ทั้งหมด' || (p.category?.name ?? '').includes(cat))
+    (cat === 'ทั้งหมด' || p.category?.name === cat)
   )
 
   function addToCart(p: Product) {
@@ -47,8 +51,8 @@ export default function PosPage() {
     }))
   }
 
-  const total    = cart.reduce((s,c)=>s+c.salePrice*c.qty,0)
-  const cartQty  = cart.reduce((s,c)=>s+c.qty,0)
+  const total   = cart.reduce((s,c)=>s+c.salePrice*c.qty,0)
+  const cartQty = cart.reduce((s,c)=>s+c.qty,0)
 
   async function checkout(method:string) {
     if (!cart.length) return
@@ -63,7 +67,6 @@ export default function PosPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FB] pb-28">
-      {/* Header */}
       <div className="bg-white px-5 pb-4 pt-14 shadow-sm">
         <div className="flex items-center gap-3 mb-3">
           <button onClick={()=>router.back()} className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F8F9FB]">
@@ -82,9 +85,8 @@ export default function PosPage() {
             className="h-11 w-full rounded-xl bg-[#F8F9FB] pl-10 pr-4 text-sm outline-none"
           />
         </div>
-        {/* Category chips */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
-          {CATS.map(c => (
+          {cats.map(c => (
             <button key={c} onClick={()=>setCat(c)}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                 cat===c ? 'bg-brand-yellow text-brand-black' : 'bg-[#F8F9FB] text-slate-500'
@@ -94,9 +96,13 @@ export default function PosPage() {
       </div>
 
       <div className="p-4 flex flex-col gap-3">
-        {/* Product list */}
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-brand-yellow"/></div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-2xl bg-white py-12 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+            <ShoppingCart className="h-10 w-10 text-slate-200" strokeWidth={1.5}/>
+            <p className="text-sm text-slate-400">ไม่พบสินค้า</p>
+          </div>
         ) : (
           <div className="rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden">
             {filtered.map((p,i) => {
@@ -141,7 +147,6 @@ export default function PosPage() {
         )}
       </div>
 
-      {/* Cart summary */}
       {cart.length > 0 && (
         <div className="fixed bottom-[70px] left-0 right-0 bg-white border-t border-slate-100 px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
           <div className="mb-3 flex items-center justify-between">
