@@ -169,7 +169,7 @@ export default function HomePage() {
         const list = wRes.value.data?.data ?? wRes.value.data ?? []
         if (Array.isArray(list) && list.length) {
           setWeekly(list.slice(-7).map((d: any) => ({
-            label: format(new Date(d.date), 'EEE', {locale:th}),
+            label: d.date ? format(new Date(d.date), 'EEE', {locale:th}) : '-',
             revenue: d.revenue ?? 0,
           })))
         }
@@ -392,7 +392,7 @@ export default function HomePage() {
                 {r.issueTitle   && <p className="text-[11px] text-slate-500 truncate">{r.issueTitle}</p>}
               </div>
               <p className="shrink-0 text-[10px] text-slate-400 whitespace-nowrap">
-                {formatDistanceToNow(new Date(r.createdAt), { addSuffix:true, locale:th })}
+                {r.createdAt ? formatDistanceToNow(new Date(r.createdAt), { addSuffix:true, locale:th }) : ''}
               </p>
             </button>
           ))}
@@ -444,7 +444,7 @@ export default function HomePage() {
                       <p className="text-[11px] text-slate-400 truncate">{n.body}</p>
                     </div>
                     <p className="shrink-0 text-[10px] text-slate-400 whitespace-nowrap">
-                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix:true, locale:th })}
+                      {n.createdAt ? formatDistanceToNow(new Date(n.createdAt), { addSuffix:true, locale:th }) : ''}
                     </p>
                   </div>
                 )

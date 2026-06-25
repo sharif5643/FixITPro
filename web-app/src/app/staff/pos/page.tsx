@@ -109,7 +109,7 @@ export default function PosPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-brand-black truncate">{p.name}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <p className="text-sm font-bold text-brand-yellow">฿{p.salePrice.toLocaleString()}</p>
+                      <p className="text-sm font-bold text-brand-yellow">฿{(p.salePrice ?? 0).toLocaleString()}</p>
                       <p className={`text-[11px] font-medium ${p.stockQuantity<=5?'text-red-500':'text-slate-400'}`}>
                         คงเหลือ {p.stockQuantity}
                       </p>
