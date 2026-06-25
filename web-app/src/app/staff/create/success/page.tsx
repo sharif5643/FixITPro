@@ -9,21 +9,29 @@ import { printRepairReceipt } from '@/lib/print'
 
 interface RepairDetail {
   id: string; ticketNumber: string; createdAt: string; status: string
-  customerName: string; customerPhone: string; isReturnCustomer?: boolean
+  customer?: { name: string; phone?: string } | null
   deviceType?: string; deviceBrand: string; deviceModel: string
-  deviceImei?: string; deviceSerial?: string; deviceColor?: string
-  issueTitle: string; issueDescription?: string; deviceCondition?: string
-  accessories?: string | string[]; photos?: string[]
-  laborCost?: number; partsCost?: number; estimatedCost?: number
-  depositAmount?: number; technicianName?: string
+  deviceImei?: string; deviceColor?: string
+  issue?: string; deviceConditions?: string[]
+  accessories?: string; images?: { url: string }[]
+  estimatedLaborCost?: number; estimatedPartsCost?: number; estimateCost?: number
+  deposit?: number; technician?: { name: string } | null
 }
 
 const STATUS_LABEL: Record<string,string> = {
-  RECEIVED:'รับเครื่องแล้ว', IN_PROGRESS:'กำลังซ่อม', PENDING:'รอตรวจสอบ',
+  RECEIVED:'รับงานใหม่', DIAGNOSING:'ตรวจวินิจฉัย',
+  WAITING_APPROVAL:'รออนุมัติ', APPROVED:'อนุมัติแล้ว',
+  WAITING_PARTS:'รออะไหล่', IN_PROGRESS:'กำลังซ่อม',
+  QC_PENDING:'รอ QC', COMPLETED:'ซ่อมเสร็จ',
+  READY_PICKUP:'รอรับเครื่อง', DELIVERED:'ส่งมอบแล้ว', CANCELLED:'ยกเลิก',
 }
 const STATUS_STYLE: Record<string,string> = {
-  RECEIVED:'bg-blue-50 text-blue-600', IN_PROGRESS:'bg-amber-50 text-amber-600',
-  PENDING:'bg-slate-100 text-slate-500',
+  RECEIVED:'bg-blue-50 text-blue-600', DIAGNOSING:'bg-yellow-50 text-yellow-600',
+  WAITING_APPROVAL:'bg-amber-50 text-amber-600', APPROVED:'bg-teal-50 text-teal-600',
+  WAITING_PARTS:'bg-orange-50 text-orange-600', IN_PROGRESS:'bg-purple-50 text-purple-600',
+  QC_PENDING:'bg-indigo-50 text-indigo-600', COMPLETED:'bg-green-50 text-green-600',
+  READY_PICKUP:'bg-emerald-50 text-emerald-600', DELIVERED:'bg-slate-100 text-slate-500',
+  CANCELLED:'bg-red-50 text-red-500',
 }
 
 function Row({ label, value, highlight }: { label: string; value?: string | number; highlight?: boolean }) {
@@ -71,21 +79,20 @@ function SuccessContent() {
            d.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' }) + ' น.'
   }
 
-  const labor   = repair?.laborCost   ?? 0
-  const parts   = repair?.partsCost   ?? 0
-  const total   = repair?.estimatedCost ?? (labor + parts)
-  const deposit = repair?.depositAmount ?? 0
+  const labor   = repair?.estimatedLaborCost ?? 0
+  const parts   = repair?.estimatedPartsCost ?? 0
+  const total   = repair?.estimateCost ?? (labor + parts)
+  const deposit = repair?.deposit ?? 0
   const remain  = total - deposit
 
   const accessories = repair?.accessories
-    ? (Array.isArray(repair.accessories) ? repair.accessories : JSON.parse(repair.accessories as string))
+    ? repair.accessories.split(',').map(s => s.trim()).filter(Boolean)
     : []
-  const conditions = repair?.deviceCondition
-    ? repair.deviceCondition.split(',').map(s=>s.trim()).filter(Boolean)
+  const conditions = repair?.deviceConditions ?? []
+  const symptoms = repair?.issue
+    ? repair.issue.split('\n')[0].split(',').map(s => s.trim()).filter(Boolean)
     : []
-  const symptoms = repair?.issueTitle
-    ? repair.issueTitle.split(',').map(s=>s.trim()).filter(Boolean)
-    : []
+  const issueDetail = repair?.issue?.split('\n').slice(1).join('\n').trim()
 
   function handlePrint() {
     if (!repair) return
@@ -138,12 +145,9 @@ function SuccessContent() {
                   <User className="h-5 w-5"/>
                 </div>
                 <div className="flex-1">
-                  <p className="text-[14px] font-bold text-[#111]">{repair.customerName}</p>
-                  <p className="text-[12px] text-slate-400">{repair.customerPhone}</p>
+                  <p className="text-[14px] font-bold text-[#111]">{repair.customer?.name ?? 'ไม่ระบุลูกค้า'}</p>
+                  <p className="text-[12px] text-slate-400">{repair.customer?.phone ?? ''}</p>
                 </div>
-                {repair.isReturnCustomer && (
-                  <span className="rounded-full bg-[#FFF8E7] px-2.5 py-1 text-[10px] font-bold text-[#F59E0B]">ลูกค้าเก่า</span>
-                )}
               </div>
             </div>
           )}
@@ -156,7 +160,7 @@ function SuccessContent() {
                 <Row label="ประเภท"      value={repair.deviceType === 'mobile' ? 'มือถือ' : repair.deviceType}/>
                 <Row label="ยี่ห้อ / รุ่น" value={`${repair.deviceBrand} / ${repair.deviceModel}`}/>
                 <Row label="IMEI"         value={repair.deviceImei}/>
-                <Row label="Serial Number" value={repair.deviceSerial}/>
+                <Row label="Serial Number" value={(repair as any).deviceSerial}/>
                 <Row label="สีเครื่อง"    value={repair.deviceColor}/>
               </div>
             </div>
@@ -171,12 +175,12 @@ function SuccessContent() {
                   <span key={s} className="rounded-full bg-[#FFF8E7] px-3 py-1.5 text-[12px] font-semibold text-[#F59E0B]">{s}</span>
                 ))}
               </div>
-              {repair?.issueDescription && <p className="text-[12px] text-slate-500">{repair.issueDescription}</p>}
+              {issueDetail && <p className="text-[12px] text-slate-500">{issueDetail}</p>}
             </div>
           )}
 
           {/* ── Condition + photos ── */}
-          {(conditions.length > 0 || (repair?.photos && repair.photos.length > 0)) && (
+          {(conditions.length > 0 || (repair?.images && repair.images.length > 0)) && (
             <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
               {conditions.length > 0 && (
                 <>
@@ -190,12 +194,12 @@ function SuccessContent() {
                   </div>
                 </>
               )}
-              {repair?.photos && repair.photos.length > 0 && (
+              {repair?.images && repair.images.length > 0 && (
                 <>
                   <p className="mb-2 text-[13px] font-bold text-[#111]">รูปภาพก่อนซ่อม</p>
                   <div className="grid grid-cols-4 gap-2">
-                    {repair.photos.slice(0,4).map((url, i) => (
-                      <img key={i} src={url} className="aspect-square w-full rounded-xl object-cover" alt=""/>
+                    {repair.images.slice(0,4).map((img, i) => (
+                      <img key={i} src={img.url} className="aspect-square w-full rounded-xl object-cover" alt=""/>
                     ))}
                   </div>
                 </>
@@ -235,14 +239,14 @@ function SuccessContent() {
           {/* ── Technician + Status ── */}
           {repair && (
             <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-              {repair.technicianName && (
+              {repair.technician?.name && (
                 <div className="mb-3 flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F8F9FB]">
                     <User className="h-5 w-5 text-slate-400"/>
                   </div>
                   <div>
                     <p className="text-[11px] text-slate-400">ผู้รับผิดชอบ</p>
-                    <p className="text-[13px] font-bold text-[#111]">{repair.technicianName}</p>
+                    <p className="text-[13px] font-bold text-[#111]">{repair.technician.name}</p>
                   </div>
                 </div>
               )}

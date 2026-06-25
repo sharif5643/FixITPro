@@ -25,8 +25,10 @@ interface Stats {
   profitChange:        number
 }
 interface Repair {
-  id: string; ticketNumber: string; status: string; issueTitle?: string
-  deviceBrand: string; deviceModel: string; customerName?: string; createdAt: string
+  id: string; ticketNumber: string; status: string; issue?: string
+  deviceBrand: string; deviceModel: string
+  customer?: { name: string; phone?: string } | null
+  createdAt: string; receivedAt: string
 }
 interface Notif { id: string; type: string; title: string; body: string; createdAt: string }
 interface TopProduct { id: string; name: string; soldQty: number; totalRevenue: number }
@@ -35,13 +37,19 @@ interface TopProduct { id: string; name: string; soldQty: number; totalRevenue: 
 const fmt = (n: number) => n.toLocaleString('th-TH')
 
 const REPAIR_LABEL: Record<string,string> = {
-  PENDING:'รอตรวจสอบ', IN_PROGRESS:'กำลังซ่อม', WAIT_PARTS:'รออะไหล่',
-  WAIT_PICKUP:'รอรับเครื่อง', COMPLETED:'เสร็จสิ้น', CANCELLED:'ยกเลิก',
+  RECEIVED:'รับงานใหม่', DIAGNOSING:'ตรวจวินิจฉัย',
+  WAITING_APPROVAL:'รออนุมัติ', APPROVED:'อนุมัติแล้ว',
+  WAITING_PARTS:'รออะไหล่', IN_PROGRESS:'กำลังซ่อม',
+  QC_PENDING:'รอ QC', COMPLETED:'ซ่อมเสร็จ',
+  READY_PICKUP:'รอรับเครื่อง', DELIVERED:'ส่งมอบแล้ว', CANCELLED:'ยกเลิก',
 }
 const REPAIR_STYLE: Record<string,string> = {
-  PENDING:'bg-blue-50 text-blue-600', IN_PROGRESS:'bg-amber-50 text-amber-600',
-  WAIT_PARTS:'bg-orange-50 text-orange-600', WAIT_PICKUP:'bg-purple-50 text-purple-600',
-  COMPLETED:'bg-emerald-50 text-emerald-600', CANCELLED:'bg-red-50 text-red-500',
+  RECEIVED:'bg-blue-50 text-blue-600', DIAGNOSING:'bg-yellow-50 text-yellow-600',
+  WAITING_APPROVAL:'bg-amber-50 text-amber-600', APPROVED:'bg-teal-50 text-teal-600',
+  WAITING_PARTS:'bg-orange-50 text-orange-600', IN_PROGRESS:'bg-purple-50 text-purple-600',
+  QC_PENDING:'bg-indigo-50 text-indigo-600', COMPLETED:'bg-green-50 text-green-600',
+  READY_PICKUP:'bg-emerald-50 text-emerald-600', DELIVERED:'bg-slate-100 text-slate-500',
+  CANCELLED:'bg-red-50 text-red-500',
 }
 
 function last7Days() {
@@ -317,7 +325,7 @@ export default function HomePage() {
               sub={stats.completedDeliveries ? `เสร็จแล้ว ${stats.completedDeliveries} งาน` : undefined}
               iconBg="bg-purple-50" iconColor="text-purple-600"
               icon={<Package className="h-5 w-5"/>}
-              onClick={() => router.push('/staff/repairs?status=WAIT_PICKUP')}
+              onClick={() => router.push('/staff/repairs')}
             />
             {!canSeeRev && (
               <KpiCard
@@ -398,8 +406,8 @@ export default function HomePage() {
                   </span>
                 </div>
                 <p className="text-[13px] font-semibold text-[#111] truncate">{r.deviceBrand} {r.deviceModel}</p>
-                {r.customerName && <p className="text-[11px] text-slate-400 truncate">{r.customerName}</p>}
-                {r.issueTitle   && <p className="text-[11px] text-slate-500 truncate">{r.issueTitle}</p>}
+                {r.customer?.name && <p className="text-[11px] text-slate-400 truncate">{r.customer.name}</p>}
+                {r.issue && <p className="text-[11px] text-slate-500 truncate">{r.issue.split('\n')[0]}</p>}
               </div>
               <p className="shrink-0 text-[10px] text-slate-400 whitespace-nowrap">
                 {r.createdAt ? formatDistanceToNow(new Date(r.createdAt), { addSuffix:true, locale:th }) : ''}
