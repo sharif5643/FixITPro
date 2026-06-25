@@ -27,12 +27,12 @@ class AddNoteDto {
   note: string;
 }
 
-@RequireModule('crm')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard, ModuleGuard)
 @Controller('customers')
 export class CustomersController {
   constructor(private customersService: CustomersService) {}
 
+  @RequireModule('crm')
   @RequirePermission('sales.create')
   @Post()
   create(
@@ -65,6 +65,7 @@ export class CustomersController {
     return this.customersService.findOne(id, tenantId);
   }
 
+  @RequireModule('crm')
   @RequirePermission('sales.create')
   @Put(':id')
   update(

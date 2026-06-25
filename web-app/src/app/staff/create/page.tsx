@@ -116,16 +116,25 @@ export default function CreateRepairPage() {
   const searchCustomers = useCallback((q: string) => {
     setPhoneSearch(q)
     if (searchTimer.current) clearTimeout(searchTimer.current)
-    if (q.length < 3) { setCustomers([]); return }
+    if (q.length < 2) { setCustomers([]); return }
     searchTimer.current = setTimeout(async () => {
       setSearchLoading(true)
       try {
-        const r = await api.get(`/customers?search=${encodeURIComponent(q)}&limit=5`)
-        const list = r.data?.data ?? r.data ?? []
-        setCustomers(Array.isArray(list) ? list : [])
-      } catch { setCustomers([]) }
+        const r = await api.get('/customers', { params: { search: q } })
+        const raw = r.data?.data ?? r.data ?? []
+        const list = (Array.isArray(raw) ? raw : []).map((c: any) => ({
+          id:           c.id,
+          name:         c.name,
+          phone:        c.phone ?? '',
+          totalRepairs: c._count?.repairs ?? 0,
+        }))
+        setCustomers(list)
+      } catch (err: any) {
+        console.error('[customer search]', err?.response?.data ?? err?.message)
+        setCustomers([])
+      }
       finally { setSearchLoading(false) }
-    }, 400)
+    }, 350)
   }, [])
 
   // Load technicians on mount
@@ -164,33 +173,40 @@ export default function CreateRepairPage() {
 
     setLoading(true)
     try {
-      const fd = new FormData()
-      if (custId) fd.append('customerId', custId)
-      fd.append('customerName',  custName)
-      fd.append('customerPhone', custPhone)
-      fd.append('deviceType',    deviceType)
-      fd.append('deviceBrand',   brand)
-      fd.append('deviceModel',   model)
-      if (imei)       fd.append('deviceImei',   imei)
-      if (serial)     fd.append('deviceSerial', serial)
-      if (colorLabel) fd.append('deviceColor',  colorLabel)
-      fd.append('issueTitle',       symptoms.join(', '))
-      fd.append('issueDescription', issueDesc)
-      fd.append('deviceCondition',  conditions.join(', '))
-      fd.append('accessories',      JSON.stringify(accessories))
-      if (laborCost)  fd.append('laborCost',     laborCost)
-      if (partsCost)  fd.append('partsCost',     partsCost)
-      if (total)      fd.append('estimatedCost', String(total))
-      if (deposit)    fd.append('depositAmount', deposit)
-      if (techId)     fd.append('technicianId',  techId)
-      if (techName)   fd.append('technicianName', techName)
-      fd.append('status', status)
-      photos.forEach(p => { if (p.file) fd.append('photos', p.file) })
+      // Backend expects JSON; photos uploaded separately to /repairs/:id/images
+      const issue = [symptoms.join(', '), issueDesc].filter(Boolean).join('\n')
+      const body: Record<string, unknown> = {
+        deviceType:           deviceType || undefined,
+        deviceBrand:          brand,
+        deviceModel:          model,
+        issue,
+        ...(custId ? { customerId: custId } : { customerName: custName, customerPhone: custPhone }),
+        ...(imei       && { deviceImei:  imei }),
+        ...(colorLabel && { deviceColor: colorLabel }),
+        ...(conditions.length && { deviceConditions: conditions }),
+        ...(accessories.length && { accessories: accessories.join(', ') }),
+        ...(parseFloat(laborCost) > 0 && { estimatedLaborCost: parseFloat(laborCost) }),
+        ...(parseFloat(partsCost) > 0 && { estimatedPartsCost: parseFloat(partsCost) }),
+        ...(total > 0 && { estimateCost: total }),
+        ...(parseFloat(deposit) > 0 && { deposit: parseFloat(deposit) }),
+        ...(techId && { technicianId: techId }),
+      }
 
-      const res = await api.post('/repairs', fd, { headers:{'Content-Type':'multipart/form-data'} })
-      router.replace(`/staff/create/success?id=${res.data?.id ?? res.data?.repair?.id}`)
+      const res = await api.post('/repairs', body)
+      const repairId = res.data?.id ?? res.data?.repair?.id
+
+      // Upload photos if any
+      const photoFiles = photos.filter(p => p.file).map(p => p.file!)
+      if (repairId && photoFiles.length > 0) {
+        const fd = new FormData()
+        photoFiles.forEach(f => fd.append('files', f))
+        await api.post(`/repairs/${repairId}/images`, fd).catch(() => {/* non-fatal */})
+      }
+
+      router.replace(`/staff/create/success?id=${repairId}`)
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
+      const msg = err?.response?.data?.message
+      toast.error(Array.isArray(msg) ? msg[0] : msg || 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
     } finally {
       setLoading(false)
     }
