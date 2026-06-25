@@ -5,27 +5,18 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
-  Plus, Wrench, X, Camera, ExternalLink, LayoutList, LayoutGrid,
-  AlertCircle, RefreshCw, Search, ScanBarcode, Printer, CalendarDays,
-  ClipboardList, ChevronRight,
+  Plus, Wrench, X, Camera, LayoutGrid, LayoutList,
+  AlertCircle, RefreshCw, Search, ScanBarcode, Clock, ChevronRight,
 } from 'lucide-react'
-import { format, isToday, isYesterday } from 'date-fns'
+import { formatDistanceToNow } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
 import { RepairFormDialog } from '@/components/repairs/repair-form-dialog'
 import { RepairKanbanBoard } from '@/components/repairs/repair-kanban-board'
-import { RepairMobileList } from '@/components/repairs/repair-mobile-list'
 import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
-import { PageHeader } from '@/components/ui/page-header'
-import { EmptyState } from '@/components/ui/empty-state'
-import {
-  DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
-  DataTableRow, DataTableCell, DataTableLoadingRows,
-} from '@/components/ui/data-table'
 import { RepairStatusBadge } from '@/components/ui/status-badge'
 import { QcDialog } from '@/components/repairs/qc-dialog'
-import { formatThaiMoney, cn } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar, GlobalModeBanner } from '@/components/layout/branch-context-bar'
 import { useAuthStore } from '@/store/auth.store'
@@ -39,18 +30,9 @@ const RepairDetailDialog = dynamic(
   { ssr: false },
 )
 
-// ── Status config ─────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
-const STAT_CARDS: Array<{ value: RepairStatus | 'ALL'; label: string; color: string; bg: string }> = [
-  { value: 'ALL',          label: 'ทั้งหมด',       color: 'text-slate-700',  bg: 'bg-slate-50 border-slate-200' },
-  { value: 'RECEIVED',     label: 'รับงานใหม่',    color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200'  },
-  { value: 'IN_PROGRESS',  label: 'กำลังซ่อม',     color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
-  { value: 'WAITING_PARTS',label: 'รออะไหล่',      color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
-  { value: 'COMPLETED',    label: 'ซ่อมเสร็จ',     color: 'text-green-700',  bg: 'bg-green-50 border-green-200'  },
-  { value: 'DELIVERED',    label: 'ส่งมอบแล้ว',    color: 'text-slate-500',  bg: 'bg-slate-50 border-slate-200'  },
-]
-
-const STATUS_TABS: Array<{ value: RepairStatus | 'ALL'; label: string; dot?: string }> = [
+const FILTER_TABS: Array<{ value: RepairStatus | 'ALL'; label: string; dot?: string }> = [
   { value: 'ALL',              label: 'ทั้งหมด' },
   { value: 'RECEIVED',         label: 'รับงานใหม่',    dot: 'bg-blue-500'    },
   { value: 'DIAGNOSING',       label: 'ตรวจวินิจฉัย', dot: 'bg-yellow-500'  },
@@ -64,14 +46,16 @@ const STATUS_TABS: Array<{ value: RepairStatus | 'ALL'; label: string; dot?: str
   { value: 'CANCELLED',        label: 'ยกเลิก',        dot: 'bg-red-400'     },
 ]
 
-const VIEW_MODE_KEY = 'repairViewMode'
+const STAT_CARDS = [
+  { value: 'ALL' as const,           label: 'ทั้งหมด',     icon: '🔧' },
+  { value: 'RECEIVED' as const,      label: 'รับงานใหม่',  icon: '📥' },
+  { value: 'IN_PROGRESS' as const,   label: 'กำลังซ่อม',   icon: '⚙️' },
+  { value: 'WAITING_PARTS' as const, label: 'รออะไหล่',    icon: '📦' },
+  { value: 'COMPLETED' as const,     label: 'ซ่อมเสร็จ',   icon: '✅' },
+  { value: 'DELIVERED' as const,     label: 'ส่งมอบแล้ว',  icon: '📤' },
+]
 
-function formatRelativeDate(dateStr: string) {
-  const d = new Date(dateStr)
-  if (isToday(d)) return `วันนี้ ${format(d, 'HH:mm', { locale: th })}`
-  if (isYesterday(d)) return `เมื่อวาน ${format(d, 'HH:mm', { locale: th })}`
-  return format(d, 'dd MMM yy HH:mm', { locale: th })
-}
+const VIEW_MODE_KEY = 'repairViewMode'
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -92,7 +76,6 @@ export default function RepairsPage() {
   useEffect(() => {
     const saved = localStorage.getItem(VIEW_MODE_KEY)
     if (saved === 'board' || saved === 'list') setViewMode(saved)
-    // Auto-open scanner if ?scan=1 in URL
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('scan') === '1') {
       setScanOpen(true)
     }
@@ -130,30 +113,22 @@ export default function RepairsPage() {
     if (statusFilter !== 'ALL') list = list.filter((r) => r.status === statusFilter)
     if (search.trim()) {
       const q = search.toLowerCase()
-      list = list.filter(
-        (r) =>
-          r.ticketNumber.toLowerCase().includes(q) ||
-          r.customer?.name?.toLowerCase().includes(q) ||
-          r.customer?.phone?.toLowerCase().includes(q) ||
-          (r.deviceImei?.toLowerCase().includes(q) ?? false) ||
-          r.deviceModel.toLowerCase().includes(q) ||
-          r.deviceBrand.toLowerCase().includes(q),
+      list = list.filter((r) =>
+        r.ticketNumber.toLowerCase().includes(q) ||
+        r.customer?.name?.toLowerCase().includes(q) ||
+        r.customer?.phone?.toLowerCase().includes(q) ||
+        (r.deviceImei?.toLowerCase().includes(q) ?? false) ||
+        r.deviceModel.toLowerCase().includes(q) ||
+        r.deviceBrand.toLowerCase().includes(q),
       )
     }
     return list
   }, [repairs, statusFilter, search])
 
-  const recentRepairs = useMemo(
-    () => [...repairs].sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()).slice(0, 6),
-    [repairs],
-  )
-
   function handleScanResult(text: string) {
     const trimmed = text.trim()
-    // Match ticketNumber pattern REP-YYYYMMDD-XXXXXX or UUID
     const byTicket = repairs.find((r) => r.ticketNumber === trimmed)
     if (byTicket) { setSelectedRepairId(byTicket.id); return }
-    // Try UUID match
     const byId = repairs.find((r) => r.id === trimmed)
     if (byId) { setSelectedRepairId(byId.id); return }
     toast.error(`ไม่พบใบงาน: ${trimmed}`)
@@ -173,16 +148,19 @@ export default function RepairsPage() {
     })()
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] gap-4 text-center">
-        <div className="h-16 w-16 rounded-full bg-red-50 border-2 border-red-200 flex items-center justify-center">
+        <div className="h-16 w-16 rounded-full bg-red-50 flex items-center justify-center">
           <AlertCircle className="h-8 w-8 text-red-500" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-slate-900">โหลดข้อมูลไม่สำเร็จ</h2>
+          <h2 className="text-lg font-bold text-[#111]">โหลดข้อมูลไม่สำเร็จ</h2>
           <p className="text-sm text-slate-500 mt-1">{backendMsg ?? 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้'}</p>
         </div>
-        <Button variant="outline" className="gap-2" onClick={() => refetch()}>
+        <button
+          onClick={() => refetch()}
+          className="flex items-center gap-2 h-10 px-4 rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)] text-sm font-medium"
+        >
           <RefreshCw className="h-4 w-4" />ลองใหม่
-        </Button>
+        </button>
       </div>
     )
   }
@@ -191,24 +169,24 @@ export default function RepairsPage() {
   if (viewMode === 'board') {
     return (
       <div className="flex flex-col h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)] space-y-4">
-        <PageHeader
-          title="งานซ่อม"
-          icon={Wrench}
-          subtitle={`${repairs.length} งานทั้งหมด`}
-          secondaryActions={
-            <div className="flex items-center gap-2">
-              <ViewToggle viewMode={viewMode} onSwitch={switchView} />
-              <BranchContextBar className="hidden sm:flex" />
-            </div>
-          }
-          primaryAction={
-            <Button onClick={() => { if (!isGlobalMode) setCreateOpen(true) }} disabled={isGlobalMode} className="gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-[#111]">งานซ่อม</h1>
+            <p className="text-xs text-slate-400 mt-0.5">{repairs.length} งานทั้งหมด</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <BranchContextBar className="hidden sm:flex" />
+            <ViewToggle viewMode={viewMode} onSwitch={switchView} />
+            <button
+              onClick={() => { if (!isGlobalMode) setCreateOpen(true) }}
+              disabled={isGlobalMode}
+              className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[#FFC107] text-sm font-bold text-[#111] disabled:opacity-50 shadow-[0_4px_12px_rgba(255,193,7,0.3)] whitespace-nowrap"
+            >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">สร้างงานซ่อม</span>
-              <span className="sm:hidden">สร้าง</span>
-            </Button>
-          }
-        />
+            </button>
+          </div>
+        </div>
         {isGlobalMode && <GlobalModeBanner action="ไม่สามารถสร้างงานซ่อมในโหมดทุกสาขา" />}
         <div className="flex-1 min-h-0">
           <RepairKanbanBoard
@@ -231,58 +209,89 @@ export default function RepairsPage() {
     )
   }
 
-  // ── List view ─────────────────────────────────────────────────────────────────
+  // ── List view — app style ─────────────────────────────────────────────────────
   return (
-    <>
-      {/* Mobile card view */}
-      <div className="-m-4 sm:-m-6 md:hidden">
-        <RepairMobileList
-          repairs={repairs}
-          isLoading={isLoading}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          search={search}
-          setSearch={setSearch}
-          onOpenRepair={setSelectedRepairId}
-          onCreateRepair={() => { if (!isGlobalMode) setCreateOpen(true) }}
-          statusCounts={statusCounts}
-        />
-        <Dialogs
-          createOpen={createOpen} setCreateOpen={setCreateOpen}
-          selectedRepairId={selectedRepairId} setSelectedRepairId={setSelectedRepairId}
-          qcRepairId={qcRepairId} setQcRepairId={setQcRepairId}
-          invalidate={invalidate} branchId={branchId} repairs={repairs}
-        />
-        <QrScannerDialog open={scanOpen} onOpenChange={setScanOpen} onScan={handleScanResult} />
+    <div className="min-h-screen bg-[#F8F9FB] -m-4 sm:-m-6 lg:-m-8 pb-10">
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="bg-white px-5 pb-4 pt-6 shadow-sm sticky top-0 z-10">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-[#111]">งานซ่อม</h1>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {isLoading ? '...' : `${repairs.length} งานทั้งหมด`}
+            </p>
+          </div>
+          <BranchContextBar className="hidden sm:flex" />
+          <button
+            onClick={() => setScanOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F8F9FB] text-slate-500 shrink-0"
+            title="สแกน QR"
+          >
+            <ScanBarcode className="h-5 w-5" />
+          </button>
+          <ViewToggle viewMode={viewMode} onSwitch={switchView} />
+          <button
+            onClick={() => { if (!isGlobalMode) setCreateOpen(true) }}
+            disabled={isGlobalMode}
+            className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[#FFC107] text-sm font-bold text-[#111] disabled:opacity-50 shadow-[0_4px_12px_rgba(255,193,7,0.3)] whitespace-nowrap shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">สร้างงานซ่อม</span>
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="relative mb-3">
+          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="ค้นหาชื่อลูกค้า, เบอร์, เลขงาน, IMEI, รุ่น..."
+            className="h-11 w-full rounded-2xl bg-[#F8F9FB] pl-11 pr-10 text-sm outline-none focus:ring-2 focus:ring-[#FFC107]/50 transition"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Filter chips */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-0.5">
+          {FILTER_TABS.map((tab) => {
+            const count = statusCounts[tab.value] ?? 0
+            const active = statusFilter === tab.value
+            if (tab.value !== 'ALL' && count === 0) return null
+            return (
+              <button
+                key={tab.value}
+                onClick={() => setStatusFilter(tab.value)}
+                className={cn(
+                  'flex items-center gap-1.5 shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap',
+                  active ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8F9FB] text-slate-500',
+                )}
+              >
+                {tab.dot && !active && (
+                  <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', tab.dot)} />
+                )}
+                {tab.label}
+                <span className={cn(
+                  'inline-flex items-center justify-center min-w-[16px] h-4 rounded-full px-1 text-[10px] font-bold',
+                  active ? 'bg-[#111]/10 text-[#111]' : 'bg-slate-200 text-slate-500',
+                )}>
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-    {/* Desktop list view */}
-    <div className="hidden md:block space-y-4">
-
-      {/* Header */}
-      <PageHeader
-        title="งานซ่อม"
-        icon={Wrench}
-        subtitle="ภาพรวมงานซ่อมทั้งหมดในระบบ"
-        secondaryActions={
-          <div className="flex items-center gap-2">
-            <ViewToggle viewMode={viewMode} onSwitch={switchView} />
-            <BranchContextBar className="hidden sm:flex" />
-          </div>
-        }
-        primaryAction={
-          <Button onClick={() => { if (!isGlobalMode) setCreateOpen(true) }} disabled={isGlobalMode} className="gap-2">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">สร้างงานซ่อมใหม่</span>
-            <span className="sm:hidden">สร้าง</span>
-          </Button>
-        }
-      />
-
-      {isGlobalMode && <GlobalModeBanner action="ไม่สามารถสร้างงานซ่อมในโหมดทุกสาขา" />}
-
-      {/* Stats bar */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      {/* ── Stats strip ──────────────────────────────────────────────────────── */}
+      <div className="flex gap-3 overflow-x-auto scrollbar-hide px-5 py-4">
         {STAT_CARDS.map((s) => {
           const count = statusCounts[s.value] ?? 0
           const active = statusFilter === s.value
@@ -291,180 +300,132 @@ export default function RepairsPage() {
               key={s.value}
               onClick={() => setStatusFilter(s.value)}
               className={cn(
-                'rounded-xl border p-3 text-left transition-all hover:shadow-sm',
-                active ? 'ring-2 ring-blue-500 ring-offset-1' : '',
-                s.bg,
+                'shrink-0 rounded-2xl p-3 text-left transition-all min-w-[86px] active:scale-[0.97]',
+                active
+                  ? 'bg-[#FFC107] shadow-[0_4px_16px_rgba(255,193,7,0.4)]'
+                  : 'bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)]',
               )}
             >
-              <p className={cn('text-2xl font-bold tabular-nums', s.color)}>
+              <p className="text-lg mb-1 leading-none">{s.icon}</p>
+              <p className={cn(
+                'text-2xl font-extrabold tabular-nums leading-none',
+                active ? 'text-[#111]' : 'text-slate-800',
+              )}>
                 {isLoading ? '—' : count}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{s.label}</p>
+              <p className={cn('text-[10px] mt-1 leading-tight', active ? 'text-[#111]/70' : 'text-slate-400')}>
+                {s.label}
+              </p>
             </button>
           )
         })}
       </div>
 
-      {/* Main + Sidebar */}
-      <div className="flex gap-4 items-start">
+      {isGlobalMode && (
+        <div className="px-5 mb-2">
+          <GlobalModeBanner action="ไม่สามารถสร้างงานซ่อมในโหมดทุกสาขา" />
+        </div>
+      )}
 
-        {/* Main content */}
-        <div className="flex-1 min-w-0 space-y-3">
-
-          {/* Search + tabs row */}
-          <div className="flex flex-col gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="ค้นหาชื่อลูกค้า, เบอร์, เลขงาน, IMEI, รุ่น..."
-                className="w-full pl-9 pr-4 h-9 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-700">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+      {/* ── Repair cards ─────────────────────────────────────────────────────── */}
+      <div className="px-5 flex flex-col gap-3">
+        {isLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-2xl bg-slate-100 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-24 bg-slate-100 rounded-full" />
+                  <div className="h-4 w-40 bg-slate-100 rounded-full" />
+                  <div className="h-3 w-32 bg-slate-100 rounded-full" />
+                </div>
+                <div className="h-6 w-16 rounded-full bg-slate-100 shrink-0" />
+              </div>
             </div>
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-16">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              <Wrench className="h-8 w-8 text-slate-200" />
+            </div>
+            <p className="text-sm font-medium text-slate-400">{search ? 'ไม่พบผลลัพธ์' : 'ยังไม่มีงานซ่อม'}</p>
+            {!search && !isGlobalMode && (
+              <button
+                onClick={() => setCreateOpen(true)}
+                className="flex items-center gap-1.5 h-10 px-5 rounded-2xl bg-[#FFC107] text-sm font-bold text-[#111] shadow-[0_4px_12px_rgba(255,193,7,0.3)]"
+              >
+                <Plus className="h-4 w-4" />รับงานซ่อมแรก
+              </button>
+            )}
+          </div>
+        ) : (
+          filtered.map((repair) => {
+            const isNew = (Date.now() - new Date(repair.receivedAt).getTime()) < 24 * 60 * 60 * 1000
+            return (
+              <button
+                key={repair.id}
+                onClick={() => setSelectedRepairId(repair.id)}
+                className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-transform text-left w-full"
+              >
+                {/* Icon avatar */}
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#FFC107]/10">
+                  <Wrench className="h-5 w-5 text-[#FFC107]" strokeWidth={2.5} />
+                </div>
 
-            {/* Status tabs */}
-            <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-hide">
-              {STATUS_TABS.map((tab) => {
-                const count = statusCounts[tab.value] ?? 0
-                const active = statusFilter === tab.value
-                if (tab.value !== 'ALL' && count === 0) return null
-                return (
-                  <button
-                    key={tab.value}
-                    onClick={() => setStatusFilter(tab.value)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all shrink-0',
-                      active
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600',
-                    )}
-                  >
-                    {tab.dot && <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', active ? 'bg-white/80' : tab.dot)} />}
-                    {tab.label}
-                    <span className={cn(
-                      'inline-flex items-center justify-center min-w-[16px] h-4 rounded-full px-1 text-[10px] font-semibold',
-                      active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500',
-                    )}>
-                      {count}
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-400 font-mono tracking-wide">
+                      {repair.ticketNumber}
                     </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+                    {isNew && (
+                      <span className="text-[9px] font-extrabold bg-[#FFC107] text-[#111] px-1.5 py-0.5 rounded-full leading-none">
+                        ใหม่
+                      </span>
+                    )}
+                    {(repair._count?.images ?? 0) > 0 && (
+                      <Camera className="h-3 w-3 text-slate-300 shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-sm font-bold text-[#111] truncate mt-0.5">
+                    {repair.deviceBrand} {repair.deviceModel}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate">
+                    {repair.customer?.name ?? 'ไม่ระบุลูกค้า'}
+                    {repair.customer?.phone && (
+                      <span className="text-slate-400"> · {repair.customer.phone}</span>
+                    )}
+                  </p>
+                  {repair.issue && (
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{repair.issue}</p>
+                  )}
+                </div>
 
-          {/* Table */}
-          <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-            <DataTable>
-              <DataTableHead>
-                <DataTableHeadCell>เลขงาน</DataTableHeadCell>
-                <DataTableHeadCell>ลูกค้า</DataTableHeadCell>
-                <DataTableHeadCell>อุปกรณ์</DataTableHeadCell>
-                <DataTableHeadCell hidden>อาการ</DataTableHeadCell>
-                <DataTableHeadCell>สถานะ</DataTableHeadCell>
-                <DataTableHeadCell right hidden>ยอดประเมิน</DataTableHeadCell>
-                <DataTableHeadCell hidden>วันที่รับ</DataTableHeadCell>
-              </DataTableHead>
-              <DataTableBody>
-                {isLoading ? (
-                  <DataTableLoadingRows rows={7} cols={7} />
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-0">
-                      <EmptyState preset={search ? 'search' : 'repairs'} size="md" />
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((repair) => {
-                    const isNew = (Date.now() - new Date(repair.receivedAt).getTime()) < 24 * 60 * 60 * 1000
-                    return (
-                      <DataTableRow key={repair.id} onClick={() => setSelectedRepairId(repair.id)}>
-                        <DataTableCell>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-semibold text-blue-700 text-xs">{repair.ticketNumber}</span>
-                            {isNew && (
-                              <span className="text-[9px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full leading-none">ใหม่</span>
-                            )}
-                            {(repair._count?.images ?? 0) > 0 && (
-                              <Camera className="h-3 w-3 text-slate-400 shrink-0" />
-                            )}
-                            <Link
-                              href={`/repairs/${repair.id}`}
-                              onClick={e => e.stopPropagation()}
-                              className="text-slate-400 hover:text-blue-600 transition-colors"
-                              title="เปิด Workspace"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                            </Link>
-                          </div>
-                        </DataTableCell>
-                        <DataTableCell>
-                          {repair.customer ? (
-                            <div>
-                              <p className="font-medium text-slate-900 leading-tight">{repair.customer.name}</p>
-                              {repair.customer.phone && (
-                                <p className="text-xs text-slate-400 mt-0.5">{repair.customer.phone}</p>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </DataTableCell>
-                        <DataTableCell>
-                          <p className="font-medium text-slate-900 leading-tight">{repair.deviceBrand} {repair.deviceModel}</p>
-                          {repair.deviceImei && (
-                            <p className="text-xs text-slate-400 font-mono mt-0.5">IMEI: {repair.deviceImei}</p>
-                          )}
-                        </DataTableCell>
-                        <DataTableCell hidden className="max-w-[160px]">
-                          <p className="text-xs text-slate-500 truncate">{repair.issue}</p>
-                        </DataTableCell>
-                        <DataTableCell>
-                          <RepairStatusBadge status={repair.status} />
-                        </DataTableCell>
-                        <DataTableCell right hidden>
-                          <span className="font-mono font-semibold text-slate-900">
-                            {repair.estimateCost ? formatThaiMoney(Number(repair.estimateCost)) : '—'}
-                          </span>
-                        </DataTableCell>
-                        <DataTableCell hidden muted>
-                          <span className="text-xs whitespace-nowrap">
-                            {formatRelativeDate(repair.receivedAt)}
-                          </span>
-                        </DataTableCell>
-                      </DataTableRow>
-                    )
-                  })
-                )}
-              </DataTableBody>
-            </DataTable>
-          </div>
-        </div>
-
-        {/* Right sidebar */}
-        <div className="hidden xl:flex flex-col gap-3 w-56 shrink-0">
-          <RepairSidebar
-            repairs={repairs}
-            recentRepairs={recentRepairs}
-            isGlobalMode={isGlobalMode}
-            onCreateOpen={() => { if (!isGlobalMode) setCreateOpen(true) }}
-            onOpenDetail={setSelectedRepairId}
-            onFocusSearch={() => { searchInputRef.current?.focus(); searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }}
-            onOpenScanner={() => setScanOpen(true)}
-          />
-        </div>
+                {/* Right side */}
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <RepairStatusBadge status={repair.status} />
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                    <Clock className="h-3 w-3" />
+                    <span className="whitespace-nowrap">
+                      {formatDistanceToNow(new Date(repair.receivedAt), { addSuffix: true, locale: th })}
+                    </span>
+                  </div>
+                  <Link
+                    href={`/repairs/${repair.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-slate-300 hover:text-[#FFC107] transition-colors"
+                    title="เปิด Workspace"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </button>
+            )
+          })
+        )}
       </div>
 
       <QrScannerDialog open={scanOpen} onOpenChange={setScanOpen} onScan={handleScanResult} />
-
       <Dialogs
         createOpen={createOpen} setCreateOpen={setCreateOpen}
         selectedRepairId={selectedRepairId} setSelectedRepairId={setSelectedRepairId}
@@ -472,122 +433,34 @@ export default function RepairsPage() {
         invalidate={invalidate} branchId={branchId} repairs={repairs}
       />
     </div>
-  </>
   )
 }
 
-// ── Right Sidebar ─────────────────────────────────────────────────────────────
-
-function RepairSidebar({
-  repairs, recentRepairs, isGlobalMode, onCreateOpen, onOpenDetail, onFocusSearch, onOpenScanner,
-}: {
-  repairs: Repair[]
-  recentRepairs: Repair[]
-  isGlobalMode: boolean
-  onCreateOpen: () => void
-  onOpenDetail: (id: string) => void
-  onFocusSearch: () => void
-  onOpenScanner: () => void
-}) {
-  const overdueCount = repairs.filter((r) =>
-    r.dueDate && new Date(r.dueDate) < new Date() &&
-    !['DELIVERED', 'CANCELLED'].includes(r.status)
-  ).length
-
-  return (
-    <>
-      {/* Quick actions */}
-      <div className="bg-white rounded-xl border shadow-sm p-3 space-y-1">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">การดำเนินการด่วน</p>
-        <button
-          onClick={onCreateOpen}
-          disabled={isGlobalMode}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50"
-        >
-          <Plus className="h-4 w-4 shrink-0" />
-          สร้างงานซ่อมใหม่
-        </button>
-        <button onClick={onFocusSearch} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-          <Search className="h-4 w-4 shrink-0 text-slate-400" />
-          ค้นหาใบงาน
-        </button>
-        <button onClick={onOpenScanner} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-          <ScanBarcode className="h-4 w-4 shrink-0 text-slate-400" />
-          สแกน QR / Barcode
-        </button>
-        <Link href="/reminders" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-          <CalendarDays className="h-4 w-4 shrink-0 text-slate-400" />
-          รายการนัดหมาย
-          {overdueCount > 0 && (
-            <span className="ml-auto text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">{overdueCount}</span>
-          )}
-        </Link>
-        <Link href="/reports/daily-closing" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-          <ClipboardList className="h-4 w-4 shrink-0 text-slate-400" />
-          รายงานปิดวัน
-        </Link>
-      </div>
-
-      {/* Recent activity */}
-      <div className="bg-white rounded-xl border shadow-sm p-3">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">กิจกรรมล่าสุด</p>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-        </div>
-        <div className="space-y-1">
-          {recentRepairs.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-2">ยังไม่มีข้อมูล</p>
-          ) : (
-            recentRepairs.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => onOpenDetail(r.id)}
-                className="w-full text-left px-2 py-2 rounded-lg hover:bg-slate-50 transition-colors group"
-              >
-                <div className="flex items-start justify-between gap-1.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-blue-700 font-mono truncate">{r.ticketNumber}</p>
-                    <p className="text-xs text-slate-600 truncate leading-tight">
-                      {r.customer?.name ?? 'ไม่ระบุลูกค้า'}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground truncate">{r.deviceBrand} {r.deviceModel}</p>
-                  </div>
-                  <span className="text-[9px] text-muted-foreground whitespace-nowrap mt-0.5">
-                    {format(new Date(r.receivedAt), 'HH:mm', { locale: th })}
-                  </span>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      </div>
-    </>
-  )
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── ViewToggle ────────────────────────────────────────────────────────────────
 
 function ViewToggle({ viewMode, onSwitch }: { viewMode: 'list' | 'board'; onSwitch: (v: 'list' | 'board') => void }) {
   return (
-    <div className="flex rounded-lg border border-slate-200 bg-white overflow-hidden">
+    <div className="flex items-center rounded-2xl bg-[#F8F9FB] p-1 gap-0.5 shrink-0">
       {(['list', 'board'] as const).map((mode) => (
         <button
           key={mode}
           onClick={() => onSwitch(mode)}
           title={mode === 'list' ? 'แสดงแบบรายการ' : 'แสดงแบบบอร์ด'}
           className={cn(
-            'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
-            mode === 'board' && 'border-l border-slate-200',
-            viewMode === mode ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50',
+            'flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all',
+            viewMode === mode
+              ? 'bg-[#FFC107] text-[#111] shadow-sm'
+              : 'text-slate-500 hover:text-slate-700',
           )}
         >
           {mode === 'list' ? <LayoutList className="h-3.5 w-3.5" /> : <LayoutGrid className="h-3.5 w-3.5" />}
-          <span className="hidden sm:inline">{mode === 'list' ? 'รายการ' : 'บอร์ด'}</span>
         </button>
       ))}
     </div>
   )
 }
+
+// ── Dialogs ───────────────────────────────────────────────────────────────────
 
 function Dialogs({
   createOpen, setCreateOpen,

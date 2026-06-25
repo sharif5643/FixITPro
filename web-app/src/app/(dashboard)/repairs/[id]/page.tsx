@@ -110,7 +110,7 @@ function useDebounce<T>(value: T, delay: number) {
 
 function SectionCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white rounded-xl border p-4 space-y-3 ${className}`}>
+    <div className={`bg-white rounded-2xl p-4 space-y-3 shadow-[0_2px_12px_rgba(0,0,0,0.06)] ${className}`}>
       {children}
     </div>
   )
@@ -152,26 +152,25 @@ function StatusProgress({ status }: { status: RepairStatus }) {
   const currentIdx = STATUS_FLOW.indexOf(status)
 
   return (
-    <div className="bg-white rounded-xl border px-4 py-3">
-      <div className="flex items-center gap-0 overflow-x-auto">
+    <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] px-4 py-3">
+      <div className="flex items-center gap-0 overflow-x-auto scrollbar-hide">
         {STATUS_FLOW.map((s, i) => {
           const done = i < currentIdx
           const active = i === currentIdx
-          const future = i > currentIdx
           return (
             <div key={s} className="flex items-center min-w-0 shrink-0">
               <div className="flex flex-col items-center gap-1">
                 <div className={[
-                  'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors',
-                  done    ? 'bg-blue-600 border-blue-600 text-white' :
-                  active  ? 'bg-white border-blue-600 text-blue-600' :
-                            'bg-gray-100 border-gray-200 text-gray-400',
+                  'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all',
+                  done   ? 'bg-[#22C55E] text-white' :
+                  active ? 'bg-[#FFC107] text-[#111] shadow-[0_4px_12px_rgba(255,193,7,0.4)]' :
+                           'bg-gray-100 text-gray-400',
                 ].join(' ')}>
                   {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
                 </div>
                 <span className={[
-                  'text-[9px] font-medium whitespace-nowrap leading-tight',
-                  active ? 'text-blue-700' : done ? 'text-blue-500' : 'text-gray-400',
+                  'text-[9px] font-semibold whitespace-nowrap leading-tight',
+                  active ? 'text-[#111]' : done ? 'text-[#22C55E]' : 'text-gray-400',
                 ].join(' ')}>
                   {STATUS_LABEL[s]}
                 </span>
@@ -179,7 +178,7 @@ function StatusProgress({ status }: { status: RepairStatus }) {
               {i < STATUS_FLOW.length - 1 && (
                 <div className={[
                   'h-0.5 w-4 sm:w-6 shrink-0 mx-0.5 mt-[-10px]',
-                  i < currentIdx ? 'bg-blue-500' : 'bg-gray-200',
+                  i < currentIdx ? 'bg-[#22C55E]' : 'bg-gray-200',
                 ].join(' ')} />
               )}
             </div>
@@ -594,45 +593,43 @@ export default function RepairWorkspacePage() {
 
   return (
     <>
-      <div className="space-y-4 pb-24 lg:pb-4">
+      <div className="min-h-screen bg-[#F8F9FB] -m-4 sm:-m-6 lg:-m-8 px-4 sm:px-6 lg:px-8 pt-5 pb-24 lg:pb-8 space-y-4">
 
         {/* ─── Header ─────────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => router.push('/repairs')}
-              className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] text-slate-600 shrink-0"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-4 w-4" />
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono font-bold text-blue-700 text-base sm:text-lg">{repair.ticketNumber}</span>
-                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border ${STATUS_COLOR[repair.status]}`}>
+                <span className="font-mono font-bold text-[#111] text-base sm:text-lg">{repair.ticketNumber}</span>
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLOR[repair.status]}`}>
                   {STATUS_LABEL[repair.status]}
                 </span>
                 {repair.paymentStatus === 'PAID' && (
-                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-700">
                     <CheckCircle2 className="h-3 w-3" />
                     ชำระแล้ว
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-slate-400 mt-0.5">
                 {repair.deviceBrand} {repair.deviceModel}
                 {repair.customer && ` · ${repair.customer.name}`}
               </p>
             </div>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 shrink-0"
+          <button
+            className="flex items-center gap-1.5 h-9 px-3 rounded-2xl bg-[#FFC107] text-sm font-bold text-[#111] shadow-[0_4px_12px_rgba(255,193,7,0.3)] shrink-0"
             onClick={() => setPrintOpen(true)}
           >
             <Printer className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">พิมพ์</span>
-          </Button>
+          </button>
         </div>
 
         {/* ─── Status Progress ─────────────────────────────────────────────────── */}
@@ -1079,10 +1076,13 @@ export default function RepairWorkspacePage() {
             <SectionCard>
               <SectionTitle icon={FileText} title="การดำเนินการ" />
               <div className="space-y-2">
-                <Button variant="outline" size="sm" className="w-full gap-1.5 justify-start" onClick={() => setPrintOpen(true)}>
-                  <Printer className="h-3.5 w-3.5" />
+                <button
+                  onClick={() => setPrintOpen(true)}
+                  className="w-full flex items-center gap-2 h-10 px-3 rounded-2xl bg-[#FFC107] text-sm font-bold text-[#111] shadow-[0_2px_8px_rgba(255,193,7,0.3)]"
+                >
+                  <Printer className="h-4 w-4 shrink-0" />
                   พิมพ์ใบรับงาน
-                </Button>
+                </button>
 
                 {repair.status === 'COMPLETED' && repair.paymentStatus === 'PENDING' && (
                   <Button
