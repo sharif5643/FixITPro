@@ -149,7 +149,7 @@ export default function RepairDetailPage() {
                     </p>
                     {current && (
                       <p className="text-[11px] text-slate-400">
-                        {format(new Date(repair.updatedAt), 'd MMM yyyy HH:mm', {locale:th})}
+                        {repair.updatedAt ? format(new Date(repair.updatedAt), 'd MMM yyyy HH:mm', {locale:th}) : ''}
                       </p>
                     )}
                   </div>

@@ -158,7 +158,7 @@ function RepairsPageInner() {
               <div className="flex flex-col items-end gap-1 shrink-0">
                 <Clock className="h-3.5 w-3.5 text-slate-300" />
                 <p className="text-[10px] text-slate-400 whitespace-nowrap">
-                  {formatDistanceToNow(new Date(r.createdAt), { addSuffix: true, locale: th })}
+                  {r.createdAt ? formatDistanceToNow(new Date(r.createdAt), { addSuffix: true, locale: th }) : ''}
                 </p>
               </div>
             </button>

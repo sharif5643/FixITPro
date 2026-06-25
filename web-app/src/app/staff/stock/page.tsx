@@ -97,7 +97,7 @@ export default function StockPage() {
                     {p.sku && <p className="text-[10px] text-slate-400">{p.sku}</p>}
                   </div>
                 </div>
-                <p className="w-20 text-right text-sm font-semibold text-slate-700">฿{p.salePrice.toLocaleString()}</p>
+                <p className="w-20 text-right text-sm font-semibold text-slate-700">฿{(p.salePrice ?? 0).toLocaleString()}</p>
                 <p className={`w-16 text-right text-sm font-bold ${p.stockQuantity<=5?'text-red-500':'text-brand-success'}`}>
                   {p.stockQuantity}
                 </p>
