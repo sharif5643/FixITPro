@@ -116,13 +116,21 @@ export default function HomePage() {
   const canSeeRev  = isOwner || isManager
   const canSeePro  = isOwner
 
-  const [stats,   setStats]   = useState<Stats>({ todayRevenue:0, todayProfit:0, pendingRepairs:0, todayDeliveries:0, completedDeliveries:0, lowStockItems:0, unreadNotifs:0, revenueChange:0, profitChange:0 })
-  const [repairs, setRepairs] = useState<Repair[]>([])
-  const [notifs,  setNotifs]  = useState<Notif[]>([])
-  const [topProd, setTopProd] = useState<TopProduct[]>([])
-  const [weekly,  setWeekly]  = useState(last7Days())
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(false)
+  const [stats,      setStats]      = useState<Stats>({ todayRevenue:0, todayProfit:0, pendingRepairs:0, todayDeliveries:0, completedDeliveries:0, lowStockItems:0, unreadNotifs:0, revenueChange:0, profitChange:0 })
+  const [repairs,    setRepairs]    = useState<Repair[]>([])
+  const [notifs,     setNotifs]     = useState<Notif[]>([])
+  const [topProd,    setTopProd]    = useState<TopProduct[]>([])
+  const [weekly,     setWeekly]     = useState(last7Days())
+  const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState(false)
+  const [branchName, setBranchName] = useState<string|null>(null)
+
+  useEffect(() => {
+    const sync = () => setBranchName(localStorage.getItem('selectedBranchName'))
+    sync()
+    window.addEventListener('focus', sync)
+    return () => window.removeEventListener('focus', sync)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true); setError(false)
@@ -236,11 +244,13 @@ export default function HomePage() {
 
           {/* Right: bell + branch */}
           <div className="flex items-center gap-2">
-            {(isOwner || isManager) && (
-              <button className="flex h-9 items-center gap-1 rounded-full border border-[#E5E7EB] bg-[#F8F9FB] px-3 text-[11px] font-semibold text-slate-600">
-                {isOwner ? 'ทุกสาขา' : 'สาขาหลัก'} <span className="text-[9px]">▼</span>
-              </button>
-            )}
+            <button
+              onClick={() => router.push('/staff/branch')}
+              className="flex h-9 items-center gap-1 rounded-full border border-[#E5E7EB] bg-[#F8F9FB] px-3 text-[11px] font-semibold text-slate-600 active:bg-slate-100"
+            >
+              {branchName ?? (isOwner ? 'ทุกสาขา' : 'สาขาหลัก')}
+              <span className="text-[9px]">▼</span>
+            </button>
             <button
               onClick={() => router.push('/staff/notifications')}
               className="relative flex h-10 w-10 items-center justify-center rounded-full bg-[#F8F9FB]"
