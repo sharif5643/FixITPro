@@ -75,8 +75,7 @@ function LoginForm() {
     setLoading(true)
     try {
       const res = await api.post('/auth/login', {
-        email:    data.email,
-        username: data.email,
+        email:    data.email.trim().toLowerCase(),
         password: data.password,
       })
       const { permissions = [], enabledModules = [], ...user } = res.data
