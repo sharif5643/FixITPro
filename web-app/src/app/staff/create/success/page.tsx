@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { CheckCircle2, Printer, Send, Home, Loader2, Smartphone, User } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
+import { printRepairReceipt } from '@/lib/print'
 
 interface RepairDetail {
   id: string; ticketNumber: string; createdAt: string; status: string
@@ -87,7 +88,8 @@ function SuccessContent() {
     : []
 
   function handlePrint() {
-    window.print()
+    if (!repair) return
+    printRepairReceipt(repair.id, { paperWidth: '80mm' })
   }
   function handleQueue() {
     toast.success('ส่งเข้าคิวช่างแล้ว')
@@ -95,194 +97,6 @@ function SuccessContent() {
   }
 
   return (
-    <>
-      {/* ── Print CSS ── */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          body * { visibility: hidden !important; }
-          #print-receipt, #print-receipt * { visibility: visible !important; }
-          #print-receipt {
-            position: fixed !important;
-            top: 0 !important; left: 0 !important;
-            width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: white !important;
-          }
-          @page { margin: 8mm; size: A4; }
-        }
-      `}} />
-
-      {/* ── Hidden Print Receipt ── */}
-      <div id="print-receipt" style={{ display:'none' }}>
-        <style dangerouslySetInnerHTML={{ __html: `
-          @media print {
-            #print-receipt { display: block !important; font-family: 'Sarabun', sans-serif; }
-          }
-        `}} />
-        {repair && (
-          <div style={{ maxWidth:620, margin:'0 auto', padding:'16px 20px', fontSize:13, color:'#111', lineHeight:1.6 }}>
-
-            {/* Header */}
-            <div style={{ textAlign:'center', borderBottom:'2px solid #111', paddingBottom:10, marginBottom:12 }}>
-              <div style={{ fontSize:22, fontWeight:900, letterSpacing:1 }}>FIX<span style={{ color:'#FFC107' }}>⚡</span>T Pro</div>
-              <div style={{ fontSize:14, fontWeight:700, marginTop:2 }}>ใบรับซ่อมอุปกรณ์</div>
-              <div style={{ fontSize:11, color:'#555', marginTop:2 }}>Repair Service Receipt</div>
-            </div>
-
-            {/* Ticket + Date */}
-            <table style={{ width:'100%', marginBottom:10 }}>
-              <tbody>
-                <tr>
-                  <td style={{ width:'50%', verticalAlign:'top' }}>
-                    <div style={{ fontSize:11, color:'#888' }}>เลขที่ใบรับซ่อม</div>
-                    <div style={{ fontSize:16, fontWeight:900, letterSpacing:0.5 }}>{repair.ticketNumber}</div>
-                  </td>
-                  <td style={{ width:'50%', textAlign:'right', verticalAlign:'top' }}>
-                    <div style={{ fontSize:11, color:'#888' }}>วันที่รับเครื่อง</div>
-                    <div style={{ fontSize:12, fontWeight:700 }}>{fmtDate(repair.createdAt)}</div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
-
-            {/* Customer */}
-            <div style={{ marginBottom:10 }}>
-              <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>ข้อมูลลูกค้า</div>
-              <table style={{ width:'100%', fontSize:13 }}>
-                <tbody>
-                  <tr><td style={{ width:100, color:'#666', paddingBottom:2 }}>ชื่อลูกค้า</td><td style={{ fontWeight:700 }}>{repair.customerName}</td></tr>
-                  <tr><td style={{ color:'#666' }}>เบอร์โทร</td><td style={{ fontWeight:700 }}>{repair.customerPhone || '-'}</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
-
-            {/* Device */}
-            <div style={{ marginBottom:10 }}>
-              <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>ข้อมูลอุปกรณ์</div>
-              <table style={{ width:'100%', fontSize:13 }}>
-                <tbody>
-                  <tr><td style={{ width:100, color:'#666', paddingBottom:2 }}>ยี่ห้อ / รุ่น</td><td style={{ fontWeight:700 }}>{repair.deviceBrand} {repair.deviceModel}</td></tr>
-                  {repair.deviceColor && <tr><td style={{ color:'#666', paddingBottom:2 }}>สีเครื่อง</td><td>{repair.deviceColor}</td></tr>}
-                  {repair.deviceImei && <tr><td style={{ color:'#666', paddingBottom:2 }}>IMEI</td><td style={{ fontFamily:'monospace', fontSize:12 }}>{repair.deviceImei}</td></tr>}
-                  {repair.deviceSerial && <tr><td style={{ color:'#666', paddingBottom:2 }}>Serial</td><td style={{ fontFamily:'monospace', fontSize:12 }}>{repair.deviceSerial}</td></tr>}
-                </tbody>
-              </table>
-            </div>
-
-            <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
-
-            {/* Symptoms */}
-            {symptoms.length > 0 && (
-              <div style={{ marginBottom:10 }}>
-                <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>อาการเสีย</div>
-                <div style={{ fontSize:13, fontWeight:700 }}>{symptoms.join(' / ')}</div>
-                {repair.issueDescription && <div style={{ fontSize:12, color:'#555', marginTop:3 }}>{repair.issueDescription}</div>}
-              </div>
-            )}
-
-            {/* Conditions */}
-            {conditions.length > 0 && (
-              <div style={{ marginBottom:10 }}>
-                <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>สภาพเครื่องก่อนซ่อม</div>
-                <div style={{ fontSize:13 }}>{conditions.map(c => `✓ ${c}`).join('  ')}</div>
-              </div>
-            )}
-
-            {/* Accessories */}
-            {accessories.length > 0 && (
-              <>
-                <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
-                <div style={{ marginBottom:10 }}>
-                  <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:4 }}>อุปกรณ์ที่ฝาก</div>
-                  <div style={{ fontSize:13 }}>{(accessories as string[]).map(a => `☑ ${a}`).join('  ')}</div>
-                </div>
-              </>
-            )}
-
-            {/* Pricing */}
-            {total > 0 && (
-              <>
-                <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
-                <div style={{ marginBottom:10 }}>
-                  <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', color:'#888', letterSpacing:0.5, marginBottom:6 }}>ค่าบริการ</div>
-                  <table style={{ width:'100%', fontSize:13 }}>
-                    <tbody>
-                      {labor > 0 && (
-                        <tr>
-                          <td style={{ color:'#666', paddingBottom:3 }}>ค่าแรง</td>
-                          <td style={{ textAlign:'right' }}>{labor.toLocaleString('th-TH')} บาท</td>
-                        </tr>
-                      )}
-                      {parts > 0 && (
-                        <tr>
-                          <td style={{ color:'#666', paddingBottom:3 }}>ค่าอะไหล่</td>
-                          <td style={{ textAlign:'right' }}>{parts.toLocaleString('th-TH')} บาท</td>
-                        </tr>
-                      )}
-                      <tr style={{ borderTop:'1px solid #ddd' }}>
-                        <td style={{ fontWeight:800, paddingTop:4 }}>รวมทั้งสิ้น</td>
-                        <td style={{ textAlign:'right', fontWeight:900, fontSize:15 }}>{total.toLocaleString('th-TH')} บาท</td>
-                      </tr>
-                      {deposit > 0 && (
-                        <tr>
-                          <td style={{ color:'#666', paddingBottom:2 }}>รับมัดจำ</td>
-                          <td style={{ textAlign:'right', color:'#16a34a' }}>-{deposit.toLocaleString('th-TH')} บาท</td>
-                        </tr>
-                      )}
-                      {deposit > 0 && remain > 0 && (
-                        <tr>
-                          <td style={{ fontWeight:700 }}>ยอดคงเหลือ</td>
-                          <td style={{ textAlign:'right', fontWeight:800 }}>{remain.toLocaleString('th-TH')} บาท</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-
-            {/* Technician */}
-            {repair.technicianName && (
-              <>
-                <hr style={{ border:'none', borderTop:'1px solid #ddd', margin:'8px 0' }}/>
-                <div style={{ fontSize:13, marginBottom:10 }}>
-                  <span style={{ color:'#666' }}>ช่างผู้รับผิดชอบ: </span>
-                  <span style={{ fontWeight:700 }}>{repair.technicianName}</span>
-                </div>
-              </>
-            )}
-
-            <hr style={{ border:'none', borderTop:'2px solid #111', margin:'12px 0' }}/>
-
-            {/* Signatures */}
-            <table style={{ width:'100%', marginTop:16 }}>
-              <tbody>
-                <tr>
-                  <td style={{ width:'48%', textAlign:'center', paddingTop:36, borderTop:'1px solid #aaa', fontSize:12, color:'#444' }}>
-                    ลงชื่อลูกค้า<br/><span style={{ fontSize:11, color:'#888' }}>Customer Signature</span>
-                  </td>
-                  <td style={{ width:'4%' }}></td>
-                  <td style={{ width:'48%', textAlign:'center', paddingTop:36, borderTop:'1px solid #aaa', fontSize:12, color:'#444' }}>
-                    ลงชื่อพนักงาน<br/><span style={{ fontSize:11, color:'#888' }}>Staff Signature</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            {/* Footer */}
-            <div style={{ textAlign:'center', marginTop:16, fontSize:11, color:'#aaa', borderTop:'1px dashed #ddd', paddingTop:8 }}>
-              ขอบคุณที่ใช้บริการ FIX⚡T Pro • กรุณาเก็บใบรับซ่อมไว้เป็นหลักฐาน
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Screen view ── */}
       <div className="min-h-screen bg-[#F8F9FB] pb-36">
 
         {/* ── Success banner ── */}
@@ -465,7 +279,6 @@ function SuccessContent() {
           </button>
         </div>
       </div>
-    </>
   )
 }
 
