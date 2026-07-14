@@ -80,6 +80,8 @@ export class DashboardService {
       apOutstandingAgg,
       salesByBranch,
       repairsByBranch,
+      openRepairsByBranch,
+      overdueRepairsByBranch,
       branches,
     ] = await Promise.all([
       this.prisma.sale.aggregate({
@@ -227,6 +229,22 @@ export class DashboardService {
         _sum: { paidAmount: true },
         _count: { id: true },
       }),
+      // Per-branch open repairs (current state, not date-filtered)
+      this.prisma.repair.groupBy({
+        by: ['branchId'],
+        where: { status: { notIn: ['DELIVERED', 'CANCELLED'] }, ...this.tenantSvc.branchScope(tenantId) },
+        _count: { id: true },
+      }),
+      // Per-branch overdue repairs
+      this.prisma.repair.groupBy({
+        by: ['branchId'],
+        where: {
+          dueDate: { lt: now },
+          status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] },
+          ...this.tenantSvc.branchScope(tenantId),
+        },
+        _count: { id: true },
+      }),
       this.prisma.branch.findMany({
         where: tenantId ? { tenantId } : {},
         select: { id: true, name: true },
@@ -370,22 +388,36 @@ export class DashboardService {
       }));
 
     // ── Branch performance ────────────────────────────────────────────────────
-    const branchMap      = new Map(branches.map(b => [b.id, b.name]));
-    const branchSalesMap = new Map(salesByBranch.map(s => [s.branchId ?? '', Number(s._sum.total ?? 0)]));
-    const branchRepMap   = new Map(repairsByBranch.map(r => [r.branchId ?? '', Number(r._sum.paidAmount ?? 0)]));
-    const allBranchIds   = new Set([
+    const branchMap        = new Map(branches.map(b => [b.id, b.name]));
+    const branchSalesMap   = new Map(salesByBranch.map(s => [s.branchId ?? '', Number(s._sum.total ?? 0)]));
+    const branchRepMap     = new Map(repairsByBranch.map(r => [r.branchId ?? '', Number(r._sum.paidAmount ?? 0)]));
+    const branchOpenMap    = new Map(openRepairsByBranch.map(r => [r.branchId ?? '', r._count.id]));
+    const branchOverdueMap = new Map(overdueRepairsByBranch.map(r => [r.branchId ?? '', r._count.id]));
+    // Include ALL registered branches, even those with zero activity today
+    const allBranchIds = new Set([
+      ...branches.map(b => b.id),
       ...salesByBranch.map(s => s.branchId ?? ''),
       ...repairsByBranch.map(r => r.branchId ?? ''),
     ]);
     const branchPerformance = isOwner
       ? Array.from(allBranchIds)
-          .map(bid => ({
-            branchId:      bid,
-            name:          bid ? (branchMap.get(bid) ?? 'ไม่ระบุสาขา') : 'ไม่ระบุสาขา',
-            salesRevenue:  branchSalesMap.get(bid) ?? 0,
-            repairRevenue: branchRepMap.get(bid) ?? 0,
-            totalRevenue:  (branchSalesMap.get(bid) ?? 0) + (branchRepMap.get(bid) ?? 0),
-          }))
+          .filter(bid => bid) // exclude empty-string placeholder
+          .map(bid => {
+            const overdueRepairs = branchOverdueMap.get(bid) ?? 0;
+            const openRepairs    = branchOpenMap.get(bid) ?? 0;
+            const health: 'NORMAL' | 'WARNING' | 'CRITICAL' =
+              overdueRepairs > 0 ? 'CRITICAL' : openRepairs > 5 ? 'WARNING' : 'NORMAL';
+            return {
+              branchId:      bid,
+              name:          branchMap.get(bid) ?? 'ไม่ระบุสาขา',
+              salesRevenue:  branchSalesMap.get(bid) ?? 0,
+              repairRevenue: branchRepMap.get(bid) ?? 0,
+              totalRevenue:  (branchSalesMap.get(bid) ?? 0) + (branchRepMap.get(bid) ?? 0),
+              openRepairs,
+              overdueRepairs,
+              health,
+            };
+          })
           .sort((a, b) => b.totalRevenue - a.totalRevenue)
       : [];
 

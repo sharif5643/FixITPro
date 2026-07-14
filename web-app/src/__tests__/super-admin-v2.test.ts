@@ -58,9 +58,9 @@ describe('Req 1 — SUPER_ADMIN access control', () => {
 
 // ── 2. Navigation — all 10 menu items ─────────────────────────────────────────
 
-describe('Req 2 — Sidebar contains all 10 menu items', () => {
-  it('SA_NAV_ITEMS has exactly 10 items', () => {
-    expect(SA_NAV_ITEMS).toHaveLength(10)
+describe('Req 2 — Sidebar contains all 12 menu items', () => {
+  it('SA_NAV_ITEMS has exactly 12 items', () => {
+    expect(SA_NAV_ITEMS).toHaveLength(12)
   })
 
   it('Dashboard is included', () => {
@@ -352,10 +352,12 @@ describe('Req 8 — All Super Admin V2 routes are defined', () => {
     '/super-admin/analytics',
     '/super-admin/audit-logs',
     '/super-admin/settings',
+    '/super-admin/modules',
+    '/super-admin/data-repair',
   ]
 
-  it('has 11 total Super Admin routes', () => {
-    expect(ALL_SA_ROUTES).toHaveLength(11)
+  it('has 13 total Super Admin routes', () => {
+    expect(ALL_SA_ROUTES).toHaveLength(13)
   })
 
   it('dashboard route exists', () => {
@@ -366,7 +368,7 @@ describe('Req 8 — All Super Admin V2 routes are defined', () => {
     expect(ALL_SA_ROUTES).toContain('/super-admin/tenants/[id]')
   })
 
-  it('all 10 nav-item routes correspond to file routes', () => {
+  it('all 12 nav-item routes correspond to file routes', () => {
     const navHrefs = SA_NAV_ITEMS.map(i => i.href)
     navHrefs.forEach(href => {
       expect(ALL_SA_ROUTES).toContain(href)
