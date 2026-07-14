@@ -7,6 +7,7 @@ import { z } from 'zod'
 import {
   Loader2, User, X, Wrench, ShoppingCart, Printer, FileText, CheckCircle2,
   Smartphone, Tablet, Laptop, Watch, HelpCircle, Tag, UserCog, Camera, ImagePlus,
+  ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -134,12 +135,13 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
   const discount     = Number(watch('discount'))     || 0
 
   // New multi-value state
-  const [deviceType,      setDeviceType]      = useState<string>('')
-  const [accessories,     setAccessories]     = useState<string[]>([])
+  const [deviceType,       setDeviceType]       = useState<string>('')
+  const [accessories,      setAccessories]      = useState<string[]>([])
   const [deviceConditions, setDeviceConditions] = useState<string[]>([])
-  const [issueTags,       setIssueTags]       = useState<string[]>([])
-  const [selectedTechId,  setSelectedTechId]  = useState<string | null>(null)
-  const [photos,          setPhotos]          = useState<File[]>([])
+  const [issueTags,        setIssueTags]        = useState<string[]>([])
+  const [selectedTechId,   setSelectedTechId]   = useState<string | null>(null)
+  const [photos,           setPhotos]           = useState<File[]>([])
+  const [showExtra,        setShowExtra]        = useState(false)
 
   const { data: techUsers = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['technicians-simple'],
@@ -155,7 +157,10 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
   const [customerSearch,   setCustomerSearch]   = useState('')
   const [searchOpen,       setSearchOpen]       = useState(false)
   const searchRef                               = useRef<HTMLDivElement>(null)
-  const debouncedSearch                         = useDebounce(customerSearch, 300)
+
+  // Normalize phone: strip spaces, dashes, parentheses before querying
+  const normalizedSearch = customerSearch.replace(/[\s\-+()​]/g, '')
+  const debouncedSearch  = useDebounce(normalizedSearch, 350)
 
   useEffect(() => {
     if (open) {
@@ -170,6 +175,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
       setIssueTags([])
       setSelectedTechId(null)
       setPhotos([])
+      setShowExtra(false)
     }
   }, [open, reset])
 
@@ -181,10 +187,13 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const { data: searchResults = [] } = useQuery<CustomerSearchResult[]>({
+  const {
+    data: searchResults = [],
+    isFetching: isSearching,
+  } = useQuery<CustomerSearchResult[]>({
     queryKey: ['customers', 'search', debouncedSearch],
     queryFn: async () => (await api.get('/customers', { params: { search: debouncedSearch } })).data,
-    enabled: searchOpen && debouncedSearch.length >= 1,
+    enabled: searchOpen && debouncedSearch.length >= 2,
     staleTime: 10_000,
   })
 
@@ -265,7 +274,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-2xl max-h-[92dvh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wrench className="h-4 w-4 text-blue-600" />
@@ -384,17 +393,46 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
               ) : (
                 <div className="space-y-3">
                   <div ref={searchRef} className="relative">
-                    <Label className="mb-1.5 block">ค้นหาลูกค้าเก่า</Label>
-                    <Input placeholder="พิมพ์ชื่อหรือเบอร์โทร..." value={customerSearch}
-                      onChange={(e) => { setCustomerSearch(e.target.value); setSearchOpen(true) }}
-                      onFocus={() => setSearchOpen(true)} className="text-sm" />
-                    {searchOpen && customerSearch.length >= 1 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-44 overflow-y-auto">
-                        {searchResults.length === 0 ? (
-                          <div className="px-3 py-3 text-sm text-muted-foreground text-center">ไม่พบลูกค้า</div>
+                    <Label className="mb-1.5 block">ค้นหาด้วยเบอร์โทรหรือชื่อ</Label>
+                    <div className="relative">
+                      <Input
+                        placeholder="เบอร์โทร หรือ ชื่อลูกค้า..."
+                        value={customerSearch}
+                        inputMode="tel"
+                        autoComplete="off"
+                        onChange={(e) => { setCustomerSearch(e.target.value); setSearchOpen(true) }}
+                        onFocus={() => setSearchOpen(true)}
+                        className="text-sm h-11 pr-8"
+                      />
+                      {isSearching && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400" />
+                      )}
+                    </div>
+                    {searchOpen && normalizedSearch.length >= 2 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                        {isSearching ? (
+                          <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />กำลังค้นหา...
+                          </div>
+                        ) : searchResults.length === 0 ? (
+                          <div className="px-3 py-3 text-center">
+                            <p className="text-sm text-muted-foreground mb-2">ไม่พบลูกค้า</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSearchOpen(false)
+                                const isPhone = /^\d{9,10}$/.test(normalizedSearch)
+                                if (isPhone) setValue('customerPhone', customerSearch.trim())
+                                else setValue('customerName', customerSearch.trim())
+                              }}
+                              className="text-xs font-semibold text-blue-600 hover:text-blue-700 underline"
+                            >
+                              + เพิ่มลูกค้าใหม่ด้วย "{customerSearch.trim()}"
+                            </button>
+                          </div>
                         ) : searchResults.map((c) => (
                           <button key={c.id} type="button" onClick={() => selectCustomer(c)}
-                            className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b last:border-0">
+                            className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b last:border-0 min-h-[44px]">
                             <p className="text-sm font-semibold">{c.name}</p>
                             <p className="text-xs text-muted-foreground">{c.phone ?? 'ไม่มีเบอร์'} · ซ่อม {c._count.repairs}</p>
                           </button>
@@ -405,11 +443,11 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label>ชื่อลูกค้าใหม่</Label>
-                      <Input placeholder="ถ้าไม่เลือกจากด้านบน" {...register('customerName')} />
+                      <Input placeholder="ถ้าไม่เลือกจากด้านบน" className="h-11" {...register('customerName')} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>เบอร์โทร</Label>
-                      <Input placeholder="0XX-XXX-XXXX" {...register('customerPhone')} />
+                      <Input placeholder="0XX-XXX-XXXX" inputMode="tel" className="h-11" {...register('customerPhone')} />
                     </div>
                   </div>
                 </div>
@@ -428,12 +466,12 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                       <button key={value} type="button"
                         onClick={() => setDeviceType(deviceType === value ? '' : value)}
                         className={cn(
-                          'flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-all',
+                          'flex items-center gap-2 px-4 py-2.5 rounded-full border text-sm font-medium transition-all min-h-[44px]',
                           deviceType === value
                             ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                             : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300',
                         )}>
-                        <Icon className="h-3.5 w-3.5" />
+                        <Icon className="h-4 w-4" />
                         {value}
                       </button>
                     ))}
@@ -444,58 +482,13 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>ยี่ห้อ <span className="text-red-500">*</span></Label>
-                    <Input placeholder="เช่น Samsung, Apple" {...register('deviceBrand')} />
+                    <Input placeholder="เช่น Samsung, Apple" className="h-11" {...register('deviceBrand')} />
                     {errors.deviceBrand && <p className="text-xs text-red-500">{errors.deviceBrand.message}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <Label>รุ่น <span className="text-red-500">*</span></Label>
-                    <Input placeholder="เช่น Galaxy S24" {...register('deviceModel')} />
+                    <Input placeholder="เช่น Galaxy S24" className="h-11" {...register('deviceModel')} />
                     {errors.deviceModel && <p className="text-xs text-red-500">{errors.deviceModel.message}</p>}
-                  </div>
-                </div>
-
-                {/* IMEI / Color */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>IMEI / Serial</Label>
-                    <Input placeholder="ถ้าไม่รู้ทิ้งไว้ก่อน" {...register('deviceImei')} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>สี</Label>
-                    <Input placeholder="เช่น ดำ, ขาว, ทอง" {...register('deviceColor')} />
-                  </div>
-                </div>
-
-                {/* Accessories */}
-                <div>
-                  <Label className="mb-2 block">อุปกรณ์ที่รับมาด้วย</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ACCESSORIES_OPTIONS.map((opt) => (
-                      <button key={opt} type="button"
-                        onClick={() => toggleArr(accessories, setAccessories, opt)}
-                        className={cn(
-                          'px-3 py-1 rounded-full border text-xs font-medium transition-all',
-                          accessories.includes(opt)
-                            ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300',
-                        )}>
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Device condition */}
-                <div>
-                  <Label className="mb-2 block">สภาพอุปกรณ์ (เลือกได้หลายข้อ)</Label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CONDITION_OPTIONS.map(({ value, color }) => (
-                      <button key={value} type="button" data-active={deviceConditions.includes(value)}
-                        onClick={() => toggleArr(deviceConditions, setDeviceConditions, value)}
-                        className={cn('px-3 py-1 rounded-full border text-xs font-medium transition-all', color)}>
-                        {value}
-                      </button>
-                    ))}
                   </div>
                 </div>
               </div>
@@ -515,7 +508,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                       <button key={tag} type="button"
                         onClick={() => toggleArr(issueTags, setIssueTags, tag)}
                         className={cn(
-                          'px-3 py-1 rounded-full border text-xs font-medium transition-all',
+                          'px-3 py-2 rounded-full border text-xs font-medium transition-all min-h-[36px]',
                           issueTags.includes(tag)
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300',
@@ -535,11 +528,6 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                   {errors.issue && <p className="text-xs text-red-500">{errors.issue.message}</p>}
                 </div>
 
-                {/* Note */}
-                <div className="space-y-1.5">
-                  <Label>หมายเหตุ</Label>
-                  <Input placeholder="บันทึกเพิ่มเติม..." {...register('note')} />
-                </div>
               </div>
             </div>
 
@@ -547,41 +535,46 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
             <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
               <SectionLabel num={4} label="ค่าใช้จ่าย (ประมาณเบื้องต้น)" />
               <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>ราคาประเมิน (฿)</Label>
-                    <Input type="number" min={0} step={1} placeholder="0" {...register('estimateCost')} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>ส่วนลด (฿)</Label>
-                    <Input type="number" min={0} step={1} placeholder="0" {...register('discount')} />
+                    <Input
+                      type="number" inputMode="decimal" min={0} step={1} placeholder="0"
+                      className="h-11"
+                      {...register('estimateCost', { min: { value: 0, message: 'ห้ามน้อยกว่า 0' } })}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label>ค่ามัดจำ (฿)</Label>
-                    <Input type="number" min={0} step={1} placeholder="0" {...register('deposit')} />
+                    <Input
+                      type="number" inputMode="decimal" min={0} step={1} placeholder="0"
+                      className={cn('h-11', deposit > 0 && estimateCost > 0 && deposit > estimateCost && 'border-red-400 focus-visible:ring-red-400')}
+                      {...register('deposit', { min: { value: 0, message: 'ห้ามน้อยกว่า 0' } })}
+                    />
                   </div>
                 </div>
+                {/* Deposit > estimate warning */}
+                {deposit > 0 && estimateCost > 0 && deposit > estimateCost && (
+                  <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+                    <span className="text-base">⚠️</span>
+                    <span>มัดจำสูงกว่าราคาประเมิน — กรุณาตรวจสอบ</span>
+                  </div>
+                )}
+                {/* Real-time net */}
                 {estimateCost > 0 && (
                   <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">สุทธิหลังส่วนลด</span>
-                    <span className="font-bold text-green-700">{formatThaiMoney(netEstimate)}</span>
+                    <span className="text-muted-foreground">เหลือชำระเมื่อรับ</span>
+                    <span className={cn('font-bold', deposit > estimateCost ? 'text-red-600' : 'text-green-700')}>
+                      {formatThaiMoney(Math.max(0, estimateCost - deposit))}
+                    </span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* ── Section 5: กำหนดการ ── */}
+            {/* ── Section 5: ถ่ายรูปเครื่อง ── */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-              <SectionLabel num={5} label="กำหนดการ" />
-              <div className="space-y-1.5">
-                <Label>วันที่นัดรับ</Label>
-                <Input type="date" {...register('dueDate')} />
-              </div>
-            </div>
-
-            {/* ── Section 6: ถ่ายรูปเครื่อง ── */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-              <SectionLabel num={6} label="ถ่ายรูปเครื่อง (ไม่บังคับ)" />
+              <SectionLabel num={5} label="ถ่ายรูปเครื่อง (ไม่บังคับ)" />
               <div className="space-y-3">
                 {photos.length > 0 && (
                   <div className="flex flex-wrap gap-2">
@@ -637,41 +630,128 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
               </div>
             </div>
 
-            {/* ── Section 7: มอบหมายช่าง ── */}
-            {techUsers.length > 0 && (
-              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-                <SectionLabel num={7} label="มอบหมายช่าง (ไม่บังคับ)" />
-                <div className="flex flex-wrap gap-2">
-                  {techUsers.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setSelectedTechId(selectedTechId === t.id ? null : t.id)}
-                      className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-all',
-                        selectedTechId === t.id
-                          ? 'bg-purple-600 text-white border-purple-600'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300',
-                      )}
-                    >
-                      <TechnicianAvatar name={t.name} size="sm" />
-                      {t.name}
-                    </button>
-                  ))}
+            {/* ── ข้อมูลเพิ่มเติม (collapsible) ── */}
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowExtra(o => !o)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  {showExtra ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  ข้อมูลเพิ่มเติม
+                </span>
+                <span className="text-xs text-slate-400">IMEI · สี · อุปกรณ์ · ส่วนลด · ช่าง</span>
+              </button>
+
+              {showExtra && (
+                <div className="px-4 pb-4 space-y-4 border-t border-slate-100">
+                  {/* IMEI / Color */}
+                  <div className="grid grid-cols-2 gap-3 pt-4">
+                    <div className="space-y-1.5">
+                      <Label>IMEI / Serial</Label>
+                      <Input placeholder="ถ้าไม่รู้ทิ้งไว้ก่อน" className="h-11" {...register('deviceImei')} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>สีเครื่อง</Label>
+                      <Input placeholder="เช่น ดำ, ขาว, ทอง" className="h-11" {...register('deviceColor')} />
+                    </div>
+                  </div>
+
+                  {/* Accessories */}
+                  <div>
+                    <Label className="mb-2 block">อุปกรณ์ที่รับมาด้วย</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ACCESSORIES_OPTIONS.map((opt) => (
+                        <button key={opt} type="button"
+                          onClick={() => toggleArr(accessories, setAccessories, opt)}
+                          className={cn(
+                            'px-3 py-2 rounded-full border text-xs font-medium transition-all min-h-[36px]',
+                            accessories.includes(opt)
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300',
+                          )}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Device condition */}
+                  <div>
+                    <Label className="mb-2 block">สภาพอุปกรณ์ (เลือกได้หลายข้อ)</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CONDITION_OPTIONS.map(({ value, color }) => (
+                        <button key={value} type="button" data-active={deviceConditions.includes(value)}
+                          onClick={() => toggleArr(deviceConditions, setDeviceConditions, value)}
+                          className={cn('px-3 py-2 rounded-full border text-xs font-medium transition-all min-h-[36px]', color)}>
+                          {value}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Due date */}
+                  <div className="space-y-1.5">
+                    <Label>วันที่นัดรับ</Label>
+                    <Input type="date" className="h-11" {...register('dueDate')} />
+                  </div>
+
+                  {/* Note */}
+                  <div className="space-y-1.5">
+                    <Label>หมายเหตุ</Label>
+                    <Input placeholder="บันทึกเพิ่มเติม..." className="h-11" {...register('note')} />
+                  </div>
+
+                  {/* Discount */}
+                  <div className="space-y-1.5">
+                    <Label>ส่วนลด (฿)</Label>
+                    <Input type="number" min={0} step={1} placeholder="0" className="h-11" {...register('discount')} />
+                    {discount > 0 && estimateCost > 0 && (
+                      <p className="text-xs text-slate-500">
+                        สุทธิหลังส่วนลด: <span className="font-semibold text-green-700">{formatThaiMoney(netEstimate)}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Technician */}
+                  {techUsers.length > 0 && (
+                    <div>
+                      <Label className="mb-2 block">มอบหมายช่าง</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {techUsers.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setSelectedTechId(selectedTechId === t.id ? null : t.id)}
+                            className={cn(
+                              'flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm font-medium transition-all min-h-[40px]',
+                              selectedTechId === t.id
+                                ? 'bg-purple-600 text-white border-purple-600'
+                                : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300',
+                            )}
+                          >
+                            <TechnicianAvatar name={t.name} size="sm" />
+                            {t.name}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {selectedTechId
+                          ? <span className="text-purple-700 font-medium flex items-center gap-1"><UserCog className="h-3 w-3" />ช่างคนอื่นจะไม่เห็นงานนี้ใน Kanban</span>
+                          : 'ถ้าไม่เลือก ช่างทุกคนจะเห็นงานนี้'}
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <p className="mt-2 text-xs text-slate-400">
-                  {selectedTechId
-                    ? <span className="text-purple-700 font-medium flex items-center gap-1"><UserCog className="h-3 w-3" />ช่างคนอื่นจะไม่เห็นงานนี้ใน Kanban</span>
-                    : 'ถ้าไม่เลือก ช่างทุกคนจะเห็นงานนี้'}
-                </p>
-              </div>
-            )}
+              )}
+            </div>
 
             <DialogFooter className="pt-1">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={createMutation.isPending}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={createMutation.isPending} className="h-11">
                 ยกเลิก
               </Button>
-              <Button type="submit" disabled={createMutation.isPending} className="min-w-[130px]">
+              <Button type="submit" disabled={createMutation.isPending} className="min-w-[130px] h-11">
                 {createMutation.isPending ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" />กำลังบันทึก...</>
                 ) : 'สร้างงานซ่อม'}
