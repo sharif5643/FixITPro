@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
   Plus, Wrench, X, Camera, LayoutGrid, LayoutList,
@@ -57,12 +58,18 @@ const STAT_CARDS = [
 
 const VIEW_MODE_KEY = 'repairViewMode'
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page (inner — uses useSearchParams, must be inside Suspense) ──────────────
 
-export default function RepairsPage() {
+function RepairsContent() {
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<RepairStatus | 'ALL'>('ALL')
+
+  const [statusFilter, setStatusFilter] = useState<RepairStatus | 'ALL'>(() => {
+    const s = searchParams.get('status')
+    return s && FILTER_TABS.some(t => t.value === s) ? (s as RepairStatus | 'ALL') : 'ALL'
+  })
+
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedRepairId, setSelectedRepairId] = useState<string | null>(null)
   const [qcRepairId, setQcRepairId] = useState<string | null>(null)
@@ -73,13 +80,23 @@ export default function RepairsPage() {
   const { branchId, isGlobalMode } = useBranchContext()
   const hasModule = useAuthStore((s) => s.hasModule)
 
+  // Restore view-mode preference once on mount
   useEffect(() => {
     const saved = localStorage.getItem(VIEW_MODE_KEY)
     if (saved === 'board' || saved === 'list') setViewMode(saved)
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('scan') === '1') {
-      setScanOpen(true)
-    }
   }, [])
+
+  // Sync status filter whenever the URL query string changes (back/forward, sidebar links)
+  useEffect(() => {
+    const s = searchParams.get('status')
+    const next = s && FILTER_TABS.some(t => t.value === s) ? (s as RepairStatus | 'ALL') : 'ALL'
+    setStatusFilter(next)
+  }, [searchParams])
+
+  // Open QR scanner when ?scan=1
+  useEffect(() => {
+    if (searchParams.get('scan') === '1') setScanOpen(true)
+  }, [searchParams])
 
   function switchView(mode: 'list' | 'board') {
     setViewMode(mode)
@@ -496,5 +513,15 @@ function Dialogs({
         <QcDialog repair={qcRepair} open={!!qcRepairId} onClose={() => { setQcRepairId(null); invalidate() }} />
       )}
     </>
+  )
+}
+
+// ── Default export — Suspense boundary required by useSearchParams ─────────────
+
+export default function RepairsPage() {
+  return (
+    <Suspense>
+      <RepairsContent />
+    </Suspense>
   )
 }
