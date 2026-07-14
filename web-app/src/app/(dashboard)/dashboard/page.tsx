@@ -10,6 +10,7 @@ import {
   AlertCircle, Wallet, Send, Building2, Shield,
   Bell, Activity, Filter, BarChart2, ArrowRightLeft, Settings2,
   CreditCard, Layers, UserPlus, CalendarDays, Zap,
+  Users, ClipboardList,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -538,6 +539,84 @@ function RecentSalesWidget({
   )
 }
 
+// ── Quick Actions Panel ───────────────────────────────────────────────────────
+
+interface QuickAction {
+  label: string
+  sub: string
+  href: string
+  icon: React.ElementType
+  iconBg: string
+  iconColor: string
+}
+
+const ROLE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
+  OWNER: [
+    { label: 'รับงานซ่อม',  sub: 'สร้างงานใหม่',   href: '/repairs',               icon: Wrench,       iconBg: 'bg-orange-100 dark:bg-orange-900/30', iconColor: 'text-orange-600' },
+    { label: 'เปิด POS',    sub: 'ขายสินค้า',       href: '/sales',                 icon: ShoppingCart, iconBg: 'bg-blue-100 dark:bg-blue-900/30',   iconColor: 'text-blue-600'   },
+    { label: 'รายงานวันนี้', sub: 'ปิดวัน',          href: '/reports/daily-closing', icon: BarChart2,    iconBg: 'bg-emerald-100 dark:bg-emerald-900/30', iconColor: 'text-emerald-600' },
+    { label: 'จัดการสต็อก', sub: 'สินค้าทั้งหมด',   href: '/products',              icon: Package,      iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600' },
+    { label: 'ลูกค้า',      sub: 'ค้นหาลูกค้า',     href: '/customers',             icon: Users,        iconBg: 'bg-teal-100 dark:bg-teal-900/30',   iconColor: 'text-teal-600'   },
+    { label: 'แจ้งเตือน',   sub: 'ดูการแจ้งเตือน',  href: '/notifications',         icon: Bell,         iconBg: 'bg-amber-100 dark:bg-amber-900/30', iconColor: 'text-amber-600'  },
+  ],
+  SUPER_ADMIN: [
+    { label: 'รับงานซ่อม',  sub: 'สร้างงานใหม่',   href: '/repairs',               icon: Wrench,       iconBg: 'bg-orange-100 dark:bg-orange-900/30', iconColor: 'text-orange-600' },
+    { label: 'เปิด POS',    sub: 'ขายสินค้า',       href: '/sales',                 icon: ShoppingCart, iconBg: 'bg-blue-100 dark:bg-blue-900/30',   iconColor: 'text-blue-600'   },
+    { label: 'รายงานวันนี้', sub: 'ปิดวัน',          href: '/reports/daily-closing', icon: BarChart2,    iconBg: 'bg-emerald-100 dark:bg-emerald-900/30', iconColor: 'text-emerald-600' },
+    { label: 'จัดการสต็อก', sub: 'สินค้าทั้งหมด',   href: '/products',              icon: Package,      iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600' },
+  ],
+  MANAGER: [
+    { label: 'รับงานซ่อม', sub: 'สร้างงานใหม่',  href: '/repairs',               icon: Wrench,       iconBg: 'bg-orange-100 dark:bg-orange-900/30', iconColor: 'text-orange-600' },
+    { label: 'เปิด POS',   sub: 'ขายสินค้า',      href: '/sales',                 icon: ShoppingCart, iconBg: 'bg-blue-100 dark:bg-blue-900/30',   iconColor: 'text-blue-600'   },
+    { label: 'รายงาน',     sub: 'ปิดวัน',         href: '/reports/daily-closing', icon: BarChart2,    iconBg: 'bg-emerald-100 dark:bg-emerald-900/30', iconColor: 'text-emerald-600' },
+    { label: 'สต็อก',      sub: 'จัดการสินค้า',   href: '/products',              icon: Package,      iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600' },
+  ],
+  CASHIER: [
+    { label: 'เปิด POS',    sub: 'ขายสินค้า',     href: '/sales',      icon: ShoppingCart, iconBg: 'bg-blue-100 dark:bg-blue-900/30',  iconColor: 'text-blue-600'  },
+    { label: 'รับชำระ',     sub: 'งานซ่อมเสร็จ',  href: '/repairs',    icon: CreditCard,   iconBg: 'bg-green-100 dark:bg-green-900/30', iconColor: 'text-green-600' },
+    { label: 'ลูกค้า',      sub: 'ค้นหา',         href: '/customers',  icon: Users,        iconBg: 'bg-teal-100 dark:bg-teal-900/30',  iconColor: 'text-teal-600'  },
+    { label: 'เปิด/ปิดกะ', sub: 'Shift',          href: '/shifts',     icon: Clock,        iconBg: 'bg-amber-100 dark:bg-amber-900/30', iconColor: 'text-amber-600' },
+  ],
+  TECHNICIAN: [
+    { label: 'งานซ่อม',   sub: 'ทั้งหมด',     href: '/repairs',                     icon: Wrench,       iconBg: 'bg-orange-100 dark:bg-orange-900/30', iconColor: 'text-orange-600' },
+    { label: 'รออะไหล่',  sub: 'ต้องติดตาม',  href: '/repairs?status=WAITING_PARTS', icon: Package,      iconBg: 'bg-amber-100 dark:bg-amber-900/30',   iconColor: 'text-amber-600'  },
+    { label: 'รอ QC',     sub: 'ตรวจสอบ',     href: '/repairs?status=QC_PENDING',    icon: CheckCircle,  iconBg: 'bg-indigo-100 dark:bg-indigo-900/30', iconColor: 'text-indigo-600' },
+    { label: 'แจ้งเตือน', sub: 'ข่าวสาร',     href: '/notifications',               icon: Bell,         iconBg: 'bg-slate-100 dark:bg-slate-800',      iconColor: 'text-slate-600'  },
+  ],
+  STOCK_STAFF: [
+    { label: 'สินค้า',     sub: 'จัดการสต็อก',      href: '/products',        icon: Package,      iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600' },
+    { label: 'รับสินค้า',  sub: 'Purchase Order',  href: '/purchase-orders', icon: ClipboardList, iconBg: 'bg-blue-100 dark:bg-blue-900/30',    iconColor: 'text-blue-600'   },
+    { label: 'โอนสินค้า',  sub: 'ระหว่างสาขา',     href: '/transfers',       icon: ArrowRightLeft, iconBg: 'bg-teal-100 dark:bg-teal-900/30',  iconColor: 'text-teal-600'   },
+    { label: 'แจ้งเตือน',  sub: 'สต็อกต่ำ',        href: '/notifications',   icon: Bell,          iconBg: 'bg-red-100 dark:bg-red-900/30',     iconColor: 'text-red-600'    },
+  ],
+}
+
+function QuickActionsPanel({ role }: { role: string }) {
+  const actions = ROLE_QUICK_ACTIONS[role] ?? ROLE_QUICK_ACTIONS['OWNER']
+  return (
+    <div>
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">เริ่มต้นงานได้เลย</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        {actions.map(action => (
+          <Link
+            key={action.href}
+            href={action.href}
+            className="flex items-center gap-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md active:scale-[0.97] transition-all min-h-[64px]"
+          >
+            <div className={cn('h-11 w-11 rounded-xl flex items-center justify-center shrink-0', action.iconBg)}>
+              <action.icon className={cn('h-5 w-5', action.iconColor)} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-[#111] dark:text-white leading-tight">{action.label}</p>
+              <p className="text-xs text-slate-400 mt-0.5 truncate">{action.sub}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -682,6 +761,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Quick Actions ─────────────────────────────────────────────────────── */}
+      <QuickActionsPanel role={role ?? ''} />
 
       {/* ── KPI Cards V3 ──────────────────────────────────────────────────────── */}
       <div className={cn(

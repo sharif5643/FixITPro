@@ -4,7 +4,7 @@
  * Pure-logic tests (no DOM / React rendering).
  * Covers:
  *   1. Role-based access control (SUPER_ADMIN only)
- *   2. Navigation — all 10 menu items present
+ *   2. Navigation — all 12 menu items present
  *   3. Sidebar active-state logic
  *   4. Tenant table actions per status
  *   5. Package definitions
@@ -56,7 +56,7 @@ describe('Req 1 — SUPER_ADMIN access control', () => {
   })
 })
 
-// ── 2. Navigation — all 10 menu items ─────────────────────────────────────────
+// ── 2. Navigation — all 12 menu items ─────────────────────────────────────────
 
 describe('Req 2 — Sidebar contains all 12 menu items', () => {
   it('SA_NAV_ITEMS has exactly 12 items', () => {
@@ -347,12 +347,16 @@ describe('Req 8 — All Super Admin V2 routes are defined', () => {
     '/super-admin/branches',
     '/super-admin/users',
     '/super-admin/packages',
+    '/super-admin/modules',
     '/super-admin/subscriptions',
     '/super-admin/payments',
     '/super-admin/analytics',
     '/super-admin/audit-logs',
     '/super-admin/settings',
+<<<<<<< HEAD
     '/super-admin/modules',
+=======
+>>>>>>> origin/main
     '/super-admin/data-repair',
   ]
 

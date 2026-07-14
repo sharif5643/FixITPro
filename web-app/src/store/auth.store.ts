@@ -94,9 +94,9 @@ export const useAuthStore = create<AuthState>()(
           }
           if (state) {
             state._hasHydrated = true
-            console.log(
-              '[Auth] Store hydrated — role:', state.user?.role ?? 'none',
-            )
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[Auth] Store hydrated — role:', state.user?.role ?? 'none')
+            }
           }
           _set?.({ _hasHydrated: true })
         }
