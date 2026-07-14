@@ -62,6 +62,24 @@ export class SalesService {
     return created.id;
   }
 
+  // P0-5 FIX: tx-aware version so customer creation is atomic with the sale.
+  private async resolveCustomerIdInTx(tx: any, dto: CreateSaleDto, tenantId?: string | null): Promise<string | undefined> {
+    if (dto.customerId) return dto.customerId;
+    if (!dto.customerName) return undefined;
+
+    if (dto.customerPhone) {
+      const phoneWhere: any = { phone: dto.customerPhone };
+      if (tenantId) phoneWhere.tenantId = tenantId;
+      const existing = await tx.customer.findFirst({ where: phoneWhere });
+      if (existing) return existing.id;
+    }
+
+    const created = await tx.customer.create({
+      data: { name: dto.customerName, phone: dto.customerPhone, tags: [], ...(tenantId ? { tenantId } : {}) },
+    });
+    return created.id;
+  }
+
   async create(dto: CreateSaleDto, userId: string, branchId?: string, tenantId?: string | null) {
     if (branchId) await this.assertBranchActive(branchId);
 
@@ -152,9 +170,11 @@ export class SalesService {
       throw new BadRequestException('Amount paid is less than total');
     }
 
-    const customerId = await this.resolveCustomerId(dto, tenantId);
-
     const sale = await this.prisma.$transaction(async (tx) => {
+      // P0-5 FIX: resolve/create customer inside the transaction so a concurrent
+      // sale with the same new phone number cannot create two Customer rows.
+      const customerId = await this.resolveCustomerIdInTx(tx, dto, tenantId);
+
       const sale = await tx.sale.create({
         data: {
           receiptNumber: this.generateReceiptNumber(),
@@ -271,16 +291,17 @@ export class SalesService {
         }
       }
 
-      await this.auditLog.log({
-        actorId: userId,
-        action: 'SALE_CREATED',
+      // P0-5/6 FIX: use logWithTx so the audit row rolls back if the sale tx rolls back.
+      await this.auditLog.logWithTx(tx, {
+        actorId:    userId,
+        action:     'SALE_CREATED',
         entityType: 'Sale',
-        entityId: sale.id,
+        entityId:   sale.id,
         afterData: {
           receiptNumber: sale.receiptNumber,
-          total: Number(sale.total),
+          total:         Number(sale.total),
           paymentMethod: sale.paymentMethod,
-          itemCount: sale.items.length,
+          itemCount:     sale.items.length,
         },
       });
 

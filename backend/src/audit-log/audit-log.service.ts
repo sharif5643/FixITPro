@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 
 export interface AuditLogEntry {
@@ -25,6 +26,15 @@ export class AuditLogService {
       await this.prisma.auditLog.create({ data: entry as any });
     } catch (err) {
       this.logger.warn(`Failed to write audit log: ${(err as Error).message}`);
+    }
+  }
+
+  // Use this inside a $transaction callback so the audit row rolls back with the transaction.
+  async logWithTx(tx: Prisma.TransactionClient, entry: AuditLogEntry): Promise<void> {
+    try {
+      await tx.auditLog.create({ data: entry as any });
+    } catch (err) {
+      this.logger.warn(`Failed to write audit log (tx): ${(err as Error).message}`);
     }
   }
 

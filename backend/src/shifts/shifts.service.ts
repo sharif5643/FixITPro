@@ -93,7 +93,7 @@ export class ShiftsService {
 
     if (!shift) throw new NotFoundException('Active shift not found');
 
-    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg] = await Promise.all([
+    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId, status: { not: 'VOIDED' } },
         select: { total: true, paymentMethod: true },
@@ -116,6 +116,11 @@ export class ShiftsService {
       this.prisma.expense.aggregate({
         where: { shiftId, paymentMethod: 'CASH', voidedAt: null },
         _sum: { amount: true },
+      }),
+      // P0-3 FIX: sum CASH refunds for this shift so they are subtracted from expectedBalance
+      (this.prisma as any).saleRefund.aggregate({
+        where: { paymentMethod: 'CASH', sale: { shiftId } },
+        _sum: { totalRefund: true },
       }),
     ]);
 
@@ -155,16 +160,18 @@ export class ShiftsService {
       .filter((p) => p.paymentMethod === 'CASH')
       .reduce((sum, p) => sum + Number(p.packageAmount), 0);
 
-    // Expected cash = opening + CASH sales + CASH repairs + CASH package sales − CASH supplier payments − CASH expenses
+    // Expected cash = opening + CASH sales + CASH repairs + CASH package sales − CASH supplier payments − CASH expenses − CASH refunds
     const cashSales = paymentBreakdown['CASH'] ?? 0;
     const cashRepairs = repairBreakdown['CASH'] ?? 0;
     const cashSupplierPayments = supplierBreakdown['CASH'] ?? 0;
     const cashExpensesTotal = Number(cashExpensesAgg._sum.amount ?? 0);
+    const cashRefundsTotal  = Number(cashRefundsAgg._sum.totalRefund ?? 0);
     const expectedBalance =
-      Number(shift.openBalance) + cashSales + cashRepairs + cashPackageSales - cashSupplierPayments - cashExpensesTotal;
+      Number(shift.openBalance) + cashSales + cashRepairs + cashPackageSales
+      - cashSupplierPayments - cashExpensesTotal - cashRefundsTotal;
 
     this.logger.log(
-      `ShiftClose id=${shiftId} sales=${salesCount} total=${totalSales} cashSales=${cashSales} cashRepairs=${cashRepairs} cashSupplier=${cashSupplierPayments} cashExpenses=${cashExpensesTotal} expected=${expectedBalance}`,
+      `ShiftClose id=${shiftId} sales=${salesCount} total=${totalSales} cashSales=${cashSales} cashRepairs=${cashRepairs} cashSupplier=${cashSupplierPayments} cashExpenses=${cashExpensesTotal} cashRefunds=${cashRefundsTotal} expected=${expectedBalance}`,
     );
 
     const updatedShift = await this.prisma.shift.update({
@@ -227,6 +234,7 @@ export class ShiftsService {
           totalProfit: packageSaleProfit,
         },
         cashExpenses: cashExpensesTotal,
+        cashRefunds: cashRefundsTotal,
         expectedBalance,
         actualBalance: dto.closeBalance,
         difference: dto.closeBalance - expectedBalance,
@@ -244,7 +252,7 @@ export class ShiftsService {
 
     if (!shift) return null;
 
-    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg] = await Promise.all([
+    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId: shift.id, status: { not: 'VOIDED' } },
         select: { total: true, paymentMethod: true },
@@ -268,6 +276,11 @@ export class ShiftsService {
         where: { shiftId: shift.id, paymentMethod: 'CASH', voidedAt: null },
         _sum: { amount: true },
       }),
+      // P0-3 FIX: sum CASH refunds for live shift expectedCashBalance
+      (this.prisma as any).saleRefund.aggregate({
+        where: { paymentMethod: 'CASH', sale: { shiftId: shift.id } },
+        _sum: { totalRefund: true },
+      }),
     ]);
 
     const totalSales = sales.reduce((sum, s) => sum + Number(s.total), 0);
@@ -281,7 +294,10 @@ export class ShiftsService {
     const cashSupplierPayments = supplierPayments.filter(p => p.paymentMethod === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0);
     const cashPackageSales = packageSales.filter(p => p.paymentMethod === 'CASH').reduce((sum, p) => sum + Number(p.packageAmount), 0);
     const cashExpenses = Number(cashExpensesAgg._sum.amount ?? 0);
-    const expectedCashBalance = Number(shift.openBalance) + cashSales + cashRepairs + cashPackageSales - cashSupplierPayments - cashExpenses;
+    const cashRefunds  = Number(cashRefundsAgg._sum.totalRefund ?? 0);
+    const expectedCashBalance =
+      Number(shift.openBalance) + cashSales + cashRepairs + cashPackageSales
+      - cashSupplierPayments - cashExpenses - cashRefunds;
 
     return {
       ...shift,
@@ -295,6 +311,7 @@ export class ShiftsService {
       packageSaleRevenue,
       packageSaleAmount,
       cashExpenses,
+      cashRefunds,
       expectedCashBalance,
     };
   }

@@ -13,9 +13,15 @@ import { StockService } from './stock.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
+import { ModuleGuard } from '../common/guards/module.guard';
+import { PermissionGuard } from '../common/guards/permission.guard';
+import { RequireModule } from '../common/decorators/require-module.decorator';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@UseGuards(JwtAuthGuard, TenantActiveGuard)
+// P1-1 FIX: require inventory module + permission guards on all stock endpoints.
+@RequireModule('inventory')
+@UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
 @Controller('stock')
 export class StockController {
   private readonly logger = new Logger(StockController.name);
@@ -23,6 +29,8 @@ export class StockController {
   constructor(private stockService: StockService) {}
 
   @Post('adjust')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('inventory.manage')
   adjustStock(
     @Body() dto: AdjustStockDto,
     @CurrentUser('id')       actorId: string,
@@ -52,6 +60,8 @@ export class StockController {
   }
 
   @Get('movements/:productId')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('inventory.view')
   getMovements(
     @Param('productId')      productId: string,
     @CurrentUser('tenantId') tenantId: string,
@@ -65,6 +75,8 @@ export class StockController {
   }
 
   @Get('low-stock')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('inventory.view')
   getLowStockProducts(
     @CurrentUser('role')     role: string,
     @CurrentUser('branchId') jwtBranchId: string | null,

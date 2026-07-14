@@ -40,8 +40,11 @@ async function bootstrap() {
     );
   }
 
+  // P1-3 FIX: rawBody: true lets the LINE webhook controller access the raw request
+  // buffer for HMAC-SHA256 signature verification.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    logger: createWinstonLogger(),
+    logger:  createWinstonLogger(),
+    rawBody: true,
   });
 
   // CHB-09 / BLK-1: security headers on every response, including direct LAN
