@@ -23,6 +23,9 @@ import { useBranchContext } from '@/hooks/useBranchContext'
 import { useShopName } from '@/hooks/useShopName'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
 import { RevenueBarChart } from '@/components/charts/revenue-bar-chart'
+import { BranchRankingTable } from '@/components/dashboard/branch-ranking-table'
+import { BranchIssueList } from '@/components/dashboard/branch-issue-list'
+import { DashboardEmptyState } from '@/components/dashboard/dashboard-empty-state'
 import { ExecutiveMobileDashboard } from '@/components/dashboard/executive-mobile-dashboard'
 import type { OperationalAlert } from '@/components/alerts/operational-alert-center'
 import type { Repair } from '@/types'
@@ -57,6 +60,7 @@ interface DashboardOverview {
   branchPerformance: {
     branchId: string; name: string; salesRevenue: number
     repairRevenue: number; totalRevenue: number
+    openRepairs: number; overdueRepairs: number; health: 'NORMAL' | 'WARNING' | 'CRITICAL'
   }[]
   weeklyRevenue: { date: string; sales: number; repairs: number; packages: number; total: number }[]
   recentActivities: {
@@ -623,7 +627,7 @@ export default function DashboardPage() {
   const isOwner = role === 'OWNER' || role === 'SUPER_ADMIN'
   const isOwnerOrManager = isOwner || role === 'MANAGER'
   const showRepairs = role !== 'STOCK_STAFF'
-  const { branchId: contextBranchId } = useBranchContext()
+  const { branchId: contextBranchId, isGlobalMode, isOwner: ctxIsOwner } = useBranchContext()
 
   const thaiNow = new Date(Date.now() + 7 * 60 * 60 * 1000)
   const todayStr = thaiNow.toISOString().slice(0, 10)
@@ -1560,8 +1564,38 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Branch Comparison (OWNER only) ──────────────────────────────────── */}
-      {isOwnerOrManager && (
+      {/* ── Branch Ranking + Issues (OWNER global mode) ──────────────────────── */}
+      {isOwnerOrManager && ctxIsOwner && isGlobalMode && (
+        <>
+          {/* Issues at the top when there are critical/warning branches */}
+          {!isLoading && !!data?.branchPerformance?.filter(b => b.health !== 'NORMAL').length && (
+            <Card>
+              <CardContent className="p-5">
+                <SectionHeader title="สาขาที่ต้องติดตาม" icon={AlertTriangle} />
+                <BranchIssueList branches={data.branchPerformance} />
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardContent className="p-5">
+              <SectionHeader title="จัดอันดับสาขา" icon={Building2} href="/branches" />
+              {!data?.branchPerformance?.length && !isLoading ? (
+                <DashboardEmptyState
+                  icon={Building2}
+                  title="ยังไม่มีข้อมูลสาขา"
+                  description="ข้อมูลจะแสดงเมื่อมีกิจกรรมในสาขา"
+                />
+              ) : (
+                <BranchRankingTable branches={data?.branchPerformance ?? []} isLoading={isLoading} />
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* ── Single-branch comparison for manager/owner in single-branch mode ─── */}
+      {isOwnerOrManager && (!ctxIsOwner || !isGlobalMode) && (
         <Card>
           <CardContent className="p-5">
             <SectionHeader title="เปรียบเทียบสาขา" icon={Building2} />
@@ -1572,40 +1606,13 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : !data?.branchPerformance?.length ? (
-              <div className="flex flex-col items-center py-6 text-center">
-                <Building2 className="h-7 w-7 text-slate-200 dark:text-slate-700 mb-2" />
-                <p className="text-sm text-slate-400 dark:text-slate-500">ยังไม่มีข้อมูลสาขา</p>
-              </div>
+              <DashboardEmptyState
+                icon={Building2}
+                title="ยังไม่มีข้อมูลสาขา"
+                description="ข้อมูลจะแสดงเมื่อมีกิจกรรมในสาขา"
+              />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b dark:border-slate-800 text-xs text-slate-400 dark:text-slate-500">
-                      <th className="text-left py-2 font-medium">สาขา</th>
-                      <th className="text-right py-2 font-medium">ยอดขาย</th>
-                      <th className="text-right py-2 font-medium">ซ่อม</th>
-                      <th className="text-right py-2 font-medium">รวม</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {data.branchPerformance.map((b, i) => (
-                      <tr key={b.branchId} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
-                        <td className="py-2.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-300 dark:text-slate-600 w-4">{i + 1}</span>
-                            <Link href="/branches" className="font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400">
-                              {b.name}
-                            </Link>
-                          </div>
-                        </td>
-                        <td className="py-2.5 text-right text-slate-600 dark:text-slate-400">{formatThaiMoney(b.salesRevenue)}</td>
-                        <td className="py-2.5 text-right text-slate-600 dark:text-slate-400">{formatThaiMoney(b.repairRevenue)}</td>
-                        <td className="py-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(b.totalRevenue)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <BranchRankingTable branches={data.branchPerformance} isLoading={isLoading} />
             )}
           </CardContent>
         </Card>

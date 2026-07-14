@@ -56,9 +56,9 @@ describe('Req 1 — SUPER_ADMIN access control', () => {
   })
 })
 
-// ── 2. Navigation — all 10 menu items ─────────────────────────────────────────
+// ── 2. Navigation — all 12 menu items ─────────────────────────────────────────
 
-describe('Req 2 — Sidebar contains all 10 menu items', () => {
+describe('Req 2 — Sidebar contains all 12 menu items', () => {
   it('SA_NAV_ITEMS has exactly 12 items', () => {
     expect(SA_NAV_ITEMS).toHaveLength(12)
   })
@@ -353,6 +353,10 @@ describe('Req 8 — All Super Admin V2 routes are defined', () => {
     '/super-admin/analytics',
     '/super-admin/audit-logs',
     '/super-admin/settings',
+<<<<<<< HEAD
+    '/super-admin/modules',
+=======
+>>>>>>> origin/main
     '/super-admin/data-repair',
   ]
 
