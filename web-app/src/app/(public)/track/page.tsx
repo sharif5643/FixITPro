@@ -56,6 +56,10 @@ function detectType(value: string): InputType {
   return 'unknown'
 }
 
+function normalizePhone(phone: string): string {
+  return phone.trim().replace(/[\s\-]/g, '')
+}
+
 function fmt(date: string | null | undefined) {
   if (!date) return '—'
   try { return format(new Date(date), 'd MMM yyyy', { locale: th }) } catch { return '—' }
@@ -220,7 +224,7 @@ export default function TrackPage() {
                 <button
                   key={r.ticketNumber}
                   type="button"
-                  onClick={() => router.push(`/track/${encodeURIComponent(r.ticketNumber)}`)}
+                  onClick={() => router.push(`/track/${encodeURIComponent(r.ticketNumber)}?phone=${encodeURIComponent(normalizePhone(query))}`)}
                   className="w-full text-left bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all group"
                 >
                   <div className="flex items-start justify-between gap-3">
