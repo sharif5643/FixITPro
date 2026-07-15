@@ -16,7 +16,11 @@
     "seed:prod-super-admin": "ts-node --transpile-only prisma/seed-prod-super-admin.ts",
     "fix:prod-tenant-owner": "ts-node --transpile-only prisma/fix-prod-tenant-owner.ts",
     "seed:demo": "ts-node --transpile-only scripts/seed-super-admin-demo.ts",
-    "backfill:permissions": "ts-node --transpile-only scripts/backfill-permissions.ts"
+    "backfill:permissions": "ts-node --transpile-only scripts/backfill-permissions.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:ci": "jest --ci --runInBand --forceExit"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

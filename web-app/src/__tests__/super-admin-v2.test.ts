@@ -353,10 +353,6 @@ describe('Req 8 — All Super Admin V2 routes are defined', () => {
     '/super-admin/analytics',
     '/super-admin/audit-logs',
     '/super-admin/settings',
-<<<<<<< HEAD
-    '/super-admin/modules',
-=======
->>>>>>> origin/main
     '/super-admin/data-repair',
   ]
 

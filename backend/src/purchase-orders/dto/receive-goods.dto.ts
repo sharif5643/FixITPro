@@ -28,4 +28,8 @@ export class ReceiveGoodsDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  branchId?: string;
 }

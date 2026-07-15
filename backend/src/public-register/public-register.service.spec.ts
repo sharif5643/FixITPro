@@ -26,6 +26,19 @@ const validDto = {
   themePreset: 'blue',
 }
 
+// Factory for a complete transaction mock — includes shopSettings which the
+// service creates inside the same $transaction after branch.create
+function makeTx(overrides: Record<string, any> = {}) {
+  return {
+    tenant: { create: jest.fn().mockResolvedValue({ id: 'tenant-1', shopName: validDto.shopName, email: validDto.email }) },
+    branch: { create: jest.fn().mockResolvedValue({ id: 'branch-1' }) },
+    shopSettings: { create: jest.fn().mockResolvedValue({}) },
+    user: { create: jest.fn().mockResolvedValue({ id: 'user-1', name: validDto.ownerName, email: validDto.email }) },
+    tenantRenewal: { create: jest.fn().mockResolvedValue({ id: 'renewal-1' }) },
+    ...overrides,
+  }
+}
+
 describe('PublicRegisterService', () => {
   let service: PublicRegisterService
 
@@ -45,19 +58,7 @@ describe('PublicRegisterService', () => {
   it('should create tenant, user, branch and renewal in transaction', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(null)
     mockPrisma.tenant.findUnique.mockResolvedValue(null)
-
-    const fakeTenant = { id: 'tenant-1', shopName: validDto.shopName, email: validDto.email }
-    const fakeUser = { id: 'user-1', name: validDto.ownerName, email: validDto.email }
-
-    mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => {
-      const tx = {
-        tenant: { create: jest.fn().mockResolvedValue(fakeTenant) },
-        branch: { create: jest.fn().mockResolvedValue({ id: 'branch-1' }) },
-        user: { create: jest.fn().mockResolvedValue(fakeUser) },
-        tenantRenewal: { create: jest.fn().mockResolvedValue({ id: 'renewal-1' }) },
-      }
-      return fn(tx)
-    })
+    mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => fn(makeTx()))
 
     const result = await service.register(validDto)
 
@@ -72,17 +73,14 @@ describe('PublicRegisterService', () => {
 
     let capturedPassword = ''
     mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => {
-      const tx = {
-        tenant: { create: jest.fn().mockResolvedValue({ id: 't1', email: validDto.email, shopName: validDto.shopName }) },
-        branch: { create: jest.fn().mockResolvedValue({ id: 'b1' }) },
+      const tx = makeTx({
         user: {
           create: jest.fn().mockImplementation(async ({ data }: { data: { password: string } }) => {
             capturedPassword = data.password
             return { id: 'u1', name: validDto.ownerName, email: validDto.email }
           }),
         },
-        tenantRenewal: { create: jest.fn().mockResolvedValue({}) },
-      }
+      })
       return fn(tx)
     })
 
@@ -109,15 +107,11 @@ describe('PublicRegisterService', () => {
   })
 
   it('should reject duplicate email regardless of original casing (DTO @Transform normalises to lowercase before service)', async () => {
-    // PublicRegisterDto has @Transform that converts value.trim().toLowerCase() on email.
-    // By the time the service receives dto.email it is always lowercase.
-    // This test simulates ABC@gmail.com arriving at the service already normalised.
     const normalisedDto = { ...validDto, email: 'abc@gmail.com' }
     mockPrisma.user.findUnique.mockResolvedValue({ id: 'u-existing', email: 'abc@gmail.com' })
 
     await expect(service.register(normalisedDto)).rejects.toThrow(ConflictException)
     await expect(service.register(normalisedDto)).rejects.toThrow('อีเมลนี้ถูกใช้งานแล้ว')
-    // confirm service called findUnique with the already-lowercased email
     expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({ where: { email: 'abc@gmail.com' } })
   })
 
@@ -129,28 +123,25 @@ describe('PublicRegisterService', () => {
     let capturedRenewalData: any = null
 
     mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<any>) => {
-      const tx = {
+      const tx = makeTx({
         tenant: {
           create: jest.fn().mockImplementation(async ({ data }: { data: any }) => {
             capturedTenantData = data
             return { id: 't1', email: data.email, shopName: data.shopName }
           }),
         },
-        branch: { create: jest.fn().mockResolvedValue({ id: 'b1' }) },
-        user: { create: jest.fn().mockResolvedValue({ id: 'u1', name: validDto.ownerName, email: validDto.email }) },
         tenantRenewal: {
           create: jest.fn().mockImplementation(async ({ data }: { data: any }) => {
             capturedRenewalData = data
             return {}
           }),
         },
-      }
+      })
       return fn(tx)
     })
 
     const before = new Date()
     await service.register(validDto)
-    const after = new Date()
 
     expect(capturedTenantData.plan).toBe('TRIAL')
     expect(capturedTenantData.status).toBe('ACTIVE')

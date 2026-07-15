@@ -106,13 +106,13 @@ describe('Scenario 3 — Non-owner cannot see cross-branch aggregates', () => {
   })
 
   it('TECHNICIAN role: isOwner is false', () => {
-    const role = 'TECHNICIAN'
+    const role: string = 'TECHNICIAN'
     const isOwner = role === 'OWNER' || role === 'SUPER_ADMIN'
     expect(isOwner).toBe(false)
   })
 
   it('MANAGER role: isOwner is false (cannot see all-branches aggregate)', () => {
-    const role = 'MANAGER'
+    const role: string = 'MANAGER'
     const isOwner = role === 'OWNER' || role === 'SUPER_ADMIN'
     expect(isOwner).toBe(false)
   })

@@ -38,29 +38,37 @@ export class CarrierWalletService {
       : 0;
 
     return this.prisma.$transaction(async (tx) => {
-      // Lock and fetch wallet row
-      const wallet = await tx.carrierWallet.findUnique({
+      // Read wallet first to get id and a snapshot balance for error messages.
+      const walletRow = await tx.carrierWallet.findUnique({
         where: { carrier: dto.carrier as any },
       });
-
-      if (!wallet) {
+      if (!walletRow) {
         throw new BadRequestException(`Wallet for ${dto.carrier} not found`);
       }
 
-      const currentBalance = Number(wallet.balance);
-      if (currentBalance < walletDeduction) {
+      // P0-4 FIX: atomic conditional decrement — the WHERE clause is evaluated under
+      // the row lock so two concurrent calls cannot both read the same balance and
+      // both succeed when only one should.
+      const result = await tx.carrierWallet.updateMany({
+        where: {
+          carrier: dto.carrier as any,
+          balance: { gte: walletDeduction },
+        },
+        data: { balance: { decrement: walletDeduction } },
+      });
+
+      if (result.count === 0) {
         throw new BadRequestException(
-          `ยอดเงินในกระเป๋า${dto.carrier} ไม่เพียงพอ (มี ${currentBalance.toFixed(2)} บาท ต้องการ ${walletDeduction.toFixed(2)} บาท)`,
+          `ยอดเงินในกระเป๋า${dto.carrier} ไม่เพียงพอ (มี ${Number(walletRow.balance).toFixed(2)} บาท ต้องการ ${walletDeduction.toFixed(2)} บาท)`,
         );
       }
 
-      const newBalance = Math.round((currentBalance - walletDeduction) * 100) / 100;
-
-      // Deduct wallet
-      await tx.carrierWallet.update({
+      // Read committed balance for the movement record
+      const updatedWallet = await tx.carrierWallet.findUniqueOrThrow({
         where: { carrier: dto.carrier as any },
-        data:  { balance: newBalance },
       });
+      const currentBalance = Number(walletRow.balance);
+      const newBalance     = Number(updatedWallet.balance);
 
       // Record movement
       await tx.carrierWalletMovement.create({
@@ -71,7 +79,7 @@ export class CarrierWalletService {
           balanceBefore: currentBalance,
           balanceAfter:  newBalance,
           note:          dto.phoneNumber ? `เบอร์: ${dto.phoneNumber}` : undefined,
-          walletId:      wallet.id,
+          walletId:      walletRow.id,
           shiftId:       dto.shiftId ?? null,
           createdById:   userId,
         },

@@ -51,29 +51,39 @@ export class SerialsService {
     if (!product) throw new NotFoundException('Product not found');
     if (!product.hasSerial) throw new BadRequestException('Product does not track serials');
 
-    const duplicates = await this.prisma.serialNumber.findMany({
-      where: { serial: { in: dto.serials } },
-      select: { serial: true },
-    });
-    if (duplicates.length > 0) {
-      throw new ConflictException(
-        `Already registered: ${duplicates.map((d) => d.serial).join(', ')}`,
-      );
-    }
+    // P0-7 FIX: wrap in $transaction with skipDuplicates so a concurrent createBulk
+    // that races between the old findMany and createMany cannot cause a P2002 crash.
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.serialNumber.createMany({
+        data: dto.serials.map((serial) => ({
+          serial,
+          productId: dto.productId,
+          note: dto.note,
+          purchaseOrderItemId: dto.purchaseOrderItemId,
+        })),
+        skipDuplicates: true,
+      });
 
-    await this.prisma.serialNumber.createMany({
-      data: dto.serials.map((serial) => ({
-        serial,
-        productId: dto.productId,
-        note: dto.note,
-        purchaseOrderItemId: dto.purchaseOrderItemId,
-      })),
-    });
+      if (result.count < dto.serials.length) {
+        // Some serials were skipped — identify which ones already existed
+        const existing = await tx.serialNumber.findMany({
+          where: { serial: { in: dto.serials } },
+          select: { serial: true },
+        });
+        const existingSet = new Set(existing.map((s) => s.serial));
+        const dupes = dto.serials.filter((s) => existingSet.has(s));
+        if (dupes.length > 0) {
+          throw new ConflictException(
+            `Already registered (${dupes.length}): ${dupes.join(', ')}`,
+          );
+        }
+      }
 
-    return this.prisma.serialNumber.findMany({
-      where: { serial: { in: dto.serials } },
-      include: SERIAL_INCLUDE,
-      orderBy: { createdAt: 'asc' },
+      return tx.serialNumber.findMany({
+        where: { serial: { in: dto.serials } },
+        include: SERIAL_INCLUDE,
+        orderBy: { createdAt: 'asc' },
+      });
     });
   }
 

@@ -70,7 +70,10 @@ export class PublicTrackingService {
 
     if (!repair) throw new NotFoundException('ไม่พบงานซ่อม กรุณาตรวจสอบหมายเลขงานซ่อม');
 
-    // Phone verification — only when phone is provided
+    // P1-5 FIX: phone verification gates access to PII fields.
+    // Without phone: public fields only (status, device info, dates, statusHistory).
+    // With correct phone: full response including customerName, outstanding, images, warranties.
+    let phoneVerified = false;
     if (phone?.trim()) {
       const customerPhone = repair.customer?.phone?.replace(/\D/g, '') ?? '';
       const inputPhone    = phone.replace(/\D/g, '');
@@ -82,6 +85,7 @@ export class PublicTrackingService {
       if (!phoneOk) {
         throw new BadRequestException('หมายเลขโทรศัพท์ไม่ตรงกับข้อมูลในระบบ');
       }
+      phoneVerified = true;
     }
 
     const total       = Number(repair.finalCost ?? repair.estimatedTotal ?? repair.estimateCost ?? 0);
@@ -102,17 +106,19 @@ export class PublicTrackingService {
       dueDate:           repair.dueDate,
       completedAt:       repair.completedAt,
       deliveredAt:       repair.deliveredAt,
-      customerName:      repair.customer?.name,
-      images:            repair.images,
-      qcPassed:          repair.qc?.allPassed ?? null,
-      qcNote:            repair.qc?.note ?? null,
-      qcAt:              repair.qc?.updatedAt ?? null,
-      outstanding,
-      paymentStatus:     repair.paymentStatus,
-      warranties:        repair.warranties,
-      warrantyExpiresAt: repair.warrantyExpiresAt,
-      warrantyNote:      repair.warrantyNote,
       statusHistory,
+      phoneVerified,
+      // PII — only returned after phone verification
+      customerName:      phoneVerified ? (repair.customer?.name ?? null) : null,
+      images:            phoneVerified ? repair.images : [],
+      qcPassed:          phoneVerified ? (repair.qc?.allPassed ?? null) : null,
+      qcNote:            phoneVerified ? (repair.qc?.note ?? null) : null,
+      qcAt:              phoneVerified ? (repair.qc?.updatedAt ?? null) : null,
+      outstanding:       phoneVerified ? outstanding : null,
+      paymentStatus:     phoneVerified ? repair.paymentStatus : null,
+      warranties:        phoneVerified ? repair.warranties : [],
+      warrantyExpiresAt: phoneVerified ? repair.warrantyExpiresAt : null,
+      warrantyNote:      phoneVerified ? repair.warrantyNote : null,
     };
   }
 

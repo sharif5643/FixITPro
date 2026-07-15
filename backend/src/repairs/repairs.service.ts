@@ -659,33 +659,44 @@ export class RepairsService {
       );
     }
 
-    const paid = await this.prisma.repair.update({
-      where: { id: repairId },
-      data: {
-        paymentStatus: 'PAID',
-        paymentMethod: dto.paymentMethod as any,
-        paidAmount: dto.amountPaid,
-        paidAt: new Date(),
-        status: 'DELIVERED',
-        deliveredAt: new Date(),
-        finalCost: total,
-        paymentShiftId: activeShift.id,
-      },
-      include: REPAIR_INCLUDE,
-    });
-    await this.auditLog.log({
-      actorId: userId,
-      action: 'REPAIR_PAYMENT',
-      entityType: 'Repair',
-      entityId: repairId,
-      afterData: { finalCost: total, paymentMethod: dto.paymentMethod, amountPaid: dto.amountPaid },
+    // P0-1 FIX: wrap in $transaction with conditional updateMany.
+    // The WHERE clause (paymentStatus != PAID) is evaluated under the row lock,
+    // so a concurrent request that already committed will cause count=0 here.
+    const paid = await this.prisma.$transaction(async (tx) => {
+      const guard = await tx.repair.updateMany({
+        where: { id: repairId, paymentStatus: { not: 'PAID' } },
+        data: {
+          paymentStatus: 'PAID',
+          paymentMethod: dto.paymentMethod as any,
+          paidAmount:    dto.amountPaid,
+          paidAt:        new Date(),
+          status:        'DELIVERED',
+          deliveredAt:   new Date(),
+          finalCost:     total,
+          paymentShiftId: activeShift.id,
+        },
+      });
+
+      if (guard.count === 0) {
+        throw new BadRequestException('งานซ่อมนี้ชำระเงินแล้ว');
+      }
+
+      await this.auditLog.logWithTx(tx, {
+        actorId:    userId,
+        action:     'REPAIR_PAYMENT',
+        entityType: 'Repair',
+        entityId:   repairId,
+        afterData:  { finalCost: total, paymentMethod: dto.paymentMethod, amountPaid: dto.amountPaid },
+      });
+
+      return tx.repair.findUniqueOrThrow({ where: { id: repairId }, include: REPAIR_INCLUDE });
     });
 
-    // Send LINE notification on DELIVERED
+    // Send LINE notification on DELIVERED (after transaction — non-critical)
     const lineTenantId = (paid as any).branch?.tenantId ?? tenantId ?? null;
     this.lineMsg.notifyRepairStatus(repairId, 'DELIVERED', lineTenantId).catch(() => {});
 
-    // Auto-create warranty if warrantyDays provided
+    // Auto-create warranty AFTER transaction — tx guard ensures this runs at most once.
     if (dto.warrantyDays && dto.warrantyDays > 0) {
       this.warranties
         .createForRepair(repairId, dto.warrantyDays, undefined, userId)

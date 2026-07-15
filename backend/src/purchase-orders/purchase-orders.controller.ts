@@ -72,9 +72,15 @@ export class PurchaseOrdersController {
   receiveGoods(
     @Param('id') id: string,
     @Body() dto: ReceiveGoodsDto,
-    @CurrentUser('id') actorId: string,
+    @CurrentUser('id')       actorId: string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('branchId') jwtBranchId: string | null,
+    @CurrentUser('role')     role: string,
   ) {
+    // P0-2: non-owner staff always receive into their JWT branch
+    if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && jwtBranchId) {
+      dto.branchId = jwtBranchId;
+    }
     return this.poService.receiveGoods(id, dto, actorId, tenantId);
   }
 
