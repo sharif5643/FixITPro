@@ -1,6 +1,42 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
+// ── Build Guard: Require server.url in Capacitor config ──────────────────────
+// Prevents building a white-screen APK when cap sync was run without
+// CAPACITOR_SERVER_URL set. This architecture uses a live VPS server —
+// there is no static bundle to fall back to.
+//
+// To fix: set the env var, then re-sync before building:
+//   $env:CAPACITOR_SERVER_URL = "http://91.98.151.10:3001"
+//   npx cap sync android
+// ─────────────────────────────────────────────────────────────────────────────
+task checkCapacitorServerUrl {
+    doFirst {
+        def configFile = new File("${projectDir}/src/main/assets/capacitor.config.json")
+        if (!configFile.exists()) {
+            throw new RuntimeException(
+                "\n\nBUILD GUARD: capacitor.config.json not found.\n" +
+                "Run: \$env:CAPACITOR_SERVER_URL='http://91.98.151.10:3001'; npx cap sync android\n"
+            )
+        }
+        def config = new groovy.json.JsonSlurper().parseText(configFile.text)
+        def serverUrl = config?.server?.url
+        if (!serverUrl || serverUrl.toString().trim().isEmpty()) {
+            throw new RuntimeException(
+                "\n\n" +
+                "BUILD GUARD: server.url missing from capacitor.config.json\n" +
+                "The APK will show a white screen without a server URL.\n\n" +
+                "Fix:\n" +
+                "  \$env:CAPACITOR_SERVER_URL = 'http://91.98.151.10:3001'\n" +
+                "  npx cap sync android\n" +
+                "  .\\gradlew.bat assembleDebug\n"
+            )
+        }
+        logger.lifecycle("BUILD GUARD: server.url = ${serverUrl}  ✓")
+    }
+}
+preBuild.dependsOn checkCapacitorServerUrl
+
 // Load release signing credentials from key.properties (not committed to git)
 def keystorePropertiesFile = rootProject.file('key.properties')
 def keystoreProperties = new Properties()
