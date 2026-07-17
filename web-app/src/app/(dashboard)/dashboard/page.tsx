@@ -9,7 +9,7 @@ import {
   CheckCircle, ShoppingCart, Banknote, ArrowRight, RefreshCw,
   AlertCircle, Wallet, Send, Building2, Shield,
   Bell, Activity, Filter, BarChart2, ArrowRightLeft, Settings2,
-  CreditCard, Layers, UserPlus, CalendarDays, Zap,
+  CreditCard, Layers, UserPlus, CalendarDays,
   Users, ClipboardList,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -27,6 +27,7 @@ import { BranchRankingTable } from '@/components/dashboard/branch-ranking-table'
 import { BranchIssueList } from '@/components/dashboard/branch-issue-list'
 import { DashboardEmptyState } from '@/components/dashboard/dashboard-empty-state'
 import { ExecutiveMobileDashboard } from '@/components/dashboard/executive-mobile-dashboard'
+import { CashDrawerWidget } from '@/components/dashboard/cash-drawer-widget'
 import type { OperationalAlert } from '@/components/alerts/operational-alert-center'
 import type { Repair } from '@/types'
 
@@ -850,6 +851,9 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* ── Cash Drawer Widget (CASHIER only) ────────────────────────────────── */}
+      {role === 'CASHIER' && <CashDrawerWidget />}
+
       {/* ── Monthly Overview (OWNER/MANAGER) ─────────────────────────────────── */}
       {isOwnerOrManager && (
         <Card>
@@ -932,60 +936,6 @@ export default function DashboardPage() {
             />
           </CardContent>
         </Card>
-      )}
-
-      {/* ── Quick Actions (OWNER/MANAGER, module-aware) ─────────────────────── */}
-      {isOwnerOrManager && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">ทางลัดด่วน</h3>
-          </div>
-          <div className="flex flex-wrap gap-2.5">
-            {hasModule('pos') && (
-              <Link href="/sales">
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white h-9 px-4 gap-1.5 text-sm">
-                  <ShoppingCart className="h-3.5 w-3.5" />เปิดบิลขาย
-                </Button>
-              </Link>
-            )}
-            {hasModule('repair') && (
-              <Link href="/repairs">
-                <Button className="bg-orange-500 hover:bg-orange-600 text-white h-9 px-4 gap-1.5 text-sm">
-                  <Wrench className="h-3.5 w-3.5" />รับงานซ่อม
-                </Button>
-              </Link>
-            )}
-            {hasModule('stock') && (
-              <Link href="/products">
-                <Button variant="outline" className="h-9 px-4 gap-1.5 text-sm">
-                  <Package className="h-3.5 w-3.5" />จัดการสินค้า
-                </Button>
-              </Link>
-            )}
-            {hasModule('crm') && (
-              <Link href="/customers">
-                <Button variant="outline" className="h-9 px-4 gap-1.5 text-sm">
-                  <UserPlus className="h-3.5 w-3.5" />เพิ่มลูกค้า
-                </Button>
-              </Link>
-            )}
-            {hasModule('finance') && (
-              <Link href="/expenses">
-                <Button variant="outline" className="h-9 px-4 gap-1.5 text-sm">
-                  <Banknote className="h-3.5 w-3.5" />บันทึกรายจ่าย
-                </Button>
-              </Link>
-            )}
-            {hasModule('report') && (
-              <Link href="/reports">
-                <Button variant="outline" className="h-9 px-4 gap-1.5 text-sm">
-                  <BarChart2 className="h-3.5 w-3.5" />ดูรายงาน
-                </Button>
-              </Link>
-            )}
-          </div>
-        </div>
       )}
 
       {/* ── สิ่งที่ต้องดำเนินการ ─────────────────────────────────────────────── */}
@@ -1137,29 +1087,17 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* ── Recent Bills + Repairs (OWNER with pos/repair modules) ─────────── */}
-      {isOwnerOrManager && (hasModule('pos') || hasModule('repair')) && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {hasModule('pos') && (
-            <Card>
-              <CardContent className="p-5">
-                <SectionHeader title="บิลขายล่าสุด" icon={ShoppingCart} href="/sales" />
-                <RecentSalesWidget
-                  sales={ownerSummary?.recentSales ?? []}
-                  isLoading={ownerLoading}
-                />
-              </CardContent>
-            </Card>
-          )}
-          {hasModule('repair') && (
-            <Card>
-              <CardContent className="p-5">
-                <SectionHeader title="งานซ่อมล่าสุด" icon={Wrench} href="/repairs" />
-                <RecentRepairsWidget repairs={recentRepairs} isLoading={repairsLoading} />
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      {/* ── Recent Bills (OWNER/MANAGER with pos module) ────────────────────── */}
+      {isOwnerOrManager && hasModule('pos') && (
+        <Card>
+          <CardContent className="p-5">
+            <SectionHeader title="บิลขายล่าสุด" icon={ShoppingCart} href="/sales" />
+            <RecentSalesWidget
+              sales={ownerSummary?.recentSales ?? []}
+              isLoading={ownerLoading}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Weekly Chart + Alerts ────────────────────────────────────────────── */}

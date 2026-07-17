@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   Banknote, Printer, Package, ExternalLink, Wrench,
-  ChevronDown, ChevronUp, User, AlertTriangle, UserCog, X, CalendarClock,
+  ChevronDown, ChevronUp, User, AlertTriangle, UserCog, X, CalendarClock, Info,
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -707,6 +707,14 @@ export function RepairKanbanBoard({
         filterTechId={filterTechId}
         onFilterChange={setFilterTechId}
       />
+
+      {/* Technician self-filter notice */}
+      {user?.role === 'TECHNICIAN' && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300 shrink-0">
+          <Info className="h-4 w-4 shrink-0 text-blue-500" />
+          <span>แสดงเฉพาะงานที่มอบหมายให้คุณ — <span className="font-bold">{visibleRepairs.length} งาน</span></span>
+        </div>
+      )}
 
       {/* Columns — horizontal scroll */}
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>

@@ -334,14 +334,24 @@ export default function ShiftsPage() {
           </div>
         </div>
       ) : (
-        /* No active shift — open form */
-        <SectionCard title="เปิดกะใหม่" icon={Clock}>
+        /* No active shift — hero open form */
+        <div className="rounded-2xl border-2 border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-6 sm:p-8">
+          <div className="flex flex-col items-center text-center gap-4 mb-6">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 border-2 border-emerald-200 shadow-sm">
+              <Clock className="h-8 w-8 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">เปิดกะใหม่</h3>
+              <p className="text-sm text-slate-500 mt-1">กรอกเงินสดเริ่มต้นในลิ้นชักก่อนเริ่มขาย</p>
+            </div>
+          </div>
+
           <form
             onSubmit={openForm.handleSubmit((data) => openMutation.mutate(data))}
-            className="space-y-4 max-w-sm"
+            className="space-y-4 max-w-sm mx-auto"
           >
             <div className="space-y-1.5">
-              <Label htmlFor="openBalance">เงินสดเริ่มต้น (บาท)</Label>
+              <Label htmlFor="openBalance" className="text-sm font-semibold">เงินสดเริ่มต้น (บาท)</Label>
               <Input
                 id="openBalance"
                 type="number"
@@ -350,22 +360,38 @@ export default function ShiftsPage() {
                 placeholder="0.00"
                 autoFocus
                 {...openForm.register('openBalance')}
-                className={openForm.formState.errors.openBalance ? 'border-red-400 focus-visible:ring-red-400' : ''}
+                className={`h-12 text-lg text-center font-bold tabular-nums ${openForm.formState.errors.openBalance ? 'border-red-400 focus-visible:ring-red-400' : 'border-emerald-300 focus-visible:ring-emerald-400'}`}
               />
               {openForm.formState.errors.openBalance && (
                 <p className="text-xs text-red-500">{openForm.formState.errors.openBalance.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="openNote">หมายเหตุ (ไม่บังคับ)</Label>
+              <Label htmlFor="openNote" className="text-sm font-semibold">หมายเหตุ (ไม่บังคับ)</Label>
               <Input id="openNote" placeholder="เช่น กะเช้า, กะบ่าย..." {...openForm.register('note')} />
+              <div className="flex gap-2 flex-wrap pt-0.5">
+                {['กะเช้า', 'กะบ่าย', 'กะค่ำ'].map((label) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => openForm.setValue('note', label)}
+                    className="rounded-full border border-emerald-200 bg-white text-emerald-700 text-xs px-3 py-1 hover:bg-emerald-50 transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <Button type="submit" disabled={openMutation.isPending} className="gap-2">
+            <Button
+              type="submit"
+              disabled={openMutation.isPending}
+              className="w-full gap-2 h-11 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
+            >
               {openMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
               เปิดกะ
             </Button>
           </form>
-        </SectionCard>
+        </div>
       )}
 
       {/* ── Close Shift Result Card ── */}
@@ -498,31 +524,40 @@ export default function ShiftsPage() {
 
           {/* Current shift info summary */}
           {currentShift && (
-            <div className="rounded-lg border bg-gray-50 px-4 py-3 space-y-1.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">พนักงาน</span>
-                <span className="font-medium">{currentShift.user.name}</span>
+            <div className="space-y-2">
+              <div className="rounded-lg border bg-gray-50 px-4 py-3 space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">พนักงาน</span>
+                  <span className="font-medium">{currentShift.user.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">เปิดเมื่อ</span>
+                  <span className="font-medium">{fmtDateTime(currentShift.openedAt)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">ยอดขายสินค้า</span>
+                  <span className="font-semibold tabular-nums text-blue-700">
+                    {formatThaiMoney(Number(currentShift.totalSales))} ({currentShift.salesCount} บิล)
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">รายรับงานซ่อม</span>
+                  <span className="font-semibold tabular-nums text-purple-700">
+                    {formatThaiMoney(Number(currentShift.repairRevenue ?? 0))} ({currentShift.repairCount ?? 0} งาน)
+                  </span>
+                </div>
+                <div className="flex justify-between border-t pt-1.5 mt-0.5">
+                  <span className="text-muted-foreground font-medium">รายรับรวม</span>
+                  <span className="font-bold tabular-nums text-emerald-700">
+                    {formatThaiMoney(Number(currentShift.totalSales) + Number(currentShift.repairRevenue ?? 0))}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">เปิดเมื่อ</span>
-                <span className="font-medium">{fmtDateTime(currentShift.openedAt)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">ยอดขายสินค้า</span>
-                <span className="font-semibold tabular-nums text-blue-700">
-                  {formatThaiMoney(Number(currentShift.totalSales))} ({currentShift.salesCount} บิล)
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">รายรับงานซ่อม</span>
-                <span className="font-semibold tabular-nums text-purple-700">
-                  {formatThaiMoney(Number(currentShift.repairRevenue ?? 0))} ({currentShift.repairCount ?? 0} งาน)
-                </span>
-              </div>
-              <div className="flex justify-between border-t pt-1.5 mt-0.5">
-                <span className="text-muted-foreground font-medium">รายรับรวม</span>
-                <span className="font-bold tabular-nums text-emerald-700">
-                  {formatThaiMoney(Number(currentShift.totalSales) + Number(currentShift.repairRevenue ?? 0))}
+              {/* Expected cash callout */}
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 flex items-center justify-between text-sm">
+                <span className="text-emerald-700 font-medium">เงินสดที่คาดในลิ้นชัก</span>
+                <span className="font-bold tabular-nums text-emerald-800">
+                  {formatThaiMoney(Number(currentShift.expectedCashBalance))}
                 </span>
               </div>
             </div>

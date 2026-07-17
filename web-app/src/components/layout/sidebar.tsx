@@ -58,10 +58,8 @@ const OWNER_PRIMARY: NavSection[] = [
   {
     label: 'สต็อก',
     items: [
-      { href: '/products',      icon: Package,        label: 'สินค้า',        permission: 'products.view',  module: 'stock' },
-      { href: '/categories',    icon: Tag,            label: 'หมวดหมู่',      permission: 'products.view',  module: 'stock' },
-      { href: '/barcode-print', icon: Barcode,        label: 'พิมพ์ Barcode', permission: 'products.view',  module: 'stock' },
-      { href: '/transfers',     icon: ArrowRightLeft, label: 'โอนสต๊อก',     permission: 'stock.transfer', module: 'stock' },
+      { href: '/products',  icon: Package,        label: 'สินค้า',    permission: 'products.view',  module: 'stock' },
+      { href: '/transfers', icon: ArrowRightLeft, label: 'โอนสต๊อก', permission: 'stock.transfer', module: 'stock' },
     ],
   },
   {
@@ -109,6 +107,13 @@ const OWNER_SECONDARY: NavSection[] = [
     ],
   },
   {
+    label: 'ตั้งค่าสต็อก',
+    items: [
+      { href: '/categories',    icon: Tag,    label: 'หมวดหมู่',      permission: 'products.view', module: 'stock' },
+      { href: '/barcode-print', icon: Barcode, label: 'พิมพ์ Barcode', permission: 'products.view', module: 'stock' },
+    ],
+  },
+  {
     label: 'ระบบ',
     items: [
       { href: '/data-tools',    icon: FolderInput, label: 'เครื่องมือข้อมูล', permission: 'data.export',     module: 'report' },
@@ -148,10 +153,8 @@ const MANAGER_SECTIONS: NavSection[] = [
   {
     label: 'สต็อก',
     items: [
-      { href: '/products',      icon: Package,        label: 'สินค้า',        permission: 'products.view',  module: 'stock' },
-      { href: '/categories',    icon: Tag,            label: 'หมวดหมู่',      permission: 'products.view',  module: 'stock' },
-      { href: '/barcode-print', icon: Barcode,        label: 'พิมพ์ Barcode', permission: 'products.view',  module: 'stock' },
-      { href: '/transfers',     icon: ArrowRightLeft, label: 'โอนสต๊อก',     permission: 'stock.transfer', module: 'stock' },
+      { href: '/products',  icon: Package,        label: 'สินค้า',    permission: 'products.view',  module: 'stock' },
+      { href: '/transfers', icon: ArrowRightLeft, label: 'โอนสต๊อก', permission: 'stock.transfer', module: 'stock' },
     ],
   },
   {
@@ -173,6 +176,8 @@ const MANAGER_SECTIONS: NavSection[] = [
     label: 'จัดการ',
     items: [
       { href: '/purchase-orders', icon: ClipboardList, label: 'ใบสั่งซื้อ (PO)', permission: 'purchase.create', module: 'finance' },
+      { href: '/categories',      icon: Tag,           label: 'หมวดหมู่',         permission: 'products.view',   module: 'stock'   },
+      { href: '/barcode-print',   icon: Barcode,       label: 'พิมพ์ Barcode',    permission: 'products.view',   module: 'stock'   },
       { href: '/notifications',   icon: Bell,          label: 'การแจ้งเตือน',     permission: 'notification.view' },
       { href: '/settings',        icon: Settings,      label: 'ตั้งค่า',          permission: 'settings.manage' },
     ],
@@ -232,6 +237,12 @@ const TECHNICIAN_SECTIONS: NavSection[] = [
 ]
 
 const STOCK_STAFF_SECTIONS: NavSection[] = [
+  {
+    label: null,
+    items: [
+      { href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' },
+    ],
+  },
   {
     label: 'สต็อก',
     items: [

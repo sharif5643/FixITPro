@@ -160,20 +160,25 @@ export default function SalesPage() {
 
   if (!currentShift) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 border-2 border-amber-200">
-          <Lock className="h-8 w-8 text-amber-500" />
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-5 text-center px-4">
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-50 border-2 border-emerald-200 shadow-sm">
+          <Clock className="h-10 w-10 text-emerald-500" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">ยังไม่ได้เปิดกะ</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">กรุณาเปิดกะก่อนทำรายการขาย</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">ต้องเปิดกะก่อนจะขายสินค้าได้</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-xs mx-auto">
+            เปิดกะและกรอกเงินสดเริ่มต้นในลิ้นชักก่อน จึงจะสามารถรับชำระเงินได้
+          </p>
         </div>
         <Link href="/shifts">
-          <Button className="gap-2">
-            <Clock className="h-4 w-4" />
-            ไปเปิดกะ
+          <Button size="lg" className="gap-2 h-12 px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+            <Clock className="h-5 w-5" />
+            เปิดกะเดี๋ยวนี้
           </Button>
         </Link>
+        <p className="text-xs text-slate-400 dark:text-slate-500">
+          หรือ <Link href="/dashboard" className="underline hover:text-slate-600">กลับหน้าแรก</Link>
+        </p>
       </div>
     )
   }
