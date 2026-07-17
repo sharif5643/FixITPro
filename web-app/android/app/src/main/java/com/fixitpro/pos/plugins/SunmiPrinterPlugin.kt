@@ -1,5 +1,6 @@
 package com.fixitpro.pos.plugins
 
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
@@ -7,22 +8,26 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
 import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Toast
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.PermissionState
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.getcapacitor.annotation.Permission
+import com.getcapacitor.annotation.PermissionCallback
 import com.sunmi.innerprinterservice.IWoyouService
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
@@ -51,7 +56,13 @@ private val GS  = 0x1D.toByte()
  * ESC/POS raster: GS v 0 command (universally supported across thermal printer brands).
  * Thai text: rendered correctly by WebView — no encoding issues.
  */
-@CapacitorPlugin(name = "SunmiPrinter")
+@CapacitorPlugin(
+    name = "SunmiPrinter",
+    permissions = [
+        Permission(strings = [Manifest.permission.BLUETOOTH_CONNECT], alias = "bluetoothConnect"),
+        Permission(strings = [Manifest.permission.BLUETOOTH_SCAN],    alias = "bluetoothScan"),
+    ]
+)
 class SunmiPrinterPlugin : Plugin() {
 
     // Background thread for Bluetooth I/O and bitmap conversion (never block UI thread)
@@ -114,6 +125,18 @@ class SunmiPrinterPlugin : Plugin() {
         btSocket = null; btOut = null; btConnectedAddress = null
     }
 
+    // ── Permission helpers ────────────────────────────────────────────────────
+
+    /** True when BLUETOOTH_CONNECT is granted (or Android < 12 where it's install-time). */
+    private fun hasBtConnectPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /** True when Bluetooth adapter is enabled on this device. */
+    private fun isBluetoothEnabled(): Boolean =
+        getBluetoothAdapter()?.isEnabled == true
+
     // ── Printer discovery ─────────────────────────────────────────────────────
 
     @PluginMethod
@@ -129,10 +152,28 @@ class SunmiPrinterPlugin : Plugin() {
             put("address",   "")
         })
 
-        // Paired Bluetooth devices
+        // Paired Bluetooth devices — requires BLUETOOTH_CONNECT on Android 12+
+        val permissionDenied = !hasBtConnectPermission()
+        if (permissionDenied) {
+            call.resolve(JSObject().apply {
+                put("printers",        list)
+                put("permissionDenied", true)
+                put("error",           "ยังไม่ได้อนุญาตให้ใช้ Bluetooth กรุณาอนุญาตให้แอปใช้ Bluetooth เพื่อเชื่อมต่อเครื่องพิมพ์")
+            })
+            return
+        }
+
+        if (!isBluetoothEnabled()) {
+            call.resolve(JSObject().apply {
+                put("printers",         list)
+                put("bluetoothDisabled", true)
+                put("error",            "กรุณาเปิด Bluetooth")
+            })
+            return
+        }
+
         try {
             getBluetoothAdapter()?.let { adapter ->
-                @Suppress("MissingPermission")
                 adapter.bondedDevices?.forEach { dev ->
                     list.put(JSObject().apply {
                         put("id",        "bt:${dev.address}")
@@ -144,7 +185,7 @@ class SunmiPrinterPlugin : Plugin() {
                 }
             }
         } catch (_: SecurityException) {
-            // Bluetooth permission denied; BT devices won't appear — user must grant it
+            // Unexpected SecurityException — permission revoked mid-call
         }
 
         call.resolve(JSObject().apply { put("printers", list) })
@@ -319,15 +360,6 @@ class SunmiPrinterPlugin : Plugin() {
                                         Log.d("PRINTER_DBG", "ESC/POS bytes total    : ${bytes.size}")
                                         Log.d("PRINTER_DBG", "=== DISPATCHING TO PRINTER ===")
 
-                                        // Show bitmap info on screen so it's visible without logcat
-                                        act.runOnUiThread {
-                                            Toast.makeText(
-                                                act,
-                                                "PRINT DEBUG\nbmp: ${scaledW}×${scaledH}\nbpr=$bpr  bytes=${bytes.size}",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        }
-
                                         dispatchToPrinter(printerId, bytes)
 
                                         act.runOnUiThread {
@@ -399,11 +431,26 @@ class SunmiPrinterPlugin : Plugin() {
     // ── Bluetooth socket (RFCOMM / SPP) ───────────────────────────────────────
 
     private fun sendToBluetooth(address: String, bytes: ByteArray) {
+        // Check runtime permission (Android 12+)
+        if (!hasBtConnectPermission()) {
+            throw Exception("ยังไม่ได้อนุญาตให้ใช้ Bluetooth กรุณาอนุญาตให้แอปใช้ Bluetooth เพื่อเชื่อมต่อเครื่องพิมพ์")
+        }
+
+        // Check Bluetooth is enabled
+        if (!isBluetoothEnabled()) {
+            throw Exception("กรุณาเปิด Bluetooth")
+        }
+
         // Reuse existing socket if connected to same device (avoids re-pairing overhead)
         if (btConnectedAddress == address && btSocket?.isConnected == true) {
-            btOut!!.write(bytes)
-            btOut!!.flush()
-            return
+            try {
+                btOut!!.write(bytes)
+                btOut!!.flush()
+                return
+            } catch (_: Exception) {
+                // Socket went stale — fall through to reconnect
+                closeBluetooth()
+            }
         }
 
         // Close stale connection
@@ -412,24 +459,32 @@ class SunmiPrinterPlugin : Plugin() {
         val adapter = getBluetoothAdapter()
             ?: throw Exception("Bluetooth ไม่พร้อมใช้งาน")
 
-        @Suppress("MissingPermission")
         val device = adapter.getRemoteDevice(address)
+            ?: throw Exception("ไม่พบเครื่องพิมพ์ MAC: $address")
 
-        @Suppress("MissingPermission")
         val socket = device.createRfcommSocketToServiceRecord(SPP_UUID)
 
         // Stop discovery before connecting — improves connection speed & reliability
-        @Suppress("MissingPermission")
-        adapter.cancelDiscovery()
+        try { adapter.cancelDiscovery() } catch (_: Exception) {}
 
-        socket.connect()   // blocks until connected or throws
+        try {
+            socket.connect()
+        } catch (e: Exception) {
+            try { socket.close() } catch (_: Exception) {}
+            throw Exception("เชื่อมต่อเครื่องพิมพ์ไม่สำเร็จ เครื่องพิมพ์อาจปิดอยู่หรืออยู่นอกระยะ")
+        }
 
         btSocket = socket
         btOut    = socket.outputStream
         btConnectedAddress = address
 
-        btOut!!.write(bytes)
-        btOut!!.flush()
+        try {
+            btOut!!.write(bytes)
+            btOut!!.flush()
+        } catch (e: Exception) {
+            closeBluetooth()
+            throw Exception("การเชื่อมต่อขาดหายระหว่างพิมพ์ กรุณาลองใหม่")
+        }
     }
 
     // ── ESC/POS raster bitmap conversion ──────────────────────────────────────
@@ -478,7 +533,7 @@ class SunmiPrinterPlugin : Plugin() {
 
         // Restore default line spacing, feed paper, partial cut
         out.write(byteArrayOf(ESC, 0x33.toByte(), 24.toByte()))            // ESC 3 24 — default spacing
-        out.write(byteArrayOf(ESC, 0x64.toByte(), 5.toByte()))             // ESC d 5  — feed 5 lines
+        out.write(byteArrayOf(ESC, 0x64.toByte(), 2.toByte()))             // ESC d 2  — feed 2 lines (minimal tear margin)
         out.write(byteArrayOf(GS, 0x56.toByte(), 0x42.toByte(), 0x00.toByte()))  // GS V B 0 — partial cut
 
         return out.toByteArray()
@@ -524,8 +579,62 @@ class SunmiPrinterPlugin : Plugin() {
 <p class="c xs">ถ้าแถบดำแคบ = bitmap width ผิด</p>
 <div class="hr"></div>
 <p class="c xs">ขอบคุณที่ใช้บริการ FixITPro</p>
-<br><br>
 </body></html>"""
+
+    // ── Bluetooth settings ────────────────────────────────────────────────────
+
+    @PluginMethod
+    fun openBluetoothSettings(call: PluginCall) {
+        try {
+            val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+            call.resolve(JSObject().apply { put("success", true) })
+        } catch (e: Exception) {
+            call.resolve(JSObject().apply { put("success", false); put("error", e.message ?: "Cannot open Bluetooth settings") })
+        }
+    }
+
+    // ── Capacitor permission API ──────────────────────────────────────────────
+
+    @PluginMethod
+    override fun checkPermissions(call: PluginCall) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            // Android < 12: Bluetooth permissions are install-time, always granted
+            call.resolve(JSObject().apply {
+                put("bluetoothConnect", "granted")
+                put("bluetoothScan",    "granted")
+            })
+            return
+        }
+        super.checkPermissions(call)
+    }
+
+    @PluginMethod
+    override fun requestPermissions(call: PluginCall) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            // Android < 12: install-time only
+            call.resolve(JSObject().apply {
+                put("bluetoothConnect", "granted")
+                put("bluetoothScan",    "granted")
+            })
+            return
+        }
+        requestPermissionForAliases(
+            arrayOf("bluetoothConnect", "bluetoothScan"),
+            call,
+            "permissionsCallback"
+        )
+    }
+
+    @PermissionCallback
+    private fun permissionsCallback(call: PluginCall) {
+        call.resolve(JSObject().apply {
+            put("bluetoothConnect", getPermissionState("bluetoothConnect").toString().lowercase())
+            put("bluetoothScan",    getPermissionState("bluetoothScan").toString().lowercase())
+        })
+    }
 
     // ── Legacy stubs (keep for API backward compat) ───────────────────────────
 

@@ -44,9 +44,16 @@ export interface PrinterInfo {
 
 // ── Plugin interface ──────────────────────────────────────────────────────────
 
+export type PermissionState = 'granted' | 'denied' | 'prompt'
+
 export interface SunmiPrinterPlugin {
   /** Lists InnerPrinter + paired Bluetooth devices */
-  getAvailablePrinters(): Promise<{ printers: PrinterInfo[] }>
+  getAvailablePrinters(): Promise<{
+    printers:         PrinterInfo[]
+    permissionDenied?: boolean    // true when BLUETOOTH_CONNECT was not granted (Android 12+)
+    bluetoothDisabled?: boolean   // true when Bluetooth adapter is off
+    error?:           string
+  }>
 
   /** Reads saved default printer from device SharedPreferences */
   getDefaultPrinter(): Promise<{ printerId: string; printerName: string }>
@@ -103,6 +110,15 @@ export interface SunmiPrinterPlugin {
    */
   printTest(options: { printerId: string }): Promise<{ success: boolean; error?: string }>
 
+  /** Opens Android Bluetooth Settings so the user can pair a new printer */
+  openBluetoothSettings(): Promise<{ success: boolean; error?: string }>
+
+  /** Check current Bluetooth permission state (Capacitor permissions API) */
+  checkPermissions(): Promise<{ bluetoothConnect: PermissionState; bluetoothScan: PermissionState }>
+
+  /** Request Bluetooth runtime permissions on Android 12+ */
+  requestPermissions(): Promise<{ bluetoothConnect: PermissionState; bluetoothScan: PermissionState }>
+
   // Legacy stubs — return success=false
   openCashDrawer(): Promise<{ success: boolean }>
   printReceipt(options: PrintReceiptOptions): Promise<{ success: boolean; error?: string }>
@@ -125,6 +141,9 @@ export const SunmiPrinter = registerPlugin<SunmiPrinterPlugin>('SunmiPrinter', {
     }),
     printHtml:     async () => ({ success: false, error: 'Not native' }),
     printTest:     async () => ({ success: false, error: 'Not native' }),
+    openBluetoothSettings: async () => ({ success: false, error: 'Not native' }),
+    checkPermissions:  async () => ({ bluetoothConnect: 'granted' as PermissionState, bluetoothScan: 'granted' as PermissionState }),
+    requestPermissions: async () => ({ bluetoothConnect: 'granted' as PermissionState, bluetoothScan: 'granted' as PermissionState }),
     openCashDrawer: async () => ({ success: false }),
     printReceipt:   async () => ({ success: false, error: 'Use printHtml' }),
     printLines:     async () => ({ success: false, error: 'Use printHtml' }),
