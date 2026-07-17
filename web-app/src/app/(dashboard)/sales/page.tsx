@@ -3,14 +3,12 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import {
-  Lock, Clock, Loader2, Globe, Keyboard,
-  LayoutGrid, Smartphone, Wifi, Headphones, Wrench, Star,
-} from 'lucide-react'
+import { Clock, Globe, Keyboard } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCartStore } from '@/store/cart.store'
 import { ProductSearch, type ProductSearchHandle } from '@/components/pos/product-search'
 import { CartPanel } from '@/components/pos/cart-panel'
+import { PaymentPanel } from '@/components/pos/payment-panel'
 import { CheckoutDialog } from '@/components/pos/checkout-dialog'
 import { ReceiptDialog } from '@/components/pos/receipt-dialog'
 import { Button } from '@/components/ui/button'
@@ -21,23 +19,21 @@ import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
 import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
-import type { Sale } from '@/types'
-
-const CATEGORIES = [
-  { value: 'ALL',       label: 'ทั้งหมด',    Icon: LayoutGrid,  emoji: '📦' },
-  { value: 'PHONE',     label: 'มือถือ',     Icon: Smartphone,  emoji: '📱' },
-  { value: 'SIM',       label: 'ซิม',        Icon: Wifi,        emoji: '📶' },
-  { value: 'ACCESSORY', label: 'อุปกรณ์',    Icon: Headphones,  emoji: '🎧' },
-  { value: 'PART',      label: 'อะไหล่',     Icon: Wrench,      emoji: '🔧' },
-  { value: 'FAVORITES', label: 'รายการโปรด', Icon: Star,        emoji: '⭐' },
-]
+import type { Sale, PaymentMethod } from '@/types'
 
 export default function SalesPage() {
-  const [checkoutOpen, setCheckoutOpen]     = useState(false)
-  const [receipt, setReceipt]               = useState<Sale | null>(null)
-  const [mobileTab, setMobileTab]           = useState<'products' | 'cart'>('products')
+  const [checkoutOpen,      setCheckoutOpen]      = useState(false)
+  const [receipt,           setReceipt]           = useState<Sale | null>(null)
+  const [mobileTab,         setMobileTab]         = useState<'products' | 'cart'>('products')
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
-  const [selectedCategory, setSelectedCategory]   = useState('ALL')
+  const [selectedCategory,  setSelectedCategory]  = useState('ALL')
+  // Pre-selected payment method/amount from PaymentPanel (desktop 3-col)
+  const [preSelectedPayment, setPreSelectedPayment] = useState<{
+    paymentMethod: PaymentMethod
+    amountPaid: number
+  } | null>(null)
+  // Responsive: true when viewport >= lg (1024px)
+  const [isLgLayout, setIsLgLayout] = useState(false)
 
   const searchRef = useRef<ProductSearchHandle>(null)
 
@@ -54,6 +50,15 @@ export default function SalesPage() {
     staleTime: 30_000,
   })
 
+  // Track lg breakpoint for 3-col layout
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)')
+    setIsLgLayout(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsLgLayout(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
   const subtotal = useMemo(
     () => items.reduce((sum, i) => sum + Number(i.product.price) * i.quantity, 0),
     [items],
@@ -67,12 +72,18 @@ export default function SalesPage() {
     else setSelectedProductId(null)
   }, [items.length])
 
-  // ── Shortcut handlers ───────────────────────────────────────────────────────
+  // ── Shortcut handlers ─────────────────────────────────────────────────────
 
   const handleOpenCheckout = useCallback(() => {
     if (items.length === 0 || hasZeroPriceItem) return
+    setPreSelectedPayment(null)
     setCheckoutOpen(true)
   }, [items.length, hasZeroPriceItem])
+
+  const handlePaymentPanelCheckout = useCallback((opts: { paymentMethod: PaymentMethod; amountPaid: number }) => {
+    setPreSelectedPayment(opts)
+    setCheckoutOpen(true)
+  }, [])
 
   const handleFocusSearch = useCallback(() => {
     searchRef.current?.focusSearch()
@@ -94,14 +105,14 @@ export default function SalesPage() {
   const handleIncreaseQty = useCallback(() => {
     if (!selectedProductId) return
     const item = items.find((i) => i.product.id === selectedProductId)
-    if (!item) return
+    if (!item || item.serialIds) return
     updateQuantity(item.product.id, item.quantity + 1)
   }, [selectedProductId, items, updateQuantity])
 
   const handleDecreaseQty = useCallback(() => {
     if (!selectedProductId) return
     const item = items.find((i) => i.product.id === selectedProductId)
-    if (!item) return
+    if (!item || item.serialIds) return
     updateQuantity(item.product.id, item.quantity - 1)
   }, [selectedProductId, items, updateQuantity])
 
@@ -117,13 +128,13 @@ export default function SalesPage() {
     enabled: !shiftLoading && !isGlobalMode,
   })
 
-  // ── Checkout success ────────────────────────────────────────────────────────
+  // ── Checkout success ───────────────────────────────────────────────────────
 
   const handleSuccess = useCallback((sale: Sale) => {
     setCheckoutOpen(false)
+    setPreSelectedPayment(null)
     clearCart()
     setReceipt(sale)
-    // Refocus search after receipt is shown and closed, handled in ReceiptDialog onClose
   }, [clearCart])
 
   const handleReceiptClose = useCallback(() => {
@@ -131,7 +142,7 @@ export default function SalesPage() {
     searchRef.current?.focusSearch()
   }, [])
 
-  // ── Loading / guard screens ─────────────────────────────────────────────────
+  // ── Guard screens ─────────────────────────────────────────────────────────
 
   if (!hasModule('pos')) return <ModuleGate module="pos">{null}</ModuleGate>
 
@@ -183,12 +194,22 @@ export default function SalesPage() {
     )
   }
 
-  const showHints = !isSunmi && !Platform.isNative()
+  const showHints    = !isSunmi && !Platform.isNative()
+  const totalQtyCart = items.reduce((s, i) => s + i.quantity, 0)
+
+  // ── Layout ────────────────────────────────────────────────────────────────
+  //
+  // Mobile / tablet (< lg): tab bar + 2 panels (products | cart+payment)
+  // Desktop (lg+):          3-column — Left: Search | Middle: Cart | Right: Payment
+  //
+  // ProductSearch is rendered ONCE in both layouts (inside a shared wrapper)
+  // to avoid double data fetching and double autoFocus.
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)]">
-      {/* Mobile tab bar */}
-      <div className="flex md:hidden mb-3 rounded-xl border bg-white dark:bg-slate-900 dark:border-slate-800 overflow-hidden shrink-0 shadow-sm">
+
+      {/* ── Mobile tab bar (hidden on lg) ───────────────────────────────── */}
+      <div className="flex lg:hidden mb-3 rounded-xl border bg-white dark:bg-slate-900 dark:border-slate-800 overflow-hidden shrink-0 shadow-sm">
         <button
           type="button"
           onClick={() => setMobileTab('products')}
@@ -206,84 +227,37 @@ export default function SalesPage() {
           type="button"
           onClick={() => setMobileTab('cart')}
           className={cn(
-            'flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-semibold transition-colors relative',
+            'flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-semibold transition-colors',
             mobileTab === 'cart'
               ? 'bg-blue-600 text-white'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800',
           )}
         >
           <span>🛒</span>
-          ตะกร้า
-          {items.length > 0 && (
+          ตะกร้า + ชำระ
+          {totalQtyCart > 0 && (
             <span className={cn(
-              'ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-bold',
+              'inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-bold',
               mobileTab === 'cart' ? 'bg-white text-blue-600' : 'bg-blue-600 text-white',
             )}>
-              {items.reduce((s, i) => s + i.quantity, 0)}
+              {totalQtyCart}
             </span>
           )}
         </button>
       </div>
 
-      {/* Main panels */}
-      <div className="flex flex-1 gap-4 sm:gap-5 min-h-0">
+      {/* ── Panel grid ──────────────────────────────────────────────────── */}
+      <div className="flex flex-1 gap-3 sm:gap-4 min-h-0">
 
-        {/* Categories sidebar — desktop lg+ only */}
-        <div className="hidden lg:flex flex-col w-48 shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="px-3 pt-3 pb-2.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none">
-              หมวดหมู่
-            </p>
-          </div>
-          <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-            {CATEGORIES.map(({ value, label, emoji }) => {
-              const isActive = selectedCategory === value
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setSelectedCategory(value)}
-                  className={cn(
-                    'w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl text-sm font-medium transition-all min-h-[44px]',
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white',
-                  )}
-                >
-                  <span className="text-base leading-none shrink-0">{emoji}</span>
-                  <span className="flex-1 text-left">{label}</span>
-                </button>
-              )
-            })}
-          </nav>
-        </div>
-
-        {/* Product search panel */}
+        {/* Left — Product Search
+            Mobile:  shown on products tab / hidden on cart tab
+            Tablet (md): always shown, flex-1
+            Desktop (lg): fixed 380px width */}
         <div className={cn(
           'flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden',
-          'md:flex-1 md:min-w-0',
-          mobileTab === 'products' ? 'flex flex-1 min-w-0' : 'hidden md:flex md:flex-1 md:min-w-0',
+          mobileTab === 'products' ? 'flex flex-1 min-w-0' : 'hidden',
+          'lg:flex lg:w-[380px] lg:shrink-0 lg:flex-none',
         )}>
-          {/* Mobile category chips — scrollable strip */}
-          <div className="flex md:hidden gap-1.5 px-2.5 py-2 overflow-x-auto scrollbar-none border-b border-slate-100 dark:border-slate-800 shrink-0">
-            {CATEGORIES.map(({ value, label, emoji }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setSelectedCategory(value)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all shrink-0',
-                  selectedCategory === value
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400',
-                )}
-              >
-                <span>{emoji}</span>
-                {label}
-              </button>
-            ))}
-          </div>
-
           <ProductSearch
             ref={searchRef}
             category={selectedCategory}
@@ -291,23 +265,37 @@ export default function SalesPage() {
           />
         </div>
 
-        {/* Cart panel */}
+        {/* Middle — Cart Items
+            Mobile:  shown on cart tab / hidden on products tab
+            Tablet:  shown, w-[340px]
+            Desktop: flex-1 (fills remaining space between Search and Payment) */}
         <div className={cn(
           'flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden',
-          'md:w-[34%] md:min-w-[300px] md:max-w-[420px] md:shrink-0',
-          mobileTab === 'cart' ? 'flex flex-1 min-w-0' : 'hidden md:flex',
+          mobileTab === 'cart' ? 'flex flex-1 min-w-0' : 'hidden',
+          'lg:flex lg:flex-1 lg:min-w-0',
         )}>
           <CartPanel
-            onCheckout={() => setCheckoutOpen(true)}
+            onCheckout={() => { setPreSelectedPayment(null); setCheckoutOpen(true) }}
             selectedProductId={selectedProductId}
             onSelectRow={setSelectedProductId}
+            showPaymentPanel={!isLgLayout}
           />
+        </div>
+
+        {/* Right — Payment Summary (desktop only) */}
+        <div className="hidden lg:flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden w-72 shrink-0">
+          <div className="px-4 pt-3.5 pb-2.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+            <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+              สรุปและชำระเงิน
+            </p>
+          </div>
+          <PaymentPanel onCheckout={handlePaymentPanelCheckout} />
         </div>
       </div>
 
       {/* Desktop shortcut hints (hidden on SUNMI/native) */}
       {showHints && (
-        <div className="hidden md:flex items-center gap-4 pt-2 pb-0.5 px-1 shrink-0">
+        <div className="hidden lg:flex items-center gap-4 pt-2 pb-0.5 px-1 shrink-0">
           <Keyboard className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
           {[
             { key: 'F2',     label: 'ชำระเงิน' },
@@ -328,7 +316,7 @@ export default function SalesPage() {
 
       <CheckoutDialog
         open={checkoutOpen}
-        onOpenChange={setCheckoutOpen}
+        onOpenChange={(v) => { if (!v) setPreSelectedPayment(null); setCheckoutOpen(v) }}
         cartItems={items}
         subtotal={subtotal}
         discount={discount}
@@ -336,6 +324,8 @@ export default function SalesPage() {
         shiftId={currentShift?.id}
         branchId={effectiveBranch}
         onSuccess={handleSuccess}
+        initialPaymentMethod={preSelectedPayment?.paymentMethod}
+        initialAmountPaid={preSelectedPayment?.amountPaid}
       />
 
       <ReceiptDialog

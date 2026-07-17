@@ -115,14 +115,29 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
             {/* Items */}
             <div className="space-y-1.5">
               {sale.items.map((item) => {
-                const name = (item as any).product?.name ?? 'สินค้า'
+                const name    = (item as any).product?.name ?? 'สินค้า'
+                const serials = item.serialNumbers ?? []
                 return (
-                  <div key={item.id} className="flex gap-1 text-xs">
-                    <span className="flex-1 truncate">{name}</span>
-                    <span className="text-muted-foreground shrink-0">×{item.quantity}</span>
-                    <span className="shrink-0 tabular-nums w-20 text-right">
-                      {formatThaiMoney(Number(item.total))}
-                    </span>
+                  <div key={item.id}>
+                    <div className="flex gap-1 text-xs">
+                      <span className="flex-1 truncate">{name}</span>
+                      <span className="text-muted-foreground shrink-0">×{item.quantity}</span>
+                      <span className="shrink-0 tabular-nums w-20 text-right">
+                        {formatThaiMoney(Number(item.total))}
+                      </span>
+                    </div>
+                    {serials.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5 pl-1">
+                        {serials.map((s) => (
+                          <span
+                            key={s.id}
+                            className="font-mono text-[9px] text-muted-foreground bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded"
+                          >
+                            {s.serial}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}

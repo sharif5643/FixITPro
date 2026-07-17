@@ -25,11 +25,12 @@ interface CartPanelProps {
   onCheckout: () => void
   selectedProductId?: string | null
   onSelectRow?: (productId: string) => void
+  showPaymentPanel?: boolean  // false = hide checkout section (used in 3-col desktop layout)
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPanelProps) {
+export function CartPanel({ onCheckout, selectedProductId, onSelectRow, showPaymentPanel = true }: CartPanelProps) {
   const { items, discount, removeItem, updateQuantity, setDiscount, clearCart } = useCartStore()
 
   const [editingQtyId, setEditingQtyId]   = useState<string | null>(null)
@@ -140,6 +141,20 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
                       สต็อกเหลือ {available} ชิ้น
                     </span>
                   )}
+
+                  {/* Serial IDs chips — show pre-selected serials */}
+                  {item.serialIds && item.serialIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {item.serialIds.map((s) => (
+                        <span
+                          key={s}
+                          className="inline-block font-mono text-[9px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                        >
+                          {s.slice(-8)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col items-end justify-between gap-1.5 shrink-0">
@@ -151,61 +166,69 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
 
-                  {/* Qty controls — 44px SUNMI targets */}
-                  <div className="flex items-center gap-0.5">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity - 1) }}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors"
-                      aria-label="ลด"
-                    >
-                      <Minus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                    </button>
+                  {/* Qty controls — 44px SUNMI targets; serialIds items: qty is locked */}
+                  {item.serialIds ? (
+                    <div className="flex items-center justify-center h-11 min-w-[88px] rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3">
+                      <span className="text-sm font-bold tabular-nums text-blue-700 dark:text-blue-400">
+                        {item.quantity} serial
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity - 1) }}
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors"
+                        aria-label="ลด"
+                      >
+                        <Minus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                      </button>
 
-                    {editingQtyId === item.product.id ? (
-                      <input
-                        type="number"
-                        autoFocus
-                        value={editingQtyVal}
-                        onChange={(e) => setEditingQtyVal(e.target.value)}
-                        onBlur={() => {
-                          const n = parseInt(editingQtyVal)
-                          if (!isNaN(n) && n > 0) updateQuantity(item.product.id, Math.min(n, available))
-                          setEditingQtyId(null)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
+                      {editingQtyId === item.product.id ? (
+                        <input
+                          type="number"
+                          autoFocus
+                          value={editingQtyVal}
+                          onChange={(e) => setEditingQtyVal(e.target.value)}
+                          onBlur={() => {
                             const n = parseInt(editingQtyVal)
                             if (!isNaN(n) && n > 0) updateQuantity(item.product.id, Math.min(n, available))
                             setEditingQtyId(null)
-                          }
-                          if (e.key === 'Escape') setEditingQtyId(null)
-                        }}
-                        className="w-11 h-11 text-center text-sm font-bold border border-blue-400 dark:border-blue-600 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditingQtyId(item.product.id)
-                          setEditingQtyVal(String(item.quantity))
-                        }}
-                        className="w-11 h-11 text-center text-sm font-bold tabular-nums text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-                        title="แตะเพื่อแก้ไขจำนวน"
-                      >
-                        {item.quantity}
-                      </button>
-                    )}
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const n = parseInt(editingQtyVal)
+                              if (!isNaN(n) && n > 0) updateQuantity(item.product.id, Math.min(n, available))
+                              setEditingQtyId(null)
+                            }
+                            if (e.key === 'Escape') setEditingQtyId(null)
+                          }}
+                          className="w-11 h-11 text-center text-sm font-bold border border-blue-400 dark:border-blue-600 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingQtyId(item.product.id)
+                            setEditingQtyVal(String(item.quantity))
+                          }}
+                          className="w-11 h-11 text-center text-sm font-bold tabular-nums text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                          title="แตะเพื่อแก้ไขจำนวน"
+                        >
+                          {item.quantity}
+                        </button>
+                      )}
 
-                    <button
-                      onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity + 1) }}
-                      disabled={item.quantity >= available}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      aria-label="เพิ่ม"
-                    >
-                      <Plus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                    </button>
-                  </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity + 1) }}
+                        disabled={item.quantity >= available}
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        aria-label="เพิ่ม"
+                      >
+                        <Plus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                      </button>
+                    </div>
+                  )}
 
                   <p className={cn('text-sm font-bold tabular-nums', isZeroPrice ? 'text-red-400 dark:text-red-500' : 'text-blue-700 dark:text-blue-400')}>
                     {isZeroPrice ? '฿ —' : formatThaiMoney(Number(item.product.price) * item.quantity)}
@@ -218,7 +241,7 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
       </div>
 
       {/* ── Checkout panel ─────────────────────────────────────────────── */}
-      <div className="border-t border-slate-100 dark:border-slate-800 pt-3 mt-2 px-3 pb-3 space-y-3 shrink-0">
+      {showPaymentPanel && <div className="border-t border-slate-100 dark:border-slate-800 pt-3 mt-2 px-3 pb-3 space-y-3 shrink-0">
 
         {/* Zero-price warning */}
         {hasZeroPriceItem && (
@@ -320,7 +343,7 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
             </>
           )}
         </Button>
-      </div>
+      </div>}
     </div>
   )
 }

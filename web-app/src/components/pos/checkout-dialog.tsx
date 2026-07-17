@@ -51,6 +51,8 @@ interface CheckoutDialogProps {
    *  frontend must forward the selected branch explicitly. */
   branchId?: string | null
   onSuccess: (sale: Sale) => void
+  initialPaymentMethod?: 'CASH' | 'TRANSFER' | 'CARD'
+  initialAmountPaid?: number
 }
 
 // ─── Serial Selection Step ────────────────────────────────────────────────────
@@ -206,6 +208,8 @@ export function CheckoutDialog({
   shiftId,
   branchId,
   onSuccess,
+  initialPaymentMethod,
+  initialAmountPaid,
 }: CheckoutDialogProps) {
   const queryClient = useQueryClient()
 
@@ -234,11 +238,26 @@ export function CheckoutDialog({
 
   useEffect(() => {
     if (open) {
-      setStep(hasSerialItems ? 'serials' : 'payment')
-      setSerialAssignments({})
-      reset({ paymentMethod: 'CASH', amountPaid: total, customerName: '', customerPhone: '', note: '' })
+      // Pre-populate from cart's pre-selected serialIds
+      const preAssigned: Record<string, string[]> = {}
+      serialItems.forEach((item) => {
+        if (item.serialIds?.length) preAssigned[item.product.id] = item.serialIds
+      })
+      setSerialAssignments(preAssigned)
+
+      const allPreAssigned = serialItems.every(
+        (item) => (preAssigned[item.product.id]?.length ?? 0) >= item.quantity,
+      )
+      setStep(hasSerialItems && !allPreAssigned ? 'serials' : 'payment')
+      reset({
+        paymentMethod: initialPaymentMethod ?? 'CASH',
+        amountPaid:    initialAmountPaid    ?? total,
+        customerName:  '',
+        customerPhone: '',
+        note:          '',
+      })
     }
-  }, [open, total, reset, hasSerialItems])
+  }, [open, total, reset, hasSerialItems, initialPaymentMethod, initialAmountPaid])
 
   useEffect(() => {
     if (paymentMethod !== 'CASH') setValue('amountPaid', total)
