@@ -6,7 +6,7 @@ import {
   Download, Upload, FileText, Users, Package, BarChart2,
   ShoppingCart, Wrench, Receipt, BadgeCheck, ScrollText,
   CheckCircle2, XCircle, AlertTriangle, Loader2, X,
-  FileUp, RefreshCw,
+  FileUp, RefreshCw, Tag, Truck,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
@@ -41,10 +41,12 @@ const EXPORT_TYPES = [
   { key: 'audit-logs',      label: 'ประวัติกิจกรรม',      icon: ScrollText,  color: 'text-gray-600',   bg: 'bg-gray-50',   border: 'border-gray-200' },
 ] as const
 
-type ImportType = 'products' | 'customers'
+type ImportType = 'products' | 'customers' | 'categories' | 'suppliers'
 const IMPORT_TYPES: { key: ImportType; label: string; icon: React.ElementType }[] = [
-  { key: 'products',  label: 'สินค้า',  icon: Package },
-  { key: 'customers', label: 'ลูกค้า', icon: Users },
+  { key: 'products',   label: 'สินค้า',       icon: Package },
+  { key: 'customers',  label: 'ลูกค้า',       icon: Users },
+  { key: 'categories', label: 'หมวดหมู่',     icon: Tag },
+  { key: 'suppliers',  label: 'ซัพพลายเออร์', icon: Truck },
 ]
 
 // ── Date preset helper ────────────────────────────────────────────────────────
