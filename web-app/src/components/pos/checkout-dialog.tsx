@@ -51,6 +51,10 @@ interface CheckoutDialogProps {
    *  frontend must forward the selected branch explicitly. */
   branchId?: string | null
   onSuccess: (sale: Sale) => void
+  initialPaymentMethod?: 'CASH' | 'TRANSFER' | 'CARD'
+  initialAmountPaid?: number
+  initialCustomerName?: string
+  initialCustomerPhone?: string
 }
 
 // ─── Serial Selection Step ────────────────────────────────────────────────────
@@ -206,6 +210,10 @@ export function CheckoutDialog({
   shiftId,
   branchId,
   onSuccess,
+  initialPaymentMethod,
+  initialAmountPaid,
+  initialCustomerName,
+  initialCustomerPhone,
 }: CheckoutDialogProps) {
   const queryClient = useQueryClient()
 
@@ -234,11 +242,26 @@ export function CheckoutDialog({
 
   useEffect(() => {
     if (open) {
-      setStep(hasSerialItems ? 'serials' : 'payment')
-      setSerialAssignments({})
-      reset({ paymentMethod: 'CASH', amountPaid: total, customerName: '', customerPhone: '', note: '' })
+      // Pre-populate from cart's pre-selected serialIds
+      const preAssigned: Record<string, string[]> = {}
+      serialItems.forEach((item) => {
+        if (item.serialIds?.length) preAssigned[item.product.id] = item.serialIds
+      })
+      setSerialAssignments(preAssigned)
+
+      const allPreAssigned = serialItems.every(
+        (item) => (preAssigned[item.product.id]?.length ?? 0) >= item.quantity,
+      )
+      setStep(hasSerialItems && !allPreAssigned ? 'serials' : 'payment')
+      reset({
+        paymentMethod: initialPaymentMethod ?? 'CASH',
+        amountPaid:    initialAmountPaid    ?? total,
+        customerName:  initialCustomerName  ?? '',
+        customerPhone: initialCustomerPhone ?? '',
+        note:          '',
+      })
     }
-  }, [open, total, reset, hasSerialItems])
+  }, [open, total, reset, hasSerialItems, initialPaymentMethod, initialAmountPaid, initialCustomerName, initialCustomerPhone])
 
   useEffect(() => {
     if (paymentMethod !== 'CASH') setValue('amountPaid', total)
@@ -266,7 +289,7 @@ export function CheckoutDialog({
         items: cartItems.map((i) => ({
           productId: i.product.id,
           quantity:  i.quantity,
-          price:     Number(i.product.price),
+          price:     Number(i.product.price) - (i.itemDiscount ?? 0),
           serialIds: i.product.hasSerial ? (serialAssignments[i.product.id] ?? []) : undefined,
         })),
       })

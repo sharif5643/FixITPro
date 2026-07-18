@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ChevronRight, Settings, Users, Building2, BarChart3, Bell, Shield, HelpCircle, LogOut, UserCircle, History, CreditCard, Wrench } from 'lucide-react'
+import { ChevronRight, Settings, Users, Building2, BarChart3, Bell, Shield, HelpCircle, LogOut, UserCircle, History, CreditCard, Wrench, Wallet } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { toast } from 'sonner'
@@ -13,8 +13,9 @@ export default function MorePage() {
 
   const initials = user?.name?.split(' ').map((n:string)=>n[0]).slice(0,2).join('').toUpperCase()?? '?'
   const roleTH   = user?.role==='OWNER'?'เจ้าของร้าน':user?.role==='MANAGER'?'ผู้จัดการ':user?.role==='TECHNICIAN'?'ช่าง':'พนักงาน'
-  const isOwner  = user?.role==='OWNER'||user?.role==='SUPER_ADMIN'
-  const isTech   = user?.role==='TECHNICIAN'
+  const isOwner      = user?.role==='OWNER'||user?.role==='SUPER_ADMIN'
+  const isTech       = user?.role==='TECHNICIAN'
+  const hasDrawerPerm = useAuthStore((s)=>s.hasPermission)('cash_drawer.view_balance')
 
   async function logout() {
     await api.post('/auth/logout').catch(()=>{})
@@ -37,6 +38,7 @@ export default function MorePage() {
         { icon:<Users className="h-5 w-5 text-purple-500"/>,       label:'ลูกค้า',         to:'/staff/customers' },
         { icon:<BarChart3 className="h-5 w-5 text-brand-info"/>,   label:'รายงาน',         to:'/staff/reports' },
         { icon:<Bell className="h-5 w-5 text-amber-500"/>,         label:'แจ้งเตือน',      to:'/staff/notifications' },
+        ...(hasDrawerPerm ? [{ icon:<Wallet className="h-5 w-5 text-amber-500"/>, label:'ลิ้นชักเงินสด', to:'/staff/cash-drawer' }] : []),
         ...(isOwner ? [{ icon:<Building2 className="h-5 w-5 text-brand-yellow"/>, label:'Dashboard เจ้าของ', to:'/staff/owner' }] : []),
       ],
     },

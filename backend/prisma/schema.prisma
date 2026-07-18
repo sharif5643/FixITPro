@@ -159,6 +159,11 @@ enum BranchStatus {
   REJECTED
 }
 
+enum CashDrawerPolicy {
+  STRICT
+  ALLOW_UNASSIGNED
+}
+
 enum RepairPaymentStatus {
   PENDING
   PARTIAL
@@ -174,9 +179,10 @@ model Branch {
   isDefault    Boolean      @default(false)
   branchNumber Int?
   status       BranchStatus @default(ACTIVE)
-  stockCodeSeq Int          @default(0)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  stockCodeSeq     Int              @default(0)
+  cashDrawerPolicy CashDrawerPolicy @default(STRICT)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -189,8 +195,11 @@ model Branch {
   notifications  Notification[]
   stockMovements StockMovement[]
   branchStocks   BranchStock[]
-  transfersFrom  StockTransfer[] @relation("TransferFrom")
-  transfersTo    StockTransfer[] @relation("TransferTo")
+  transfersFrom          StockTransfer[]         @relation("TransferFrom")
+  transfersTo            StockTransfer[]         @relation("TransferTo")
+  cashDrawers            CashDrawer[]
+  cashDrawerSessions     CashDrawerSession[]
+  cashDrawerTransactions CashDrawerTransaction[]
 
   @@index([tenantId])
   @@index([isActive])
@@ -283,9 +292,12 @@ model Tenant {
   customers         Customer[]
   categories        Category[]
   suppliers         Supplier[]
-  shopSettings      ShopSettings?
-  notifications     Notification[]
-  expenseCategories ExpenseCategory[]
+  shopSettings           ShopSettings?
+  notifications          Notification[]
+  expenseCategories      ExpenseCategory[]
+  cashDrawers            CashDrawer[]
+  cashDrawerSessions     CashDrawerSession[]
+  cashDrawerTransactions CashDrawerTransaction[]
 
   @@index([status])
   @@index([expiryDate])
@@ -386,6 +398,11 @@ model User {
   reminderSettings         ReminderSettings?
   reminderSnoozes          ReminderSnooze[]
   sentMessages             RepairMessage[]          @relation("SentMessages")
+  openedDrawerSessions     CashDrawerSession[]      @relation("CashDrawerOpenedBy")
+  closedDrawerSessions     CashDrawerSession[]      @relation("CashDrawerClosedBy")
+  approvedDrawerSessions   CashDrawerSession[]      @relation("CashDrawerApprovedBy")
+  drawerParticipations     CashDrawerParticipant[]  @relation("CashDrawerParticipants")
+  drawerTransactions       CashDrawerTransaction[]  @relation("CashDrawerTransactions")
 
   @@index([role, isActive])
   @@index([tenantId])
@@ -1396,4 +1413,146 @@ model RefreshToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+// ── Cash Drawer System ────────────────────────────────────────────────────────
+
+enum CashDrawerSessionStatus {
+  OPEN
+  PENDING_APPROVAL
+  CLOSED
+}
+
+enum CashDrawerTransactionType {
+  OPENING
+  DEPOSIT
+  WITHDRAWAL
+  BANK_DEPOSIT
+  REVERSAL
+}
+
+enum CashDrawerTransactionDirection {
+  IN
+  OUT
+}
+
+model CashDrawer {
+  id        String   @id @default(cuid())
+  name      String
+  code      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  sessions     CashDrawerSession[]
+  transactions CashDrawerTransaction[]
+
+  @@unique([code, branchId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([isActive])
+}
+
+model CashDrawerSession {
+  id               String                  @id @default(cuid())
+  status           CashDrawerSessionStatus @default(OPEN)
+  openedAt         DateTime                @default(now())
+  openingAmount    Decimal                 @db.Decimal(10, 2)
+  closedAt         DateTime?
+  expectedAmount   Decimal?                @db.Decimal(10, 2)
+  countedAmount    Decimal?                @db.Decimal(10, 2)
+  differenceAmount Decimal?                @db.Decimal(10, 2)
+  closingNote      String?
+  differenceReason String?
+  approvedAt       DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  cashDrawerId String
+  cashDrawer   CashDrawer @relation(fields: [cashDrawerId], references: [id])
+
+  openedById String
+  openedBy   User   @relation("CashDrawerOpenedBy", fields: [openedById], references: [id])
+
+  closedById String?
+  closedBy   User?  @relation("CashDrawerClosedBy", fields: [closedById], references: [id])
+
+  approvedById String?
+  approvedBy   User?  @relation("CashDrawerApprovedBy", fields: [approvedById], references: [id])
+
+  participants CashDrawerParticipant[]
+  transactions CashDrawerTransaction[]
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([cashDrawerId, status])
+  @@index([openedAt])
+  @@index([status])
+}
+
+model CashDrawerParticipant {
+  id       String    @id @default(cuid())
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  sessionId String
+  session   CashDrawerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("CashDrawerParticipants", fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@index([userId])
+}
+
+model CashDrawerTransaction {
+  id             String                         @id @default(cuid())
+  type           CashDrawerTransactionType
+  direction      CashDrawerTransactionDirection
+  amount         Decimal                        @db.Decimal(10, 2)
+  sourceType     String?
+  referenceType  String?
+  referenceId    String?
+  paymentMethod  String?
+  idempotencyKey String?                        @unique
+  reversalOfId   String?
+  reason         String?
+  metadata       Json?
+  createdAt      DateTime                       @default(now())
+
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  sessionId String?
+  session   CashDrawerSession? @relation(fields: [sessionId], references: [id])
+
+  cashDrawerId String?
+  cashDrawer   CashDrawer? @relation(fields: [cashDrawerId], references: [id])
+
+  actorUserId String
+  actorUser   User   @relation("CashDrawerTransactions", fields: [actorUserId], references: [id])
+
+  @@index([sessionId])
+  @@index([cashDrawerId])
+  @@index([tenantId, createdAt])
+  @@index([branchId, createdAt])
+  @@index([type, direction])
+  @@index([referenceType, referenceId])
+  @@index([sourceType])
 }

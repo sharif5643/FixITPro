@@ -10,6 +10,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { WarrantiesService } from '../warranties/warranties.service';
 import { LineMessagingService } from '../line-messaging/line-messaging.service';
+import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { CreateRepairDto } from './dto/create-repair.dto';
 import { UpdateRepairDto } from './dto/update-repair.dto';
 import { AddRepairPartDto } from './dto/add-repair-part.dto';
@@ -53,6 +54,7 @@ export class RepairsService {
     private auditLog: AuditLogService,
     private warranties: WarrantiesService,
     private lineMsg: LineMessagingService,
+    private accounting: AccountingService,
   ) {}
 
   private async assertBranchActive(branchId: string) {
@@ -689,6 +691,24 @@ export class RepairsService {
         afterData:  { finalCost: total, paymentMethod: dto.paymentMethod, amountPaid: dto.amountPaid },
       });
 
+      // Record CASH repair payment in Cash Drawer ledger (IN)
+      const repairRecord = await tx.repair.findUnique({
+        where: { id: repairId },
+        select: { branchId: true, branch: { select: { tenantId: true } } },
+      });
+      if (repairRecord?.branchId) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.REPAIR_FINAL_PAYMENT,
+          sourceId:      repairId,
+          paymentMethod: dto.paymentMethod as any,
+          amount:        dto.amountPaid,
+          direction:     'IN',
+          branchId:      repairRecord.branchId,
+          tenantId:      (repairRecord as any).branch?.tenantId ?? null,
+          actorUserId:   userId,
+        }, tx);
+      }
+
       return tx.repair.findUniqueOrThrow({ where: { id: repairId }, include: REPAIR_INCLUDE });
     });
 
@@ -711,7 +731,11 @@ export class RepairsService {
     if (tenantId) revWhere.branch = { tenantId };
     const repair = await this.prisma.repair.findFirst({
       where: revWhere,
-      select: { id: true, status: true, paymentStatus: true, paymentMethod: true, paidAmount: true },
+      select: {
+        id: true, status: true, paymentStatus: true,
+        paymentMethod: true, paidAmount: true,
+        branchId: true, branch: { select: { tenantId: true } },
+      },
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
@@ -734,7 +758,7 @@ export class RepairsService {
         },
       });
 
-      return tx.repair.update({
+      const updated = await tx.repair.update({
         where: { id: repairId },
         data: {
           paymentStatus: 'PENDING',
@@ -747,7 +771,37 @@ export class RepairsService {
         },
         include: REPAIR_INCLUDE,
       });
+
+      if (repair.branchId) {
+        let reversalOfId: string | undefined;
+        if (repair.paymentMethod === 'CASH') {
+          const originalLedger = await (tx as any).cashDrawerTransaction.findFirst({
+            where:  { referenceType: 'REPAIR_FINAL_PAYMENT', referenceId: repairId },
+            select: { id: true },
+          });
+          reversalOfId = originalLedger?.id;
+        }
+
+        await this.accounting.record(
+          {
+            sourceType:    ACCOUNTING_SOURCE.REVERSAL,
+            sourceId:      repairId,
+            paymentMethod: (repair.paymentMethod ?? 'CASH') as any,
+            amount:        repair.paidAmount ?? 0,
+            direction:     'OUT',
+            branchId:      repair.branchId,
+            tenantId:      (repair as any).branch?.tenantId ?? tenantId ?? null,
+            actorUserId:   userId,
+            note:          `ยกเลิกการชำระเงินงานซ่อม: ${dto.reason}`,
+            ...(reversalOfId ? { reversalOfId } : {}),
+          },
+          tx,
+        );
+      }
+
+      return updated;
     });
+
     await this.auditLog.log({
       actorId: userId,
       action: 'REPAIR_PAYMENT_REVERSED',
@@ -763,7 +817,7 @@ export class RepairsService {
     if (tenantId) addPayWhere.branch = { tenantId };
     const repair = await this.prisma.repair.findFirst({
       where: addPayWhere,
-      select: { id: true, status: true },
+      select: { id: true, status: true, branchId: true },
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
@@ -776,16 +830,39 @@ export class RepairsService {
       select: { id: true },
     });
 
-    const payment = await this.prisma.repairAdditionalPayment.create({
-      data: {
-        repairId,
-        amount: dto.amount,
-        paymentMethod: dto.paymentMethod as any,
-        note: dto.note,
-        shiftId: activeShift?.id,
-        createdById: userId,
-      },
+    const payment = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.repairAdditionalPayment.create({
+        data: {
+          repairId,
+          amount:        dto.amount,
+          paymentMethod: dto.paymentMethod as any,
+          note:          dto.note,
+          shiftId:       activeShift?.id,
+          createdById:   userId,
+        },
+      });
+
+      // Record CASH additional payment in Cash Drawer ledger (IN)
+      if (repair.branchId) {
+        const branchInfo = await tx.branch.findUnique({
+          where:  { id: repair.branchId },
+          select: { tenantId: true },
+        });
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.REPAIR_ADDITIONAL_PAYMENT,
+          sourceId:      created.id,
+          paymentMethod: dto.paymentMethod as any,
+          amount:        dto.amount,
+          direction:     'IN',
+          branchId:      repair.branchId,
+          tenantId:      branchInfo?.tenantId ?? null,
+          actorUserId:   userId,
+        }, tx);
+      }
+
+      return created;
     });
+
     await this.auditLog.log({
       actorId: userId,
       action: 'REPAIR_ADDITIONAL_PAYMENT',

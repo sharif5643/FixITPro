@@ -210,7 +210,6 @@ ${opts.paymentQrUrl ? qrHtml(opts.paymentQrUrl, opts.paymentMethod) : ''}
 ${opts.customerName ? `<div class="hr"></div><p class="xs">ลูกค้า: ${opts.customerName}</p>` : ''}
 <div class="hr"></div>
 <p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>
-<br><br>
 </body></html>`
 }
 
@@ -248,7 +247,6 @@ ${opts.estimateCost ? `<div class="row"><span>ประมาณการ</span>
 <div class="hr"></div>
 ${opts.technicianName ? `<p class="xs">ช่าง: ${opts.technicianName}</p>` : ''}
 <p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>
-<br><br>
 </body></html>`
 }
 
@@ -282,7 +280,6 @@ ${opts.paymentQrUrl ? qrHtml(opts.paymentQrUrl, opts.paymentMethod) : ''}
 ${opts.repairWarrantyText ? `<div class="hr"></div><p class="c xs">${opts.repairWarrantyText}</p>` : ''}
 <div class="hr"></div>
 <p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>
-<br><br>
 </body></html>`
 }
 
@@ -567,7 +564,6 @@ ${opts.change > 0 ? `<div class="row"><span>เงินทอน</span><span cl
 ${opts.paymentQrUrl ? qrHtml(opts.paymentQrUrl, opts.paymentMethod) : ''}
 <div class="hr"></div>
 <p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>
-<br><br>
 </body></html>`
 }
 
@@ -664,7 +660,6 @@ ${opts.paymentQrUrl ? qrHtml(opts.paymentQrUrl, opts.paymentMethod) : ''}
 <div class="row xs"><span>เงินคงเหลือ ${opts.carrier}</span><span class="v">฿${fmtB(opts.walletBalance)}</span></div>
 <div class="hr"></div>
 <p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>
-<br><br>
 </body></html>`
 }
 
@@ -769,7 +764,6 @@ ${opts.note ? `<p class="xs" style="margin-top:4px">${opts.note}</p>` : ''}
 <div class="total"><span>ยอดรวม</span><span class="v">฿${fmtB(opts.amount)}</span></div>
 <div class="hr"></div>
 <p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>
-<br><br>
 </body></html>`
 }
 
@@ -866,7 +860,6 @@ ${opts.packageSaleCount > 0 ? `<div class="row"><span>SIM/แพ็กเกจ 
 <div class="total" style="${diffColor}"><span>ส่วนต่าง</span><span class="v">${diffSign}฿${fmtB(diff)}</span></div>
 <div class="hr"></div>
 <p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>
-<br><br>
 </body></html>`
 }
 

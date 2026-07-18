@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, Printer, X } from 'lucide-react'
@@ -11,10 +11,11 @@ import type { Sale, ShopSettings } from '@/types'
 type PW = '58mm' | '80mm'
 
 export default function SalePrintPage() {
-  const { id } = useParams<{ id: string }>()
-  const searchParams = useSearchParams()
-  const paperWidth = (searchParams.get('paper') as PW) || '80mm'
-  const [printed, setPrinted] = useState(false)
+  const { id }         = useParams<{ id: string }>()
+  const searchParams   = useSearchParams()
+  const paperWidth     = (searchParams.get('paper') as PW) || '80mm'
+  const autoPrint      = searchParams.get('autoprint') === '1'
+  const printFiredRef  = useRef(false)
 
   const { data, isLoading, isError } = useQuery<Sale>({
     queryKey: ['sales', id],
@@ -28,33 +29,61 @@ export default function SalePrintPage() {
     staleTime: 60_000,
   })
 
-  // Inject @page CSS for the correct paper size
+  // Inject @page CSS + print layout overrides
   useEffect(() => {
     const style = document.createElement('style')
-    style.id = 'print-page-size'
+    style.id    = 'print-page-size'
     style.textContent = `
-      @page { size: ${paperWidth} auto; margin: 3mm; }
-      @media print { .no-print { display: none !important; } }
+      @page {
+        size: ${paperWidth} auto;
+        margin: 2mm;
+      }
+      @media print {
+        html, body {
+          min-height: auto !important;
+          height: auto !important;
+          background: #fff !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        .no-print { display: none !important; }
+        .print-wrapper {
+          display: block !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          box-shadow: none !important;
+          background: transparent !important;
+        }
+        .print-outer {
+          display: block !important;
+          padding: 0 !important;
+          background: transparent !important;
+        }
+      }
     `
     document.head.appendChild(style)
     return () => document.getElementById('print-page-size')?.remove()
   }, [paperWidth])
 
-  // Auto-print after data loads (once only)
+  // Auto-print when ?autoprint=1 — only once per page load
   useEffect(() => {
-    if (data && !printed) {
-      setPrinted(true)
-      const t = setTimeout(() => window.print(), 600)
-      return () => clearTimeout(t)
-    }
-  }, [data, printed])
+    if (!autoPrint || !data || printFiredRef.current) return
+    printFiredRef.current = true
+    const t = setTimeout(() => {
+      window.print()
+      // Close popup after print dialog is dismissed
+      setTimeout(() => window.close(), 1000)
+    }, 500)
+    return () => clearTimeout(t)
+  }, [autoPrint, data])
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Print controls — hidden when printing */}
+    <div className="min-h-screen bg-gray-100 print-outer">
+      {/* Toolbar — hidden when printing */}
       <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-2 bg-white border-b px-4 py-2 shadow-sm">
         <span className="text-sm font-semibold text-gray-700">
           ใบเสร็จ — {paperWidth}
+          {autoPrint && <span className="ml-2 text-xs text-blue-500 font-normal">กำลังเตรียมพิมพ์...</span>}
         </span>
         <div className="flex gap-2">
           <button
@@ -75,7 +104,7 @@ export default function SalePrintPage() {
       </div>
 
       {/* Receipt */}
-      <div className="flex justify-center p-6">
+      <div className="flex justify-center p-4 no-print-padding">
         {isLoading ? (
           <div className="flex items-center gap-2 text-gray-500 py-20">
             <Loader2 className="h-6 w-6 animate-spin" />
@@ -84,7 +113,7 @@ export default function SalePrintPage() {
         ) : isError ? (
           <p className="text-red-600 py-20">ไม่สามารถโหลดข้อมูลได้</p>
         ) : data ? (
-          <div className="bg-white shadow-md p-4">
+          <div className="bg-white shadow-md print-wrapper">
             <SaleReceipt sale={data} paperWidth={paperWidth} settings={settings} />
           </div>
         ) : null}

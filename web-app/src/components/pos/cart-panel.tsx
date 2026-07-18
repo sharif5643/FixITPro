@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Minus, Plus, Trash2, ShoppingCart, AlertCircle, AlertTriangle, ScanBarcode, Tag } from 'lucide-react'
+import { Minus, Plus, Trash2, ShoppingCart, AlertCircle, AlertTriangle, ScanBarcode, Tag, PauseCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCartStore } from '@/store/cart.store'
@@ -11,32 +11,34 @@ import { formatThaiMoney, cn } from '@/lib/utils'
 
 const LOW_STOCK_THRESHOLD = 5
 
-// Payment shortcuts — all trigger the same checkout dialog; user picks method inside
-const PAYMENT_SHORTCUTS = [
-  { label: 'เงินสด', emoji: '💵' },
-  { label: 'โอน',    emoji: '🏦' },
-  { label: 'QR',     emoji: '📱' },
-  { label: 'บัตร',   emoji: '💳' },
-] as const
-
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface CartPanelProps {
   onCheckout: () => void
+  onHold?: () => void
   selectedProductId?: string | null
   onSelectRow?: (productId: string) => void
+  showPaymentPanel?: boolean  // false = hide checkout section (used in 3-col desktop layout)
+  discountRef?: React.RefObject<HTMLInputElement>
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPanelProps) {
-  const { items, discount, removeItem, updateQuantity, setDiscount, clearCart } = useCartStore()
+export function CartPanel({
+  onCheckout,
+  onHold,
+  selectedProductId,
+  onSelectRow,
+  showPaymentPanel = true,
+  discountRef,
+}: CartPanelProps) {
+  const { items, discount, removeItem, updateQuantity, setDiscount, setItemDiscount, clearCart } = useCartStore()
 
   const [editingQtyId, setEditingQtyId]   = useState<string | null>(null)
   const [editingQtyVal, setEditingQtyVal] = useState('')
 
   const subtotal = useMemo(
-    () => items.reduce((sum, i) => sum + Number(i.product.price) * i.quantity, 0),
+    () => items.reduce((sum, i) => sum + (Number(i.product.price) - (i.itemDiscount ?? 0)) * i.quantity, 0),
     [items],
   )
   const total    = Math.max(0, subtotal - discount)
@@ -61,6 +63,16 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
           )}
         </div>
         <h3 className="font-semibold text-slate-900 dark:text-white flex-1">ตะกร้าสินค้า</h3>
+        {items.length > 0 && onHold && (
+          <button
+            onClick={onHold}
+            className="text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-amber-400 transition-colors min-h-[32px] px-1 flex items-center gap-1 text-xs"
+            title="พักบิลนี้ไว้ก่อน"
+          >
+            <PauseCircle className="h-3.5 w-3.5" />
+            พัก
+          </button>
+        )}
         {items.length > 0 && (
           <button
             onClick={clearCart}
@@ -97,6 +109,7 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
             const isZeroPrice = Number(item.product.price) === 0
             const available   = stockOf(item)
             const isLowStock  = available > 0 && available < LOW_STOCK_THRESHOLD
+            const effectivePrice = Number(item.product.price) - (item.itemDiscount ?? 0)
 
             return (
               <div
@@ -131,14 +144,49 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
                   </p>
 
                   <p className={cn('text-xs mt-0.5', isZeroPrice ? 'text-red-400 dark:text-red-500' : 'text-slate-500 dark:text-slate-400')}>
-                    {isZeroPrice ? '฿ — ' : `${formatThaiMoney(Number(item.product.price))} × `}{item.quantity}
+                    {isZeroPrice ? '฿ — ' : `${formatThaiMoney(effectivePrice)} × `}{item.quantity}
                   </p>
+
+                  {/* Per-item discount input */}
+                  {!isZeroPrice && !item.serialIds && (
+                    <div className="flex items-center gap-1 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                      <Tag className="h-3 w-3 text-slate-300 dark:text-slate-600 shrink-0" />
+                      <input
+                        type="number"
+                        min={0}
+                        max={Number(item.product.price)}
+                        value={item.itemDiscount || ''}
+                        onChange={(e) => setItemDiscount(item.product.id, Number(e.target.value) || 0)}
+                        placeholder="ส่วนลด/ชิ้น"
+                        className="w-24 h-6 text-xs text-right px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                      {(item.itemDiscount ?? 0) > 0 && (
+                        <span className="text-[10px] text-red-500 dark:text-red-400 font-medium whitespace-nowrap">
+                          -{formatThaiMoney(item.itemDiscount! * item.quantity)}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {isLowStock && (
                     <span className="inline-flex items-center gap-0.5 mt-1 text-[10px] text-amber-600 dark:text-amber-400 font-medium">
                       <AlertTriangle className="h-2.5 w-2.5" />
                       สต็อกเหลือ {available} ชิ้น
                     </span>
+                  )}
+
+                  {/* Serial IDs chips — show pre-selected serials */}
+                  {item.serialIds && item.serialIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {item.serialIds.map((s) => (
+                        <span
+                          key={s}
+                          className="inline-block font-mono text-[9px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                        >
+                          {s.slice(-8)}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
 
@@ -151,64 +199,72 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
 
-                  {/* Qty controls — 44px SUNMI targets */}
-                  <div className="flex items-center gap-0.5">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity - 1) }}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors"
-                      aria-label="ลด"
-                    >
-                      <Minus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                    </button>
+                  {/* Qty controls — 44px SUNMI targets; serialIds items: qty is locked */}
+                  {item.serialIds ? (
+                    <div className="flex items-center justify-center h-11 min-w-[88px] rounded-xl border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3">
+                      <span className="text-sm font-bold tabular-nums text-blue-700 dark:text-blue-400">
+                        {item.quantity} serial
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity - 1) }}
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors"
+                        aria-label="ลด"
+                      >
+                        <Minus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                      </button>
 
-                    {editingQtyId === item.product.id ? (
-                      <input
-                        type="number"
-                        autoFocus
-                        value={editingQtyVal}
-                        onChange={(e) => setEditingQtyVal(e.target.value)}
-                        onBlur={() => {
-                          const n = parseInt(editingQtyVal)
-                          if (!isNaN(n) && n > 0) updateQuantity(item.product.id, Math.min(n, available))
-                          setEditingQtyId(null)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
+                      {editingQtyId === item.product.id ? (
+                        <input
+                          type="number"
+                          autoFocus
+                          value={editingQtyVal}
+                          onChange={(e) => setEditingQtyVal(e.target.value)}
+                          onBlur={() => {
                             const n = parseInt(editingQtyVal)
                             if (!isNaN(n) && n > 0) updateQuantity(item.product.id, Math.min(n, available))
                             setEditingQtyId(null)
-                          }
-                          if (e.key === 'Escape') setEditingQtyId(null)
-                        }}
-                        className="w-11 h-11 text-center text-sm font-bold border border-blue-400 dark:border-blue-600 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditingQtyId(item.product.id)
-                          setEditingQtyVal(String(item.quantity))
-                        }}
-                        className="w-11 h-11 text-center text-sm font-bold tabular-nums text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
-                        title="แตะเพื่อแก้ไขจำนวน"
-                      >
-                        {item.quantity}
-                      </button>
-                    )}
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const n = parseInt(editingQtyVal)
+                              if (!isNaN(n) && n > 0) updateQuantity(item.product.id, Math.min(n, available))
+                              setEditingQtyId(null)
+                            }
+                            if (e.key === 'Escape') setEditingQtyId(null)
+                          }}
+                          className="w-11 h-11 text-center text-sm font-bold border border-blue-400 dark:border-blue-600 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingQtyId(item.product.id)
+                            setEditingQtyVal(String(item.quantity))
+                          }}
+                          className="w-11 h-11 text-center text-sm font-bold tabular-nums text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                          title="แตะเพื่อแก้ไขจำนวน"
+                        >
+                          {item.quantity}
+                        </button>
+                      )}
 
-                    <button
-                      onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity + 1) }}
-                      disabled={item.quantity >= available}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      aria-label="เพิ่ม"
-                    >
-                      <Plus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                    </button>
-                  </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity + 1) }}
+                        disabled={item.quantity >= available}
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        aria-label="เพิ่ม"
+                      >
+                        <Plus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                      </button>
+                    </div>
+                  )}
 
                   <p className={cn('text-sm font-bold tabular-nums', isZeroPrice ? 'text-red-400 dark:text-red-500' : 'text-blue-700 dark:text-blue-400')}>
-                    {isZeroPrice ? '฿ —' : formatThaiMoney(Number(item.product.price) * item.quantity)}
+                    {isZeroPrice ? '฿ —' : formatThaiMoney(effectivePrice * item.quantity)}
                   </p>
                 </div>
               </div>
@@ -218,7 +274,7 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
       </div>
 
       {/* ── Checkout panel ─────────────────────────────────────────────── */}
-      <div className="border-t border-slate-100 dark:border-slate-800 pt-3 mt-2 px-3 pb-3 space-y-3 shrink-0">
+      {showPaymentPanel && <div className="border-t border-slate-100 dark:border-slate-800 pt-3 mt-2 px-3 pb-3 space-y-3 shrink-0">
 
         {/* Zero-price warning */}
         {hasZeroPriceItem && (
@@ -249,6 +305,7 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
           <Tag className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
           <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0">ส่วนลด</span>
           <Input
+            ref={discountRef}
             type="number"
             min={0}
             max={subtotal}
@@ -273,29 +330,6 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
           </p>
         </div>
 
-        {/* Payment shortcuts */}
-        {items.length > 0 && !hasZeroPriceItem && (
-          <div className="grid grid-cols-4 gap-1.5">
-            {PAYMENT_SHORTCUTS.map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={onCheckout}
-                className={cn(
-                  'flex flex-col items-center gap-1 py-2 rounded-xl border text-center transition-all',
-                  'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800',
-                  'hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm',
-                  'active:scale-95',
-                )}
-                title={`ชำระด้วย${p.label}`}
-              >
-                <span className="text-base leading-none">{p.emoji}</span>
-                <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{p.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Checkout — dominant CTA */}
         <Button
           className={cn(
@@ -306,7 +340,7 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
           )}
           onClick={onCheckout}
           disabled={!canCheckout}
-          title="F2 — ชำระเงิน"
+          title="F8 — ชำระเงิน"
         >
           {canCheckout ? (
             <span className="flex flex-col items-center leading-tight">
@@ -320,7 +354,7 @@ export function CartPanel({ onCheckout, selectedProductId, onSelectRow }: CartPa
             </>
           )}
         </Button>
-      </div>
+      </div>}
     </div>
   )
 }

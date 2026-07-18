@@ -28,23 +28,25 @@ const TEST_PREVIEW_DATA: ThermalPreviewData = {
 const TEST_HTML = `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
 <style>
-  @page { margin: 0; size: 58mm auto; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Courier New', Courier, monospace; font-size: 9pt; line-height: 1.4;
-         width: 54mm; padding: 1mm 2mm; color: #000; }
+  body { font-family: 'Courier New', Courier, monospace; font-size: 24px; line-height: 1.4;
+         width: 384px; padding: 8px 12px 16px 12px; color: #000; background: #fff; }
   .c  { text-align: center; }
   .b  { font-weight: bold; }
-  .hr { border: none; border-top: 1px dashed #555; margin: 3px 0; }
+  .lg { font-size: 32px; }
+  .sm { font-size: 18px; color: #444; }
+  .hr { border: none; border-top: 1px dashed #555; margin: 6px 0; }
+  .row { display: flex; justify-content: space-between; }
 </style></head><body>
-<p class="c b" style="font-size:13pt">FixITPro POS</p>
+<p class="c b lg">FixITPro POS</p>
 <div class="hr"></div>
 <p class="c b">Printer Test OK</p>
 <div class="hr"></div>
-<p class="c" style="font-size:8pt">ESC/POS · 58mm · 203dpi</p>
-<p class="c" style="font-size:8pt">ทดสอบการพิมพ์สำเร็จ</p>
-<p class="c" style="font-size:8pt">Thai font rendering OK</p>
+<div class="row sm"><span>ESC/POS</span><span>Ready</span></div>
+<div class="row sm"><span>Bitmap width</span><span>384 px</span></div>
+<div class="row sm"><span>Thai text</span><span>ทดสอบ OK</span></div>
 <div class="hr"></div>
-<br><br>
+<p class="c sm">ทดสอบการพิมพ์สำเร็จ</p>
 </body></html>`
 
 export default function PrinterTestPage() {

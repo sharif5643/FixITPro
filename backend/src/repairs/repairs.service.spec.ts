@@ -18,7 +18,8 @@ describe('RepairsService.processPayment — P0-1', () => {
     const auditLog = { log: jest.fn(), logWithTx: jest.fn() };
     const warranties = { createForRepair: jest.fn().mockResolvedValue({}) };
     const lineMsg = { notifyRepairStatus: jest.fn().mockResolvedValue(null) };
-    service = new (RepairsService as any)(prisma, auditLog, warranties, lineMsg);
+    const accounting = { record: jest.fn().mockResolvedValue(null) };
+    service = new (RepairsService as any)(prisma, auditLog, warranties, lineMsg, accounting);
 
     (prisma.shift.findFirst as jest.Mock).mockResolvedValue({ id: 'shift1' });
     (prisma.repair.findFirst as jest.Mock).mockResolvedValue(MOCK_REPAIR);
@@ -31,6 +32,7 @@ describe('RepairsService.processPayment — P0-1', () => {
       const tx = {
         repair: {
           updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findUnique: jest.fn().mockResolvedValue({ branchId: null, branch: null }),
           findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_REPAIR),
         },
         auditLog: { create: jest.fn() },
@@ -50,6 +52,7 @@ describe('RepairsService.processPayment — P0-1', () => {
       const tx = {
         repair: {
           updateMany: jest.fn().mockResolvedValue({ count }),
+          findUnique: jest.fn().mockResolvedValue({ branchId: null, branch: null }),
           findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_REPAIR),
         },
         auditLog: { create: jest.fn() },

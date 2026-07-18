@@ -5,15 +5,18 @@ import type { Product } from '@/types'
 export interface CartItem {
   product: Product
   quantity: number
+  serialIds?: string[]   // pre-selected serial IDs (hasSerial products only)
+  itemDiscount?: number  // per-item discount in baht (applied per unit)
 }
 
 interface CartStore {
   items: CartItem[]
   discount: number
-  addItem: (product: Product) => void
+  addItem: (product: Product, serialIds?: string[]) => void
   removeItem: (productId: string) => void
   updateQuantity: (productId: string, quantity: number) => void
   setDiscount: (discount: number) => void
+  setItemDiscount: (productId: string, discount: number) => void
   clearCart: () => void
 }
 
@@ -23,8 +26,31 @@ export const useCartStore = create<CartStore>()(
       items: [],
       discount: 0,
 
-      addItem: (product) => {
-        const items     = get().items
+      addItem: (product, serialIds) => {
+        const items = get().items
+
+        // hasSerial products: quantity = serialIds.length; replace selection on re-add
+        if (product.hasSerial && serialIds !== undefined) {
+          if (serialIds.length === 0) {
+            set({ items: items.filter((i) => i.product.id !== product.id) })
+            return
+          }
+          const existing = items.find((i) => i.product.id === product.id)
+          if (existing) {
+            set({
+              items: items.map((i) =>
+                i.product.id === product.id
+                  ? { ...i, quantity: serialIds.length, serialIds }
+                  : i,
+              ),
+            })
+          } else {
+            set({ items: [...items, { product, quantity: serialIds.length, serialIds }] })
+          }
+          return
+        }
+
+        // Non-serial products: increment quantity (original logic)
         // branchQuantity is set by the backend when a branchId is in scope.
         // Use 0 as the strict fallback — never shadow-promote via product.stock,
         // which is a denormalized sum and can be stale / cross-branch.
@@ -54,6 +80,8 @@ export const useCartStore = create<CartStore>()(
         }
         const item = get().items.find((i) => i.product.id === productId)
         if (!item) return
+        // hasSerial items: quantity is locked to serialIds.length — ignore manual changes
+        if (item.serialIds) return
         const available = item.product.branchQuantity ?? 0
         if (quantity > available) return
         set({
@@ -62,6 +90,15 @@ export const useCartStore = create<CartStore>()(
           ),
         })
       },
+
+      setItemDiscount: (productId, discount) =>
+        set({
+          items: get().items.map((i) =>
+            i.product.id === productId
+              ? { ...i, itemDiscount: Math.max(0, Math.min(discount, Number(i.product.price))) }
+              : i,
+          ),
+        }),
 
       setDiscount: (discount) => set({ discount: Math.max(0, discount) }),
       clearCart: () => set({ items: [], discount: 0 }),

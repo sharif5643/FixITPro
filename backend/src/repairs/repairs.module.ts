@@ -6,9 +6,10 @@ import { PermissionGuard } from '../common/guards/permission.guard';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { WarrantiesModule } from '../warranties/warranties.module';
 import { LineMessagingModule } from '../line-messaging/line-messaging.module';
+import { AccountingModule } from '../accounting/accounting.module';
 
 @Module({
-  imports:     [AuditLogModule, WarrantiesModule, LineMessagingModule],
+  imports:     [AuditLogModule, WarrantiesModule, LineMessagingModule, AccountingModule],
   controllers: [RepairsController],
   providers:   [RepairsService, TenantActiveGuard, PermissionGuard],
   exports:     [RepairsService],

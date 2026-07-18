@@ -12,6 +12,7 @@ import {
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useCartStore } from '@/store/cart.store'
+import { SerialPickerDialog } from '@/components/pos/serial-picker-dialog'
 import { useNativeScanner } from '@/hooks/useNativeScanner'
 import { Platform } from '@/lib/platform'
 import { beepSuccess, beepError, haptic } from '@/lib/beep'
@@ -230,10 +231,11 @@ interface ProductSearchProps {
 
 export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>(
   ({ category = 'ALL', onCategoryChange }, ref) => {
-    const [search, setSearch]                 = useState('')
-    const [transferProduct, setTransferProduct] = useState<Product | null>(null)
-    const [favorites, setFavorites]           = useState<string[]>([])
-    const [recentSearches, setRecentSearches] = useState<string[]>([])
+    const [search, setSearch]                     = useState('')
+    const [transferProduct, setTransferProduct]   = useState<Product | null>(null)
+    const [pendingSerialProduct, setPendingSerialProduct] = useState<Product | null>(null)
+    const [favorites, setFavorites]               = useState<string[]>([])
+    const [recentSearches, setRecentSearches]     = useState<string[]>([])
 
     const inputRef   = useRef<HTMLInputElement>(null)
     const burstStart = useRef<number | null>(null)
@@ -303,10 +305,15 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
         beepError(); haptic(80)
         return
       }
+      // hasSerial: open serial picker so the cashier assigns an IMEI before adding
+      if (match.hasSerial) {
+        setPendingSerialProduct(match)
+        return
+      }
       addItem(match)
       toast.success(`เพิ่มสินค้าแล้ว — ${match.name}`, { duration: 1200 })
       beepSuccess(); haptic(40)
-    }, [products, stockOf, addItem]))
+    }, [products, stockOf, addItem, setPendingSerialProduct]))
 
     // ── Category + filtered lists ───────────────────────────────────────────
 
@@ -371,6 +378,12 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
         beepError(); haptic(80)
         return
       }
+      // hasSerial: open serial picker — don't auto-add without an IMEI assignment
+      if (target.hasSerial) {
+        setSearch('')
+        setPendingSerialProduct(target)
+        return
+      }
       const currentInCart = cartItems.find((i) => i.product.id === target.id)?.quantity ?? 0
       if (currentInCart >= qty) {
         toast.error(`${target.name} — สต็อกไม่พอ คงเหลือ ${qty} ชิ้น`, { duration: 2000 })
@@ -388,7 +401,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
       }
       setSearch('')
       requestAnimationFrame(() => inputRef.current?.focus())
-    }, [products, filtered, stockOf, addItem, recentSearches])
+    }, [products, filtered, stockOf, addItem, recentSearches, setPendingSerialProduct])
 
     function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
       const val = e.target.value
@@ -421,6 +434,11 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
         if (hasOther) { setTransferProduct(product); return }
         return
       }
+      // hasSerial: open serial picker before adding to cart
+      if (product.hasSerial) {
+        setPendingSerialProduct(product)
+        return
+      }
       // Check if adding one more would exceed the branch stock
       const currentInCart = getCartQty(product.id)
       if (currentInCart >= qty) {
@@ -431,6 +449,18 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
       addItem(product)
       toast.success(`เพิ่มสินค้าแล้ว — ${product.name}`, { duration: 1000 })
       beepSuccess(); haptic(40)
+      if (search) { setSearch(''); requestAnimationFrame(() => inputRef.current?.focus()) }
+    }
+
+    function handleSerialConfirm(serialIds: string[]) {
+      if (!pendingSerialProduct) return
+      addItem(pendingSerialProduct, serialIds)
+      toast.success(
+        `เพิ่ม ${pendingSerialProduct.name} — ${serialIds.length} serial`,
+        { duration: 1500 },
+      )
+      beepSuccess(); haptic(40)
+      setPendingSerialProduct(null)
       if (search) { setSearch(''); requestAnimationFrame(() => inputRef.current?.focus()) }
     }
 
@@ -457,7 +487,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
               ref={inputRef}
               id="pos-search"
               type="text"
-              placeholder={isNative ? 'ค้นหา / สแกนบาร์โค้ด...' : 'ค้นหา / สแกนบาร์โค้ด (Enter เพื่อเพิ่ม)'}
+              placeholder={isNative ? 'ชื่อ / บาร์โค้ด / IMEI / Serial...' : 'ชื่อสินค้า / บาร์โค้ด / IMEI / Serial (Enter เพื่อเพิ่ม)'}
               value={search}
               onChange={handleSearchChange}
               onKeyDown={handleSearchKeyDown}
@@ -646,6 +676,14 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
           product={transferProduct}
           currentBranchId={effectiveBranch}
           currentBranchName={branchName}
+        />
+
+        <SerialPickerDialog
+          open={!!pendingSerialProduct}
+          product={pendingSerialProduct}
+          initialSelected={cartItems.find((i) => i.product.id === pendingSerialProduct?.id)?.serialIds}
+          onConfirm={handleSerialConfirm}
+          onClose={() => setPendingSerialProduct(null)}
         />
       </div>
     )

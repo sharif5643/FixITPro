@@ -1,22 +1,41 @@
 /**
  * seed-prod-super-admin.ts
  *
- * Creates or repairs the SUPER_ADMIN account in fixitpro_prod.
- * Safe to re-run: only touches admin@fixitpro.com and ShopSettings row 1.
+ * Creates or resets the SUPER_ADMIN account in production.
+ * Safe to re-run: only touches SUPER_ADMIN_EMAIL and ShopSettings row 1.
  * All other users and data are left completely unchanged.
  *
+ * RC2-003: Credentials must come from environment variables. Never hardcode them.
+ * The script aborts if any required variable is missing or weak.
+ *
  * Usage:
+ *   SUPER_ADMIN_PASSWORD=<strong-password> npm run seed:prod-super-admin
+ *
+ * Or set all variables in .env.production before running:
  *   npm run seed:prod-super-admin
- * or explicitly:
- *   DATABASE_URL=postgresql://postgres:123456@localhost:5432/fixitpro_prod npx ts-node prisma/seed-prod-super-admin.ts
  */
 
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-// Default to PROD if no DATABASE_URL is set — never touches DEV.
+// ── Credential policy ─────────────────────────────────────────────────────────
+const KNOWN_WEAK_PASSWORDS = new Set([
+  'admin1234', 'admin123', 'admin', 'password', '123456',
+  'changeme', 'change_this_password', 'REPLACE_WITH_STRONG_PASSWORD',
+  'superadmin', 'super', 'fixitpro', 'test', 'qwerty',
+]);
+const MIN_PASSWORD_LENGTH = 12;
+
+// ── Require DATABASE_URL explicitly — no fallback to hardcoded prod URL ───────
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'postgresql://postgres:123456@localhost:5432/fixitpro_prod';
+  console.error('');
+  console.error('  ERROR: DATABASE_URL is not set.');
+  console.error('  Set it explicitly before running this script:');
+  console.error('    DATABASE_URL=postgresql://fixitpro_app:<password>@localhost:5432/fixitpro_prod \\');
+  console.error('    SUPER_ADMIN_PASSWORD=<strong-password> \\');
+  console.error('    npm run seed:prod-super-admin');
+  console.error('');
+  process.exit(1);
 }
 
 const db     = process.env.DATABASE_URL;
@@ -27,25 +46,39 @@ console.log('  seed-prod-super-admin');
 console.log(`  Database : ${dbName}`);
 console.log('');
 
-if (dbName.includes('dev')) {
+if (dbName.includes('dev') || dbName === 'fixitpro') {
   console.error('  ABORT: DATABASE_URL points to a dev database. Refusing to run.');
   process.exit(1);
 }
 
+// ── Validate SUPER_ADMIN_PASSWORD ─────────────────────────────────────────────
+const SUPER_ADMIN_EMAIL    = process.env.SUPER_ADMIN_EMAIL ?? 'admin@fixitpro.com';
+const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD;
+
+if (!SUPER_ADMIN_PASSWORD) {
+  console.error('  ERROR: SUPER_ADMIN_PASSWORD is not set.');
+  console.error('  Set it as an environment variable before running this script.');
+  process.exit(1);
+}
+
+if (SUPER_ADMIN_PASSWORD.length < MIN_PASSWORD_LENGTH) {
+  console.error(`  ERROR: SUPER_ADMIN_PASSWORD is too short (${SUPER_ADMIN_PASSWORD.length} chars, minimum ${MIN_PASSWORD_LENGTH}).`);
+  process.exit(1);
+}
+
+if (KNOWN_WEAK_PASSWORDS.has(SUPER_ADMIN_PASSWORD)) {
+  console.error('  ERROR: SUPER_ADMIN_PASSWORD is a known weak or placeholder value. Use a strong unique password.');
+  process.exit(1);
+}
+
+const BCRYPT_ROUNDS = 12;
+
 const prisma = new PrismaClient();
 
-const SUPER_ADMIN_EMAIL    = 'admin@fixitpro.com';
-const SUPER_ADMIN_PASSWORD = 'admin1234';
-const BCRYPT_ROUNDS        = 12; // must match AuthService
-
 async function main() {
-  // ── 1. Hash password (same method as AuthService) ──────────────────────────
   console.log('  Hashing password...');
-  const hashedPassword = await bcrypt.hash(SUPER_ADMIN_PASSWORD, BCRYPT_ROUNDS);
+  const hashedPassword = await bcrypt.hash(SUPER_ADMIN_PASSWORD!, BCRYPT_ROUNDS);
 
-  // ── 2. Upsert SUPER_ADMIN user ─────────────────────────────────────────────
-  // update block always runs so an existing user with a broken hash is repaired.
-  // Only admin@fixitpro.com is touched — no other rows are written.
   const existing = await prisma.user.findUnique({ where: { email: SUPER_ADMIN_EMAIL } });
 
   if (existing) {
@@ -79,7 +112,6 @@ async function main() {
     console.log('  Super admin : CREATED');
   }
 
-  // ── 3. Ensure ShopSettings row exists ─────────────────────────────────────
   await prisma.shopSettings.upsert({
     where:  { id: 1 },
     create: { id: 1 },
@@ -87,13 +119,11 @@ async function main() {
   });
   console.log('  ShopSettings: OK');
 
-  // ── 4. Summary ─────────────────────────────────────────────────────────────
   console.log('');
   console.log('  =========================================');
-  console.log('  DONE. Super Admin login credentials:');
-  console.log(`    Email    : ${SUPER_ADMIN_EMAIL}`);
-  console.log(`    Password : ${SUPER_ADMIN_PASSWORD}`);
-  console.log('  After login, redirects to: /super-admin/tenants');
+  console.log('  DONE. Super Admin account is ready.');
+  console.log(`    Email: ${SUPER_ADMIN_EMAIL}`);
+  console.log('    Password: [set via SUPER_ADMIN_PASSWORD env var — not logged]');
   console.log('  =========================================');
   console.log('');
 }

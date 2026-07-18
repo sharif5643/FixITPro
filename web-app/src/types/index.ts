@@ -50,7 +50,7 @@ export const ROLE_PRESET_PERMISSIONS: Partial<Record<AppRole, string[]>> = {
   MANAGER: [
     'products.view', 'products.create', 'products.edit', 'products.view_cost',
     'sales.create', 'sales.discount', 'sales.refund',
-    'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate',
+    'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
     'stock.adjust', 'stock.transfer',
     'purchase.create', 'purchase.receive',
     'supplier.pay',
@@ -60,8 +60,11 @@ export const ROLE_PRESET_PERMISSIONS: Partial<Record<AppRole, string[]>> = {
     'expenses.manage',
     'warranty.view', 'warranty.manage',
     'technician.view',
-    'notification.view',
+    'notification.view', 'notification.manage',
     'data.export',
+    'cash_drawer.open_session', 'cash_drawer.join_session', 'cash_drawer.withdraw',
+    'cash_drawer.deposit', 'cash_drawer.view_balance', 'cash_drawer.close_session',
+    'cash_drawer.approve_difference', 'cash_drawer.manual_open',
   ],
   CASHIER: [
     'products.view',
@@ -70,10 +73,12 @@ export const ROLE_PRESET_PERMISSIONS: Partial<Record<AppRole, string[]>> = {
     'serials.manage',
     'warranty.view',
     'notification.view',
+    'cash_drawer.open_session', 'cash_drawer.join_session', 'cash_drawer.withdraw',
+    'cash_drawer.deposit', 'cash_drawer.view_balance', 'cash_drawer.close_session',
   ],
   TECHNICIAN: [
     'products.view',
-    'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate',
+    'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
     'serials.manage',
     'warranty.view', 'warranty.manage',
     'technician.view',
@@ -167,7 +172,7 @@ export interface TenantPayment {
 export const ALL_PERMISSIONS = [
   'products.view', 'products.create', 'products.edit', 'products.delete', 'products.view_cost',
   'sales.create', 'sales.discount', 'sales.refund',
-  'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate',
+  'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
   'stock.adjust',
   'purchase.create', 'purchase.receive',
   'supplier.pay',
@@ -187,6 +192,15 @@ export const ALL_PERMISSIONS = [
   'notification.view',
   'notification.manage',
   'system.backup',
+  // Cash Drawer
+  'cash_drawer.open_session',
+  'cash_drawer.join_session',
+  'cash_drawer.withdraw',
+  'cash_drawer.deposit',
+  'cash_drawer.view_balance',
+  'cash_drawer.close_session',
+  'cash_drawer.approve_difference',
+  'cash_drawer.manual_open',
 ] as const
 
 export type Permission = (typeof ALL_PERMISSIONS)[number]
@@ -204,6 +218,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   'repair.edit': 'แก้ไขงานซ่อม',
   'repair.close': 'ปิดงานซ่อม',
   'repair.approve_estimate': 'อนุมัติใบประเมิน',
+  'repairs.qc.perform': 'ทำ QC งานซ่อม',
   'stock.adjust': 'ปรับสต็อก',
   'purchase.create': 'สร้างใบสั่งซื้อ',
   'purchase.receive': 'รับสินค้าเข้า',
@@ -224,12 +239,20 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   'notification.view': 'ดูการแจ้งเตือน',
   'notification.manage': 'จัดการการแจ้งเตือน',
   'system.backup': 'สำรองข้อมูล',
+  'cash_drawer.open_session': 'เปิดรอบลิ้นชัก',
+  'cash_drawer.join_session': 'เข้าร่วมรอบลิ้นชัก',
+  'cash_drawer.withdraw': 'เบิกเงินออกจากลิ้นชัก',
+  'cash_drawer.deposit': 'เติมเงินเข้าลิ้นชัก',
+  'cash_drawer.view_balance': 'ดูยอดเงินคงเหลือ',
+  'cash_drawer.close_session': 'ปิดรอบลิ้นชัก',
+  'cash_drawer.approve_difference': 'อนุมัติยอดเงินขาด/เกิน',
+  'cash_drawer.manual_open': 'เปิดลิ้นชักด้วยคำสั่ง',
 }
 
 export const PERMISSION_GROUPS = [
   { label: 'สินค้า', perms: ['products.view','products.create','products.edit','products.delete','products.view_cost'] },
   { label: 'การขาย', perms: ['sales.create','sales.discount','sales.refund'] },
-  { label: 'งานซ่อม', perms: ['repair.create','repair.edit','repair.close','repair.approve_estimate'] },
+  { label: 'งานซ่อม', perms: ['repair.create','repair.edit','repair.close','repair.approve_estimate','repairs.qc.perform'] },
   { label: 'สต็อก', perms: ['stock.adjust'] },
   { label: 'ใบสั่งซื้อ', perms: ['purchase.create','purchase.receive','supplier.pay'] },
   { label: 'รายงาน & ตั้งค่า', perms: ['reports.view','settings.manage'] },
@@ -240,6 +263,7 @@ export const PERMISSION_GROUPS = [
   { label: 'ข้อมูล', perms: ['data.export', 'data.import'] },
   { label: 'สาขา', perms: ['branches.manage', 'stock.transfer'] },
   { label: 'ระบบ', perms: ['audit.view', 'notification.view', 'notification.manage', 'system.backup'] },
+  { label: 'ลิ้นชักเงินสด', perms: ['cash_drawer.open_session','cash_drawer.join_session','cash_drawer.withdraw','cash_drawer.deposit','cash_drawer.view_balance','cash_drawer.close_session','cash_drawer.approve_difference','cash_drawer.manual_open'] },
 ] as const
 
 export interface User {

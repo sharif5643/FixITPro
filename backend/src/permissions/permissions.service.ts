@@ -24,6 +24,15 @@ export const ROLE_PRESETS: Record<string, string[]> = {
     'technician.view',
     'notification.view', 'notification.manage',
     'data.export',
+    // Cash Drawer — Manager gets all
+    'cash_drawer.open_session',
+    'cash_drawer.join_session',
+    'cash_drawer.withdraw',
+    'cash_drawer.deposit',
+    'cash_drawer.view_balance',
+    'cash_drawer.close_session',
+    'cash_drawer.approve_difference',
+    'cash_drawer.manual_open',
   ],
   CASHIER: [
     'products.view',
@@ -32,6 +41,13 @@ export const ROLE_PRESETS: Record<string, string[]> = {
     'serials.manage',
     'warranty.view',
     'notification.view',
+    // Cash Drawer — Cashier: operational permissions (no approve_difference, no manual_open)
+    'cash_drawer.open_session',
+    'cash_drawer.join_session',
+    'cash_drawer.withdraw',
+    'cash_drawer.deposit',
+    'cash_drawer.view_balance',
+    'cash_drawer.close_session',
   ],
   TECHNICIAN: [
     'products.view',
@@ -40,6 +56,7 @@ export const ROLE_PRESETS: Record<string, string[]> = {
     'warranty.view', 'warranty.manage',
     'technician.view',
     'notification.view',
+    // Cash Drawer — Technician: none by default
   ],
   STOCK_STAFF: [
     'products.view',
@@ -47,6 +64,7 @@ export const ROLE_PRESETS: Record<string, string[]> = {
     'purchase.create', 'purchase.receive',
     'serials.manage',
     'notification.view',
+    // Cash Drawer — Stock Staff: none by default
   ],
 };
 

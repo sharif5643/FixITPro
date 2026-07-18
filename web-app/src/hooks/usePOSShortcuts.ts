@@ -2,10 +2,20 @@ import { useEffect, useRef } from 'react'
 import { Platform } from '@/lib/platform'
 
 export interface POSShortcutHandlers {
-  /** F2 — open checkout dialog */
-  onCheckout: () => void
-  /** F4 — focus product search input */
+  /** F2 — focus product search input */
   onFocusSearch: () => void
+  /** F3 — open customer search dialog */
+  onFocusCustomerSearch: () => void
+  /** F4 — focus discount input */
+  onFocusDiscount: () => void
+  /** F5 — select QR payment method */
+  onSelectQR: () => void
+  /** F6 — select CASH payment method + focus cash input */
+  onSelectCash: () => void
+  /** F7 — select TRANSFER payment method */
+  onSelectTransfer: () => void
+  /** F8 — open checkout dialog */
+  onCheckout: () => void
   /** Ctrl+Backspace — clear entire cart */
   onClearCart: () => void
   /** Escape — clear search text or close topmost overlay */
@@ -21,15 +31,22 @@ export interface POSShortcutHandlers {
 /**
  * Global keyboard shortcuts for the POS page.
  *
- * Shortcuts are DISABLED on SUNMI/touch-only devices so they cannot interfere
- * with the on-screen keyboard or touch flow.
+ * Key map:
+ *   F2 = ค้นหาสินค้า    F3 = ค้นหาลูกค้า   F4 = ส่วนลด
+ *   F5 = QR             F6 = เงินสด         F7 = โอน
+ *   F8 = คิดเงิน
  *
- * All callbacks are kept in a ref so the effect re-runs only when `enabled`
- * changes — callers don't need to memoize handlers.
+ * Disabled on SUNMI/touch-only devices.
+ * All callbacks are kept in a ref so the effect re-runs only when `enabled` changes.
  */
 export function usePOSShortcuts({
-  onCheckout,
   onFocusSearch,
+  onFocusCustomerSearch,
+  onFocusDiscount,
+  onSelectQR,
+  onSelectCash,
+  onSelectTransfer,
+  onCheckout,
   onClearCart,
   onEscape,
   onIncreaseQty,
@@ -37,19 +54,28 @@ export function usePOSShortcuts({
   enabled = true,
 }: POSShortcutHandlers) {
   const cb = useRef({
-    onCheckout,
     onFocusSearch,
+    onFocusCustomerSearch,
+    onFocusDiscount,
+    onSelectQR,
+    onSelectCash,
+    onSelectTransfer,
+    onCheckout,
     onClearCart,
     onEscape,
     onIncreaseQty,
     onDecreaseQty,
   })
 
-  // Keep callback ref current without re-triggering the effect
   useEffect(() => {
     cb.current = {
-      onCheckout,
       onFocusSearch,
+      onFocusCustomerSearch,
+      onFocusDiscount,
+      onSelectQR,
+      onSelectCash,
+      onSelectTransfer,
+      onCheckout,
       onClearCart,
       onEscape,
       onIncreaseQty,
@@ -58,35 +84,24 @@ export function usePOSShortcuts({
   })
 
   useEffect(() => {
-    // Never install on SUNMI — touch flow must not be broken by accidental keys
     if (!enabled || Platform.isSunmiShell()) return
 
     function handler(e: KeyboardEvent) {
-      const el  = document.activeElement as HTMLElement | null
-      const tag = el?.tagName?.toLowerCase() ?? ''
+      const el     = document.activeElement as HTMLElement | null
+      const tag    = el?.tagName?.toLowerCase() ?? ''
       const inInput = tag === 'input' || tag === 'textarea' || tag === 'select'
 
-      // F-keys and Esc work regardless of focus
-      if (e.key === 'F2') {
-        e.preventDefault()
-        cb.current.onCheckout()
-        return
+      switch (e.key) {
+        case 'F2': e.preventDefault(); cb.current.onFocusSearch(); return
+        case 'F3': e.preventDefault(); cb.current.onFocusCustomerSearch(); return
+        case 'F4': e.preventDefault(); cb.current.onFocusDiscount(); return
+        case 'F5': e.preventDefault(); cb.current.onSelectQR(); return
+        case 'F6': e.preventDefault(); cb.current.onSelectCash(); return
+        case 'F7': e.preventDefault(); cb.current.onSelectTransfer(); return
+        case 'F8': e.preventDefault(); cb.current.onCheckout(); return
+        case 'Escape': cb.current.onEscape(); return
       }
 
-      if (e.key === 'F4') {
-        e.preventDefault()
-        cb.current.onFocusSearch()
-        return
-      }
-
-      if (e.key === 'Escape') {
-        // Let the Escape bubble for dialogs first via their own handlers,
-        // then call ours for search clearing if no dialog consumed it.
-        cb.current.onEscape()
-        return
-      }
-
-      // The shortcuts below only fire when the user is NOT typing in a field
       if (inInput) return
 
       if (e.ctrlKey && e.key === 'Backspace') {
@@ -94,14 +109,11 @@ export function usePOSShortcuts({
         cb.current.onClearCart()
         return
       }
-
-      // + / = both map to "increase"
       if (e.key === '+' || e.key === '=') {
         e.preventDefault()
         cb.current.onIncreaseQty()
         return
       }
-
       if (e.key === '-') {
         e.preventDefault()
         cb.current.onDecreaseQty()
@@ -111,5 +123,5 @@ export function usePOSShortcuts({
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [enabled]) // intentionally sparse — callbacks accessed via ref
+  }, [enabled])
 }

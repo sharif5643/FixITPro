@@ -35,6 +35,11 @@ Thumbs.db
 # TypeScript build cache
 *.tsbuildinfo
 
+# Android APK build artifacts — distributed separately via GitHub Releases
+# Specific prefixes only so .env.apk (a tracked template) is not affected
+FixITPro-*.apk
+FixIT+-*.apk
+
 # Upload directory (runtime data, not source)
 backend/uploads/
 

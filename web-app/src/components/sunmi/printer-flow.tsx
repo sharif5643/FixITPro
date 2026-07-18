@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Printer, Bluetooth, CheckCircle2, XCircle, ChevronRight,
@@ -44,11 +44,13 @@ export interface PrinterFlowSheetProps {
   onShare?:         () => Promise<void>  // optional share button (LINE/WhatsApp)
   onClose:          () => void
   successNavItems?: { label: string; href: string }[]
+  /** When true + default printer is saved, skip preview and print immediately (one-tap) */
+  autoPrint?:       boolean
 }
 
 // ── State machine ─────────────────────────────────────────────────────────────
 
-type FlowState = 'pick-printer' | 'preview' | 'printing' | 'success' | 'error'
+type FlowState = 'pick-printer' | 'preview' | 'auto-printing' | 'printing' | 'success' | 'error'
 
 // ── Thermal receipt preview ───────────────────────────────────────────────────
 // Full-width paper strip — same font sizes and spacing as the printed HTML so the
@@ -180,40 +182,60 @@ function PrinterPickerStep({ onSelect, onClose }: PrinterPickerProps) {
   const [selected, setSelected]           = useState<PrinterInfo | null>(null)
   const [saveDefault, setSaveDefault]     = useState(false)
   const [defaultId, setDefaultId]         = useState('')
+  const [permissionDenied, setPermissionDenied] = useState(false)
+  const [btDisabled, setBtDisabled]       = useState(false)
+  const [requestingPerm, setRequestingPerm] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        const { SunmiPrinter } = await import('@/lib/sunmi-printer')
-        const [{ printers: list }, { printerId }] = await Promise.all([
-          SunmiPrinter.getAvailablePrinters(),
-          SunmiPrinter.getDefaultPrinter(),
-        ])
-        if (cancelled) return
-        setPrinters(list)
-        setDefaultId(printerId)
-        // Auto-select default printer
-        if (printerId) {
-          const found = list.find((p) => p.id === printerId)
-          if (found) setSelected(found)
-        }
-      } catch {
-        // Native calls can fail in browser; leave list empty
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => { cancelled = true }
-  }, [])
-
-  function openBluetoothSettings() {
-    // Open Android Bluetooth settings so user can pair a new printer
+  async function load() {
+    setLoading(true)
+    setPermissionDenied(false)
+    setBtDisabled(false)
     try {
-      (window as any).AndroidInterface?.openBluetoothSettings?.()
+      const { SunmiPrinter } = await import('@/lib/sunmi-printer')
+      const [printerRes, { printerId }] = await Promise.all([
+        SunmiPrinter.getAvailablePrinters(),
+        SunmiPrinter.getDefaultPrinter(),
+      ])
+      if (printerRes.permissionDenied) { setPermissionDenied(true); return }
+      if (printerRes.bluetoothDisabled) { setBtDisabled(true); return }
+      setPrinters(printerRes.printers)
+      setDefaultId(printerId)
+      if (printerId) {
+        const found = printerRes.printers.find((p) => p.id === printerId)
+        if (found) setSelected(found)
+      }
     } catch {
-      // Not available on web — do nothing
+      // Native calls can fail in browser; leave list empty
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function openBluetoothSettings() {
+    try {
+      const { SunmiPrinter } = await import('@/lib/sunmi-printer')
+      await SunmiPrinter.openBluetoothSettings()
+    } catch {
+      // Not available on web
+    }
+  }
+
+  async function handleRequestPermission() {
+    setRequestingPerm(true)
+    try {
+      const { SunmiPrinter } = await import('@/lib/sunmi-printer')
+      const result = await SunmiPrinter.requestPermissions()
+      if (result.bluetoothConnect === 'granted') {
+        await load()
+      } else {
+        setPermissionDenied(true)
+      }
+    } catch {
+      setPermissionDenied(true)
+    } finally {
+      setRequestingPerm(false)
     }
   }
 
@@ -231,11 +253,50 @@ function PrinterPickerStep({ onSelect, onClose }: PrinterPickerProps) {
           Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-16 bg-slate-100 rounded-2xl animate-pulse" />
           ))
+        ) : permissionDenied ? (
+          <div className="flex flex-col items-center py-8 gap-4 text-slate-400 px-2">
+            <Bluetooth className="h-10 w-10 opacity-30" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-slate-600">ยังไม่ได้อนุญาตให้ใช้ Bluetooth</p>
+              <p className="text-xs mt-1 text-slate-400">กรุณาอนุญาตให้แอปใช้ Bluetooth เพื่อเชื่อมต่อเครื่องพิมพ์</p>
+            </div>
+            <button
+              onClick={handleRequestPermission}
+              disabled={requestingPerm}
+              className="w-full h-12 rounded-2xl bg-blue-600 text-white font-semibold text-sm active:bg-blue-700 disabled:opacity-60"
+            >
+              {requestingPerm ? 'กำลังขออนุญาต...' : 'อนุญาตให้ใช้ Bluetooth'}
+            </button>
+          </div>
+        ) : btDisabled ? (
+          <div className="flex flex-col items-center py-8 gap-4 text-slate-400 px-2">
+            <Bluetooth className="h-10 w-10 opacity-30" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-slate-600">กรุณาเปิด Bluetooth</p>
+              <p className="text-xs mt-1 text-slate-400">เปิด Bluetooth เพื่อค้นหาเครื่องพิมพ์ที่จับคู่ไว้</p>
+            </div>
+            <button
+              onClick={async () => { await openBluetoothSettings(); await load() }}
+              className="w-full h-12 rounded-2xl bg-blue-600 text-white font-semibold text-sm active:bg-blue-700"
+            >
+              เปิดการตั้งค่า Bluetooth
+            </button>
+          </div>
         ) : printers.length === 0 ? (
-          <div className="flex flex-col items-center py-8 text-slate-400">
-            <Bluetooth className="h-10 w-10 mb-3 opacity-30" />
-            <p className="text-sm font-medium">ไม่พบเครื่องพิมพ์</p>
-            <p className="text-xs mt-1 text-center">กรุณาเปิด Bluetooth และจับคู่เครื่องพิมพ์ก่อน</p>
+          <div className="flex flex-col items-center py-8 text-slate-400 gap-3 px-2">
+            <Bluetooth className="h-10 w-10 opacity-30" />
+            <div className="text-center">
+              <p className="text-sm font-semibold text-slate-600">ไม่พบเครื่องพิมพ์ที่จับคู่ไว้</p>
+              <p className="text-xs mt-1 text-slate-400">
+                กรุณาจับคู่เครื่องพิมพ์จากการตั้งค่า Bluetooth ของ Android ก่อน
+              </p>
+            </div>
+            <button
+              onClick={openBluetoothSettings}
+              className="w-full h-12 rounded-2xl bg-slate-800 text-white font-semibold text-sm active:bg-slate-700"
+            >
+              เปิดการตั้งค่า Bluetooth เพื่อจับคู่
+            </button>
           </div>
         ) : (
           printers.map((p) => {
@@ -286,7 +347,7 @@ function PrinterPickerStep({ onSelect, onClose }: PrinterPickerProps) {
           })
         )}
 
-        {/* Add new printer */}
+        {/* Open Bluetooth settings to pair new printer */}
         <button
           onClick={openBluetoothSettings}
           className="w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 active:border-slate-300"
@@ -295,8 +356,8 @@ function PrinterPickerStep({ onSelect, onClose }: PrinterPickerProps) {
             <Settings className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-sm font-medium text-slate-600">เชื่อมต่อเครื่องพิมพ์ใหม่</p>
-            <p className="text-xs text-slate-400">เปิดการตั้งค่า Bluetooth</p>
+            <p className="text-sm font-medium text-slate-600">จับคู่เครื่องพิมพ์ใหม่</p>
+            <p className="text-xs text-slate-400">เปิดการตั้งค่า Bluetooth ของ Android</p>
           </div>
         </button>
       </div>
@@ -581,11 +642,25 @@ function ErrorStep({ message, onRetry, onClose }: { message: string; onRetry: ()
   )
 }
 
+// ── Auto-print in progress step ──────────────────────────────────────────────
+
+function PrintingStep({ printerName }: { printerName: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center flex-1 gap-4 px-4 py-16">
+      <span className="h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-slate-800" />
+      <div className="text-center">
+        <p className="font-bold text-slate-800 text-base">กำลังส่งไปเครื่องพิมพ์...</p>
+        <p className="text-xs text-slate-400 mt-1">{printerName}</p>
+      </div>
+    </div>
+  )
+}
+
 // ── Main PrinterFlowSheet ─────────────────────────────────────────────────────
 
 export function PrinterFlowSheet({
   receiptHtml, jobName, previewData,
-  onShare, onClose, successNavItems,
+  onShare, onClose, successNavItems, autoPrint,
 }: PrinterFlowSheetProps) {
   const isNative = Platform.isNative()
 
@@ -593,24 +668,39 @@ export function PrinterFlowSheet({
   const [state,    setState]   = useState<FlowState>(isNative ? 'pick-printer' : 'preview')
   const [printer,  setPrinter] = useState<PrinterInfo | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const autoPrintFiredRef      = useRef(false)
 
   // Android back button
   useEffect(() => pushBackHandler(onClose), [onClose])
 
-  // On native, auto-load the default printer — if set, jump straight to preview
+  // On native, auto-load the default printer — if set, jump to preview (or auto-print)
   useEffect(() => {
     if (!isNative) return
     let cancelled = false
     async function tryDefault() {
       try {
         const { SunmiPrinter } = await import('@/lib/sunmi-printer')
-        const { printerId, printerName } = await SunmiPrinter.getDefaultPrinter()
+        const { printerId } = await SunmiPrinter.getDefaultPrinter()
         if (cancelled || !printerId) return
-        // Confirm the printer is still listed as available
         const { printers } = await SunmiPrinter.getAvailablePrinters()
         const found = printers.find((p) => p.id === printerId && p.available)
-        if (found && !cancelled) {
-          setPrinter(found)
+        if (!found || cancelled) return
+        setPrinter(found)
+        if (autoPrint && !autoPrintFiredRef.current) {
+          // One-tap: skip preview and print immediately
+          autoPrintFiredRef.current = true
+          setState('auto-printing')
+          try {
+            const res = await SunmiPrinter.printHtml({ html: receiptHtml, printerId: found.id, jobName })
+            if (!res.success) throw new Error(res.error ?? 'พิมพ์ไม่สำเร็จ กรุณาลองใหม่')
+            if (!cancelled) setState('success')
+          } catch (e: any) {
+            if (!cancelled) {
+              setErrorMsg(e?.message ?? 'พิมพ์ไม่สำเร็จ กรุณาลองใหม่')
+              setState('error')
+            }
+          }
+        } else {
           setState('preview')
         }
       } catch {
@@ -619,6 +709,8 @@ export function PrinterFlowSheet({
     }
     tryDefault()
     return () => { cancelled = true }
+  // autoPrint, receiptHtml, jobName are stable props — only re-run when isNative changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNative])
 
   const handlePickerSelect = useCallback(async (p: PrinterInfo, save: boolean) => {
@@ -673,6 +765,13 @@ export function PrinterFlowSheet({
           </div>
         )}
 
+        {/* Step: Auto-printing (one-tap, skip preview) */}
+        {state === 'auto-printing' && (
+          <div className="flex-1 flex flex-col min-h-0">
+            <PrintingStep printerName={printer?.name ?? ''} />
+          </div>
+        )}
+
         {/* Step: Preview + print */}
         {(state === 'preview' || state === 'printing') && (
           <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
@@ -705,7 +804,7 @@ export function PrinterFlowSheet({
         {state === 'error' && (
           <ErrorStep
             message={errorMsg}
-            onRetry={() => setState('preview')}
+            onRetry={() => { autoPrintFiredRef.current = false; setState('preview') }}
             onClose={onClose}
           />
         )}

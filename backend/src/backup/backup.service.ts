@@ -7,6 +7,7 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BackupS3Service } from './backup-s3.service';
 import * as path from 'path';
 import { backupDir as defaultBackupDir, uploadsBaseDir } from '../common/storage-paths';
 import * as fs from 'fs';
@@ -20,14 +21,14 @@ const execAsync = promisify(exec);
 export class BackupService {
   private readonly logger = new Logger(BackupService.name);
   private readonly backupDir: string;
-  // Keep backups for this many days; files older are purged automatically
   private readonly retentionDays: number;
 
   constructor(
     private auditLog: AuditLogService,
     private notif: NotificationsService,
+    private s3: BackupS3Service,
   ) {
-    this.backupDir = defaultBackupDir;
+    this.backupDir    = defaultBackupDir;
     this.retentionDays = parseInt(process.env.BACKUP_RETENTION_DAYS ?? '30', 10);
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
@@ -117,6 +118,7 @@ export class BackupService {
       backupDir:       this.backupDir,
       backupCount:     files.length,
       lastBackup,
+      offsiteEnabled:  this.s3.isEnabled,
     };
   }
 
@@ -132,14 +134,12 @@ export class BackupService {
       throw new BadRequestException('pg_dump not found. Install PostgreSQL client tools or add to PATH.');
     }
 
-    const db = this.parseDbUrl();
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[:.]/g, '-')
-      .slice(0, 19);
-    const filename = `${db.dbName}_${timestamp}.sql`;
-    const filePath = path.join(this.backupDir, filename);
+    const db        = this.parseDbUrl();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename  = `${db.dbName}_${timestamp}.sql`;
+    const filePath  = path.join(this.backupDir, filename);
 
+    // ── Step 1: pg_dump ───────────────────────────────────────────────────────
     try {
       const cmd = `${pgDumpPath} -h ${db.host} -p ${db.port} -U ${db.user} -F p -f "${filePath}" ${db.dbName}`;
       this.logger.log(`Running backup: ${cmd.replace(db.password, '***')}`);
@@ -147,49 +147,89 @@ export class BackupService {
       await execAsync(cmd, {
         env: { ...process.env, PGPASSWORD: db.password },
       });
-
-      const stat = await fsPromises.stat(filePath);
-
-      await this.auditLog.log({
-        actorId,
-        actorName,
-        action:     'BACKUP_CREATED',
-        entityType: 'Backup',
-        entityId:   filename,
-        afterData:  { filename, sizeBytes: stat.size },
-      });
-
-      await this.notif.notify({
-        type:     'BACKUP_SUCCESS',
-        title:    'Backup สำเร็จ',
-        message:  `สร้างไฟล์ ${filename} (${this.formatSize(stat.size)}) เรียบร้อยแล้ว`,
-        severity: 'INFO',
-      });
-
-      // Also archive the uploads folder — non-fatal; pg_dump is the primary backup
-      const uploadsArchive = await this.createUploadsArchive(db.dbName, timestamp);
-
-      return {
-        filename,
-        sizeBytes:     stat.size,
-        sizeFormatted: this.formatSize(stat.size),
-        createdAt:     stat.birthtime,
-        uploadsArchive,
-      };
     } catch (err) {
       this.logger.error('pg_dump failed', err);
-      // Remove partial file
       if (fs.existsSync(filePath)) {
         try { fs.unlinkSync(filePath); } catch { /* ignore */ }
       }
       await this.notif.notify({
         type:     'BACKUP_FAILED',
         title:    'Backup ล้มเหลว',
-        message:  `เกิดข้อผิดพลาดขณะสร้าง backup: ${(err as Error).message?.slice(0, 120) ?? 'unknown'}`,
+        message:  `pg_dump เกิดข้อผิดพลาด: ${(err as Error).message?.slice(0, 120) ?? 'unknown'}`,
         severity: 'ERROR',
       });
       throw new BadRequestException(`Backup failed: ${(err as Error).message}`);
     }
+
+    // ── Step 2: Verify local file exists and is non-empty ────────────────────
+    const stat = await fsPromises.stat(filePath);
+    if (stat.size === 0) {
+      fs.unlinkSync(filePath);
+      await this.notif.notify({
+        type:     'BACKUP_FAILED',
+        title:    'Backup ล้มเหลว: ไฟล์ว่างเปล่า',
+        message:  `pg_dump สร้างไฟล์ว่างเปล่า: ${filename}`,
+        severity: 'ERROR',
+      });
+      throw new BadRequestException(`Backup produced an empty file: ${filename}`);
+    }
+
+    // ── Step 3: Audit log + success notification ──────────────────────────────
+    await this.auditLog.log({
+      actorId,
+      actorName,
+      action:     'BACKUP_CREATED',
+      entityType: 'Backup',
+      entityId:   filename,
+      afterData:  { filename, sizeBytes: stat.size },
+    });
+
+    await this.notif.notify({
+      type:     'BACKUP_SUCCESS',
+      title:    'Backup สำเร็จ',
+      message:  `สร้างไฟล์ ${filename} (${this.formatSize(stat.size)}) เรียบร้อยแล้ว`,
+      severity: 'INFO',
+    });
+
+    // ── Step 4: Uploads archive (non-fatal) ───────────────────────────────────
+    const uploadsArchive = await this.createUploadsArchive(db.dbName, timestamp);
+
+    // ── Step 5: Offsite S3 upload (non-fatal — local backup is always kept) ──
+    let s3Result: { key: string; size: number } | null = null;
+    if (this.s3.isEnabled) {
+      try {
+        s3Result = await this.s3.upload(filePath, filename);
+        this.logger.log(`[S3] Offsite upload complete: ${s3Result.key}`);
+
+        // Apply S3 retention after a successful upload.
+        const s3Retention = await this.s3.applyRetention(this.retentionDays);
+        if (s3Retention.deleted.length > 0) {
+          this.logger.log(`[S3][Retention] Removed ${s3Retention.deleted.length} old remote backup(s)`);
+        }
+      } catch (s3Err) {
+        // S3 failure must never delete or corrupt the local backup.
+        this.logger.error(
+          `[S3] Offsite upload failed — local backup at ${filePath} is preserved`,
+          (s3Err as Error).message,
+        );
+        await this.notif.notify({
+          type:     'BACKUP_FAILED',
+          title:    'Backup offsite ล้มเหลว',
+          message:  `อัปโหลด backup ไป S3 ล้มเหลว (local backup ยังปลอดภัย): ${(s3Err as Error).message?.slice(0, 120)}`,
+          severity: 'ERROR',
+        });
+        // Do NOT re-throw — local backup succeeded.
+      }
+    }
+
+    return {
+      filename,
+      sizeBytes:     stat.size,
+      sizeFormatted: this.formatSize(stat.size),
+      createdAt:     stat.birthtime,
+      uploadsArchive,
+      s3:            s3Result ? { key: s3Result.key, size: s3Result.size } : null,
+    };
   }
 
   private async createUploadsArchive(

@@ -80,7 +80,9 @@ const PRODUCT_HEADERS = [
   'ชื่อสินค้า', 'SKU', 'บาร์โค้ด', 'ประเภท(PHONE/SIM/ACCESSORY/PART)',
   'ราคาขาย', 'ต้นทุน', 'สต็อก', 'สต็อกขั้นต่ำ',
 ];
-const CUSTOMER_HEADERS = ['ชื่อ', 'เบอร์โทร', 'อีเมล', 'ที่อยู่', 'หมายเหตุ'];
+const CUSTOMER_HEADERS  = ['ชื่อ', 'เบอร์โทร', 'อีเมล', 'ที่อยู่', 'หมายเหตุ'];
+const CATEGORY_HEADERS  = ['ชื่อหมวดหมู่', 'slug (ไม่บังคับ — ใส่หรือเว้นว่างให้ระบบสร้างเอง)'];
+const SUPPLIER_HEADERS  = ['ชื่อบริษัท/ร้าน', 'เบอร์โทร', 'อีเมล', 'ที่อยู่', 'เลขภาษี', 'เครดิต (วัน)', 'หมายเหตุ'];
 
 @Injectable()
 export class DataService {
@@ -280,6 +282,20 @@ export class DataService {
       const example = [['สมชาย ใจดี', '0812345678', 'somchai@email.com', 'กรุงเทพ', '']];
       return { filename: 'customers_template.csv', content: buildCSV(CUSTOMER_HEADERS, example) };
     }
+    if (type === 'categories') {
+      const example = [
+        ['อะไหล่โทรศัพท์', 'phone-parts'],
+        ['อุปกรณ์เสริม', ''],
+      ];
+      return { filename: 'categories_template.csv', content: buildCSV(CATEGORY_HEADERS, example) };
+    }
+    if (type === 'suppliers') {
+      const example = [
+        ['บริษัท ABC อะไหล่ จำกัด', '02-123-4567', 'purchase@abc.co.th', 'กรุงเทพ', '0105556789012', '30', ''],
+        ['ร้านอะไหล่โกวิท', '081-234-5678', '', '', '', '0', ''],
+      ];
+      return { filename: 'suppliers_template.csv', content: buildCSV(SUPPLIER_HEADERS, example) };
+    }
     throw new BadRequestException(`No template for type: ${type}`);
   }
 
@@ -292,8 +308,10 @@ export class DataService {
     }
     const [rawHeaders, ...dataRows] = allRows;
 
-    if (type === 'products') return this.previewProducts(rawHeaders, dataRows, tenantId);
-    if (type === 'customers') return this.previewCustomers(rawHeaders, dataRows, tenantId);
+    if (type === 'products')   return this.previewProducts(rawHeaders, dataRows, tenantId);
+    if (type === 'customers')  return this.previewCustomers(rawHeaders, dataRows, tenantId);
+    if (type === 'categories') return this.previewCategories(rawHeaders, dataRows, tenantId);
+    if (type === 'suppliers')  return this.previewSuppliers(rawHeaders, dataRows, tenantId);
     throw new BadRequestException(`Import not supported for type: ${type}`);
   }
 
@@ -364,8 +382,10 @@ export class DataService {
     const preview = await this.preview(type, csvContent, tenantId);
     let result: ImportResult;
 
-    if (type === 'products')  result = await this.importProducts(preview, tenantId);
-    else if (type === 'customers') result = await this.importCustomers(preview, tenantId);
+    if      (type === 'products')   result = await this.importProducts(preview, tenantId);
+    else if (type === 'customers')  result = await this.importCustomers(preview, tenantId);
+    else if (type === 'categories') result = await this.importCategories(preview, tenantId);
+    else if (type === 'suppliers')  result = await this.importSuppliers(preview, tenantId);
     else throw new BadRequestException(`Import not supported for type: ${type}`);
 
     // Audit log
@@ -459,6 +479,128 @@ export class DataService {
             address: address?.trim() || null,
             note:    note?.trim() || null,
             tags:    [],
+            ...this.tenantSvc.scope(tenantId),
+          },
+        });
+        imported++;
+      } catch (err: any) {
+        errors.push({ row: i + 2, message: err?.message ?? 'บันทึกไม่สำเร็จ' });
+      }
+    }
+    return { imported, skipped, errors };
+  }
+
+  // ── Categories ───────────────────────────────────────────────────────────────
+
+  private slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/[฀-๿\s]+/g, (m) => m.trim() ? m.trim().replace(/\s+/g, '-') : '-')
+      .replace(/[^a-z0-9฀-๿-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || `cat-${Date.now()}`;
+  }
+
+  private async previewCategories(headers: string[], dataRows: string[][], tenantId?: string | null): Promise<PreviewResult> {
+    const existing = await this.prisma.category.findMany({
+      where: this.tenantSvc.scope(tenantId),
+      select: { slug: true, name: true },
+    });
+    const slugSet = new Set(existing.map((c) => c.slug.toLowerCase()));
+    const nameSet = new Set(existing.map((c) => c.name.toLowerCase()));
+
+    const rows = dataRows.map((row) => {
+      const errors: string[] = [];
+      const [name, slugRaw] = row;
+      const slug = slugRaw?.trim() || this.slugify(name?.trim() ?? '');
+
+      if (!name?.trim()) errors.push('ชื่อหมวดหมู่จำเป็น');
+      if (name && nameSet.has(name.trim().toLowerCase())) errors.push(`ชื่อ "${name.trim()}" มีอยู่แล้ว`);
+      if (slug && slugSet.has(slug.toLowerCase())) errors.push(`slug "${slug}" มีอยู่แล้ว`);
+
+      return { data: [name, slug], valid: errors.length === 0, errors };
+    });
+
+    const valid = rows.filter((r) => r.valid).length;
+    return { headers: ['ชื่อหมวดหมู่', 'slug'], rows, stats: { total: rows.length, valid, invalid: rows.length - valid } };
+  }
+
+  private async importCategories(preview: PreviewResult, tenantId?: string | null): Promise<ImportResult> {
+    const errors: { row: number; message: string }[] = [];
+    let imported = 0;
+    let skipped  = 0;
+
+    for (let i = 0; i < preview.rows.length; i++) {
+      const r = preview.rows[i];
+      if (!r.valid) {
+        if (r.errors.some((e) => e.includes('มีอยู่แล้ว'))) { skipped++; }
+        else errors.push({ row: i + 2, message: r.errors.join('; ') });
+        continue;
+      }
+      const [name, slug] = r.data;
+      try {
+        await this.prisma.category.create({
+          data: {
+            name: name.trim(),
+            slug: slug.trim(),
+            ...this.tenantSvc.scope(tenantId),
+          },
+        });
+        imported++;
+      } catch (err: any) {
+        errors.push({ row: i + 2, message: err?.message ?? 'บันทึกไม่สำเร็จ' });
+      }
+    }
+    return { imported, skipped, errors };
+  }
+
+  // ── Suppliers ─────────────────────────────────────────────────────────────────
+
+  private async previewSuppliers(headers: string[], dataRows: string[][], tenantId?: string | null): Promise<PreviewResult> {
+    const existing = await this.prisma.supplier.findMany({
+      where: this.tenantSvc.scope(tenantId),
+      select: { name: true },
+    });
+    const nameSet = new Set(existing.map((s) => s.name.toLowerCase()));
+
+    const rows = dataRows.map((row) => {
+      const errors: string[] = [];
+      const [name, , , , , creditDaysRaw] = row;
+
+      if (!name?.trim()) errors.push('ชื่อจำเป็น');
+      if (name && nameSet.has(name.trim().toLowerCase())) errors.push(`ชื่อ "${name.trim()}" มีอยู่แล้ว`);
+      if (creditDaysRaw?.trim() && isNaN(Number(creditDaysRaw))) errors.push('เครดิต (วัน) ต้องเป็นตัวเลข');
+
+      return { data: row, valid: errors.length === 0, errors };
+    });
+
+    const valid = rows.filter((r) => r.valid).length;
+    return { headers, rows, stats: { total: rows.length, valid, invalid: rows.length - valid } };
+  }
+
+  private async importSuppliers(preview: PreviewResult, tenantId?: string | null): Promise<ImportResult> {
+    const errors: { row: number; message: string }[] = [];
+    let imported = 0;
+    let skipped  = 0;
+
+    for (let i = 0; i < preview.rows.length; i++) {
+      const r = preview.rows[i];
+      if (!r.valid) {
+        if (r.errors.some((e) => e.includes('มีอยู่แล้ว'))) { skipped++; }
+        else errors.push({ row: i + 2, message: r.errors.join('; ') });
+        continue;
+      }
+      const [name, phone, email, address, taxId, creditDays, note] = r.data;
+      try {
+        await this.prisma.supplier.create({
+          data: {
+            name:       name.trim(),
+            phone:      phone?.trim() || null,
+            email:      email?.trim() || null,
+            address:    address?.trim() || null,
+            taxId:      taxId?.trim() || null,
+            creditDays: creditDays ? Math.max(0, parseInt(creditDays)) : 0,
+            note:       note?.trim() || null,
             ...this.tenantSvc.scope(tenantId),
           },
         });
