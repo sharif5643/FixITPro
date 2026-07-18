@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService, LARGE_REFUND_THRESHOLD } from '../notifications/notifications.service';
+import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { RefundSaleDto } from './dto/refund-sale.dto';
 
@@ -17,6 +18,7 @@ export class SalesService {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private notif: NotificationsService,
+    private accounting: AccountingService,
   ) {}
 
   private async syncProductShadowStock(productId: string, tx: any): Promise<void> {
@@ -291,6 +293,21 @@ export class SalesService {
         }
       }
 
+      // Record CASH payment in Cash Drawer ledger (no-op if no open session or non-CASH)
+      if (branchId) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.SALE_PAYMENT,
+          sourceId:      sale.id,
+          paymentMethod: dto.paymentMethod as any,
+          amount:        sale.total,
+          direction:     'IN',
+          branchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   userId,
+          note:          sale.receiptNumber,
+        }, tx);
+      }
+
       // P0-5/6 FIX: use logWithTx so the audit row rolls back if the sale tx rolls back.
       await this.auditLog.logWithTx(tx, {
         actorId:    userId,
@@ -519,6 +536,21 @@ export class SalesService {
       const newStatus = allItemsFullyRefunded ? 'REFUNDED' : 'PARTIAL_REFUND';
       await tx.sale.update({ where: { id }, data: { status: newStatus } });
 
+      // Record CASH refund in Cash Drawer ledger (OUT — cash leaves drawer back to customer)
+      if (sale.branchId) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.SALE_REFUND,
+          sourceId:      refund.id,
+          paymentMethod: dto.paymentMethod as any,
+          amount:        totalRefund,
+          direction:     'OUT',
+          branchId:      sale.branchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   userId,
+          note:          refund.refundNumber,
+        }, tx);
+      }
+
       await this.auditLog.log({
         actorId: userId,
         action: 'SALE_REFUNDED',
@@ -634,6 +666,24 @@ export class SalesService {
         entityType: 'Sale',
         entityId:   id,
       });
+
+      // Reverse the cash ledger entry for CASH sales
+      if (sale.paymentMethod === 'CASH') {
+        await this.accounting.record(
+          {
+            sourceType:    ACCOUNTING_SOURCE.SALE_REFUND,
+            sourceId:      id,
+            direction:     'OUT',
+            amount:        Number(sale.total),
+            paymentMethod: 'CASH',
+            branchId:      sale.branchId ?? '',
+            tenantId:      tenantId ?? null,
+            actorUserId:   userId,
+            note:          `ยกเลิกบิล ${sale.receiptNumber}: ${reason}`,
+          },
+          tx,
+        );
+      }
 
       return updated;
     });

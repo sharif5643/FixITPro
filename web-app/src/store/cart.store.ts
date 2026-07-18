@@ -5,7 +5,8 @@ import type { Product } from '@/types'
 export interface CartItem {
   product: Product
   quantity: number
-  serialIds?: string[]  // pre-selected serial IDs (hasSerial products only)
+  serialIds?: string[]   // pre-selected serial IDs (hasSerial products only)
+  itemDiscount?: number  // per-item discount in baht (applied per unit)
 }
 
 interface CartStore {
@@ -15,6 +16,7 @@ interface CartStore {
   removeItem: (productId: string) => void
   updateQuantity: (productId: string, quantity: number) => void
   setDiscount: (discount: number) => void
+  setItemDiscount: (productId: string, discount: number) => void
   clearCart: () => void
 }
 
@@ -88,6 +90,15 @@ export const useCartStore = create<CartStore>()(
           ),
         })
       },
+
+      setItemDiscount: (productId, discount) =>
+        set({
+          items: get().items.map((i) =>
+            i.product.id === productId
+              ? { ...i, itemDiscount: Math.max(0, Math.min(discount, Number(i.product.price))) }
+              : i,
+          ),
+        }),
 
       setDiscount: (discount) => set({ discount: Math.max(0, discount) }),
       clearCart: () => set({ items: [], discount: 0 }),

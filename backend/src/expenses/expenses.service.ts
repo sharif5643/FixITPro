@@ -8,6 +8,7 @@ import {
 
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
 import { UpdateExpenseCategoryDto } from './dto/update-expense-category.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -31,6 +32,7 @@ export class ExpensesService implements OnModuleInit {
   constructor(
     private prisma: PrismaService,
     private auditLog: AuditLogService,
+    private accounting: AccountingService,
   ) {}
 
   async onModuleInit() {
@@ -116,24 +118,49 @@ export class ExpensesService implements OnModuleInit {
       select: { id: true },
     });
     const { start } = this.thaiDateBounds(dto.expenseDate);
-    const expense = await this.prisma.expense.create({
-      data: {
-        expenseDate:   start,
-        amount:        dto.amount,
-        description:   dto.description,
-        paymentMethod: dto.paymentMethod,
-        referenceNo:   dto.referenceNo,
-        note:          dto.note,
-        categoryId:    dto.categoryId,
-        createdById:   userId,
-        shiftId:       activeShift?.id ?? null,
-        branchId:      branchId ?? null,
-      },
-      include: {
-        category:  { select: { id: true, name: true, code: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
+
+    const expense = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.expense.create({
+        data: {
+          expenseDate:   start,
+          amount:        dto.amount,
+          description:   dto.description,
+          paymentMethod: dto.paymentMethod,
+          referenceNo:   dto.referenceNo,
+          note:          dto.note,
+          categoryId:    dto.categoryId,
+          createdById:   userId,
+          shiftId:       activeShift?.id ?? null,
+          branchId:      branchId ?? null,
+        },
+        include: {
+          category:  { select: { id: true, name: true, code: true } },
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
+
+      // Record CASH expense in Cash Drawer ledger (OUT — cash leaves drawer)
+      if (branchId) {
+        const branchInfo = await tx.branch.findUnique({
+          where:  { id: branchId },
+          select: { tenantId: true },
+        });
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.EXPENSE_PAYMENT,
+          sourceId:      created.id,
+          paymentMethod: dto.paymentMethod as any,
+          amount:        dto.amount,
+          direction:     'OUT',
+          branchId,
+          tenantId:      branchInfo?.tenantId ?? null,
+          actorUserId:   userId,
+          note:          dto.description,
+        }, tx);
+      }
+
+      return created;
     });
+
     await this.auditLog.log({
       actorId: userId,
       action: 'EXPENSE_CREATED',

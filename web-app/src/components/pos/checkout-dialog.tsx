@@ -53,6 +53,8 @@ interface CheckoutDialogProps {
   onSuccess: (sale: Sale) => void
   initialPaymentMethod?: 'CASH' | 'TRANSFER' | 'CARD'
   initialAmountPaid?: number
+  initialCustomerName?: string
+  initialCustomerPhone?: string
 }
 
 // ─── Serial Selection Step ────────────────────────────────────────────────────
@@ -210,6 +212,8 @@ export function CheckoutDialog({
   onSuccess,
   initialPaymentMethod,
   initialAmountPaid,
+  initialCustomerName,
+  initialCustomerPhone,
 }: CheckoutDialogProps) {
   const queryClient = useQueryClient()
 
@@ -252,12 +256,12 @@ export function CheckoutDialog({
       reset({
         paymentMethod: initialPaymentMethod ?? 'CASH',
         amountPaid:    initialAmountPaid    ?? total,
-        customerName:  '',
-        customerPhone: '',
+        customerName:  initialCustomerName  ?? '',
+        customerPhone: initialCustomerPhone ?? '',
         note:          '',
       })
     }
-  }, [open, total, reset, hasSerialItems, initialPaymentMethod, initialAmountPaid])
+  }, [open, total, reset, hasSerialItems, initialPaymentMethod, initialAmountPaid, initialCustomerName, initialCustomerPhone])
 
   useEffect(() => {
     if (paymentMethod !== 'CASH') setValue('amountPaid', total)
@@ -285,7 +289,7 @@ export function CheckoutDialog({
         items: cartItems.map((i) => ({
           productId: i.product.id,
           quantity:  i.quantity,
-          price:     Number(i.product.price),
+          price:     Number(i.product.price) - (i.itemDiscount ?? 0),
           serialIds: i.product.hasSerial ? (serialAssignments[i.product.id] ?? []) : undefined,
         })),
       })

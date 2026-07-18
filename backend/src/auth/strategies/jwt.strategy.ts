@@ -27,6 +27,15 @@ export const ALL_PERMISSIONS = [
   'data.import',
   'branches.manage',
   'stock.transfer',
+  // Cash Drawer
+  'cash_drawer.open_session',
+  'cash_drawer.join_session',
+  'cash_drawer.withdraw',
+  'cash_drawer.deposit',
+  'cash_drawer.view_balance',
+  'cash_drawer.close_session',
+  'cash_drawer.approve_difference',
+  'cash_drawer.manual_open',
 ];
 
 @Injectable()

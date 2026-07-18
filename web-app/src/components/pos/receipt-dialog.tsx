@@ -31,7 +31,6 @@ interface ReceiptDialogProps {
 export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [flowOpen,    setFlowOpen]    = useState(false)
-  const [isPrinting,  setIsPrinting]  = useState(false)
   const user = useAuthStore((s) => s.user)
 
   const { data: settings } = useQuery<ShopSettings>({
@@ -195,9 +194,9 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
                 variant="outline"
                 className="w-full gap-1.5"
                 onClick={handlePrint}
-                disabled={isPrinting}
+                disabled={flowOpen}
               >
-                {isPrinting ? (
+                {flowOpen ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Printer className="h-4 w-4" />

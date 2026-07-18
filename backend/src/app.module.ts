@@ -43,6 +43,9 @@ import { FilesModule } from './files/files.module';
 import { ModulesModule } from './modules/modules.module';
 import { TenantModule } from './tenant/tenant.module';
 import { ChatModule } from './chat/chat.module';
+import { CashDrawerModule } from './cash-drawer/cash-drawer.module';
+import { AccountingModule } from './accounting/accounting.module';
+import { ReconciliationModule } from './reconciliation/reconciliation.module';
 
 @Module({
   controllers: [HealthController],
@@ -101,6 +104,9 @@ import { ChatModule } from './chat/chat.module';
     ModulesModule,
     TenantModule,
     ChatModule,
+    CashDrawerModule,
+    AccountingModule,
+    ReconciliationModule,
   ],
 })
 export class AppModule {}

@@ -305,10 +305,15 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
         beepError(); haptic(80)
         return
       }
+      // hasSerial: open serial picker so the cashier assigns an IMEI before adding
+      if (match.hasSerial) {
+        setPendingSerialProduct(match)
+        return
+      }
       addItem(match)
       toast.success(`เพิ่มสินค้าแล้ว — ${match.name}`, { duration: 1200 })
       beepSuccess(); haptic(40)
-    }, [products, stockOf, addItem]))
+    }, [products, stockOf, addItem, setPendingSerialProduct]))
 
     // ── Category + filtered lists ───────────────────────────────────────────
 
@@ -373,6 +378,12 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
         beepError(); haptic(80)
         return
       }
+      // hasSerial: open serial picker — don't auto-add without an IMEI assignment
+      if (target.hasSerial) {
+        setSearch('')
+        setPendingSerialProduct(target)
+        return
+      }
       const currentInCart = cartItems.find((i) => i.product.id === target.id)?.quantity ?? 0
       if (currentInCart >= qty) {
         toast.error(`${target.name} — สต็อกไม่พอ คงเหลือ ${qty} ชิ้น`, { duration: 2000 })
@@ -390,7 +401,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
       }
       setSearch('')
       requestAnimationFrame(() => inputRef.current?.focus())
-    }, [products, filtered, stockOf, addItem, recentSearches])
+    }, [products, filtered, stockOf, addItem, recentSearches, setPendingSerialProduct])
 
     function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
       const val = e.target.value

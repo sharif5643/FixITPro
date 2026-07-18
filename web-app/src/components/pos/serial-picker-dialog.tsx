@@ -47,9 +47,11 @@ export function SerialPickerDialog({
     : serials
 
   function toggle(id: string) {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
+    setSelected((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id)
+      if (prev.length >= available) return prev
+      return [...prev, id]
+    })
   }
 
   function handleConfirm() {
