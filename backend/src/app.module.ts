@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { GlobalThrottlerGuard } from './common/guards/global-throttler.guard';
 import { DatabaseModule } from './database/database.module';
 import { HealthController } from './health.controller';
 import { AuthModule } from './auth/auth.module';
@@ -49,19 +51,26 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
 
 @Module({
   controllers: [HealthController],
+  providers: [
+    // RC2-002: Apply 300 req/min default throttle globally. Named auth throttlers
+    // (auth_login etc.) are skipped by GlobalThrottlerGuard and remain per-route only.
+    { provide: APP_GUARD, useClass: GlobalThrottlerGuard },
+  ],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       // Load environment-specific .env file first, then fall back to .env
       envFilePath: [`.env.${process.env.NODE_ENV || 'development'}`, '.env'],
     }),
-    // P0-3: Named throttlers — each auth endpoint gets its own independent counter.
-    // No APP_GUARD registered: only routes that explicitly add @UseGuards(ThrottlerGuard) are affected.
+    // RC2-002: 'default' throttler is enforced globally via GlobalThrottlerGuard (APP_GUARD).
+    // Named throttlers are per-route opt-in only — GlobalThrottlerGuard skips them so they
+    // never leak onto general API endpoints.
     ThrottlerModule.forRoot([
-      { name: 'auth_login',      ttl: 60 * 1000,        limit: 20 }, // 20 per minute
-      { name: 'auth_register',   ttl: 60 * 60 * 1000,  limit: 3  }, // 3 per hour
-      { name: 'auth_change_pwd', ttl: 15 * 60 * 1000,  limit: 5  }, // 5 per 15 min
-      { name: 'public_tracking', ttl: 60 * 1000,        limit: 60 }, // 60 per minute (public)
+      { name: 'default',         ttl: 60 * 1000,        limit: 300 }, // 300 per minute (all routes)
+      { name: 'auth_login',      ttl: 60 * 1000,        limit: 20  }, // 20 per minute (login only)
+      { name: 'auth_register',   ttl: 60 * 60 * 1000,  limit: 3   }, // 3 per hour (register only)
+      { name: 'auth_change_pwd', ttl: 15 * 60 * 1000,  limit: 5   }, // 5 per 15 min (change-pwd only)
+      { name: 'public_tracking', ttl: 60 * 1000,        limit: 60  }, // 60 per minute (public tracking)
     ]),
     ScheduleModule.forRoot(),
     DatabaseModule,

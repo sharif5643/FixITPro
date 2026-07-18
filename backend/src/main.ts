@@ -1,4 +1,4 @@
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -6,7 +6,9 @@ import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
+import { HttpLoggingInterceptor } from './common/interceptors/http-logging.interceptor';
 import { createWinstonLogger } from './common/logger/winston.config';
+import { validateDbCredentials } from './common/startup-validation';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -40,6 +42,28 @@ async function bootstrap() {
     );
   }
 
+  // RC2-003: Database credential validation — reject weak/placeholder passwords and
+  // the postgres superuser in cloud deployments.
+  if (isProd) {
+    const corsOriginEnv     = process.env.CORS_ORIGIN ?? '';
+    const isCloudDeployment = corsOriginEnv.includes('https://');
+    validateDbCredentials(process.env.DATABASE_URL ?? '', isCloudDeployment);
+  }
+
+  // RC2-002 P1-3: Cookie security — if CORS_ORIGIN contains any https:// origin the deployment
+  // is cloud/HTTPS. In that case COOKIE_SECURE must be "true" or tokens can leak over HTTP
+  // redirects. The LAN deployment (HTTP-only CORS) is exempt — no https:// origins.
+  if (isProd) {
+    const corsOriginEnv = process.env.CORS_ORIGIN ?? '';
+    const isCloudDeployment = corsOriginEnv.includes('https://');
+    if (isCloudDeployment && process.env.COOKIE_SECURE !== 'true') {
+      throw new Error(
+        'FATAL: CORS_ORIGIN contains an https:// origin (cloud deployment) but COOKIE_SECURE is not "true". ' +
+        'Set COOKIE_SECURE=true to ensure JWT cookies are never sent over plain HTTP. App startup aborted.',
+      );
+    }
+  }
+
   // P1-3 FIX: rawBody: true lets the LINE webhook controller access the raw request
   // buffer for HMAC-SHA256 signature verification.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -68,6 +92,10 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // RC2-002: HTTP access log — method, path, status, latency, uid, tenantId, branchId.
+  // Never logs request bodies, cookies, or token values.
+  app.useGlobalInterceptors(new HttpLoggingInterceptor());
 
   // Enable Socket.IO adapter for real-time chat
   app.useWebSocketAdapter(new IoAdapter(app));
