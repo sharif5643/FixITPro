@@ -37,6 +37,7 @@ export interface AccountingEntry {
   tenantId:      string | null;
   actorUserId:   string;
   note?:         string;
+  reversalOfId?: string;
 }
 
 type TxClient = Prisma.TransactionClient;
@@ -178,6 +179,7 @@ export class AccountingService {
       paymentMethod: 'CASH',
       idempotencyKey,
       metadata:      { sourceType: entry.sourceType, sourceId: entry.sourceId },
+      ...(entry.reversalOfId ? { reversalOfId: entry.reversalOfId } : {}),
     };
   }
 

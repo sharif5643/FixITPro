@@ -26,7 +26,8 @@ describe('SalesService.create — P0-5', () => {
     prisma = mockPrisma();
     auditLog = { log: jest.fn(), logWithTx: jest.fn() };
     const notif = { notifyLowStock: jest.fn().mockResolvedValue(undefined) };
-    service = new (SalesService as any)(prisma, auditLog, notif);
+    const accounting = { record: jest.fn().mockResolvedValue({ id: 'acctx-1' }) };
+    service = new (SalesService as any)(prisma, auditLog, notif, accounting);
 
     (prisma.branch.findUnique as jest.Mock).mockResolvedValue({ status: 'ACTIVE' });
     (prisma.shift.findFirst as jest.Mock).mockResolvedValue({ id: 'shift1' });

@@ -731,7 +731,11 @@ export class RepairsService {
     if (tenantId) revWhere.branch = { tenantId };
     const repair = await this.prisma.repair.findFirst({
       where: revWhere,
-      select: { id: true, status: true, paymentStatus: true, paymentMethod: true, paidAmount: true },
+      select: {
+        id: true, status: true, paymentStatus: true,
+        paymentMethod: true, paidAmount: true,
+        branchId: true, branch: { select: { tenantId: true } },
+      },
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
@@ -754,7 +758,7 @@ export class RepairsService {
         },
       });
 
-      return tx.repair.update({
+      const updated = await tx.repair.update({
         where: { id: repairId },
         data: {
           paymentStatus: 'PENDING',
@@ -767,7 +771,37 @@ export class RepairsService {
         },
         include: REPAIR_INCLUDE,
       });
+
+      if (repair.branchId) {
+        let reversalOfId: string | undefined;
+        if (repair.paymentMethod === 'CASH') {
+          const originalLedger = await (tx as any).cashDrawerTransaction.findFirst({
+            where:  { referenceType: 'REPAIR_FINAL_PAYMENT', referenceId: repairId },
+            select: { id: true },
+          });
+          reversalOfId = originalLedger?.id;
+        }
+
+        await this.accounting.record(
+          {
+            sourceType:    ACCOUNTING_SOURCE.REVERSAL,
+            sourceId:      repairId,
+            paymentMethod: (repair.paymentMethod ?? 'CASH') as any,
+            amount:        repair.paidAmount ?? 0,
+            direction:     'OUT',
+            branchId:      repair.branchId,
+            tenantId:      (repair as any).branch?.tenantId ?? tenantId ?? null,
+            actorUserId:   userId,
+            note:          `ยกเลิกการชำระเงินงานซ่อม: ${dto.reason}`,
+            ...(reversalOfId ? { reversalOfId } : {}),
+          },
+          tx,
+        );
+      }
+
+      return updated;
     });
+
     await this.auditLog.log({
       actorId: userId,
       action: 'REPAIR_PAYMENT_REVERSED',
