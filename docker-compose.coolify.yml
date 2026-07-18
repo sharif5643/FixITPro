@@ -127,8 +127,9 @@ services:
       - app_network
       - coolify
     # RC2-002: healthcheck so Traefik stops routing to the container if Next.js crashes.
+    # Use 127.0.0.1 — BusyBox wget resolves 'localhost' to ::1 (IPv6) while Next.js listens on IPv4 only.
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
