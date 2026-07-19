@@ -30,13 +30,42 @@
     --shimmer-from: #f1f5f9;
     --shimmer-via:  #e2e8f0;
     --shimmer-to:   #f1f5f9;
+
+    /* ── Premium design system tokens ─────────────────────────── */
+    --fi-primary:        #2563EB;
+    --fi-primary-dark:   #1D4ED8;
+    --fi-primary-light:  #EFF6FF;
+    --fi-primary-mid:    #DBEAFE;
+    --fi-success:        #22C55E;
+    --fi-success-light:  #F0FDF4;
+    --fi-warning:        #F59E0B;
+    --fi-warning-light:  #FFFBEB;
+    --fi-danger:         #EF4444;
+    --fi-danger-light:   #FEF2F2;
+    --fi-purple:         #8B5CF6;
+    --fi-purple-light:   #F5F3FF;
+    --fi-teal:           #14B8A6;
+    --fi-teal-light:     #F0FDFA;
+    --fi-bg:             #F8FAFC;
+    --fi-surface:        #FFFFFF;
+    --fi-border:         #E2E8F0;
+    --fi-text:           #111827;
+    --fi-text-2:         #374151;
+    --fi-text-muted:     #6B7280;
+    --fi-text-faint:     #9CA3AF;
+    --fi-sidebar-bg:     #FFFFFF;
+    --fi-sidebar-width:  240px;
+    --fi-topbar-height:  56px;
+    --fi-radius:         16px;
+    --fi-radius-sm:      10px;
+    --fi-radius-xs:      8px;
   }
 
   .dark {
     /* ── Dark mode color tokens ─────────────────────────────────── */
     --background:         222.2 84% 4.9%;
     --foreground:         210 40% 98%;
-    --card:               222.2 47.4% 8.5%;
+    --card:               213.6 32.5% 17.5%;
     --card-foreground:    210 40% 98%;
     --popover:            222.2 47.4% 8.5%;
     --popover-foreground: 210 40% 98%;
@@ -58,6 +87,18 @@
     --shimmer-from: #1e293b;
     --shimmer-via:  #334155;
     --shimmer-to:   #1e293b;
+
+    /* ── Premium tokens (dark overrides) ────────────────────────── */
+    --fi-bg:             #0F172A;
+    --fi-surface:        #1E293B;
+    --fi-border:         #334155;
+    --fi-text:           #F1F5F9;
+    --fi-text-2:         #CBD5E1;
+    --fi-text-muted:     #94A3B8;
+    --fi-text-faint:     #64748B;
+    --fi-sidebar-bg:     #111827;
+    --fi-primary-light:  #1E3A5F;
+    --fi-primary-mid:    #1E3A5F;
   }
 }
 

@@ -154,7 +154,7 @@ const thaiTime = (iso: string) => {
   try { return format(new Date(iso), 'HH:mm', { locale: th }) } catch { return '' }
 }
 
-// ── KPI Card V3 ───────────────────────────────────────────────────────────────
+// ── KPI Card V4 (Premium) ─────────────────────────────────────────────────────
 
 function KpiCard({
   label, value, sub, icon: Icon, accentColor, iconBg, urgent, href, loading,
@@ -164,32 +164,38 @@ function KpiCard({
 }) {
   const inner = (
     <div className={cn(
-      'relative bg-white dark:bg-slate-900 rounded-xl shadow-sm overflow-hidden transition-all duration-150 border-l-4',
+      'group relative bg-white dark:bg-[#1E293B] rounded-2xl border transition-all duration-200',
+      'hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.40)]',
+      'shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]',
       urgent
-        ? 'border-l-red-500 border border-red-100 dark:border-red-900/60 shadow-red-50/60 dark:shadow-none'
-        : `border-l-${accentColor}-500 border border-slate-100 dark:border-slate-800 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700`,
+        ? 'border-red-200 dark:border-red-800/60 ring-1 ring-red-400/20'
+        : 'border-slate-100 dark:border-slate-700/60 hover:border-slate-200 dark:hover:border-slate-600',
     )}>
+      {urgent && <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-2xl bg-red-500" />}
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className={cn('text-xs font-medium uppercase tracking-wide', urgent ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500')}>
+            <p className={cn('text-[11px] font-bold uppercase tracking-widest', urgent ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500')}>
               {label}
             </p>
             {loading ? (
-              <div className="h-9 w-32 bg-slate-100 dark:bg-slate-800 rounded animate-pulse mt-2" />
+              <div className="h-8 w-28 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse mt-2" />
             ) : (
               <p className={cn(
-                'text-3xl font-bold mt-1 tracking-tight leading-none',
+                'text-2xl font-extrabold mt-1.5 tracking-tight leading-none',
                 urgent ? 'text-red-700 dark:text-red-400' : 'text-slate-900 dark:text-white',
               )}>
                 {value}
               </p>
             )}
             {sub && !loading && (
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 leading-snug">{sub}</p>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 leading-snug">{sub}</p>
             )}
           </div>
-          <div className={cn('rounded-xl p-2.5 shrink-0 mt-0.5', iconBg)}>
+          <div className={cn(
+            'flex h-11 w-11 items-center justify-center rounded-2xl shrink-0 shadow-sm transition-transform duration-200 group-hover:scale-105',
+            iconBg,
+          )}>
             <Icon className="h-5 w-5 text-white" />
           </div>
         </div>
@@ -202,14 +208,14 @@ function KpiCard({
 
 function SkeletonKpi() {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border-l-4 border-l-slate-200 dark:border-l-slate-700 border border-slate-100 dark:border-slate-800 shadow-sm p-5">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2 mt-1">
           <div className="h-2.5 w-20 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-          <div className="h-9 w-28 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-8 w-28 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
           <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
         </div>
-        <div className="h-10 w-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+        <div className="h-11 w-11 bg-slate-100 dark:bg-slate-800 rounded-2xl animate-pulse" />
       </div>
     </div>
   )
@@ -706,10 +712,11 @@ export default function DashboardPage() {
     <div className={cn('space-y-6 max-w-7xl pb-10', isOwnerOrManager && 'hidden md:block')}>
 
       {/* ── Greeting card ─────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 px-5 py-5 sm:px-6 text-white overflow-hidden relative">
-        {/* Decorative circles */}
-        <div className="absolute -top-6 -right-6 h-32 w-32 rounded-full bg-blue-600/20 pointer-events-none" />
-        <div className="absolute top-4 right-20 h-16 w-16 rounded-full bg-blue-500/10 pointer-events-none" />
+      <div className="rounded-2xl bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 px-5 py-5 sm:px-6 text-white overflow-hidden relative shadow-[0_4px_20px_rgba(37,99,235,0.35)]">
+        {/* Decorative shapes */}
+        <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/8 pointer-events-none" />
+        <div className="absolute top-6 right-28 h-20 w-20 rounded-full bg-white/5 pointer-events-none" />
+        <div className="absolute -bottom-8 left-1/3 h-28 w-28 rounded-full bg-indigo-400/20 pointer-events-none" />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between relative">
           <div>
@@ -856,11 +863,13 @@ export default function DashboardPage() {
 
       {/* ── Monthly Overview (OWNER/MANAGER) ─────────────────────────────────── */}
       {isOwnerOrManager && (
-        <Card>
-          <CardContent className="p-5">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
+          <div className="p-5">
             <div className="flex items-center gap-2 mb-4">
-              <CalendarDays className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30">
+                <CalendarDays className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
                 ภาพรวมเดือนนี้
               </h3>
             </div>
@@ -920,22 +929,20 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* ── Business Health Cards (OWNER/MANAGER) ───────────────────────────── */}
       {isOwnerOrManager && ownerSummary && (
-        <Card>
-          <CardContent className="p-5">
-            <BusinessHealthCards
-              health={ownerSummary.health}
-              hasRepair={hasModule('repair')}
-              hasStock={hasModule('stock')}
-              hasFinance={hasModule('finance')}
-            />
-          </CardContent>
-        </Card>
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
+          <BusinessHealthCards
+            health={ownerSummary.health}
+            hasRepair={hasModule('repair')}
+            hasStock={hasModule('stock')}
+            hasFinance={hasModule('finance')}
+          />
+        </div>
       )}
 
       {/* ── สิ่งที่ต้องดำเนินการ ─────────────────────────────────────────────── */}
@@ -945,18 +952,15 @@ export default function DashboardPage() {
       {showRepairs && hasModule('repair') && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
 
-          {/* Recent Repairs — new in V3 */}
-          <Card className="lg:col-span-3">
-            <CardContent className="p-5">
-              <SectionHeader title="งานซ่อมล่าสุด" icon={Wrench} href="/repairs" />
-              <RecentRepairsWidget repairs={recentRepairs} isLoading={repairsLoading} />
-            </CardContent>
-          </Card>
+          {/* Recent Repairs */}
+          <div className="lg:col-span-3 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
+            <SectionHeader title="งานซ่อมล่าสุด" icon={Wrench} href="/repairs" />
+            <RecentRepairsWidget repairs={recentRepairs} isLoading={repairsLoading} />
+          </div>
 
           {/* Repair Status Breakdown */}
-          <Card className="lg:col-span-2">
-            <CardContent className="p-5">
-              <SectionHeader title="สถานะงานซ่อม" icon={Layers} href="/repairs" />
+          <div className="lg:col-span-2 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
+            <SectionHeader title="สถานะงานซ่อม" icon={Layers} href="/repairs" />
               {isLoading ? (
                 <div className="space-y-2">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -987,20 +991,20 @@ export default function DashboardPage() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </div>
 
         </div>
       )}
 
       {/* ── Today's Sales Summary (OWNER/MANAGER) ───────────────────────────── */}
       {isOwnerOrManager && (
-        <Card>
-          <CardContent className="p-5">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">รายรับ{isToday ? 'วันนี้' : ''}</h3>
+                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
+                  <ShoppingCart className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">รายรับ{isToday ? 'วันนี้' : ''}</h3>
               </div>
               <Link href="/reports">
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 -mr-1">
@@ -1083,21 +1087,18 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+        </div>
       )}
 
       {/* ── Recent Bills (OWNER/MANAGER with pos module) ────────────────────── */}
       {isOwnerOrManager && hasModule('pos') && (
-        <Card>
-          <CardContent className="p-5">
-            <SectionHeader title="บิลขายล่าสุด" icon={ShoppingCart} href="/sales" />
-            <RecentSalesWidget
-              sales={ownerSummary?.recentSales ?? []}
-              isLoading={ownerLoading}
-            />
-          </CardContent>
-        </Card>
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
+          <SectionHeader title="บิลขายล่าสุด" icon={ShoppingCart} href="/sales" />
+          <RecentSalesWidget
+            sales={ownerSummary?.recentSales ?? []}
+            isLoading={ownerLoading}
+          />
+        </div>
       )}
 
       {/* ── Weekly Chart + Alerts ────────────────────────────────────────────── */}

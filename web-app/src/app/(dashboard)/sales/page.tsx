@@ -295,24 +295,26 @@ export default function SalesPage() {
 
   if (!currentShift) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-5 text-center px-4">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-50 border-2 border-emerald-200 shadow-sm">
-          <Clock className="h-10 w-10 text-emerald-500" />
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-6 text-center px-4">
+        <div className="relative">
+          <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_8px_24px_rgba(16,185,129,0.35)]">
+            <Clock className="h-12 w-12 text-white" />
+          </div>
         </div>
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">ต้องเปิดกะก่อนจะขายสินค้าได้</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-xs mx-auto">
-            เปิดกะและกรอกเงินสดเริ่มต้นในลิ้นชักก่อน จึงจะสามารถรับชำระเงินได้
+        <div className="max-w-xs">
+          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">ต้องเปิดกะก่อน</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+            กรอกเงินสดเริ่มต้นในลิ้นชักก่อน จึงจะสามารถรับชำระเงินได้
           </p>
         </div>
         <Link href="/shifts">
-          <Button size="lg" className="gap-2 h-12 px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+          <Button size="lg" className="gap-2 h-12 px-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-[0_4px_14px_rgba(16,185,129,0.35)]">
             <Clock className="h-5 w-5" />
             เปิดกะเดี๋ยวนี้
           </Button>
         </Link>
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          หรือ <Link href="/dashboard" className="underline hover:text-slate-600">กลับหน้าแรก</Link>
+          หรือ <Link href="/dashboard" className="text-blue-600 hover:underline dark:text-blue-400">กลับหน้าแรก</Link>
         </p>
       </div>
     )
@@ -325,7 +327,7 @@ export default function SalesPage() {
     <div className="flex flex-col h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)]">
 
       {/* ── Mobile tab bar (hidden on lg) ───────────────────────────────── */}
-      <div className="flex lg:hidden mb-3 rounded-xl border bg-white dark:bg-slate-900 dark:border-slate-800 overflow-hidden shrink-0 shadow-sm">
+      <div className="flex lg:hidden mb-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] overflow-hidden shrink-0 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
         <button
           type="button"
           onClick={() => setMobileTab('products')}
@@ -379,7 +381,7 @@ export default function SalesPage() {
 
         {/* Left — Product Search */}
         <div className={cn(
-          'flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden',
+          'flex flex-col bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]',
           mobileTab === 'products' ? 'flex flex-1 min-w-0' : 'hidden',
           'lg:flex lg:w-[380px] lg:shrink-0 lg:flex-none',
         )}>
@@ -392,7 +394,7 @@ export default function SalesPage() {
 
         {/* Middle — Cart Items */}
         <div className={cn(
-          'flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden',
+          'flex flex-col bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]',
           mobileTab === 'cart' ? 'flex flex-1 min-w-0' : 'hidden',
           'lg:flex lg:flex-1 lg:min-w-0',
         )}>
@@ -407,7 +409,7 @@ export default function SalesPage() {
         </div>
 
         {/* Right — Payment Summary (desktop only) */}
-        <div className="hidden lg:flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden w-72 shrink-0">
+        <div className="hidden lg:flex flex-col bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] w-72 shrink-0">
           <div className="px-4 pt-3.5 pb-2.5 border-b border-slate-100 dark:border-slate-800 shrink-0 flex items-center justify-between">
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
               สรุปและชำระเงิน
