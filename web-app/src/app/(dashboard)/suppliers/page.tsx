@@ -203,7 +203,7 @@ export default function SuppliersPage() {
           <SectionCard noPadding><EmptyState preset="default" size="md" title={search ? 'ไม่พบซัพพลายเออร์' : 'ยังไม่มีซัพพลายเออร์'} /></SectionCard>
         ) : (
           suppliers.map((s) => (
-            <div key={s.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-3">
+            <div key={s.id} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold text-slate-900 dark:text-slate-50">{s.name}</p>

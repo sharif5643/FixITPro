@@ -192,7 +192,7 @@ export default function SubscriptionPage() {
         )}
 
         {/* Contact CTA */}
-        <div className="mt-5 rounded-xl bg-gray-50 border px-4 py-3 text-sm text-gray-600">
+        <div className="mt-5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
           ต้องการต่ออายุหรือเปลี่ยนแพ็กเกจ กรุณาติดต่อ{' '}
           <span className="font-semibold text-blue-700">ผู้ดูแลระบบ</span>
         </div>
@@ -206,14 +206,14 @@ export default function SubscriptionPage() {
         </div>
 
         {sub.renewals.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8 rounded-xl border bg-gray-50">
+          <p className="text-sm text-muted-foreground text-center py-8 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
             ยังไม่มีประวัติการต่ออายุ
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                   <th className="text-left px-4 py-2.5 font-medium">วันที่</th>
                   <th className="text-left px-4 py-2.5 font-medium">ประเภท</th>
                   <th className="text-left px-4 py-2.5 font-medium">วันหมดอายุใหม่</th>

@@ -60,17 +60,17 @@ const SEV_COLOR: Record<string, string> = {
 }
 
 const SEV_BG: Record<string, string> = {
-  INFO:     'bg-blue-50 border-blue-100',
-  WARNING:  'bg-amber-50 border-amber-100',
-  ERROR:    'bg-red-50 border-red-100',
-  CRITICAL: 'bg-red-100 border-red-200',
+  INFO:     'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/40',
+  WARNING:  'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-800/40',
+  ERROR:    'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-800/40',
+  CRITICAL: 'bg-red-100 dark:bg-red-900/20 border-red-200 dark:border-red-700/60',
 }
 
 const SEV_BADGE: Record<string, string> = {
-  INFO:     'bg-blue-100 text-blue-700',
-  WARNING:  'bg-amber-100 text-amber-700',
-  ERROR:    'bg-red-100 text-red-700',
-  CRITICAL: 'bg-red-200 text-red-900',
+  INFO:     'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400',
+  WARNING:  'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400',
+  ERROR:    'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400',
+  CRITICAL: 'bg-red-200 dark:bg-red-800/60 text-red-900 dark:text-red-300',
 }
 
 const SEV_LABEL: Record<string, string> = {
@@ -180,11 +180,11 @@ export default function NotificationsPage() {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+      <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60">
         <Filter className="h-4 w-4 text-slate-400 shrink-0" />
 
         <Select value={isRead} onValueChange={(v) => { setIsRead(v); setPage(1) }}>
-          <SelectTrigger className="h-8 w-[120px] text-xs bg-white">
+          <SelectTrigger className="h-8 w-[120px] text-xs bg-white dark:bg-[#1E293B]">
             <SelectValue placeholder="สถานะ" />
           </SelectTrigger>
           <SelectContent>
@@ -195,7 +195,7 @@ export default function NotificationsPage() {
         </Select>
 
         <Select value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }}>
-          <SelectTrigger className="h-8 w-[120px] text-xs bg-white">
+          <SelectTrigger className="h-8 w-[120px] text-xs bg-white dark:bg-[#1E293B]">
             <SelectValue placeholder="ระดับ" />
           </SelectTrigger>
           <SelectContent>
@@ -208,7 +208,7 @@ export default function NotificationsPage() {
         </Select>
 
         <Select value={type} onValueChange={(v) => { setType(v); setPage(1) }}>
-          <SelectTrigger className="h-8 w-[160px] text-xs bg-white">
+          <SelectTrigger className="h-8 w-[160px] text-xs bg-white dark:bg-[#1E293B]">
             <SelectValue placeholder="ประเภท" />
           </SelectTrigger>
           <SelectContent>
@@ -233,7 +233,7 @@ export default function NotificationsPage() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-20 rounded-xl bg-slate-100 animate-pulse" />
+            <div key={i} className="h-20 rounded-xl bg-slate-100 dark:bg-slate-700/60 animate-pulse" />
           ))}
         </div>
       ) : items.length === 0 ? (
@@ -265,12 +265,12 @@ export default function NotificationsPage() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-semibold text-slate-900">{n.title}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{n.title}</p>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${SEV_BADGE[n.severity]}`}>
                       {SEV_LABEL[n.severity]}
                     </span>
                     {TYPE_LABEL[n.type] && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600 font-medium">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">
                         {TYPE_LABEL[n.type]}
                       </span>
                     )}
@@ -279,7 +279,7 @@ export default function NotificationsPage() {
                     )}
                   </div>
 
-                  <p className="text-sm text-slate-600 mt-1 leading-snug">{n.message}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 leading-snug">{n.message}</p>
 
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-3 text-xs text-slate-400">

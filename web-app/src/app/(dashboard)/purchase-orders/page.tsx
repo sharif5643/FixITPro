@@ -340,7 +340,7 @@ export default function PurchaseOrdersPage() {
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                 statusFilter === s
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600'
+                  : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600'
               }`}
             >
               {s === '' ? 'ทั้งหมด' : STATUS_CFG[s].label}
@@ -444,7 +444,7 @@ export default function PurchaseOrdersPage() {
             const canPay = !['CANCELLED', 'DRAFT'].includes(po.status) && po.paymentStatus !== 'PAID'
             const remaining = Number(po.total) - Number(po.paidTotal ?? 0)
             return (
-              <div key={po.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-2">
+              <div key={po.id} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-2">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-mono font-semibold text-slate-900 dark:text-slate-50">{po.poNumber}</p>
@@ -520,7 +520,7 @@ export default function PurchaseOrdersPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="ค้นหาสินค้าเพื่อเพิ่ม (ชื่อ / SKU)..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)} className="pl-9" />
                 {productSearch.length >= 2 && (
-                  <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white dark:bg-slate-900 border dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white dark:bg-[#1E293B] border dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                     {searchingProducts ? (
                       <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />กำลังค้นหา...</div>
                     ) : productResults.length === 0 ? (

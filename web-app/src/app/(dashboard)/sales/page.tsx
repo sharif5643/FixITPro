@@ -410,7 +410,7 @@ export default function SalesPage() {
 
         {/* Right — Payment Summary (desktop only) */}
         <div className="hidden lg:flex flex-col bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] w-72 shrink-0">
-          <div className="px-4 pt-3.5 pb-2.5 border-b border-slate-100 dark:border-slate-800 shrink-0 flex items-center justify-between">
+          <div className="px-4 pt-3.5 pb-2.5 border-b border-slate-100 dark:border-slate-700/60 shrink-0 flex items-center justify-between">
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
               สรุปและชำระเงิน
             </p>
@@ -458,10 +458,10 @@ export default function SalesPage() {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setHeldBillsOpen(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div
-            className="relative bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[70vh] overflow-hidden flex flex-col shadow-2xl"
+            className="relative bg-white dark:bg-[#1E293B]rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[70vh] overflow-hidden flex flex-col shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-3.5 border-b dark:border-slate-800 shrink-0">
+            <div className="flex items-center justify-between px-4 py-3.5 border-b dark:border-slate-700/60 shrink-0">
               <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <PauseCircle className="h-4 w-4 text-amber-500" />
                 บิลที่พักไว้ ({heldBills.length})

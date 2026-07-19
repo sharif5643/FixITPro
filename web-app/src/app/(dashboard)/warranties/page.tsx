@@ -187,7 +187,7 @@ export default function WarrantiesPage() {
               className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-all ${
                 statusFilter === key
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700'
+                  : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-700'
               }`}
             >
               {label} ({count})
@@ -205,7 +205,7 @@ export default function WarrantiesPage() {
         <select
           value={sourceFilter}
           onChange={(e) => { setSource(e.target.value); setPage(1) }}
-          className="h-9 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="h-9 rounded-md border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] px-3 py-1 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">ทุกประเภท</option>
           <option value="REPAIR">งานซ่อม</option>
@@ -289,15 +289,15 @@ export default function WarrantiesPage() {
       {/* Mobile cards */}
       <div className="md:hidden space-y-3">
         {isLoading ? (
-          <div className="flex items-center justify-center h-40 bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800">
+          <div className="flex items-center justify-center h-40 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60">
             <div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
           </div>
         ) : items.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800">
+          <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60">
             <EmptyState preset="warranty" />
           </div>
         ) : items.map((w) => (
-          <div key={w.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-3">
+          <div key={w.id} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="font-mono text-xs font-semibold text-slate-600 dark:text-slate-300">{w.warrantyNumber}</p>
@@ -308,11 +308,11 @@ export default function WarrantiesPage() {
               <WarrantyStatusBadge status={w.status} />
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-900/40 px-3 py-2">
+              <div className="rounded-lg bg-slate-50 dark:bg-[#1E293B]/40 px-3 py-2">
                 <p className="text-[10px] text-slate-400 dark:text-slate-500">ประเภท</p>
                 <p className="font-medium text-xs">{SOURCE_LABEL[w.sourceType]}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 dark:bg-slate-900/40 px-3 py-2">
+              <div className="rounded-lg bg-slate-50 dark:bg-[#1E293B]/40 px-3 py-2">
                 <p className="text-[10px] text-slate-400 dark:text-slate-500">หมดอายุ</p>
                 <p className="font-medium text-xs">{format(new Date(w.endDate), 'dd/MM/yy', { locale: th })}</p>
               </div>
@@ -359,7 +359,7 @@ export default function WarrantiesPage() {
       {/* Void confirmation modal */}
       {voidId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+          <div className="bg-white dark:bg-[#1E293B] rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">ยืนยันการยกเลิกการรับประกัน</h2>
             <p className="text-sm text-muted-foreground">กรุณาระบุเหตุผลในการยกเลิก</p>
             <textarea
@@ -388,7 +388,7 @@ export default function WarrantiesPage() {
       {/* Claim confirmation modal */}
       {claimId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+          <div className="bg-white dark:bg-[#1E293B] rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">ยืนยันการใช้สิทธิ์การรับประกัน</h2>
             <p className="text-sm text-muted-foreground">
               สถานะจะเปลี่ยนเป็น &quot;ใช้สิทธิ์แล้ว&quot; และจะไม่สามารถใช้ได้อีก

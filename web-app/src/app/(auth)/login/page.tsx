@@ -174,7 +174,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 disabled={isLoading}
                 {...register('email')}
-                className={`w-full h-11 px-4 rounded-xl border text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 focus:border-blue-500 disabled:opacity-50 ${
+                className={`w-full h-11 px-4 rounded-xl border text-sm bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 focus:border-blue-500 disabled:opacity-50 ${
                   errors.email
                     ? 'border-red-400 focus:ring-red-400'
                     : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500 hover:border-slate-300'
@@ -196,7 +196,7 @@ export default function LoginPage() {
                   autoComplete="current-password"
                   disabled={isLoading}
                   {...register('password')}
-                  className={`w-full h-11 pl-4 pr-11 rounded-xl border text-sm bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 focus:border-blue-500 disabled:opacity-50 ${
+                  className={`w-full h-11 pl-4 pr-11 rounded-xl border text-sm bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 focus:border-blue-500 disabled:opacity-50 ${
                     errors.password
                       ? 'border-red-400 focus:ring-red-400'
                       : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500 hover:border-slate-300'

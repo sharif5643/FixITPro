@@ -110,7 +110,7 @@ function useDebounce<T>(value: T, delay: number) {
 
 function SectionCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white rounded-2xl p-4 space-y-3 shadow-[0_2px_12px_rgba(0,0,0,0.06)] ${className}`}>
+    <div className={`bg-white dark:bg-[#1E293B] rounded-2xl p-4 space-y-3 border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.30)] ${className}`}>
       {children}
     </div>
   )
@@ -118,7 +118,7 @@ function SectionCard({ children, className = '' }: { children: React.ReactNode; 
 
 function SectionTitle({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
       <Icon className="h-3.5 w-3.5" />
       {title}
     </div>
@@ -129,8 +129,8 @@ function InfoRow({ label, value }: { label: string; value?: React.ReactNode }) {
   if (!value) return null
   return (
     <div className="flex gap-2 text-sm">
-      <span className="text-muted-foreground shrink-0 w-28">{label}</span>
-      <span className="font-medium text-gray-900 break-all">{value}</span>
+      <span className="text-slate-500 dark:text-slate-400 shrink-0 w-28">{label}</span>
+      <span className="font-medium text-slate-900 dark:text-white break-all">{value}</span>
     </div>
   )
 }
@@ -140,8 +140,8 @@ function InfoRow({ label, value }: { label: string; value?: React.ReactNode }) {
 function StatusProgress({ status }: { status: RepairStatus }) {
   if (status === 'CANCELLED') {
     return (
-      <div className="bg-white rounded-xl border px-4 py-3">
-        <div className="flex items-center gap-2 text-red-600">
+      <div className="bg-white dark:bg-[#1E293B] rounded-xl border border-slate-100 dark:border-slate-700/60 px-4 py-3">
+        <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
           <X className="h-4 w-4" />
           <span className="text-sm font-semibold">งานซ่อมถูกยกเลิก</span>
         </div>
@@ -152,7 +152,7 @@ function StatusProgress({ status }: { status: RepairStatus }) {
   const currentIdx = STATUS_FLOW.indexOf(status)
 
   return (
-    <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] px-4 py-3">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.30)] px-4 py-3">
       <div className="flex items-center gap-0 overflow-x-auto scrollbar-hide">
         {STATUS_FLOW.map((s, i) => {
           const done = i < currentIdx
@@ -164,13 +164,13 @@ function StatusProgress({ status }: { status: RepairStatus }) {
                   'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all',
                   done   ? 'bg-[#22C55E] text-white' :
                   active ? 'bg-[#FFC107] text-[#111] shadow-[0_4px_12px_rgba(255,193,7,0.4)]' :
-                           'bg-gray-100 text-gray-400',
+                           'bg-slate-100 dark:bg-slate-700/60 text-slate-400',
                 ].join(' ')}>
                   {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
                 </div>
                 <span className={[
                   'text-[9px] font-semibold whitespace-nowrap leading-tight',
-                  active ? 'text-[#111]' : done ? 'text-[#22C55E]' : 'text-gray-400',
+                  active ? 'text-slate-900 dark:text-white' : done ? 'text-[#22C55E]' : 'text-slate-400',
                 ].join(' ')}>
                   {STATUS_LABEL[s]}
                 </span>
@@ -178,7 +178,7 @@ function StatusProgress({ status }: { status: RepairStatus }) {
               {i < STATUS_FLOW.length - 1 && (
                 <div className={[
                   'h-0.5 w-4 sm:w-6 shrink-0 mx-0.5 mt-[-10px]',
-                  i < currentIdx ? 'bg-[#22C55E]' : 'bg-gray-200',
+                  i < currentIdx ? 'bg-[#22C55E]' : 'bg-slate-200 dark:bg-slate-700/40',
                 ].join(' ')} />
               )}
             </div>
@@ -227,8 +227,8 @@ function TimelineCard({ repair }: { repair: Repair }) {
                 <e.icon className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-gray-800 leading-snug">{e.label}</p>
-                <p className="text-[10px] text-muted-foreground">{fmtDate(e.date)}</p>
+                <p className="text-xs font-medium text-slate-800 dark:text-slate-200 leading-snug">{e.label}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{fmtDate(e.date)}</p>
               </div>
             </div>
           ))}
@@ -561,17 +561,17 @@ export default function RepairWorkspacePage() {
           <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div className="h-6 w-40 bg-gray-100 animate-pulse rounded" />
+          <div className="h-6 w-40 bg-slate-100 dark:bg-slate-700/60 animate-pulse rounded" />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-xl border p-4 h-32 animate-pulse" />
+              <div key={i} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 p-4 h-32 animate-pulse" />
             ))}
           </div>
           <div className="space-y-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-xl border p-4 h-24 animate-pulse" />
+              <div key={i} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 p-4 h-24 animate-pulse" />
             ))}
           </div>
         </div>
@@ -593,20 +593,20 @@ export default function RepairWorkspacePage() {
 
   return (
     <>
-      <div className="min-h-screen bg-[#F8F9FB] -m-4 sm:-m-6 lg:-m-8 px-4 sm:px-6 lg:px-8 pt-5 pb-24 lg:pb-8 space-y-4">
+      <div className="min-h-screen bg-[#F8F9FB] dark:bg-[#0F172A] -m-4 sm:-m-6 lg:-m-8 px-4 sm:px-6 lg:px-8 pt-5 pb-24 lg:pb-8 space-y-4">
 
         {/* ─── Header ─────────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => router.push('/repairs')}
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] text-slate-600 shrink-0"
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.08)] text-slate-600 dark:text-slate-300 shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono font-bold text-[#111] text-base sm:text-lg">{repair.ticketNumber}</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white text-base sm:text-lg">{repair.ticketNumber}</span>
                 <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLOR[repair.status]}`}>
                   {STATUS_LABEL[repair.status]}
                 </span>
@@ -672,10 +672,10 @@ export default function RepairWorkspacePage() {
               </div>
               {repair.technician && (
                 <div className="flex items-center gap-2 text-sm">
-                  <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-xs shrink-0">
                     {repair.technician.name.charAt(0).toUpperCase()}
                   </div>
-                  <span className="font-medium text-gray-900">{repair.technician.name}</span>
+                  <span className="font-medium text-slate-900 dark:text-white">{repair.technician.name}</span>
                 </div>
               )}
               {!isLocked && (
@@ -715,7 +715,7 @@ export default function RepairWorkspacePage() {
               <SectionTitle icon={ClipboardList} title="อาการและหมายเหตุ" />
               <div>
                 <p className="text-xs text-muted-foreground mb-1">อาการ</p>
-                <p className="text-sm font-medium text-gray-900 whitespace-pre-wrap bg-gray-50 rounded-lg px-3 py-2">{repair.issue}</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-white whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/60 rounded-lg px-3 py-2">{repair.issue}</p>
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -750,7 +750,7 @@ export default function RepairWorkspacePage() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 rounded-lg px-3 py-2 min-h-[40px]">
+                  <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/60 rounded-lg px-3 py-2 min-h-[40px]">
                     {noteValue || <span className="text-muted-foreground italic">ยังไม่มีหมายเหตุ</span>}
                   </p>
                 )}
@@ -776,9 +776,9 @@ export default function RepairWorkspacePage() {
                     const sell    = Number(part.sellPrice ?? 0)
                     const partName = part.productName ?? part.product.name
                     return (
-                      <div key={part.id} className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
+                      <div key={part.id} className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-transparent dark:border-slate-700/40 px-3 py-2">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{partName}</p>
+                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{partName}</p>
                           <p className="text-xs text-muted-foreground">
                             ×{part.quantity}
                             {' · '}ทุน {formatThaiMoney(cost)}/ชิ้น
@@ -812,14 +812,14 @@ export default function RepairWorkspacePage() {
                       </div>
                     )
                   })}
-                  <div className="space-y-1 border-t pt-2">
+                  <div className="space-y-1 border-t border-slate-100 dark:border-slate-700/60 pt-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">ต้นทุนอะไหล่รวม</span>
+                      <span className="text-slate-600 dark:text-slate-400">ต้นทุนอะไหล่รวม</span>
                       <span className="font-semibold text-orange-700 tabular-nums">{formatThaiMoney(computedPartsCOGS)}</span>
                     </div>
                     {computedPartsCharge > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">ค่าอะไหล่เพิ่มที่คิดลูกค้า</span>
+                        <span className="text-slate-600 dark:text-slate-400">ค่าอะไหล่เพิ่มที่คิดลูกค้า</span>
                         <span className="font-semibold text-blue-700 tabular-nums">+{formatThaiMoney(computedPartsCharge)}</span>
                       </div>
                     )}
@@ -831,7 +831,7 @@ export default function RepairWorkspacePage() {
 
               {!isLocked && (
                 addingPart ? (
-                  <div className="rounded-lg border bg-blue-50/40 p-3 space-y-2.5">
+                  <div className="rounded-lg border border-blue-100 dark:border-blue-800/40 bg-blue-50/40 dark:bg-blue-900/10 p-3 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium text-gray-900 truncate flex-1">{addingPart.name}</p>
                       <button onClick={() => setAddingPart(null)} className="text-muted-foreground hover:text-foreground ml-2">
@@ -859,7 +859,7 @@ export default function RepairWorkspacePage() {
                               onChange={(e) => { setChargeCustomer(e.target.checked); setPartSellPrice('') }}
                               className="h-4 w-4 rounded border-gray-300 text-blue-600"
                             />
-                            <span className="text-xs text-gray-700">คิดค่าอะไหล่เพิ่มจากราคาซ่อม</span>
+                            <span className="text-xs text-slate-700 dark:text-slate-300">คิดค่าอะไหล่เพิ่มจากราคาซ่อม</span>
                           </label>
                           {chargeCustomer && (
                             <div className="space-y-1">
@@ -900,11 +900,11 @@ export default function RepairWorkspacePage() {
                       className="text-sm h-9"
                     />
                     {searchOpen && filteredPartProducts.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.4)] max-h-48 overflow-y-auto">
                         {filteredPartProducts.map((p) => (
                             <button
                               key={p.id}
-                              className="w-full text-left px-3 py-2.5 border-b last:border-0 transition-colors hover:bg-blue-50"
+                              className="w-full text-left px-3 py-2.5 border-b border-slate-100 dark:border-slate-700/40 last:border-0 transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20"
                               onClick={() => {
                                 setAddingPart(p)
                                 setPartSearch('')
@@ -914,7 +914,7 @@ export default function RepairWorkspacePage() {
                                 setPartSellPrice('')
                               }}
                             >
-                              <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                              <p className="text-sm font-medium text-slate-900 dark:text-white">{p.name}</p>
                               <p className="text-xs mt-0.5 flex items-center gap-1.5">
                                 <span className="text-emerald-700 font-medium">สต็อกสาขา {p.branchQuantity} ชิ้น</span>
                                 <span className="text-muted-foreground">· SKU: {p.sku} · ทุน: {formatThaiMoney(Number(p.costPrice))}</span>
@@ -924,7 +924,7 @@ export default function RepairWorkspacePage() {
                       </div>
                     )}
                     {searchOpen && debouncedSearch && filteredPartProducts.length === 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg p-3 text-sm text-muted-foreground text-center">
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-lg p-3 text-sm text-slate-500 dark:text-slate-400 text-center">
                         ไม่พบอะไหล่
                       </div>
                     )}
@@ -935,29 +935,29 @@ export default function RepairWorkspacePage() {
 
             {/* Estimate */}
             {!isLocked && (
-              <SectionCard className="border-blue-100 bg-blue-50/30">
+              <SectionCard className="border-blue-100 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-900/10">
                 <SectionTitle icon={DollarSign} title="ประมาณราคาซ่อม" />
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
-                    <label className="text-sm text-gray-700 w-28 shrink-0">ราคาซ่อม (บาท)</label>
+                    <label className="text-sm text-slate-700 dark:text-slate-300 w-28 shrink-0">ราคาซ่อม (บาท)</label>
                     <Input
                       type="number" min={0} placeholder="0" value={laborCost}
-                      onChange={(e) => setLaborCost(e.target.value)} className="h-8 text-sm flex-1 bg-white"
+                      onChange={(e) => setLaborCost(e.target.value)} className="h-8 text-sm flex-1 bg-white dark:bg-[#1E293B]"
                     />
                   </div>
                   {computedPartsCharge > 0 && (
                     <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-700 w-28 shrink-0">ค่าอะไหล่เพิ่ม</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300 w-28 shrink-0">ค่าอะไหล่เพิ่ม</span>
                       <span className="text-sm font-medium text-blue-700 tabular-nums">+{formatThaiMoney(computedPartsCharge)}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-3 border-t pt-2">
-                    <span className="text-sm font-bold text-gray-900 w-28 shrink-0">รวมที่คิดลูกค้า</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-white w-28 shrink-0">รวมที่คิดลูกค้า</span>
                     <span className="text-base font-bold text-blue-700 tabular-nums">{formatThaiMoney(computedTotal)}</span>
                   </div>
                   {Number(laborCost) > 0 && computedPartsCOGS > 0 && (
-                    <div className="flex items-center gap-3 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
-                      <span className="text-sm font-medium text-emerald-800 w-28 shrink-0">กำไรงานนี้</span>
+                    <div className="flex items-center gap-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/40 px-3 py-2">
+                      <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300 w-28 shrink-0">กำไรงานนี้</span>
                       <span className="text-sm font-bold text-emerald-700 tabular-nums">
                         {formatThaiMoney(computedTotal - computedPartsCOGS)}
                       </span>
@@ -968,8 +968,8 @@ export default function RepairWorkspacePage() {
                   )}
                 </div>
                 {repair.estimatedTotal != null && (
-                  <div className="text-xs text-muted-foreground bg-white rounded-lg border px-3 py-2 space-y-0.5">
-                    <p>ประมาณล่าสุด: <span className="font-semibold text-gray-900">{formatThaiMoney(Number(repair.estimatedTotal))}</span></p>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700/40 px-3 py-2 space-y-0.5">
+                    <p>ประมาณล่าสุด: <span className="font-semibold text-slate-900 dark:text-white">{formatThaiMoney(Number(repair.estimatedTotal))}</span></p>
                     {repair.approvedAt && <p className="text-green-600">อนุมัติเมื่อ {fmtDateShort(repair.approvedAt)}</p>}
                     {repair.approvalNote && <p>หมายเหตุ: {repair.approvalNote}</p>}
                   </div>
@@ -989,12 +989,12 @@ export default function RepairWorkspacePage() {
 
             {/* Approval */}
             {repair.status === 'WAITING_APPROVAL' && (
-              <SectionCard className="border-amber-200 bg-amber-50">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 uppercase tracking-wide">
+              <SectionCard className="border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/10">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
                   <Clock className="h-3.5 w-3.5" />
                   รอลูกค้าอนุมัติราคา
                 </div>
-                <p className="text-sm text-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-300">
                   ประมาณการ: <span className="font-bold">{formatThaiMoney(Number(repair.estimatedTotal))}</span>
                   {repair.estimatedLaborCost != null && (
                     <span className="text-xs ml-1 opacity-70">
@@ -1044,8 +1044,8 @@ export default function RepairWorkspacePage() {
 
             {/* Status Change */}
             {repair.status !== 'DELIVERED' && (
-              <SectionCard className="border-blue-100 bg-blue-50/40">
-                <p className="text-sm font-semibold text-gray-900">เปลี่ยนสถานะงานซ่อม</p>
+              <SectionCard className="border-blue-100 dark:border-blue-800/40 bg-blue-50/40 dark:bg-blue-900/10">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">เปลี่ยนสถานะงานซ่อม</p>
                 <div className="flex gap-2">
                   <Select value={localStatus} onValueChange={(v) => setLocalStatus(v as RepairStatus)}>
                     <SelectTrigger className="flex-1 bg-white">
@@ -1151,8 +1151,8 @@ export default function RepairWorkspacePage() {
                   </div>
                 )}
                 {repair.finalCost != null && (
-                  <div className="flex justify-between font-bold text-base border-t pt-2 mt-1">
-                    <span>ค่าซ่อมสุดท้าย</span>
+                  <div className="flex justify-between font-bold text-base border-t border-slate-100 dark:border-slate-700/60 pt-2 mt-1">
+                    <span className="dark:text-white">ค่าซ่อมสุดท้าย</span>
                     <span className="text-blue-700 tabular-nums">{formatThaiMoney(Number(repair.finalCost))}</span>
                   </div>
                 )}
@@ -1165,7 +1165,7 @@ export default function RepairWorkspacePage() {
                 <SectionTitle icon={CheckCircle2} title="สถานะการชำระเงิน" />
                 {repair.paymentStatus === 'PAID' ? (
                   <div className="space-y-1.5 text-sm">
-                    <div className="flex items-center gap-2 text-green-700 font-semibold">
+                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-semibold">
                       <CheckCircle2 className="h-4 w-4" />
                       ชำระเงินแล้ว
                     </div>
@@ -1186,8 +1186,8 @@ export default function RepairWorkspacePage() {
                       </div>
                     )}
                     {repair.additionalPayments && repair.additionalPayments.length > 0 && (
-                      <div className="border-t pt-2 space-y-1">
-                        <p className="text-xs font-semibold text-muted-foreground">ชำระเพิ่มเติม</p>
+                      <div className="border-t border-slate-100 dark:border-slate-700/60 pt-2 space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">ชำระเพิ่มเติม</p>
                         {repair.additionalPayments.map((ap) => (
                           <div key={ap.id} className="flex justify-between text-xs">
                             <span className="text-muted-foreground">{fmtDateShort(ap.createdAt)}</span>
@@ -1216,11 +1216,11 @@ export default function RepairWorkspacePage() {
 
             {/* Warranty */}
             {repair.warrantyExpiresAt && (
-              <SectionCard className="border-green-200 bg-green-50">
+              <SectionCard className="border-green-200 dark:border-green-800/40 bg-green-50 dark:bg-green-900/10">
                 <SectionTitle icon={Shield} title="การรับประกัน" />
                 <div className="text-sm space-y-1">
-                  <p className="font-medium text-green-800">หมดประกัน: {fmtDateShort(repair.warrantyExpiresAt)}</p>
-                  {repair.warrantyNote && <p className="text-xs text-green-600">{repair.warrantyNote}</p>}
+                  <p className="font-medium text-green-800 dark:text-green-300">หมดประกัน: {fmtDateShort(repair.warrantyExpiresAt)}</p>
+                  {repair.warrantyNote && <p className="text-xs text-green-600 dark:text-green-400">{repair.warrantyNote}</p>}
                 </div>
               </SectionCard>
             )}
@@ -1234,7 +1234,7 @@ export default function RepairWorkspacePage() {
 
       {/* ─── Mobile Sticky Bottom Bar ─────────────────────────────────────────── */}
       {mobileAction && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t shadow-lg z-40">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-[#1E293B] border-t border-slate-100 dark:border-slate-700/60 shadow-lg z-40">
           <Button
             className={`w-full gap-2 text-white ${mobileAction.color}`}
             onClick={mobileAction.action}

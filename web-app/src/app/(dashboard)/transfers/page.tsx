@@ -341,10 +341,10 @@ function TransfersContent() {
                 id={`transfer-${t.id}`}
                 ref={isHighlighted ? highlightRef : null}
                 className={cn(
-                  'rounded-xl border bg-white dark:bg-slate-900 p-4 shadow-sm transition-all',
+                  'rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] transition-all',
                   isHighlighted
                     ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-700 shadow-blue-100'
-                    : 'border-slate-200 dark:border-slate-800',
+                    : 'border-slate-200 dark:border-slate-700/60',
                 )}
               >
                 <div className="flex items-start justify-between gap-4">

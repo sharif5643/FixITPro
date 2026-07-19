@@ -212,7 +212,7 @@ function TypeSection({
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] overflow-hidden">
       {/* Type header */}
       <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b">
         <button
@@ -224,7 +224,7 @@ function TypeSection({
             : <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />}
           <div className="flex items-center gap-2 min-w-0">
             <Layers className="h-4 w-4 text-blue-600 shrink-0" />
-            <span className="font-semibold text-gray-900 truncate">{type.name}</span>
+            <span className="font-semibold text-slate-900 dark:text-white truncate">{type.name}</span>
             <span className="text-xs text-muted-foreground bg-slate-200 rounded-full px-2 py-0.5 shrink-0">
               {type._count.categories} หมวดหมู่
             </span>
@@ -271,14 +271,14 @@ function TypeSection({
               {type.categories.map((cat) => (
                 <div
                   key={cat.id}
-                  className="flex items-center justify-between rounded-lg border bg-gray-50/60 px-3 py-2.5 hover:border-blue-200 transition-colors"
+                  className="flex items-center justify-between rounded-lg border border-slate-100 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/40 px-3 py-2.5 hover:border-blue-200 dark:hover:border-blue-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-50 shrink-0">
                       <Tag className="h-4 w-4 text-blue-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-gray-900 text-sm truncate">{cat.name}</p>
+                      <p className="font-medium text-slate-900 dark:text-white text-sm truncate">{cat.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {cat._count.products} สินค้า
                         {cat.inStockCount < cat._count.products && (
@@ -405,7 +405,7 @@ export default function CategoriesPage() {
           <span>กำลังโหลด...</span>
         </div>
       ) : types.length === 0 ? (
-        <div className="rounded-xl border bg-gray-50">
+        <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
           <EmptyState
             preset="default"
             icon={Layers}

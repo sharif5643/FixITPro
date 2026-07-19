@@ -184,7 +184,7 @@ export default function SerialsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-gray-50">
+                  <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Serial / IMEI</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">สินค้า</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">ประกัน</th>
@@ -201,12 +201,12 @@ export default function SerialsPage() {
                     return (
                       <tr
                         key={s.id}
-                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        className="hover:bg-slate-50 dark:hover:bg-slate-700/20 cursor-pointer transition-colors"
                         onClick={() => setDetailSerial(s)}
                       >
                         <td className="px-4 py-3 font-mono font-medium">{s.serial}</td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-gray-900">{s.product?.name}</p>
+                          <p className="font-medium text-slate-900 dark:text-white">{s.product?.name}</p>
                           <p className="text-xs text-muted-foreground">{s.product?.sku}</p>
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -491,7 +491,7 @@ function SerialDetailDialog({
 
         <div className="space-y-4 pt-1">
           {/* Product info */}
-          <div className="rounded-xl bg-gray-50 border p-3 space-y-1 text-sm">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 p-3 space-y-1 text-sm">
             <p className="font-semibold">{serial.product?.name}</p>
             <p className="text-muted-foreground text-xs">{serial.product?.sku}</p>
             <p className="text-xs">

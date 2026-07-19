@@ -111,7 +111,7 @@ const severityCls: Record<string, string> = {
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('animate-pulse rounded bg-slate-200', className)} />
+  return <div className={cn('animate-pulse rounded bg-slate-200 dark:bg-slate-700/60', className)} />
 }
 
 function SectionSkeleton() {
@@ -268,7 +268,7 @@ function DeadStockSection({
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {display.map((item, i) => (
-                    <tr key={`${item.product.id}-${item.branch.id}`} className="hover:bg-slate-50">
+                    <tr key={`${item.product.id}-${item.branch.id}`} className="hover:bg-slate-50 dark:hover:bg-slate-700/20">
                       <td className="py-2 pr-2">
                         <p className="font-medium text-slate-900 truncate max-w-[150px]">{item.product.name}</p>
                         <p className="text-[10px] text-slate-400">{item.product.sku}</p>
@@ -329,7 +329,7 @@ function BranchStockSection({ data, loading }: { data?: BranchStockItem[]; loadi
         ) : (
           <div className="space-y-3">
             {withIssues.slice(0, 20).map((item) => (
-              <div key={item.product.id} className="rounded-xl border border-slate-100 p-3">
+              <div key={item.product.id} className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 p-3">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div>
                     <p className="font-medium text-sm text-slate-900">{item.product.name}</p>
@@ -414,7 +414,7 @@ function RepairAgingSection({ data, loading }: { data?: RepairAgingResponse; loa
                   onClick={() => setOpenBucket(openBucket === b.key ? null : b.key)}
                   className={cn(
                     'rounded-xl p-3 text-center border transition-colors',
-                    openBucket === b.key ? 'border-blue-400 bg-blue-50' : 'border-slate-100 hover:border-slate-200',
+                    openBucket === b.key ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600' : 'border-slate-100 dark:border-slate-700/60 hover:border-slate-200 dark:hover:border-slate-600',
                   )}
                 >
                   <p className={cn('text-2xl font-bold', severityCls[b.severity].split(' ')[1]?.replace('text-', 'text-') ?? 'text-slate-700')}>
@@ -435,7 +435,7 @@ function RepairAgingSection({ data, loading }: { data?: RepairAgingResponse; loa
             {openBucket && (() => {
               const bucket = data.buckets[openBucket as keyof typeof data.buckets]
               return bucket.items.length > 0 ? (
-                <div className="border border-slate-100 rounded-xl divide-y divide-slate-50">
+                <div className="border border-slate-100 dark:border-slate-700/60 rounded-xl divide-y divide-slate-50 dark:divide-slate-700/40">
                   {bucket.items.map((r) => (
                     <div key={r.id} className="flex items-start gap-3 p-3">
                       <div className="min-w-0 flex-1">
@@ -499,7 +499,7 @@ function TopProfitSection({ data, loading }: { data?: ProfitProduct[]; loading: 
                       <span className="text-xs font-semibold text-emerald-700">{formatThaiMoney(item.grossProfit)}</span>
                     </div>
                   </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-slate-100 dark:bg-slate-700/60 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-emerald-500 rounded-full"
                       style={{ width: `${(item.grossProfit / maxProfit) * 100}%` }}
@@ -654,14 +654,14 @@ function DateRangePicker({
         type="date"
         value={startDate}
         onChange={(e) => onStartChange(e.target.value)}
-        className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-blue-300"
+        className="rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] px-2 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-300"
       />
       <span className="text-xs text-slate-400">—</span>
       <input
         type="date"
         value={endDate}
         onChange={(e) => onEndChange(e.target.value)}
-        className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-blue-300"
+        className="rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] px-2 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-300"
       />
     </div>
   )
@@ -739,10 +739,10 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-slate-50">
+    <div className="flex flex-col min-h-full bg-[#F8FAFC] dark:bg-[#0F172A]">
       <BranchContextBar />
 
-      <div className="bg-white border-b border-slate-200 px-4 pb-2">
+      <div className="bg-white dark:bg-[#1E293B] border-b border-slate-200 dark:border-slate-700/60 px-4 pb-2">
         <PageHeader
           title="วิเคราะห์เชิงลึก"
           icon={BarChart2}

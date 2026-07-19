@@ -62,9 +62,9 @@ function getTier(salesCount: number, totalSpending: number): Tier {
 }
 
 const TIER_CONFIG: Record<Tier, { label: string; Icon: React.ElementType; cls: string }> = {
-  VIP:     { label: 'VIP',    Icon: Crown,    cls: 'bg-yellow-50 text-yellow-700 border-yellow-300' },
-  REGULAR: { label: 'ประจำ', Icon: Star,     cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  NEW:     { label: 'ใหม่',  Icon: Sparkles, cls: 'bg-gray-50 text-gray-500 border-gray-200' },
+  VIP:     { label: 'VIP',    Icon: Crown,    cls: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700/60' },
+  REGULAR: { label: 'ประจำ', Icon: Star,     cls: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700/60' },
+  NEW:     { label: 'ใหม่',  Icon: Sparkles, cls: 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60' },
 }
 
 const SALE_STATUS_LABEL: Record<string, string> = {
@@ -200,7 +200,7 @@ export default function CustomerProfilePage() {
       <div className="flex items-center justify-between gap-2">
         <Link
           href="/customers"
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gray-900 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           ลูกค้า
@@ -217,7 +217,7 @@ export default function CustomerProfilePage() {
       </div>
 
       {/* Profile header */}
-      <div className="bg-white rounded-xl border p-5">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
         <div className="flex items-start gap-4">
           {/* Avatar */}
           <div className="h-14 w-14 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
@@ -226,7 +226,7 @@ export default function CustomerProfilePage() {
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-bold text-gray-900">{customer.name}</h1>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white">{customer.name}</h1>
               <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tierCls}`}>
                 <TierIcon className="h-3 w-3" />
                 {tierLabel}
@@ -240,26 +240,26 @@ export default function CustomerProfilePage() {
 
             <div className="mt-2 flex flex-col gap-1">
               {customer.phone && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <Phone className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                   {customer.phone}
                 </div>
               )}
               {customer.email && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <Mail className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                   {customer.email}
                 </div>
               )}
               {customer.address && (
-                <div className="flex items-start gap-2 text-sm text-gray-600">
-                  <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <MapPin className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
                   <span>{customer.address}</span>
                 </div>
               )}
               {customer.note && (
-                <div className="flex items-start gap-2 text-sm text-gray-500 border-t pt-2 mt-1">
-                  <User className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2 text-sm text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700/60 pt-2 mt-1">
+                  <User className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
                   <span>{customer.note}</span>
                 </div>
               )}
@@ -274,7 +274,7 @@ export default function CustomerProfilePage() {
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="h-4 w-4 text-blue-500" />
             <p className="text-xs text-muted-foreground">ยอดซื้อรวม</p>
@@ -285,7 +285,7 @@ export default function CustomerProfilePage() {
         </div>
 
         {customer.unpaidBalance > 0 && (
-          <div className="bg-red-50 rounded-xl border border-red-200 p-4">
+          <div className="bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-200 dark:border-red-800/40 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
             <div className="flex items-center gap-2 mb-1">
               <AlertCircle className="h-4 w-4 text-red-500" />
               <p className="text-xs text-red-600">ค้างชำระ</p>
@@ -296,7 +296,7 @@ export default function CustomerProfilePage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <ShoppingCart className="h-4 w-4 text-green-500" />
             <p className="text-xs text-muted-foreground">ซื้อสินค้า</p>
@@ -307,7 +307,7 @@ export default function CustomerProfilePage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <Wrench className="h-4 w-4 text-purple-500" />
             <p className="text-xs text-muted-foreground">งานซ่อม</p>
@@ -318,12 +318,12 @@ export default function CustomerProfilePage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <Clock className="h-4 w-4 text-amber-500" />
             <p className="text-xs text-muted-foreground">เยี่ยมล่าสุด</p>
           </div>
-          <p className="text-sm font-semibold text-gray-800">
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
             {customer.lastVisitAt
               ? formatDistanceToNow(new Date(customer.lastVisitAt), {
                   addSuffix: true, locale: th,
@@ -332,7 +332,7 @@ export default function CustomerProfilePage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <StickyNote className="h-4 w-4 text-slate-500" />
             <p className="text-xs text-muted-foreground">โน้ต</p>
@@ -345,16 +345,16 @@ export default function CustomerProfilePage() {
       </div>
 
       {/* Tags */}
-      <div className="bg-white rounded-xl border p-4">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Tag className="h-4 w-4 text-slate-500" />
-          <p className="text-sm font-semibold text-gray-900">แท็ก</p>
+          <Tag className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">แท็ก</p>
         </div>
         <div className="flex flex-wrap gap-2 mb-3">
           {customer.tags.map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700"
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300"
             >
               {tag}
               <button
@@ -392,9 +392,9 @@ export default function CustomerProfilePage() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] overflow-hidden">
         {/* Tab bar */}
-        <div className="flex border-b">
+        <div className="flex border-b border-slate-100 dark:border-slate-700/60 overflow-x-auto">
           {([
             { key: 'sales',      label: 'ประวัติการซื้อ', Icon: ShoppingCart, count: customer._count.sales },
             { key: 'repairs',   label: 'ประวัติซ่อม',   Icon: Wrench,        count: customer._count.repairs },
@@ -407,13 +407,13 @@ export default function CustomerProfilePage() {
               className={[
                 'flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
                 tab === key
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-transparent text-muted-foreground hover:text-gray-900',
+                  ? 'border-blue-600 text-blue-700 dark:text-blue-400'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white',
               ].join(' ')}
             >
               <Icon className="h-3.5 w-3.5" />
               {label}
-              <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === key ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === key ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400'}`}>
                 {count}
               </span>
             </button>
@@ -431,7 +431,7 @@ export default function CustomerProfilePage() {
               <div className="overflow-x-auto -mx-4">
                 <table className="w-full text-sm min-w-[480px]">
                   <thead>
-                    <tr className="border-b bg-gray-50 text-xs text-gray-500">
+                    <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-500 dark:text-slate-400">
                       <th className="text-left px-4 py-2 font-medium">เลขใบเสร็จ</th>
                       <th className="text-left px-4 py-2 font-medium">สถานะ</th>
                       <th className="text-left px-4 py-2 font-medium">วิธีชำระ</th>
@@ -441,7 +441,7 @@ export default function CustomerProfilePage() {
                   </thead>
                   <tbody>
                     {customer.sales.map((sale) => (
-                      <tr key={sale.id} className="border-b last:border-0 hover:bg-slate-50">
+                      <tr key={sale.id} className="border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/20">
                         <td className="px-4 py-2.5 font-mono font-semibold text-blue-700 text-xs">
                           {sale.receiptNumber}
                         </td>
@@ -455,7 +455,7 @@ export default function CustomerProfilePage() {
                             : sale.paymentMethod === 'TRANSFER' ? 'โอน'
                             : sale.paymentMethod}
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-gray-900 text-sm">
+                        <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900 dark:text-white text-sm">
                           {formatThaiMoney(Number(sale.total))}
                         </td>
                         <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
@@ -482,7 +482,7 @@ export default function CustomerProfilePage() {
               <div className="overflow-x-auto -mx-4">
                 <table className="w-full text-sm min-w-[480px]">
                   <thead>
-                    <tr className="border-b bg-gray-50 text-xs text-gray-500">
+                    <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-500 dark:text-slate-400">
                       <th className="text-left px-4 py-2 font-medium">เลขงาน</th>
                       <th className="text-left px-4 py-2 font-medium">อุปกรณ์</th>
                       <th className="text-left px-4 py-2 font-medium">สถานะ</th>
@@ -492,11 +492,11 @@ export default function CustomerProfilePage() {
                   </thead>
                   <tbody>
                     {customer.repairs.map((r) => (
-                      <tr key={r.id} className="border-b last:border-0 hover:bg-slate-50">
+                      <tr key={r.id} className="border-b border-slate-100 dark:border-slate-700/40 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/20">
                         <td className="px-4 py-2.5 font-mono font-semibold text-blue-700 text-xs">
                           {r.ticketNumber}
                         </td>
-                        <td className="px-4 py-2.5 text-gray-900 text-xs">
+                        <td className="px-4 py-2.5 text-slate-900 dark:text-white text-xs">
                           {r.deviceBrand} {r.deviceModel}
                         </td>
                         <td className="px-4 py-2.5">
@@ -511,7 +511,7 @@ export default function CustomerProfilePage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-gray-900">
+                        <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-900 dark:text-white">
                           {r.finalCost ? formatThaiMoney(Number(r.finalCost)) : '—'}
                         </td>
                         <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
@@ -539,9 +539,9 @@ export default function CustomerProfilePage() {
                 {warranties.map((w) => {
                   const { label, cls, Icon } = WARRANTY_STATUS_CONFIG[w.status]
                   return (
-                    <div key={w.id} className="rounded-lg border bg-gray-50 p-3 flex items-start justify-between gap-3">
+                    <div key={w.id} className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-3 flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="font-mono text-xs font-semibold text-gray-600">{w.warrantyNumber}</p>
+                        <p className="font-mono text-xs font-semibold text-slate-600 dark:text-slate-400">{w.warrantyNumber}</p>
                         {w.repair && (
                           <p className="text-sm font-medium text-blue-700">{w.repair.ticketNumber} — {w.repair.deviceBrand} {w.repair.deviceModel}</p>
                         )}
@@ -607,9 +607,9 @@ export default function CustomerProfilePage() {
                   {customer.notes.map((note) => (
                     <div
                       key={note.id}
-                      className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                      className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4"
                     >
-                      <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
                         {note.note}
                       </p>
                       <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">

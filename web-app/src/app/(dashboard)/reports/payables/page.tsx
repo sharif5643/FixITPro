@@ -111,7 +111,7 @@ export default function SupplierAgingPage() {
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b bg-gray-50 text-gray-500 text-xs">
+                    <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 text-xs">
                       <th className="text-left px-4 py-2.5 font-medium">ซัพพลายเออร์</th>
                       <th className="text-right px-4 py-2.5 font-medium">0–30 วัน</th>
                       <th className="text-right px-4 py-2.5 font-medium">31–60 วัน</th>

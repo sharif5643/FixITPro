@@ -70,7 +70,7 @@ export function BranchRankingTable({ branches, isLoading }: Props) {
     <div className="overflow-x-auto -mx-1">
       <table className="w-full text-sm min-w-[560px]">
         <thead>
-          <tr className="border-b dark:border-slate-800 text-xs text-slate-400 dark:text-slate-500">
+          <tr className="border-b dark:border-slate-700/60 text-xs text-slate-400 dark:text-slate-500">
             <th className="text-left py-2 pl-2 font-medium w-6">#</th>
             <th className="text-left py-2 font-medium">สาขา</th>
             <th className="text-right py-2 font-medium">ยอดรวม</th>

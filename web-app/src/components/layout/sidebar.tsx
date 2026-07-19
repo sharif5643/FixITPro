@@ -418,8 +418,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       <aside
         className={cn(
           'flex flex-col flex-shrink-0',
-          'bg-white dark:bg-slate-900',
-          'border-r border-slate-200 dark:border-slate-800',
+          'bg-white dark:bg-[#1E293B]',
+          'border-r border-slate-200 dark:border-slate-700/60',
           'overflow-hidden',
           'hidden md:flex md:relative md:w-60',
           open && 'fixed inset-y-0 left-0 z-50 !flex !w-60 shadow-2xl',
@@ -454,7 +454,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         </Suspense>
 
         {/* User info */}
-        <div className="flex-shrink-0 border-t border-slate-100 dark:border-slate-800 p-3 overflow-hidden">
+        <div className="flex-shrink-0 border-t border-slate-100 dark:border-slate-700/60 p-3 overflow-hidden">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 shadow-sm">
               <span className="text-xs font-bold text-white">

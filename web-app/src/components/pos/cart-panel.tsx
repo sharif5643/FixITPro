@@ -53,7 +53,7 @@ export function CartPanel({
     <div className="flex flex-col h-full">
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 px-4 py-3 shrink-0">
+      <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-700/60 px-4 py-3 shrink-0">
         <div className="relative">
           <ShoppingCart className="h-5 w-5 text-blue-600" />
           {items.length > 0 && (
@@ -121,7 +121,7 @@ export function CartPanel({
                     ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10'
                     : isSelected
                       ? 'border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/10 shadow-sm ring-1 ring-blue-300 dark:ring-blue-700'
-                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50',
+                      : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/50',
                 )}
               >
                 <div className="flex-1 min-w-0">
@@ -274,7 +274,7 @@ export function CartPanel({
       </div>
 
       {/* ── Checkout panel ─────────────────────────────────────────────── */}
-      {showPaymentPanel && <div className="border-t border-slate-100 dark:border-slate-800 pt-3 mt-2 px-3 pb-3 space-y-3 shrink-0">
+      {showPaymentPanel && <div className="border-t border-slate-100 dark:border-slate-700/60 pt-3 mt-2 px-3 pb-3 space-y-3 shrink-0">
 
         {/* Zero-price warning */}
         {hasZeroPriceItem && (

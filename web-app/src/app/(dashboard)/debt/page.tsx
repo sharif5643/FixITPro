@@ -143,11 +143,11 @@ function ReceiptModal({ result, onClose }: { result: PaymentResult; onClose: () 
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl border dark:border-slate-800 w-full sm:max-w-sm overflow-hidden flex flex-col max-h-[92vh]"
+        className="bg-white dark:bg-[#1E293B] rounded-t-2xl sm:rounded-2xl shadow-2xl border dark:border-slate-700/60 w-full sm:max-w-sm overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b dark:border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b dark:border-slate-700/60 shrink-0">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
             <span className="font-bold text-slate-800 dark:text-slate-50">รับชำระสำเร็จ</span>
@@ -228,7 +228,7 @@ function ReceiptModal({ result, onClose }: { result: PaymentResult; onClose: () 
         </div>
 
         {/* Actions */}
-        <div className="px-5 py-4 border-t dark:border-slate-800 shrink-0 flex gap-2">
+        <div className="px-5 py-4 border-t dark:border-slate-700/60 shrink-0 flex gap-2">
           <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={handlePrint}>
             <Printer className="h-4 w-4" /> พิมพ์ใบเสร็จ
           </Button>
@@ -294,11 +294,11 @@ function DebtPaymentModal({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl border dark:border-slate-800 w-full sm:max-w-md overflow-hidden flex flex-col max-h-[92vh]"
+        className="bg-white dark:bg-[#1E293B] rounded-t-2xl sm:rounded-2xl shadow-2xl border dark:border-slate-700/60 w-full sm:max-w-md overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-5 py-4 border-b dark:border-slate-800 shrink-0">
+        <div className="flex items-start justify-between px-5 py-4 border-b dark:border-slate-700/60 shrink-0">
           <div>
             <p className="font-bold text-slate-800 dark:text-slate-50 text-base">รับชำระหนี้</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
@@ -421,7 +421,7 @@ function DebtPaymentModal({
         </div>
 
         {/* Footer — large action button */}
-        <div className="px-4 py-4 border-t dark:border-slate-800 shrink-0 flex gap-2">
+        <div className="px-4 py-4 border-t dark:border-slate-700/60 shrink-0 flex gap-2">
           <button
             type="button"
             onClick={onClose}
@@ -603,7 +603,7 @@ function CustomerSection({
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+    <div className="bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/60 overflow-hidden shadow-sm">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
@@ -635,7 +635,7 @@ function CustomerSection({
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-1 space-y-2.5 border-t border-slate-100 dark:border-slate-800">
+        <div className="px-4 pb-4 pt-1 space-y-2.5 border-t border-slate-100 dark:border-slate-700/60">
           {group.repairs.map((repair) => (
             <RepairCard key={repair.id} repair={repair} onPay={onPay} />
           ))}
@@ -695,7 +695,7 @@ export default function DebtPage() {
       {/* Summary chips */}
       {!isLoading && repairs.length > 0 && (
         <div className="flex gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full px-3 py-1.5">
+          <div className="flex items-center gap-1.5 text-xs bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-full px-3 py-1.5">
             <Users className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             <span className="text-slate-600 dark:text-slate-300">{groups.length} ลูกค้า</span>
           </div>

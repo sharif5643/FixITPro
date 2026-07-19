@@ -242,7 +242,7 @@ function DataFieldList({ data }: { data: Record<string, any> }) {
   return (
     <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
       {keys.map((key) => (
-        <div key={key} className="flex items-start gap-3 px-3 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
+        <div key={key} className="flex items-start gap-3 px-3 py-2 border-b border-slate-100 dark:border-slate-700/60 last:border-0">
           <span className="text-xs text-slate-400 shrink-0 w-32 pt-0.5 leading-snug">
             {getFieldLabel(key)}
           </span>
@@ -288,7 +288,7 @@ function ComparisonTable({
           {changedKeys.map((key) => (
             <div
               key={key}
-              className="grid grid-cols-[1fr_1fr_1fr] border-b border-slate-100 dark:border-slate-800 last:border-0 text-sm"
+              className="grid grid-cols-[1fr_1fr_1fr] border-b border-slate-100 dark:border-slate-700/60 last:border-0 text-sm"
             >
               <div className="px-3 py-2 text-xs text-slate-500 self-center leading-snug">
                 {getFieldLabel(key)}
@@ -328,7 +328,7 @@ function ComparisonTable({
               {unchangedKeys.map((key) => (
                 <div
                   key={key}
-                  className="flex items-start gap-3 px-3 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0"
+                  className="flex items-start gap-3 px-3 py-2 border-b border-slate-100 dark:border-slate-700/60 last:border-0"
                 >
                   <span className="text-xs text-slate-400 shrink-0 w-32 pt-0.5">
                     {getFieldLabel(key)}
@@ -383,7 +383,7 @@ function RawJsonBlock({ label, data }: { label: string; data: Record<string, any
         )}
       </div>
       {open && (
-        <pre className="text-xs p-3 overflow-x-auto whitespace-pre-wrap break-words text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
+        <pre className="text-xs p-3 overflow-x-auto whitespace-pre-wrap break-words text-slate-600 dark:text-slate-400 bg-white dark:bg-[#1E293B] border-t border-slate-200 dark:border-slate-700/60">
           {JSON.stringify(data, null, 2)}
         </pre>
       )}
@@ -398,7 +398,7 @@ function DetailModalContent({ log }: { log: AuditLog }) {
   return (
     <div className="overflow-y-auto flex-1 p-5 space-y-5">
       {/* Meta row */}
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs bg-slate-50 dark:bg-slate-800 rounded-lg px-4 py-3">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs bg-slate-50 dark:bg-slate-800/60 rounded-lg px-4 py-3 border border-slate-100 dark:border-slate-700/60">
         <div>
           <span className="text-slate-400">ประเภท  </span>
           <span className="text-slate-700 font-medium">{log.entityType}</span>
@@ -464,7 +464,7 @@ function DetailModalContent({ log }: { log: AuditLog }) {
 
       {/* Raw JSON (developer section) */}
       {hasRaw && (
-        <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-4">
+        <div className="space-y-2 border-t border-slate-100 dark:border-slate-700/60 pt-4">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
             ข้อมูลดิบ (JSON)
           </p>
@@ -557,7 +557,7 @@ export default function AuditLogsPage() {
         <select
           value={entityType}
           onChange={(e) => { setEntityType(e.target.value); setPage(1) }}
-          className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+          className="border border-slate-200 dark:border-slate-700/60 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-[#1E293B] dark:text-white"
         >
           <option value="">ทุกประเภท</option>
           {ENTITY_TYPES.map((t) => (
@@ -586,7 +586,7 @@ export default function AuditLogsPage() {
       </form>
 
       {/* Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/60 overflow-hidden">
         {isLoading ? (
           <div className="p-8 text-center text-slate-400">กำลังโหลด...</div>
         ) : !data?.items.length ? (
@@ -672,11 +672,11 @@ export default function AuditLogsPage() {
           onClick={() => setSelected(null)}
         >
           <div
-            className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[88vh] overflow-hidden flex flex-col"
+            className="bg-white dark:bg-[#1E293B] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[88vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal header */}
-            <div className="flex items-start justify-between px-5 py-4 border-b dark:border-slate-800 shrink-0 gap-3">
+            <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700/60 shrink-0 gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span

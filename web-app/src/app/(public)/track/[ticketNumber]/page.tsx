@@ -123,7 +123,7 @@ export default function TrackDetailPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-16">
 
       {/* Top bar */}
-      <div className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-10 shadow-sm">
+      <div className="bg-white dark:bg-[#1E293B] border-b dark:border-slate-700/60 sticky top-0 z-10 shadow-sm">
         <div className="max-w-2xl mx-auto flex items-center gap-3 px-4 py-3">
           <Button variant="ghost" size="icon" onClick={() => router.push('/track')}>
             <ArrowLeft className="h-4 w-4" />

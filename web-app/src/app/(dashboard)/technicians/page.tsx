@@ -187,7 +187,7 @@ export default function TechniciansPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                   <th className="text-center px-3 py-3 font-medium w-12">อันดับ</th>
                   <th className="text-left px-4 py-3 font-medium">ช่าง</th>
                   <th className="text-center px-4 py-3 font-medium">งานทั้งหมด</th>

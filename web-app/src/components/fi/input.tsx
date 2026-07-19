@@ -35,7 +35,7 @@ export const FiInput = React.forwardRef<HTMLInputElement, FiInputProps>(
             ref={ref}
             id={inputId}
             className={cn(
-              'w-full rounded-xl border bg-white dark:bg-slate-900 text-[var(--fi-text)] placeholder:text-[var(--fi-text-faint)] transition-all duration-150',
+              'w-full rounded-xl border bg-white dark:bg-[#1E293B] text-[var(--fi-text)] placeholder:text-[var(--fi-text-faint)] transition-all duration-150',
               'focus:outline-none focus:ring-2 focus:ring-[var(--fi-primary)] focus:border-[var(--fi-primary)]',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               error

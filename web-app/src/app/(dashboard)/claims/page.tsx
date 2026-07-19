@@ -200,7 +200,7 @@ export default function ClaimsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-gray-50">
+                  <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
                     {['เลขเคลม','Serial / IMEI','สินค้า','ลูกค้า','ประเภท','สถานะ','ต้นทุน','วันที่',''].map((h) => (
                       <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>
                     ))}
@@ -211,7 +211,7 @@ export default function ClaimsPage() {
                     const exp = c.serialNumber.warrantyExpiresAt
                     const inWarranty = exp ? new Date(exp) > new Date() : false
                     return (
-                      <tr key={c.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => setDetailClaim(c)}>
+                      <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 cursor-pointer transition-colors" onClick={() => setDetailClaim(c)}>
                         <td className="px-4 py-3 font-mono font-medium text-blue-700">{c.claimNumber}</td>
                         <td className="px-4 py-3 font-mono text-xs">{c.serialNumber.serial}</td>
                         <td className="px-4 py-3">
@@ -408,7 +408,7 @@ function CreateClaimDialog({
         ) : (
           <div className="space-y-4 pt-2">
             {/* Summary */}
-            <div className="rounded-xl bg-gray-50 border p-3 text-sm">
+            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 p-3 text-sm">
               <p className="font-semibold">{foundSerial?.product?.name}</p>
               <p className="text-xs font-mono text-muted-foreground">{foundSerial?.serial}</p>
               <div className="mt-1"><WarrantyInfo warrantyExpiresAt={foundSerial?.warrantyExpiresAt} /></div>
@@ -757,7 +757,7 @@ function UpdateStatusDialog({
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          <div className="rounded-xl bg-gray-50 border p-3 text-sm">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 p-3 text-sm">
             <p className="text-xs text-muted-foreground">สถานะปัจจุบัน</p>
             <div className="mt-1"><StatusBadge status={claim.status} /></div>
           </div>

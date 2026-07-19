@@ -564,8 +564,8 @@ export default function EmployeesPage() {
               <div
                 key={user.id}
                 className={cn(
-                  'bg-white rounded-xl border p-4 flex items-center gap-4 transition-colors',
-                  !user.isActive && 'opacity-60 bg-gray-50',
+                  'bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 flex items-center gap-4 transition-all',
+                  !user.isActive && 'opacity-60',
                   missingBranch && 'border-amber-200',
                 )}
               >
@@ -580,7 +580,7 @@ export default function EmployeesPage() {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900">{user.name}</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{user.name}</p>
                     {isMe && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-2 py-0.5">ฉัน</span>}
                     <span className={cn('text-xs border rounded-full px-2 py-0.5 font-medium', ROLE_COLOR[user.role])}>
                       {ROLE_LABEL[user.role]}

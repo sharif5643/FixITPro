@@ -23,7 +23,7 @@ export function DataTable({
 export function DataTableHead({ children }: { children: React.ReactNode }) {
   return (
     <thead>
-      <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+      <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-[#1E293B]/50">
         {children}
       </tr>
     </thead>
@@ -142,7 +142,7 @@ export function DataTableLoadingRows({
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
-        <tr key={i} className="border-b border-slate-50 dark:border-slate-800">
+        <tr key={i} className="border-b border-slate-50 dark:border-slate-700/60">
           {Array.from({ length: cols }).map((_, j) => (
             <td key={j} className="py-3 px-3">
               <div

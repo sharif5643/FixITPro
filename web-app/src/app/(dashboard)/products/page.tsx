@@ -351,7 +351,7 @@ export default function ProductsPage() {
         searchPlaceholder="ค้นหาชื่อสินค้า, SKU, Barcode..."
       >
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-36 h-9 text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <SelectTrigger className="w-36 h-9 text-sm border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -594,7 +594,7 @@ export default function ProductsPage() {
 
                   // ── Single-branch availability mini-breakdown row ──────────
                   ...(!isViewAll && isAvailExpanded ? [
-                    <tr key={`${p.id}-avail`} className="bg-slate-50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800">
+                    <tr key={`${p.id}-avail`} className="bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-700/60">
                       <td colSpan={9} className="px-8 py-2.5">
                         {availData.filter((b) => b.branchId !== effectiveBranch).length === 0 ? (
                           <p className="text-xs text-slate-400 dark:text-slate-500">ไม่มีสาขาอื่นที่มีสต็อกสินค้านี้</p>
@@ -628,7 +628,7 @@ export default function ProductsPage() {
 
         {/* Pagination footer */}
         {filtered.length > 0 && (
-          <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <div className="border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
             <span>
               แสดง{' '}
               <span className="font-medium text-slate-700 dark:text-slate-300">

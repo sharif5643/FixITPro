@@ -110,7 +110,7 @@ function DrawerTable({ head, rows }: { head: string[]; rows: (string | React.Rea
     <div className="overflow-x-auto -mx-5 px-5">
       <table className="w-full text-xs min-w-[540px]">
         <thead>
-          <tr className="border-b bg-gray-50 text-gray-500">
+          <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400">
             {head.map((h) => (
               <th key={h} className="px-2 py-2 text-left font-medium whitespace-nowrap">{h}</th>
             ))}

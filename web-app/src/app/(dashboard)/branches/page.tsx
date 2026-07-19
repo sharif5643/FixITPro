@@ -74,8 +74,8 @@ function BranchModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between border-b dark:border-slate-800 px-6 py-4">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between border-b dark:border-slate-700/60 px-6 py-4">
           <h2 className="font-semibold text-lg dark:text-white">{branch ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่'}</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
             <X className="h-5 w-5 text-slate-500" />
@@ -284,8 +284,8 @@ export default function BranchesPage() {
                 <div
                   key={branch.id}
                   className={cn(
-                    'rounded-xl border bg-white dark:bg-slate-900 p-4 space-y-2 transition-all',
-                    branch.isActive ? 'border-slate-200 dark:border-slate-700' : 'border-slate-100 dark:border-slate-800 opacity-60',
+                    'rounded-xl border bg-white dark:bg-[#1E293B] p-4 space-y-2 transition-all',
+                    branch.isActive ? 'border-slate-200 dark:border-slate-700' : 'border-slate-100 dark:border-slate-700/60 opacity-60',
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -367,7 +367,7 @@ export default function BranchesPage() {
                   {branch.status === 'SUSPENDED' && (
                     <p className="text-xs font-medium text-orange-600">⚠ สาขานี้ถูกระงับการใช้งาน</p>
                   )}
-                  <div className="flex gap-3 pt-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex gap-3 pt-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700/60">
                     <span className="flex items-center gap-1">
                       <Users className="h-3 w-3" />
                       {branch._count?.users ?? 0} พนักงาน
@@ -420,7 +420,7 @@ export default function BranchesPage() {
           ) : branchStock.length === 0 ? (
             <EmptyState preset="stock" title="ยังไม่มีข้อมูลสต็อก" description="ไม่มีข้อมูลสต็อกสำหรับสาขานี้" />
           ) : (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] overflow-hidden">
               <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 text-xs text-blue-700 font-medium flex items-center gap-1">
                 <Package className="h-3.5 w-3.5" />
                 สต็อกเฉพาะสาขา — {branches.find(b => b.id === selectedBranchForStock)?.name}

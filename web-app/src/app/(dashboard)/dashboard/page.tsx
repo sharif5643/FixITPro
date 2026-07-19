@@ -294,42 +294,42 @@ function DashboardReminderWidget() {
       </div>
       <div className="flex flex-wrap gap-3">
         {repairOverdue > 0 && (
-          <Link href="/repairs" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+          <Link href="/repairs" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
             <Wrench className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">งานซ่อมค้าง</span>
             <Badge className="bg-red-600 text-white text-xs ml-1">{repairOverdue} งาน</Badge>
           </Link>
         )}
         {transferPending > 0 && (
-          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
             <ArrowRightLeft className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">คำขอโอนรออนุมัติ</span>
             <Badge className="bg-amber-500 text-white text-xs ml-1">{transferPending} รายการ</Badge>
           </Link>
         )}
         {transferTransit > 0 && (
-          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
             <Send className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">สินค้ารอรับ</span>
             <Badge className="bg-blue-600 text-white text-xs ml-1">{transferTransit} รายการ</Badge>
           </Link>
         )}
         {totalUrgent > 0 && (
-          <Link href="/repairs?filter=urgent" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-red-200 dark:border-red-800/60 px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+          <Link href="/repairs?filter=urgent" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-red-200 dark:border-red-800/60 px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
             <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">งานซ่อมเร่งด่วน</span>
             <Badge className="bg-red-600 text-white text-xs ml-1">{totalUrgent} งาน</Badge>
           </Link>
         )}
         {partsCount > 0 && (
-          <Link href="/repairs?filter=waiting_parts" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-orange-200 dark:border-orange-800/60 px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+          <Link href="/repairs?filter=waiting_parts" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-orange-200 dark:border-orange-800/60 px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
             <Settings2 className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">รอชิ้นส่วน</span>
             <Badge className="bg-orange-500 text-white text-xs ml-1">{partsCount} งาน</Badge>
           </Link>
         )}
         {pickupCount > 0 && (
-          <Link href="/repairs?filter=completed" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-green-200 dark:border-green-800/60 px-3 py-2 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+          <Link href="/repairs?filter=completed" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-green-200 dark:border-green-800/60 px-3 py-2 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
             <Clock className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">รอรับเครื่อง</span>
             <Badge className="bg-green-600 text-white text-xs ml-1">{pickupCount} งาน</Badge>
@@ -370,7 +370,7 @@ function RecentRepairsWidget({ repairs, isLoading }: { repairs: Repair[]; isLoad
     <div className="space-y-1.5">
       {items.map(repair => (
         <Link key={repair.id} href="/repairs">
-          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-900/40 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
+          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-800/30 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{repair.ticketNumber}</span>
@@ -523,7 +523,7 @@ function RecentSalesWidget({
     <div className="space-y-1.5">
       {sales.map(s => (
         <Link key={s.id} href="/sales">
-          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-900/40 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
+          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-800/30 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{s.receiptNumber}</span>
@@ -608,7 +608,7 @@ function QuickActionsPanel({ role }: { role: string }) {
           <Link
             key={action.href}
             href={action.href}
-            className="flex items-center gap-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md active:scale-[0.97] transition-all min-h-[64px]"
+            className="flex items-center gap-3 p-3.5 rounded-2xl bg-white dark:bg-[#1E293B]border border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md active:scale-[0.97] transition-all min-h-[64px]"
           >
             <div className={cn('h-11 w-11 rounded-xl flex items-center justify-center shrink-0', action.iconBg)}>
               <action.icon className={cn('h-5 w-5', action.iconColor)} />
@@ -979,7 +979,7 @@ export default function DashboardPage() {
                     <div
                       key={row.label}
                       className={`flex items-center justify-between rounded-lg px-3 py-2 transition-colors ${
-                        row.urgent && row.count > 0 ? 'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200 dark:ring-red-800/60' : 'bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                        row.urgent && row.count > 0 ? 'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200 dark:ring-red-800/60' : 'bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -1066,7 +1066,7 @@ export default function DashboardPage() {
 
                 {/* Revenue breakdown sub-row */}
                 {(f?.totalRevenue ?? 0) > 0 && (
-                  <div className="pt-3 border-t dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="pt-3 border-t dark:border-slate-700/60 grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="text-xs">
                       <span className="text-slate-400 dark:text-slate-500">POS </span>
                       <span className="font-semibold text-blue-700 dark:text-blue-400">{formatThaiMoney(f?.salesRevenue ?? 0)}</span>
@@ -1122,7 +1122,7 @@ export default function DashboardPage() {
               ) : data?.weeklyRevenue ? (
                 <>
                   <RevenueBarChart data={data.weeklyRevenue} shortDate={shortDate} />
-                  <div className="mt-3 pt-3 border-t dark:border-slate-800 flex justify-between items-center">
+                  <div className="mt-3 pt-3 border-t dark:border-slate-700/60 flex justify-between items-center">
                     <span className="text-xs text-slate-500 dark:text-slate-400">รวม 7 วัน</span>
                     <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
                       {formatThaiMoney(data.weeklyRevenue.reduce((s, d) => s + d.total, 0))}
@@ -1490,7 +1490,7 @@ export default function DashboardPage() {
                   ...(isOwnerOrManager ? [{ label: 'วิเคราะห์', href: '/analytics', icon: BarChart2, color: 'bg-rose-600' }] : []),
                 ].map(a => (
                   <Link key={a.href} href={a.href}
-                    className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 dark:border-slate-800 p-2.5 hover:border-blue-200 dark:hover:border-blue-800/60 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm transition-all">
+                    className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 dark:border-slate-700/60 p-2.5 hover:border-blue-200 dark:hover:border-blue-800/60 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm transition-all">
                     <div className={`rounded-lg p-1.5 ${a.color}`}>
                       <a.icon className="h-3.5 w-3.5 text-white" />
                     </div>

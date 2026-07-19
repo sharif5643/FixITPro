@@ -17,7 +17,7 @@ export function BottomTabBar() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-white dark:bg-[#111827] border-t border-slate-200 dark:border-slate-800 flex items-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-white dark:bg-[#111827] border-t border-slate-200 dark:border-slate-700/60 flex items-center" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {TABS.map(({ href, icon: Icon, label }) => {
         const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
         return (

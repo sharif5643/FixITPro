@@ -116,7 +116,7 @@ function ProductCard({
                 ? 'border-blue-400 dark:border-blue-600/60 shadow-md ring-1 ring-blue-300/60'
                 : isLowStock
                   ? 'border-amber-200 dark:border-amber-700/40'
-                  : 'border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-600/50 hover:shadow-md active:scale-[0.98]',
+                  : 'border-slate-200 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-600/50 hover:shadow-md active:scale-[0.98]',
       )}
     >
       {/* ── Image / color tile ───────────────────────────────────────────── */}
@@ -139,7 +139,7 @@ function ProductCard({
 
         {/* Out-of-stock overlay */}
         {isOut && (
-          <div className="absolute inset-0 bg-slate-900/30 dark:bg-slate-900/50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-slate-900/30 dark:bg-[#1E293B]/50 flex items-center justify-center">
             {canRequest ? (
               <span className="flex items-center gap-1 text-[11px] font-bold text-white bg-orange-500 px-2.5 py-1 rounded-full shadow-sm">
                 <ArrowRightLeft className="h-3 w-3" />
@@ -155,7 +155,7 @@ function ProductCard({
 
         {/* Zero-price overlay */}
         {isZeroPrice && (
-          <div className="absolute inset-0 bg-slate-900/20 dark:bg-slate-900/40 flex items-center justify-center">
+          <div className="absolute inset-0 bg-slate-900/20 dark:bg-[#1E293B]/40 flex items-center justify-center">
             <span className="text-[11px] font-bold text-white bg-red-600 px-2.5 py-1 rounded-full shadow-sm">
               ไม่มีราคา
             </span>
@@ -177,7 +177,7 @@ function ProductCard({
             'absolute top-1.5 left-1.5 flex h-7 w-7 items-center justify-center rounded-full transition-colors z-10',
             isFavorite
               ? 'bg-amber-500/20 text-amber-500'
-              : 'bg-white/80 dark:bg-slate-900/80 text-slate-400 dark:text-slate-500 hover:text-amber-400',
+              : 'bg-white/80 dark:bg-[#1E293B]/80 text-slate-400 dark:text-slate-500 hover:text-amber-400',
           )}
           tabIndex={-1}
           aria-label={isFavorite ? 'ยกเลิกรายการโปรด' : 'เพิ่มรายการโปรด'}
@@ -480,7 +480,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
       <div className="flex flex-col h-full">
 
         {/* ── Search bar V3 ────────────────────────────────────────────── */}
-        <div className="px-4 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0 space-y-3">
+        <div className="px-4 pt-4 pb-3 border-b border-slate-100 dark:border-slate-700/60 shrink-0 space-y-3">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
             <input

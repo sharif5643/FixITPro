@@ -137,7 +137,7 @@ function TechnicianQueueBar({
           {name}
           <span className={cn(
             'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
-            filterTechId === id ? 'bg-white text-purple-600 dark:bg-slate-900 dark:text-purple-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
+            filterTechId === id ? 'bg-white text-purple-600 dark:bg-[#1E293B] dark:text-purple-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
           )}>
             {count}
           </span>
@@ -434,13 +434,13 @@ function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        'flex flex-col rounded-xl border-2 border-t-4 bg-slate-50 dark:bg-slate-900/40 min-h-[200px] w-64 sm:w-72 shrink-0 transition-colors',
+        'flex flex-col rounded-xl border-2 border-t-4 bg-slate-50 dark:bg-[#1E293B]/40 min-h-[200px] w-64 sm:w-72 shrink-0 transition-colors',
         accent,
         isOver ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 border-t-4' : '',
       )}
     >
       {/* Column header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b dark:border-slate-800 bg-white dark:bg-slate-900 rounded-t-lg">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b dark:border-slate-700/60 bg-white dark:bg-[#1E293B] rounded-t-lg">
         <span className="text-sm font-bold text-slate-800 dark:text-white">{label}</span>
         <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold px-1">
           {repairs.length}
@@ -506,7 +506,7 @@ function CancelledSection({
   if (repairs.length === 0) return null
 
   return (
-    <div className="shrink-0 border-t dark:border-slate-800 pt-3">
+    <div className="shrink-0 border-t dark:border-slate-700/60 pt-3">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 w-full text-left px-1 py-1 text-sm font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"

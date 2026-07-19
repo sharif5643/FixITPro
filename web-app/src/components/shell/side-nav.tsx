@@ -254,7 +254,7 @@ function SideNavInner({ role, hasPerm, hasModule, isOwner }: SideNavInnerProps) 
         const hasVisible = secondary.some(s => s.items.some(isVisible))
         if (!hasVisible) return null
         return (
-          <div className="mx-3 mt-3 border-t border-slate-100 dark:border-slate-800 pt-2">
+          <div className="mx-3 mt-3 border-t border-slate-100 dark:border-slate-700/60 pt-2">
             <button
               onClick={() => setOthersOpen(o => !o)}
               className="flex items-center justify-between w-full px-1 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
@@ -298,7 +298,7 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
       <aside className={cn(
         'flex flex-col flex-shrink-0 h-full',
         'bg-white dark:bg-[#111827]',
-        'border-r border-slate-200 dark:border-slate-800',
+        'border-r border-slate-200 dark:border-slate-700/60',
         'overflow-hidden transition-all',
         'hidden md:flex md:relative md:w-60',
         open && 'fixed inset-y-0 left-0 z-50 !flex !w-60 shadow-2xl',
@@ -327,7 +327,7 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
         </Suspense>
 
         {/* User section */}
-        <div className="flex-shrink-0 border-t border-slate-100 dark:border-slate-800 p-3">
+        <div className="flex-shrink-0 border-t border-slate-100 dark:border-slate-700/60 p-3">
           <div className="flex items-center gap-3 rounded-xl px-2 py-2">
             <FiAvatar name={user?.name ?? 'U'} size="sm" status="online" />
             <div className="min-w-0 flex-1">

@@ -198,7 +198,7 @@ export default function DailyClosingReportPage() {
         {data.sales.items.map((s: any) => {
           const PMIcon = PM_ICON[s.paymentMethod] ?? PM_ICON.CASH
           return (
-            <div key={s.id} className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+            <div key={s.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-blue-700">{s.receiptNumber}</span>
                 <div className="flex items-center gap-1.5">
@@ -226,7 +226,7 @@ export default function DailyClosingReportPage() {
         {data.repairPayments.items.map((r: any) => {
           const PMIcon = PM_ICON[r.paymentMethod] ?? PM_ICON.CASH
           return (
-            <div key={r.id} className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+            <div key={r.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-blue-700">{r.ticketNumber}</span>
                 <div className="flex items-center gap-1.5">
@@ -252,7 +252,7 @@ export default function DailyClosingReportPage() {
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">{data.packageSales.count} รายการ · {formatThaiMoney(data.revenue.packages.total)}</p>
         {data.packageSales.items.map((p: any) => (
-          <div key={p.id} className="bg-gray-50 rounded-xl p-3 space-y-1">
+          <div key={p.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-blue-700">{p.receiptNumber}</span>
               <span className="font-bold text-sm tabular-nums">{formatThaiMoney(Number(p.profit))}</span>
@@ -381,7 +381,7 @@ export default function DailyClosingReportPage() {
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">{data.expenses.count} รายการ · {formatThaiMoney(data.expenses.totalAmount)}</p>
         {data.expenses.items.map((e: any) => (
-          <div key={e.id} className="bg-gray-50 rounded-xl p-3 space-y-1">
+          <div key={e.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-600">{e.category?.name ?? '-'}</span>
               <span className="font-bold text-sm tabular-nums">{formatThaiMoney(Number(e.amount))}</span>
@@ -405,7 +405,7 @@ export default function DailyClosingReportPage() {
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">{items.length} งาน</p>
         {items.map((r: any) => (
-          <div key={r.id} className="bg-gray-50 rounded-xl p-3 space-y-1">
+          <div key={r.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1">
             <span className="font-mono text-xs font-bold text-blue-700">{r.ticketNumber}</span>
             <p className="text-sm font-medium">{r.deviceBrand} {r.deviceModel}</p>
             <p className="text-xs text-muted-foreground">{r.customer?.name ?? '-'}</p>
@@ -442,20 +442,20 @@ export default function DailyClosingReportPage() {
               {/* Quick date nav */}
               <button
                 onClick={() => setDateStr(format(subDays(new Date(dateStr), 1), 'yyyy-MM-dd'))}
-                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
                 title="วันก่อน"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => setDateStr(todayStr())}
-                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === todayStr() ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === todayStr() ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
               >
                 วันนี้
               </button>
               <button
                 onClick={() => setDateStr(format(subDays(new Date(), 1), 'yyyy-MM-dd'))}
-                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
               >
                 เมื่อวาน
               </button>
@@ -464,7 +464,7 @@ export default function DailyClosingReportPage() {
                   if (dateStr < todayStr()) setDateStr(format(new Date(new Date(dateStr).getTime() + 86400000), 'yyyy-MM-dd'))
                 }}
                 disabled={dateStr >= todayStr()}
-                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="วันถัดไป"
               >
                 <ChevronRightIcon className="h-3.5 w-3.5" />
@@ -474,7 +474,7 @@ export default function DailyClosingReportPage() {
                 value={dateStr}
                 max={todayStr()}
                 onChange={(e) => setDateStr(e.target.value)}
-                className="h-7 px-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-slate-900 dark:text-slate-300 dark:color-scheme-dark focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-7 px-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-[#1E293B] dark:text-slate-300 dark:color-scheme-dark focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           }
