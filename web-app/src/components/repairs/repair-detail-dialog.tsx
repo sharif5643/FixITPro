@@ -431,7 +431,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
 
               {/* Customer */}
               {repair.customer && (
-                <div className="rounded-xl border bg-gray-50 p-4 space-y-2">
+                <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-2">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
                     <User className="h-3.5 w-3.5" />
                     ข้อมูลลูกค้า
@@ -442,7 +442,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               )}
 
               {/* Device */}
-              <div className="rounded-xl border bg-gray-50 p-4 space-y-2">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-2">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     <Smartphone className="h-3.5 w-3.5" />
@@ -535,7 +535,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               </div>
 
               {/* Issue */}
-              <div className="rounded-xl border bg-gray-50 p-4 space-y-2">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-2">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
                   <ClipboardList className="h-3.5 w-3.5" />
                   อาการและหมายเหตุ
@@ -553,7 +553,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               </div>
 
               {/* ─── Repair Photos ─── */}
-              <div className="rounded-xl border bg-gray-50 p-4">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                   <Camera className="h-3.5 w-3.5" />
                   รูปถ่ายเครื่อง
@@ -603,7 +603,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     {repair.parts.map((part) => {
                       const deducted = part.stockMovements.length > 0
                       return (
-                        <div key={part.id} className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
+                        <div key={part.id} className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-transparent dark:border-slate-700/40 px-3 py-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 truncate">{part.product.name}</p>
                             <p className="text-xs text-muted-foreground">
@@ -908,7 +908,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
 
               {/* Paid badge */}
               {repair.paymentStatus === 'PAID' && (
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-1.5 text-sm">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-1.5 text-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-gray-600 font-semibold">
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -1104,7 +1104,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 step={1}
                 value={payAmount}
                 readOnly={payMethod !== 'CASH'}
-                className={payMethod !== 'CASH' ? 'bg-gray-50 text-muted-foreground' : ''}
+                className={payMethod !== 'CASH' ? 'bg-slate-50 dark:bg-slate-800/60 text-muted-foreground' : ''}
                 onChange={(e) => setPayAmount(e.target.value)}
               />
             </div>

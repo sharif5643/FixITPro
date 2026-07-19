@@ -109,7 +109,7 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
           </div>
 
           {/* Receipt preview */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60 p-4 font-mono text-sm space-y-3">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 font-mono text-sm space-y-3">
             {/* Shop header */}
             <div className="text-center space-y-0.5 border-b border-dashed border-slate-300 dark:border-slate-600 pb-3">
               <p className="font-bold text-base tracking-wide">{settings?.shopName ?? 'FixITPro'}</p>

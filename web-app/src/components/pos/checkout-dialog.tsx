@@ -181,7 +181,7 @@ function SerialPicker({
                   isSelected
                     ? 'bg-blue-600 text-white border-blue-600'
                     : disabled
-                      ? 'bg-gray-50 dark:bg-slate-800 text-gray-300 dark:text-slate-600 border-gray-200 dark:border-slate-700 cursor-not-allowed'
+                      ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700/60 cursor-not-allowed'
                       : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
                 )}
               >

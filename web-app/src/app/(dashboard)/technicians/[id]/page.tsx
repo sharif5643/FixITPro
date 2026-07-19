@@ -52,7 +52,7 @@ function BarChart({
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-36 text-sm text-muted-foreground bg-gray-50 rounded-lg">
+      <div className="flex items-center justify-center h-36 text-sm text-muted-foreground bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/60 rounded-lg">
         ไม่มีข้อมูล
       </div>
     )
@@ -263,7 +263,7 @@ export default function TechnicianProfilePage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">{tech.name}</h1>
             <p className="text-sm text-muted-foreground">{tech.phone ?? tech.email}</p>
-            <span className={`inline-block mt-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${tech.isActive ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
+            <span className={`inline-block mt-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${tech.isActive ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700/60' : 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700/60'}`}>
               {tech.isActive ? 'ใช้งานอยู่' : 'ไม่ใช้งาน'}
             </span>
           </div>
@@ -368,7 +368,7 @@ export default function TechnicianProfilePage() {
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                     <th className="text-left px-4 py-3 font-medium">เลขงาน</th>
                     <th className="text-left px-4 py-3 font-medium">ลูกค้า</th>
                     <th className="text-left px-4 py-3 font-medium">อุปกรณ์</th>

@@ -38,7 +38,7 @@ function getTier(salesCount: number, totalSpending: number): Tier {
 const TIER_CONFIG: Record<Tier, { label: string; Icon: React.ElementType; cls: string }> = {
   VIP:     { label: 'VIP',    Icon: Crown,    cls: 'bg-yellow-50 text-yellow-700 border-yellow-300' },
   REGULAR: { label: 'ประจำ', Icon: Star,     cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  NEW:     { label: 'ใหม่',  Icon: Sparkles, cls: 'bg-gray-50 text-gray-500 border-gray-200' },
+  NEW:     { label: 'ใหม่',  Icon: Sparkles, cls: 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60' },
 }
 
 interface CustomerDetail extends Customer {
@@ -136,7 +136,7 @@ export function CustomerDetailDialog({
         ) : !customer ? null : (
           <div className="space-y-5">
             {/* Customer info card */}
-            <div className="rounded-xl border bg-gray-50 p-4 space-y-3">
+            <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-lg font-bold text-gray-900 truncate">{customer.name}</p>
@@ -234,14 +234,14 @@ export function CustomerDetailDialog({
                 </span>
               </div>
               {customer.sales.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-5 rounded-xl border bg-gray-50">
+                <p className="text-sm text-muted-foreground text-center py-5 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
                   ยังไม่มีประวัติการซื้อ
                 </p>
               ) : (
                 <div className="rounded-xl border overflow-hidden">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b bg-gray-50 text-gray-500">
+                      <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400">
                         <th className="text-left px-3 py-2 font-medium">เลขใบเสร็จ</th>
                         <th className="text-left px-3 py-2 font-medium">สถานะ</th>
                         <th className="text-right px-3 py-2 font-medium">ยอด</th>
@@ -287,14 +287,14 @@ export function CustomerDetailDialog({
                 </span>
               </div>
               {customer.repairs.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-5 rounded-xl border bg-gray-50">
+                <p className="text-sm text-muted-foreground text-center py-5 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
                   ยังไม่มีประวัติงานซ่อม
                 </p>
               ) : (
                 <div className="rounded-xl border overflow-hidden">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b bg-gray-50 text-gray-500">
+                      <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400">
                         <th className="text-left px-3 py-2 font-medium">เลขงาน</th>
                         <th className="text-left px-3 py-2 font-medium">อุปกรณ์</th>
                         <th className="text-left px-3 py-2 font-medium">สถานะ</th>

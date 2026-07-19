@@ -47,7 +47,7 @@ const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: React.El
   TRIAL:     { label: 'ทดลองใช้',     cls: 'bg-blue-50 text-blue-700 border-blue-200',    icon: Clock },
   ACTIVE:    { label: 'ใช้งานอยู่',   cls: 'bg-green-50 text-green-700 border-green-200', icon: CheckCircle2 },
   EXPIRED:   { label: 'หมดอายุแล้ว', cls: 'bg-red-50 text-red-700 border-red-200',        icon: XCircle },
-  SUSPENDED: { label: 'ถูกระงับ',     cls: 'bg-gray-50 text-gray-500 border-gray-200',    icon: AlertTriangle },
+  SUSPENDED: { label: 'ถูกระงับ',     cls: 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60',    icon: AlertTriangle },
   PENDING:   { label: 'รอเปิดใช้งาน', cls: 'bg-blue-50 text-blue-600 border-blue-200',   icon: Clock },
 }
 
