@@ -61,10 +61,10 @@ function ToggleSwitch({
   description?: string
 }) {
   return (
-    <div className="flex items-center justify-between py-3.5 border-b last:border-0">
+    <div className="flex items-center justify-between py-3.5 border-b border-slate-100 dark:border-slate-700/60 last:border-0">
       <div className="pr-4">
-        <p className="text-sm font-medium text-slate-900">{label}</p>
-        {description && <p className="text-xs text-slate-400 mt-0.5">{description}</p>}
+        <p className="text-sm font-medium text-slate-900 dark:text-white">{label}</p>
+        {description && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{description}</p>}
       </div>
       <button
         type="button"
@@ -241,8 +241,8 @@ export default function SettingsPage() {
                       className={cn(
                         'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap shrink-0 text-left w-full',
                         active
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'text-slate-600 hover:bg-white hover:shadow-sm hover:text-slate-900',
+                          ? 'bg-blue-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)]'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60 hover:shadow-sm hover:text-slate-900 dark:hover:text-white',
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
@@ -278,7 +278,7 @@ export default function SettingsPage() {
                       />
                       <p className="text-xs text-slate-400">ใส่ URL รูปภาพ (png, jpg, svg)</p>
                     </div>
-                    <div className="h-16 w-16 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+                    <div className="h-16 w-16 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center shrink-0 overflow-hidden">
                       {logoPreview ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={logoPreview} alt="logo" className="h-full w-full object-contain" onError={() => setLogoPreview('')} />
@@ -461,54 +461,54 @@ export default function SettingsPage() {
                 <SectionCard title="การแจ้งเตือนอัจฉริยะ" description="ปรับแต่ง popup เสียง และช่วงเวลาการแจ้งเตือน" icon={BellRing}>
                   <Link
                     href="/settings/notifications"
-                    className="flex items-center justify-between p-4 rounded-xl border border-blue-100 bg-blue-50 hover:bg-blue-100 transition-colors"
+                    className="flex items-center justify-between p-4 rounded-2xl border border-blue-100 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+                      <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-[0_4px_8px_rgba(37,99,235,0.25)]">
                         <BellRing className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-blue-900">ตั้งค่าการแจ้งเตือน</p>
-                        <p className="text-xs text-blue-600 mt-0.5">เสียง · ประเภทการแจ้งเตือน · ความถี่ 1–30 นาที</p>
+                        <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">ตั้งค่าการแจ้งเตือน</p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">เสียง · ประเภทการแจ้งเตือน · ความถี่ 1–30 นาที</p>
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-blue-400 shrink-0" />
+                    <ChevronRight className="h-4 w-4 text-blue-400 dark:text-blue-500 shrink-0" />
                   </Link>
                 </SectionCard>
 
                 <SectionCard title="LINE Notification" description="แจ้งเตือนลูกค้าผ่าน LINE อัตโนมัติ" icon={MessageSquare}>
                   <Link
                     href="/settings/line"
-                    className="flex items-center justify-between p-4 rounded-xl border border-green-100 bg-green-50 hover:bg-green-100 transition-colors"
+                    className="flex items-center justify-between p-4 rounded-2xl border border-green-100 dark:border-green-800/40 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-xl bg-green-500 flex items-center justify-center shrink-0">
+                      <div className="h-9 w-9 rounded-xl bg-green-500 flex items-center justify-center shrink-0 shadow-[0_4px_8px_rgba(34,197,94,0.25)]">
                         <MessageSquare className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-green-900">ตั้งค่า LINE OA</p>
-                        <p className="text-xs text-green-600 mt-0.5">Channel Access Token · Webhook URL · เหตุการณ์แจ้งเตือน</p>
+                        <p className="text-sm font-semibold text-green-900 dark:text-green-200">ตั้งค่า LINE OA</p>
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">Channel Access Token · Webhook URL · เหตุการณ์แจ้งเตือน</p>
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-green-400 shrink-0" />
+                    <ChevronRight className="h-4 w-4 text-green-400 dark:text-green-500 shrink-0" />
                   </Link>
                 </SectionCard>
 
                 <SectionCard title="Backup & Restore" description="สำรองและกู้คืนข้อมูลระบบ" icon={Database}>
                   <Link
                     href="/settings/backup"
-                    className="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors"
+                    className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-xl bg-slate-700 flex items-center justify-center shrink-0">
+                      <div className="h-9 w-9 rounded-xl bg-slate-700 dark:bg-slate-600 flex items-center justify-center shrink-0 shadow-[0_4px_8px_rgba(0,0,0,0.15)]">
                         <Database className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">จัดการ Backup</p>
-                        <p className="text-xs text-slate-500 mt-0.5">Auto backup 02:00 น. ทุกวัน · ดาวน์โหลดไฟล์ · Backup ทันที</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">จัดการ Backup</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Auto backup 02:00 น. ทุกวัน · ดาวน์โหลดไฟล์ · Backup ทันที</p>
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+                    <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
                   </Link>
                 </SectionCard>
               </>

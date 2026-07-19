@@ -113,30 +113,32 @@ export default function CustomersPage() {
       {/* ── CRM Stats Bar ── */}
       {crmStats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-            <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">ลูกค้าทั้งหมด</p>
-            <p className="text-2xl font-bold text-slate-900 dark:text-slate-50 mt-1 tabular-nums">{crmStats.total}</p>
+          <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
+            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide flex items-center gap-1">
+              <Users className="h-3 w-3" /> ลูกค้าทั้งหมด
+            </p>
+            <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1 tabular-nums">{crmStats.total}</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{formatThaiMoney(crmStats.totalSpend)} ยอดรวม</p>
           </div>
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800/60 p-4">
-            <p className="text-[11px] font-semibold text-yellow-600 dark:text-yellow-400 uppercase tracking-wide flex items-center gap-1">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl border border-yellow-200 dark:border-yellow-800/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
+            <p className="text-[11px] font-bold text-yellow-600 dark:text-yellow-400 uppercase tracking-wide flex items-center gap-1">
               <Crown className="h-3 w-3" /> VIP
             </p>
-            <p className="text-2xl font-bold text-yellow-800 dark:text-yellow-300 mt-1 tabular-nums">{crmStats.vip}</p>
+            <p className="text-2xl font-extrabold text-yellow-800 dark:text-yellow-300 mt-1 tabular-nums">{crmStats.vip}</p>
             <p className="text-xs text-yellow-600 dark:text-yellow-500 mt-0.5">ยอดซื้อ ≥ ฿10,000</p>
           </div>
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800/60 p-4">
-            <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide flex items-center gap-1">
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-200 dark:border-blue-800/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
+            <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide flex items-center gap-1">
               <Star className="h-3 w-3" /> ประจำ
             </p>
-            <p className="text-2xl font-bold text-blue-800 dark:text-blue-300 mt-1 tabular-nums">{crmStats.regular}</p>
+            <p className="text-2xl font-extrabold text-blue-800 dark:text-blue-300 mt-1 tabular-nums">{crmStats.regular}</p>
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">ซื้อ ≥ 3 ครั้ง</p>
           </div>
-          <div className="bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
+            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
               <Sparkles className="h-3 w-3" /> ใหม่
             </p>
-            <p className="text-2xl font-bold text-slate-700 dark:text-slate-200 mt-1 tabular-nums">{crmStats.newCount}</p>
+            <p className="text-2xl font-extrabold text-slate-700 dark:text-slate-200 mt-1 tabular-nums">{crmStats.newCount}</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">ยังไม่มีประวัติซ้ำ</p>
           </div>
         </div>
@@ -149,7 +151,7 @@ export default function CustomersPage() {
       />
 
       {/* ── Desktop table (md+) ── */}
-      <SectionCard noPadding className="hidden md:block">
+      <SectionCard noPadding className="hidden md:block overflow-x-auto">
         <DataTable>
           <DataTableHead>
             <DataTableHeadCell>ลูกค้า</DataTableHeadCell>
@@ -259,7 +261,7 @@ export default function CustomersPage() {
             return (
               <div
                 key={c.id}
-                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 space-y-3"
+                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

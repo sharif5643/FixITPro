@@ -214,9 +214,9 @@ export default function ShiftsPage() {
     format(new Date(d), 'dd MMM yy HH:mm', { locale: th })
 
   const diffCls = (diff: number) => {
-    if (diff > 0) return { card: 'bg-blue-50 border-blue-200', text: 'text-blue-700', label: 'เงินเกิน' }
-    if (diff < 0) return { card: 'bg-red-50 border-red-200',  text: 'text-red-700',  label: 'เงินขาด' }
-    return { card: 'bg-green-50 border-green-200', text: 'text-green-700', label: 'ยอดตรง' }
+    if (diff > 0) return { card: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/60', text: 'text-blue-700 dark:text-blue-400', label: 'เงินเกิน' }
+    if (diff < 0) return { card: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/60', text: 'text-red-700 dark:text-red-400', label: 'เงินขาด' }
+    return { card: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/60', text: 'text-emerald-700 dark:text-emerald-400', label: 'ยอดตรง' }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -246,10 +246,13 @@ export default function ShiftsPage() {
         </SectionCard>
       ) : currentShift ? (
         /* Active shift */
-        <div className="rounded-xl border border-green-300 bg-green-50/40 p-5 space-y-4">
-          <div className="flex items-center gap-2 text-green-700 font-semibold text-sm">
-            <CheckCircle2 className="h-4 w-4" />
-            กะปัจจุบัน — กำลังดำเนินการ
+        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/40 dark:bg-emerald-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40 shrink-0">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">กะปัจจุบัน — กำลังดำเนินการ</span>
+            <span className="ml-auto h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           </div>
           <div className="space-y-4">
             {/* Meta */}
@@ -271,27 +274,27 @@ export default function ShiftsPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="rounded-xl border bg-white text-center py-3 px-2">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 text-center py-3 px-2">
                 <p className="text-[10px] text-muted-foreground mb-1">เงินเริ่มต้น</p>
                 <p className="font-bold text-sm tabular-nums">
                   {formatThaiMoney(Number(currentShift.openBalance))}
                 </p>
               </div>
-              <div className="rounded-xl border bg-white text-center py-3 px-2">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 text-center py-3 px-2">
                 <p className="text-[10px] text-blue-500 mb-1">ยอดขายสินค้า</p>
                 <p className="font-bold text-sm tabular-nums text-blue-700">
                   {formatThaiMoney(Number(currentShift.totalSales))}
                 </p>
                 <p className="text-[9px] text-muted-foreground mt-0.5">{currentShift.salesCount} บิล</p>
               </div>
-              <div className="rounded-xl border bg-white text-center py-3 px-2">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 text-center py-3 px-2">
                 <p className="text-[10px] text-purple-500 mb-1">รายรับงานซ่อม</p>
                 <p className="font-bold text-sm tabular-nums text-purple-700">
                   {formatThaiMoney(Number(currentShift.repairRevenue ?? 0))}
                 </p>
                 <p className="text-[9px] text-muted-foreground mt-0.5">{currentShift.repairCount ?? 0} งาน</p>
               </div>
-              <div className="rounded-xl border bg-white text-center py-3 px-2">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 text-center py-3 px-2">
                 <p className="text-[10px] text-emerald-500 mb-1">รายรับรวม</p>
                 <p className="font-bold text-sm tabular-nums text-emerald-700">
                   {formatThaiMoney(Number(currentShift.totalSales) + Number(currentShift.repairRevenue ?? 0))}
@@ -300,12 +303,12 @@ export default function ShiftsPage() {
             </div>
 
             {/* Expected cash */}
-            <div className="rounded-xl border bg-white px-4 py-3 flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 px-4 py-3 flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                 <TrendingUp className="h-3.5 w-3.5" />
                 <span>รายรับรวมในกะ (ทุกช่องทาง)</span>
               </div>
-              <span className="font-bold tabular-nums text-gray-900">
+              <span className="font-bold tabular-nums text-slate-900 dark:text-white">
                 {formatThaiMoney(Number(currentShift.openBalance) + Number(currentShift.totalSales) + Number(currentShift.repairRevenue ?? 0))}
               </span>
             </div>
@@ -324,25 +327,25 @@ export default function ShiftsPage() {
         </div>
       ) : isGlobalMode ? (
         /* Global mode — cannot open shift without a branch */
-        <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-8 flex flex-col items-center justify-center gap-3 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 border-2 border-blue-200">
-            <AlertTriangle className="h-6 w-6 text-blue-500" />
+        <div className="rounded-2xl border border-blue-200 dark:border-blue-800/40 bg-blue-50/40 dark:bg-blue-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-8 flex flex-col items-center justify-center gap-3 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-[0_4px_12px_rgba(37,99,235,0.30)]">
+            <AlertTriangle className="h-7 w-7 text-white" />
           </div>
           <div>
-            <p className="font-semibold text-slate-900">กรุณาเลือกสาขาก่อนเปิดกะ</p>
-            <p className="text-sm text-slate-500 mt-1">ใช้เมนูสาขาที่มุมขวาบนเพื่อเลือกสาขาที่ต้องการ</p>
+            <p className="font-bold text-slate-900 dark:text-white">กรุณาเลือกสาขาก่อนเปิดกะ</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">ใช้เมนูสาขาที่มุมขวาบนเพื่อเลือกสาขาที่ต้องการ</p>
           </div>
         </div>
       ) : (
         /* No active shift — hero open form */
-        <div className="rounded-2xl border-2 border-dashed border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-6 sm:p-8">
+        <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/40 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6 sm:p-8">
           <div className="flex flex-col items-center text-center gap-4 mb-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 border-2 border-emerald-200 shadow-sm">
-              <Clock className="h-8 w-8 text-emerald-600" />
+            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_8px_24px_rgba(16,185,129,0.35)]">
+              <Clock className="h-10 w-10 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900">เปิดกะใหม่</h3>
-              <p className="text-sm text-slate-500 mt-1">กรอกเงินสดเริ่มต้นในลิ้นชักก่อนเริ่มขาย</p>
+              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">เปิดกะใหม่</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">กรอกเงินสดเริ่มต้นในลิ้นชักก่อนเริ่มขาย</p>
             </div>
           </div>
 
@@ -396,9 +399,9 @@ export default function ShiftsPage() {
 
       {/* ── Close Shift Result Card ── */}
       {closeResult && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-5 space-y-4">
+        <div className="rounded-2xl border border-blue-200 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-blue-700 font-semibold text-sm">
+            <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-bold text-sm">
               <CheckCircle2 className="h-4 w-4" />
               ผลการปิดกะ
             </div>
@@ -412,7 +415,7 @@ export default function ShiftsPage() {
 
           {/* Summary stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="rounded-xl border bg-white text-center py-3 px-2">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 text-center py-3 px-2">
                 <p className="text-[10px] text-muted-foreground mb-1">ยอดขายรวม</p>
                 <p className="font-bold text-sm tabular-nums">
                   {formatThaiMoney(closeResult.summary.totalSales)}
@@ -421,13 +424,13 @@ export default function ShiftsPage() {
                   {closeResult.summary.salesCount} บิล
                 </p>
               </div>
-              <div className="rounded-xl border bg-white text-center py-3 px-2">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 text-center py-3 px-2">
                 <p className="text-[10px] text-muted-foreground mb-1">ยอดเงินสดคาด</p>
                 <p className="font-bold text-sm tabular-nums">
                   {formatThaiMoney(closeResult.summary.expectedBalance)}
                 </p>
               </div>
-              <div className="rounded-xl border bg-white text-center py-3 px-2">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 text-center py-3 px-2">
                 <p className="text-[10px] text-muted-foreground mb-1">เงินสดจริง</p>
                 <p className="font-bold text-sm tabular-nums">
                   {formatThaiMoney(closeResult.summary.actualBalance)}
@@ -525,7 +528,7 @@ export default function ShiftsPage() {
           {/* Current shift info summary */}
           {currentShift && (
             <div className="space-y-2">
-              <div className="rounded-lg border bg-gray-50 px-4 py-3 space-y-1.5 text-sm">
+              <div className="rounded-lg border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-4 py-3 space-y-1.5 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">พนักงาน</span>
                   <span className="font-medium">{currentShift.user.name}</span>
@@ -554,7 +557,7 @@ export default function ShiftsPage() {
                 </div>
               </div>
               {/* Expected cash callout */}
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 flex items-center justify-between text-sm">
+              <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-2.5 flex items-center justify-between text-sm">
                 <span className="text-emerald-700 font-medium">เงินสดที่คาดในลิ้นชัก</span>
                 <span className="font-bold tabular-nums text-emerald-800">
                   {formatThaiMoney(Number(currentShift.expectedCashBalance))}
@@ -711,11 +714,11 @@ export default function ShiftsPage() {
                     }
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg bg-slate-50 p-2">
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2">
                       <p className="text-slate-400 mb-0.5">ยอดเริ่มต้น</p>
                       <p className="font-semibold tabular-nums">{formatThaiMoney(Number(shift.openBalance))}</p>
                     </div>
-                    <div className="rounded-lg bg-slate-50 p-2">
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2">
                       <p className="text-slate-400 mb-0.5">ยอดปิด</p>
                       <p className="font-semibold tabular-nums">{shift.closeBalance != null ? formatThaiMoney(Number(shift.closeBalance)) : '—'}</p>
                     </div>
