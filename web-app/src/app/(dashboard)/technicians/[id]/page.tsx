@@ -281,7 +281,7 @@ export default function TechnicianProfilePage() {
                 'rounded-full px-3 py-1 text-xs font-semibold transition-all border',
                 (!customStart && !customEnd) && preset === p.key
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-slate-400',
+                  : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-slate-400',
               ].join(' ')}
             >
               {p.label}
