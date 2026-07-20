@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -109,7 +109,7 @@ export function QuickSearch() {
       {/* Trigger button (shown in header) */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 h-8 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:bg-white dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors min-w-[120px] sm:min-w-[180px]"
+        className="flex items-center gap-2 h-8 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:bg-white dark:hover:bg-slate-700/40 hover:text-slate-700 dark:hover:text-slate-300 transition-colors min-w-[120px] sm:min-w-[180px]"
         aria-label="ค้นหา (Cmd+K)"
       >
         <Search className="h-3.5 w-3.5 shrink-0" />

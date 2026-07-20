@@ -6,6 +6,39 @@ All notable changes to the Premium UX redesign on branch `feature/premium-ui-v2`
 
 ## [Unreleased] — Phase A: Premium UX Completion
 
+### Sprint 1.8–1.10 — 2026-07-20 · Commits `c1bbd27` `d3d1c49` `1d1ffc2` `083749c`
+
+#### Changed — Global Dark Mode Completion (40+ files)
+- **border-gray sweep** — `border-gray-200/300/400` → `border-slate-200/300` + `dark:border-slate-700/60` across 11 files
+- **technicians/[id]** — STATUS_COLOR full dark variants; KpiCard `rounded-2xl` + premium shadow + `dark:bg-[#1E293B]`; all section containers upgraded
+- **warranties** — EXPIRED badge bg fixed; modal textarea premium tokens; mobile info tiles `dark:bg-slate-800/60`
+- **claims** — 10 containers `rounded-2xl` + `dark:bg-[#1E293B]`; blue/teal info boxes dark variants
+- **serials** — filter button containers + section cards dark mode
+- **data-tools** — section panels, table containers, result cards dark mode
+- **product dialogs** — `cross-branch-availability`, `product-catalog-enroll`, `product-form` border normalization
+- **technicians list** — all 8 section containers premium card treatment
+- **backup** — info cards + action cards dark mode
+- **settings/notifications** — 4 section cards dark mode
+- **reports/profit** — stat cards + drill cards dark; hover lift `-translate-y-0.5`; button toggle dark
+- **employees** — badge dark:bg + serial input dark:bg
+- **debt** — skeleton `dark:bg-slate-700/60`; empty state dark
+- **subscription** — 2 section cards dark mode
+- **repairs list** — floating view toggle pill dark mode
+- **repair-form-dialog** — all 10 bg-white containers: badges, action rows, product search, button toggles, select trigger
+- **repair-mobile-list** — card buttons, header rows, filter toggle, skeleton
+- **executive-mobile-dashboard** — sticky header, pill badge, 4 section cards, stat mini cards
+- **customer-detail-dialog** — 3 stat cells dark mode
+- **reminders** — card dark mode + hover lift
+- **repairs/[id]** — view toggle pill dark mode
+- **payables** — report card dark mode
+- **shifts** — emerald chip `dark:bg-transparent dark:text-emerald-400`
+
+#### QA
+- TypeScript: 0 errors
+- Build: ✓ Compiled successfully
+
+---
+
 ### Sprint 1.7 — 2026-07-20 · Commit `a1229d2`
 
 #### Changed — Complete Dark Mode Token Upgrade (46 files)

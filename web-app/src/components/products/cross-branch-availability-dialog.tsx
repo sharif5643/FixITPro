@@ -126,7 +126,7 @@ export function CrossBranchAvailabilityDialog({
                         'w-full flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors',
                         isSelected
                           ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
-                          : 'border-slate-200 dark:border-slate-700/60 bg-white hover:bg-slate-50',
+                          : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-700/40',
                       )}
                     >
                       <div className="flex items-center gap-3">

@@ -214,7 +214,7 @@ function TypeSection({
   return (
     <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] overflow-hidden">
       {/* Type header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b">
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700/60">
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="flex items-center gap-2 text-left flex-1 min-w-0"
@@ -225,7 +225,7 @@ function TypeSection({
           <div className="flex items-center gap-2 min-w-0">
             <Layers className="h-4 w-4 text-blue-600 shrink-0" />
             <span className="font-semibold text-slate-900 dark:text-white truncate">{type.name}</span>
-            <span className="text-xs text-muted-foreground bg-slate-200 rounded-full px-2 py-0.5 shrink-0">
+            <span className="text-xs text-muted-foreground bg-slate-200 dark:bg-slate-700/60 rounded-full px-2 py-0.5 shrink-0">
               {type._count.categories} หมวดหมู่
             </span>
           </div>

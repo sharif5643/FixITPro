@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -305,7 +305,7 @@ export function OperationalAlertCenter({ variant = 'desktop' }: OperationalAlert
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.9, y: -4 }}
                                 transition={{ duration: 0.12 }}
-                                className="absolute right-0 top-7 z-20 bg-white rounded-xl shadow-xl border border-slate-200 py-1 min-w-[110px]"
+                                className="absolute right-0 top-7 z-20 bg-white dark:bg-[#1E293B] rounded-xl shadow-xl dark:shadow-[0_8px_24px_rgba(0,0,0,0.4)] border border-slate-200 dark:border-slate-700/60 py-1 min-w-[110px]"
                               >
                                 {SNOOZE_DURATIONS.map(dur => (
                                   <button
@@ -362,7 +362,7 @@ export function OperationalAlertCenter({ variant = 'desktop' }: OperationalAlert
                       )}
                       <button
                         onClick={() => navigate(a)}
-                        className="ml-auto text-[11px] font-medium px-2 py-1 rounded-lg bg-white/70 text-slate-600 hover:bg-white border border-slate-200 flex items-center gap-1"
+                        className="ml-auto text-[11px] font-medium px-2 py-1 rounded-lg bg-white/70 text-slate-600 hover:bg-white dark:hover:bg-slate-700/40 border border-slate-200 dark:border-slate-700/60 flex items-center gap-1"
                       >
                         ดูรายการ
                         <ChevronRight className="h-3 w-3" />
