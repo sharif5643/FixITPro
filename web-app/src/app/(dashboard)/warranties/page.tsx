@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -24,7 +24,7 @@ import type { Warranty, WarrantyStatus } from '@/types'
 
 const STATUS_CONFIG: Record<WarrantyStatus, { label: string; cls: string; Icon: React.ElementType }> = {
   ACTIVE:  { label: 'ใช้งานได้',  cls: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/60',  Icon: ShieldCheck },
-  EXPIRED: { label: 'หมดอายุ',   cls: 'bg-slate-50 dark:bg-gray-900/20 text-slate-500 dark:text-slate-400 dark:text-gray-400 border-gray-200 dark:border-gray-800/60',    Icon: ShieldOff },
+  EXPIRED: { label: 'หมดอายุ',   cls: 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60',    Icon: ShieldOff },
   VOIDED:  { label: 'ยกเลิกแล้ว', cls: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60',      Icon: ShieldOff },
   CLAIMED: { label: 'ใช้สิทธิ์แล้ว', cls: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/60', Icon: ShieldAlert },
 }
@@ -308,11 +308,11 @@ export default function WarrantiesPage() {
               <WarrantyStatusBadge status={w.status} />
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-lg bg-slate-50 dark:bg-[#1E293B]/40 px-3 py-2">
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
                 <p className="text-[10px] text-slate-400 dark:text-slate-500">ประเภท</p>
                 <p className="font-medium text-xs">{SOURCE_LABEL[w.sourceType]}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 dark:bg-[#1E293B]/40 px-3 py-2">
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
                 <p className="text-[10px] text-slate-400 dark:text-slate-500">หมดอายุ</p>
                 <p className="font-medium text-xs">{format(new Date(w.endDate), 'dd/MM/yy', { locale: th })}</p>
               </div>
@@ -363,7 +363,7 @@ export default function WarrantiesPage() {
             <h2 className="text-base font-semibold text-slate-900 dark:text-white">ยืนยันการยกเลิกการรับประกัน</h2>
             <p className="text-sm text-muted-foreground">กรุณาระบุเหตุผลในการยกเลิก</p>
             <textarea
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none"
+              className="w-full rounded-md border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               placeholder="เหตุผล..."
               value={voidReason}
               onChange={(e) => setVoidReason(e.target.value)}

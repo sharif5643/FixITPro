@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -171,7 +171,7 @@ function KpiCard({
   bg?: string
 }) {
   return (
-    <div className={`${bg} rounded-xl border p-4`}>
+    <div className={`${bg} rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 bg-white dark:bg-[#1E293B]`}>
       <div className="flex items-center gap-2 mb-1">
         <Icon className="h-4 w-4 text-muted-foreground" />
         <p className="text-xs text-muted-foreground">{label}</p>
@@ -190,10 +190,10 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLETED: 'ซ่อมเสร็จ', DELIVERED: 'ส่งคืน', CANCELLED: 'ยกเลิก',
 }
 const STATUS_COLOR: Record<string, string> = {
-  DELIVERED:  'bg-slate-100 text-slate-700 dark:text-slate-300',
-  COMPLETED:  'bg-green-100 text-green-700',
-  CANCELLED:  'bg-red-100 text-red-700',
-  IN_PROGRESS:'bg-purple-100 text-purple-700',
+  DELIVERED:   'bg-slate-100 dark:bg-slate-700/40 text-slate-700 dark:text-slate-300',
+  COMPLETED:   'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+  CANCELLED:   'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+  IN_PROGRESS: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ export default function TechnicianProfilePage() {
       </div>
 
       {/* Profile header */}
-      <div className="bg-white rounded-xl border p-5">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
             {tech.name.charAt(0).toUpperCase()}
@@ -271,7 +271,7 @@ export default function TechnicianProfilePage() {
       </div>
 
       {/* Date filter */}
-      <div className="bg-white rounded-xl border p-4 space-y-3">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((p) => (
             <button
@@ -281,7 +281,7 @@ export default function TechnicianProfilePage() {
                 'rounded-full px-3 py-1 text-xs font-semibold transition-all border',
                 (!customStart && !customEnd) && preset === p.key
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-600 dark:text-slate-400 border-gray-200 hover:border-gray-400',
+                  : 'bg-white text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-slate-400',
               ].join(' ')}
             >
               {p.label}
@@ -318,7 +318,7 @@ export default function TechnicianProfilePage() {
       </div>
 
       {/* Warranty claim gauge */}
-      <div className="bg-white rounded-xl border p-4 space-y-3">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
           <ShieldAlert className="h-4 w-4 text-amber-500" />
           อัตราเคลมการรับประกัน
@@ -331,7 +331,7 @@ export default function TechnicianProfilePage() {
 
       {/* Charts */}
       {tech.daily.length > 0 && (
-        <div className="bg-white rounded-xl border p-5 space-y-6">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5 space-y-6">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-white">กราฟรายวัน</h2>
           <BarChart
             data={tech.daily}
@@ -351,8 +351,8 @@ export default function TechnicianProfilePage() {
       )}
 
       {/* Recent repairs table */}
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="px-5 py-4 border-b flex items-center justify-between">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-white">ประวัติงานซ่อม</h2>
           <span className="text-xs text-muted-foreground">แสดง {tech.recentRepairs.length} รายการ</span>
         </div>
@@ -380,7 +380,7 @@ export default function TechnicianProfilePage() {
                 </thead>
                 <tbody>
                   {tech.recentRepairs.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0 hover:bg-slate-50 transition-colors">
+                    <tr key={r.id} className="border-b border-slate-100 dark:border-slate-700/60 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors">
                       <td className="px-4 py-2.5 font-mono text-xs font-semibold text-blue-700">
                         {r.ticketNumber}
                       </td>
@@ -413,7 +413,7 @@ export default function TechnicianProfilePage() {
             </div>
 
             {/* Mobile */}
-            <div className="md:hidden divide-y">
+            <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700/60">
               {tech.recentRepairs.map((r) => (
                 <div key={r.id} className="px-4 py-3 space-y-1">
                   <div className="flex items-start justify-between gap-2">

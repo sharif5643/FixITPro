@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useCallback } from 'react'
 import { format, subDays, startOfMonth } from 'date-fns'
@@ -38,7 +38,7 @@ const EXPORT_TYPES = [
   { key: 'repairs',         label: 'งานซ่อม',            icon: Wrench,      color: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-200' },
   { key: 'expenses',        label: 'ค่าใช้จ่าย',          icon: Receipt,     color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200' },
   { key: 'warranties',      label: 'การรับประกัน',        icon: BadgeCheck,  color: 'text-teal-600',   bg: 'bg-teal-50',   border: 'border-teal-200' },
-  { key: 'audit-logs',      label: 'ประวัติกิจกรรม',      icon: ScrollText,  color: 'text-slate-600 dark:text-slate-400',   bg: 'bg-slate-50',   border: 'border-gray-200' },
+  { key: 'audit-logs',      label: 'ประวัติกิจกรรม',      icon: ScrollText,  color: 'text-slate-600 dark:text-slate-400',   bg: 'bg-slate-50',   border: 'border-slate-200 dark:border-slate-700/60' },
 ] as const
 
 type ImportType = 'products' | 'customers' | 'categories' | 'suppliers'
@@ -99,7 +99,7 @@ function ExportSection() {
   ]
 
   return (
-    <div className="bg-white rounded-xl border p-5 space-y-4">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5 space-y-4">
       <div className="flex items-center gap-2">
         <Download className="h-5 w-5 text-blue-500" />
         <h2 className="text-base font-semibold text-slate-900 dark:text-white">ส่งออกข้อมูล (Export)</h2>
@@ -117,7 +117,7 @@ function ExportSection() {
                 'rounded-full px-3 py-1 text-xs font-semibold border transition-all',
                 (!start && !end) && preset === p.key
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-600 dark:text-slate-400 border-gray-200 hover:border-gray-400',
+                  : 'bg-white text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-slate-400',
               ].join(' ')}
             >
               {p.label}
@@ -231,7 +231,7 @@ function ImportSection() {
   }
 
   return (
-    <div className="bg-white rounded-xl border p-5 space-y-4">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5 space-y-4">
       <div className="flex items-center gap-2">
         <Upload className="h-5 w-5 text-green-500" />
         <h2 className="text-base font-semibold text-slate-900 dark:text-white">นำเข้าข้อมูล (Import)</h2>
@@ -277,7 +277,7 @@ function ImportSection() {
       {/* Step: idle / upload area */}
       {step === 'idle' && (
         <div
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-200 p-8 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
+          className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700/60 p-8 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
           onClick={() => fileInputRef.current?.click()}
         >
           <FileUp className="h-10 w-10 text-slate-300 dark:text-slate-500" />
@@ -327,7 +327,7 @@ function ImportSection() {
           </div>
 
           {/* Preview table */}
-          <div className="rounded-xl border overflow-hidden">
+          <div className="rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden bg-white dark:bg-[#1E293B]">
             <div className="overflow-x-auto max-h-64">
               <table className="w-full text-xs">
                 <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700/60">
@@ -412,7 +412,7 @@ function ImportSection() {
       {step === 'done' && result && (
         <div className="space-y-4">
           {/* Result summary */}
-          <div className={`rounded-xl border p-4 ${result.imported > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className={`rounded-xl border p-4 ${result.imported > 0 ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-700/60' : 'bg-red-50 border-red-200'}`}>
             <div className="flex items-center gap-2 mb-2">
               {result.imported > 0
                 ? <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -441,7 +441,7 @@ function ImportSection() {
 
           {/* Error detail */}
           {result.errors.length > 0 && (
-            <div className="rounded-xl border border-red-200 overflow-hidden">
+            <div className="rounded-2xl border border-red-200 dark:border-red-700/60 overflow-hidden bg-white dark:bg-[#1E293B]">
               <div className="bg-red-50 px-4 py-2 border-b border-red-200">
                 <p className="text-xs font-semibold text-red-700">รายการที่มีปัญหา</p>
               </div>

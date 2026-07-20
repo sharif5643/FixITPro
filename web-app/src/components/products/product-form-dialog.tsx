@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -459,7 +459,7 @@ export function ProductFormDialog({
                 disabled={isLoading}
                 checked={hasSerial}
                 onChange={(e) => setValue('hasSerial', e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+                className="h-4 w-4 rounded border-slate-300 dark:border-slate-600/60 accent-blue-600"
               />
               <Label htmlFor="hasSerial" className="cursor-pointer font-normal">
                 ติดตาม Serial / IMEI (ต้องเลือก serial ตอนขาย)
