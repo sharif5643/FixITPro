@@ -17,7 +17,7 @@ import {
   DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
   DataTableRow, DataTableCell, DataTableLoadingRows,
 } from '@/components/ui/data-table'
-import { formatThaiMoney } from '@/lib/utils'
+import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
 import { useBranchContext } from '@/hooks/useBranchContext'
@@ -65,7 +65,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
     mutationFn: (data: typeof form) =>
       api.post('/expenses', { ...data, amount: parseFloat(data.amount) }).then((r) => r.data),
     onSuccess: () => { onSuccess(); onClose() },
-    onError: (e: any) => setError(e?.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
+    onError: (e: any) => setError(apiErrorMessage(e)),
   })
 
   function set(k: keyof typeof form, v: string) {
@@ -215,7 +215,7 @@ function VoidExpenseDialog({ expense, onClose, onSuccess }: VoidDialogProps) {
   const mutation = useMutation({
     mutationFn: () => api.post(`/expenses/${expense.id}/void`, { voidReason: reason }).then((r) => r.data),
     onSuccess: () => { onSuccess(); onClose() },
-    onError: (e: any) => setError(e?.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
+    onError: (e: any) => setError(apiErrorMessage(e)),
   })
 
   return (

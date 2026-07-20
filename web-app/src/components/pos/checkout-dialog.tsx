@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { formatThaiMoney, cn } from '@/lib/utils'
+import { formatThaiMoney, cn, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Sale, SerialNumber } from '@/types'
 import type { CartItem } from '@/store/cart.store'
@@ -304,8 +304,7 @@ export function CheckoutDialog({
       onSuccess(sale)
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message ?? err.message
-      toast.error(Array.isArray(msg) ? msg[0] : msg ?? 'เกิดข้อผิดพลาด')
+      toast.error(apiErrorMessage(err))
     },
   })
 

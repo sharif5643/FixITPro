@@ -408,7 +408,8 @@ export async function shareRepairDelivery(opts: PrintRepairDeliveryOptions): Pro
 // ── Cash drawer ───────────────────────────────────────────────────────────────
 
 export async function openCashDrawer(): Promise<void> {
-  // Not available via PrintManager — silently skipped
+  const { openCashDrawer: serialOpen } = await import('./cash-drawer')
+  await serialOpen()
 }
 
 // ── Thermal receipt preview data builders ─────────────────────────────────────

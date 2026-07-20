@@ -233,7 +233,7 @@ describe('ExpensesService — Workflow tests (RC1)', () => {
   it('TC-E10: ledger failure inside tx → voidExpense rejects, auditLog NOT written', async () => {
     await build();
 
-    accounting.record.mockRejectedValue(new BadRequestException('CASH_DRAWER_SESSION_REQUIRED'));
+    accounting.record.mockRejectedValue(new Error('LEDGER_WRITE_FAILED'));
 
     (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
       const tx = {
@@ -249,7 +249,7 @@ describe('ExpensesService — Workflow tests (RC1)', () => {
 
     await expect(
       service.voidExpense('exp-1', { voidReason: 'ยกเลิก' } as any, ACTOR_ID, 'OWNER', TENANT_ID),
-    ).rejects.toThrow('CASH_DRAWER_SESSION_REQUIRED');
+    ).rejects.toThrow('LEDGER_WRITE_FAILED');
 
     expect(auditLog.log).not.toHaveBeenCalled();
   });

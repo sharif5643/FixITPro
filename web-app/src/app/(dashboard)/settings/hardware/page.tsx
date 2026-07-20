@@ -3,11 +3,17 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Printer, Camera, Wifi, HardDrive, RefreshCw,
-  CheckCircle2, XCircle, AlertCircle, Loader2,
+  CheckCircle2, XCircle, AlertCircle, Loader2, Plug,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
+import {
+  getCashDrawerStatus,
+  connectCashDrawer,
+  testCashDrawer,
+  type CashDrawerStatus,
+} from '@/lib/cash-drawer'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,6 +73,12 @@ export default function HardwarePage() {
   ])
 
   const [running, setRunning] = useState(false)
+
+  // ── Cash Drawer state ─────────────────────────────────────────────────────
+  const [drawerStatus,      setDrawerStatus]      = useState<CashDrawerStatus | null>(null)
+  const [drawerConnecting,  setDrawerConnecting]  = useState(false)
+  const [drawerTesting,     setDrawerTesting]     = useState(false)
+  const [drawerTestResult,  setDrawerTestResult]  = useState<{ success: boolean; message: string } | null>(null)
 
   const setCheck = useCallback((key: string, status: CheckStatus, detail?: string) => {
     setChecks((prev) =>
@@ -144,6 +156,7 @@ export default function HardwarePage() {
   }, [setCheck])
 
   useEffect(() => { runChecks() }, [runChecks])
+  useEffect(() => { getCashDrawerStatus().then(setDrawerStatus) }, [])
 
   const summary = {
     ok:   checks.filter((c) => c.status === 'ok').length,
@@ -211,6 +224,118 @@ export default function HardwarePage() {
               </div>
             )
           })}
+        </div>
+      </SectionCard>
+
+      {/* ── Cash Drawer (Windows USB) ──────────────────────────────────────────── */}
+      <SectionCard title="ลิ้นชักเก็บเงิน (Windows / USB)">
+        <div className="space-y-4">
+          <div className="divide-y">
+            {/* API support row */}
+            <div className="flex items-center gap-3 py-3 px-1">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg shrink-0 ${
+                drawerStatus == null ? 'bg-muted' :
+                drawerStatus.supported ? 'bg-green-50 dark:bg-green-950' : 'bg-red-50 dark:bg-red-950'
+              }`}>
+                <Plug className={`h-5 w-5 ${
+                  drawerStatus?.supported ? 'text-green-600' :
+                  drawerStatus?.supported === false ? 'text-red-500' :
+                  'text-muted-foreground'
+                }`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Web Serial API</p>
+                <p className="text-xs text-muted-foreground">
+                  {drawerStatus == null
+                    ? 'กำลังตรวจสอบ...'
+                    : drawerStatus.supported
+                      ? 'รองรับ (Chrome / Edge บน HTTPS)'
+                      : 'ไม่รองรับ — ต้องใช้ Chrome หรือ Edge'}
+                </p>
+              </div>
+              {drawerStatus == null
+                ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                : drawerStatus.supported
+                  ? <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  : <XCircle className="h-5 w-5 text-red-500" />}
+            </div>
+
+            {/* Port authorization row */}
+            <div className="flex items-center gap-3 py-3 px-1">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg shrink-0 ${
+                drawerStatus?.authorized ? 'bg-green-50 dark:bg-green-950' : 'bg-yellow-50 dark:bg-yellow-950'
+              }`}>
+                <Plug className={`h-5 w-5 ${
+                  drawerStatus?.authorized ? 'text-green-600' : 'text-yellow-600'
+                }`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">การเชื่อมต่อลิ้นชัก</p>
+                <p className="text-xs text-muted-foreground">
+                  {drawerStatus?.authorized
+                    ? `เชื่อมต่อแล้ว · ${drawerStatus.portCount} port`
+                    : 'ยังไม่ได้เชื่อมต่อ — กดปุ่มด้านล่างเพื่อเลือก port'}
+                </p>
+              </div>
+              {drawerStatus?.authorized
+                ? <CheckCircle2 className="h-5 w-5 text-green-500" />
+                : <AlertCircle className="h-5 w-5 text-yellow-500" />}
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!drawerStatus?.supported || drawerConnecting || drawerTesting}
+              onClick={async () => {
+                setDrawerConnecting(true)
+                setDrawerTestResult(null)
+                const ok = await connectCashDrawer()
+                if (ok) setDrawerStatus(await getCashDrawerStatus())
+                setDrawerConnecting(false)
+              }}
+            >
+              {drawerConnecting
+                ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                : <Plug className="h-4 w-4 mr-2" />}
+              เชื่อมต่อลิ้นชัก
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!drawerStatus?.authorized || drawerTesting || drawerConnecting}
+              onClick={async () => {
+                setDrawerTesting(true)
+                setDrawerTestResult(null)
+                const result = await testCashDrawer()
+                setDrawerTestResult(result)
+                setDrawerTesting(false)
+              }}
+            >
+              {drawerTesting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              ทดสอบเปิดลิ้นชัก
+            </Button>
+          </div>
+
+          {/* Test result feedback */}
+          {drawerTestResult && (
+            <div className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+              drawerTestResult.success
+                ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-700/60 dark:bg-green-900/20 dark:text-green-300'
+                : 'border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-700/60 dark:bg-yellow-900/20 dark:text-yellow-300'
+            }`}>
+              {drawerTestResult.success
+                ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                : <AlertCircle className="h-4 w-4 shrink-0" />}
+              {drawerTestResult.message}
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            ใช้ได้เฉพาะ Windows + Chrome/Edge · เชื่อมต่อผ่านหน้านี้ครั้งเดียว — เบราว์เซอร์จะจำไว้ · ลิ้นชักต่อผ่าน RJ11 จากเครื่องพิมพ์ AUYIN
+          </p>
         </div>
       </SectionCard>
 

@@ -17,7 +17,7 @@ import {
   type PrintPackageSaleOptions,
 } from '@/lib/printer'
 import { pushBackHandler } from '@/lib/back-stack'
-import { formatThaiMoney } from '@/lib/utils'
+import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
 import type { ShopSettings, PaymentMethod } from '@/types'
 
@@ -140,8 +140,7 @@ function CheckoutSheet({
       onSuccess(result, opts)
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message
-      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+      toast.error(apiErrorMessage(err))
     },
   })
 

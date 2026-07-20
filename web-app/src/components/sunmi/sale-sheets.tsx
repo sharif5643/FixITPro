@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { pushBackHandler } from '@/lib/back-stack'
-import { formatThaiMoney } from '@/lib/utils'
+import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Sale, PaymentMethod } from '@/types'
 
@@ -45,8 +45,7 @@ export function VoidConfirmSheet({
       onClose()
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message
-      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+      toast.error(apiErrorMessage(err))
     },
   })
 
@@ -156,8 +155,7 @@ export function RefundSheet({
       onClose()
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message
-      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+      toast.error(apiErrorMessage(err))
     },
   })
 

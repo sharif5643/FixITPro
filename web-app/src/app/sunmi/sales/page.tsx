@@ -24,7 +24,7 @@ import {
 import { pushBackHandler } from '@/lib/back-stack'
 import { nativeScan } from '@/lib/native-barcode-scanner'
 import { Platform } from '@/lib/platform'
-import { formatThaiMoney } from '@/lib/utils'
+import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Customer, Product, Sale, ShopSettings, PaymentMethod } from '@/types'
 
@@ -258,8 +258,7 @@ function CheckoutSheet({
       }),
     onSuccess: (res) => onSuccess(res.data as Sale),
     onError: (err: any) => {
-      const msg = err.response?.data?.message
-      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+      toast.error(apiErrorMessage(err))
     },
   })
 
