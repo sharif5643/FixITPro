@@ -677,7 +677,7 @@ export default function DailyClosingReportPage() {
                   <div key={shift.id} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-bold text-slate-900 dark:text-white dark:text-white">{shift.user.name}</p>
+                        <p className="font-bold text-slate-900 dark:text-white">{shift.user.name}</p>
                         <p className="text-xs text-muted-foreground">
                           เปิด {format(new Date(shift.openedAt), 'HH:mm', { locale: th })}
                           {shift.closedAt && ` · ปิด ${format(new Date(shift.closedAt), 'HH:mm', { locale: th })}`}
