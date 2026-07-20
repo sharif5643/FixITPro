@@ -47,7 +47,7 @@ function ToggleSwitch({
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none',
-        checked ? 'bg-blue-600' : 'bg-gray-200',
+        checked ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700',
         disabled && 'opacity-50 cursor-not-allowed',
       )}
     >
@@ -112,7 +112,7 @@ function RoleCard({ rolePerms }: { rolePerms: RolePerms }) {
             <div className="space-y-2">
               {group.perms.map((perm) => (
                 <div key={perm} className="flex items-center justify-between py-0.5">
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-slate-700 dark:text-slate-300">
                     {PERMISSION_LABEL[perm as Permission]}
                   </span>
                   <ToggleSwitch

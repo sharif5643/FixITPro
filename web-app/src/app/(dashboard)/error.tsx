@@ -18,11 +18,11 @@ export default function DashboardError({
 
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 py-20 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
         <AlertTriangle className="h-8 w-8 text-red-500" />
       </div>
       <div>
-        <h2 className="text-xl font-bold text-gray-900">เกิดข้อผิดพลาด</h2>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">เกิดข้อผิดพลาด</h2>
         <p className="text-sm text-muted-foreground mt-1">
           {error.message || 'ระบบเกิดข้อผิดพลาดที่ไม่คาดคิด'}
         </p>

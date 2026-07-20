@@ -542,7 +542,7 @@ export default function DailyClosingReportPage() {
                 <MetricCard
                   label="รวมรายได้"
                   value={formatThaiMoney(data.revenue.grandTotal)}
-                  color="text-gray-900"
+                  color="text-slate-900 dark:text-white"
                   icon={BarChart2}
                 />
               </div>
