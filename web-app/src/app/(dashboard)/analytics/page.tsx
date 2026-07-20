@@ -414,7 +414,7 @@ function RepairAgingSection({ data, loading }: { data?: RepairAgingResponse; loa
                   onClick={() => setOpenBucket(openBucket === b.key ? null : b.key)}
                   className={cn(
                     'rounded-xl p-3 text-center border transition-colors',
-                    openBucket === b.key ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-600' : 'border-slate-100 dark:border-slate-700/60 hover:border-slate-200 dark:hover:border-slate-600',
+                    openBucket === b.key ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-500/60' : 'border-slate-100 dark:border-slate-700/60 hover:border-slate-200 dark:hover:border-slate-600',
                   )}
                 >
                   <p className={cn('text-2xl font-bold', severityCls[b.severity].split(' ')[1]?.replace('text-', 'text-') ?? 'text-slate-700')}>

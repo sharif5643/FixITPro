@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -270,7 +270,7 @@ export default function NotificationsPage() {
                       {SEV_LABEL[n.severity]}
                     </span>
                     {TYPE_LABEL[n.type] && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 font-medium">
                         {TYPE_LABEL[n.type]}
                       </span>
                     )}

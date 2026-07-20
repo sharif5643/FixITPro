@@ -287,7 +287,7 @@ function TransfersContent() {
 
       {/* Source branch pending alert */}
       {!isOwner && pendingSourceCount > 0 && (
-        <div className="flex items-center gap-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/60 px-4 py-3">
           <Bell className="h-5 w-5 text-amber-600 shrink-0" />
           <p className="text-sm font-medium text-amber-800 dark:text-amber-300 flex-1">
             มี {pendingSourceCount} คำขอโอนสินค้ารออนุมัติจากสาขาของคุณ
@@ -323,7 +323,7 @@ function TransfersContent() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-24 rounded-xl bg-slate-100 animate-pulse" />
+            <div key={i} className="h-24 rounded-xl bg-slate-100 dark:bg-slate-700/60 animate-pulse" />
           ))}
         </div>
       ) : transfers.length === 0 ? (

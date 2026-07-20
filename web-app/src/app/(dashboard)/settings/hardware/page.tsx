@@ -169,10 +169,10 @@ export default function HardwarePage() {
       {allDone && (
         <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium ${
           summary.fail > 0
-            ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300'
+            ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-700/60 dark:bg-red-900/20 dark:text-red-300'
             : summary.warn > 0
-              ? 'border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-300'
-              : 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300'
+              ? 'border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-700/60 dark:bg-yellow-900/20 dark:text-yellow-300'
+              : 'border-green-200 bg-green-50 text-green-700 dark:border-green-700/60 dark:bg-green-900/20 dark:text-green-300'
         }`}>
           {summary.fail > 0
             ? `พบปัญหา ${summary.fail} รายการ — ต้องแก้ไขก่อนใช้งาน`

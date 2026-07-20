@@ -237,7 +237,7 @@ export default function BranchesPage() {
       />
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-4 py-3 text-sm text-red-700 dark:text-red-400">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
           <button className="ml-auto" onClick={() => setError('')}><X className="h-4 w-4" /></button>
