@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatThaiMoney, getAssetUrl } from '@/lib/utils'
+import { formatThaiMoney, getAssetUrl, apiErrorMessage } from '@/lib/utils'
 import { RepairReceiptPreviewDialog } from '@/components/receipt/receipt-preview-dialog'
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
 import api from '@/lib/api'
@@ -284,8 +284,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       onStatusChange?.()
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message ?? err.message
-      toast.error(Array.isArray(msg) ? msg[0] : msg ?? 'เกิดข้อผิดพลาด')
+      toast.error(apiErrorMessage(err))
     },
   })
 
@@ -300,8 +299,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       onStatusChange?.()
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message ?? err.message
-      toast.error(Array.isArray(msg) ? msg[0] : msg ?? 'เกิดข้อผิดพลาด')
+      toast.error(apiErrorMessage(err))
     },
   })
 
@@ -321,8 +319,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       toast.success('บันทึกการรับเงินเพิ่มเติมสำเร็จ')
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message ?? err.message
-      toast.error(Array.isArray(msg) ? msg[0] : msg ?? 'เกิดข้อผิดพลาด')
+      toast.error(apiErrorMessage(err))
     },
   })
 

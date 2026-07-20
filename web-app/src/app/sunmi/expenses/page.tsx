@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
-import { formatThaiMoney } from '@/lib/utils'
+import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import api from '@/lib/api'
@@ -138,8 +138,7 @@ export default function SunmiExpensesPage() {
       setPrintOpts(opts)
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.message
-      toast.error(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'เกิดข้อผิดพลาด'))
+      toast.error(apiErrorMessage(err))
     },
   })
 
