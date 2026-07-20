@@ -8,12 +8,9 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
     <div
       ref={ref}
       className={cn(
-        // Layout
         'rounded-2xl border bg-card text-card-foreground',
-        // Shadow — soft, not harsh
-        'shadow-card',
-        // Dark mode: slightly lighter card surface
-        'dark:border-border/50',
+        'shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]',
+        'border-slate-100 dark:border-slate-700/60',
         className,
       )}
       {...props}
@@ -29,10 +26,10 @@ const CardInteractive = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
     <div
       ref={ref}
       className={cn(
-        'rounded-2xl border bg-card text-card-foreground shadow-card',
-        'dark:border-border/50',
-        // Hover lift
-        'cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover',
+        'rounded-2xl border bg-card text-card-foreground',
+        'shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]',
+        'border-slate-100 dark:border-slate-700/60',
+        'cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.40)]',
         className,
       )}
       {...props}

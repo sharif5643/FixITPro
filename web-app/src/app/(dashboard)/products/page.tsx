@@ -351,7 +351,7 @@ export default function ProductsPage() {
         searchPlaceholder="ค้นหาชื่อสินค้า, SKU, Barcode..."
       >
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-36 h-9 text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          <SelectTrigger className="w-36 h-9 text-sm border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -391,7 +391,7 @@ export default function ProductsPage() {
               paginated.flatMap((p, idx) => {
                 const rowIdx       = (currentPage - 1) * PAGE_SIZE + idx
                 const typeLabel    = p.category?.categoryType?.name ?? TYPE_CONFIG[p.type]?.label ?? p.type
-                const typeInfo     = TYPE_CONFIG[p.type] ?? { label: typeLabel, cls: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' }
+                const typeInfo     = TYPE_CONFIG[p.type] ?? { label: typeLabel, cls: 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60' }
                 const q            = stockOf(p)
                 const isOut        = q === 0
                 const isLow        = !isOut && q <= p.minStock
@@ -421,7 +421,7 @@ export default function ProductsPage() {
 
                     {/* SKU */}
                     <DataTableCell hidden className="min-w-[120px]">
-                      <code className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-xs font-mono text-slate-700 dark:text-slate-300">
+                      <code className="rounded bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 text-xs font-mono text-slate-700 dark:text-slate-300">
                         {p.sku}
                       </code>
                       {!isViewAll && p.stockCode && (
@@ -594,7 +594,7 @@ export default function ProductsPage() {
 
                   // ── Single-branch availability mini-breakdown row ──────────
                   ...(!isViewAll && isAvailExpanded ? [
-                    <tr key={`${p.id}-avail`} className="bg-slate-50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800">
+                    <tr key={`${p.id}-avail`} className="bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-700/60">
                       <td colSpan={9} className="px-8 py-2.5">
                         {availData.filter((b) => b.branchId !== effectiveBranch).length === 0 ? (
                           <p className="text-xs text-slate-400 dark:text-slate-500">ไม่มีสาขาอื่นที่มีสต็อกสินค้านี้</p>
@@ -607,7 +607,7 @@ export default function ProductsPage() {
                                   key={b.branchId}
                                   className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
                                     b.quantity === 0
-                                      ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
+                                      ? 'border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500'
                                       : 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
                                   }`}
                                 >
@@ -628,7 +628,7 @@ export default function ProductsPage() {
 
         {/* Pagination footer */}
         {filtered.length > 0 && (
-          <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <div className="border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/30 px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
             <span>
               แสดง{' '}
               <span className="font-medium text-slate-700 dark:text-slate-300">

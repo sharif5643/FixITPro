@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -47,7 +47,7 @@ function ToggleSwitch({
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none',
-        checked ? 'bg-blue-600' : 'bg-gray-200',
+        checked ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700',
         disabled && 'opacity-50 cursor-not-allowed',
       )}
     >
@@ -103,7 +103,7 @@ function RoleCard({ rolePerms }: { rolePerms: RolePerms }) {
       </div>
 
       {/* Permission groups */}
-      <div className="p-4 space-y-4 bg-white">
+      <div className="p-4 space-y-4 bg-white dark:bg-[#1E293B]">
         {PERMISSION_GROUPS.map((group) => (
           <div key={group.label}>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -112,7 +112,7 @@ function RoleCard({ rolePerms }: { rolePerms: RolePerms }) {
             <div className="space-y-2">
               {group.perms.map((perm) => (
                 <div key={perm} className="flex items-center justify-between py-0.5">
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-slate-700 dark:text-slate-300">
                     {PERMISSION_LABEL[perm as Permission]}
                   </span>
                   <ToggleSwitch
@@ -135,8 +135,11 @@ export default function RolesPage() {
   const currentUser = useAuthStore((s) => s.user)
 
   useEffect(() => {
-    if (currentUser?.role === 'SUPER_ADMIN') {
+    if (!currentUser) return
+    if (currentUser.role === 'SUPER_ADMIN') {
       router.replace('/super-admin/tenants')
+    } else if (currentUser.role !== 'OWNER') {
+      router.replace('/403')
     }
   }, [currentUser, router])
 

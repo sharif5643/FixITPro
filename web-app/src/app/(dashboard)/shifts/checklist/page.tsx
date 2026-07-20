@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef } from 'react'
 import { format } from 'date-fns'
@@ -150,7 +150,7 @@ export default function ShiftChecklistPage() {
                   type="checkbox"
                   checked={done.has(item.id)}
                   onChange={() => toggle(item.id)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary accent-primary cursor-pointer"
+                  className="h-4 w-4 rounded border-slate-300 dark:border-slate-600/60 text-primary accent-primary cursor-pointer"
                 />
               </div>
               <div className="flex-1 min-w-0">

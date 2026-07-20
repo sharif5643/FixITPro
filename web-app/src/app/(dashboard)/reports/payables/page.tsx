@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn, formatThaiMoney } from '@/lib/utils'
+import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import type { SupplierAging, SupplierAgingRow } from '@/types'
 
@@ -37,12 +38,21 @@ function severityColor(row: SupplierAgingRow): string {
 
 export default function SupplierAgingPage() {
   const router = useRouter()
+  const hasPerm = useAuthStore((s) => s.hasPermission)
+
+  const authorized = hasPerm('reports.view')
 
   const { data, isLoading, refetch, isRefetching } = useQuery<SupplierAging>({
     queryKey: ['supplier-aging'],
     queryFn:  () => api.get('/reports/supplier-aging').then((r) => r.data),
     staleTime: 2 * 60_000,
+    enabled: authorized,
   })
+
+  if (!authorized) {
+    router.replace('/403')
+    return null
+  }
 
   const hasOverdue90 = (data?.suppliers ?? []).some((s) => s.b90plus > 0)
 
@@ -80,7 +90,7 @@ export default function SupplierAgingPage() {
             { label: '61–90 วัน',   value: data.totals.b61to90, cls: data.totals.b61to90 > 0 ? 'bg-orange-50 border-orange-200' : '' },
             { label: '90+ วัน',     value: data.totals.b90plus, cls: data.totals.b90plus > 0 ? 'bg-red-50 border-red-200 text-red-700' : '' },
           ].map(({ label, value, cls }) => (
-            <div key={label} className={cn('rounded-xl border p-3.5 bg-white', cls)}>
+            <div key={label} className={cn('rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-3.5', cls)}>
               <p className="text-xs text-slate-500 mb-1">{label}</p>
               <p className="text-lg font-bold tabular-nums">{formatThaiMoney(value)}</p>
             </div>
@@ -111,7 +121,7 @@ export default function SupplierAgingPage() {
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b bg-gray-50 text-gray-500 text-xs">
+                    <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400 text-xs">
                       <th className="text-left px-4 py-2.5 font-medium">ซัพพลายเออร์</th>
                       <th className="text-right px-4 py-2.5 font-medium">0–30 วัน</th>
                       <th className="text-right px-4 py-2.5 font-medium">31–60 วัน</th>
@@ -125,7 +135,7 @@ export default function SupplierAgingPage() {
                     {data.suppliers.map((s) => (
                       <tr key={s.id} className={cn('border-b last:border-0 hover:bg-slate-50/60', severityColor(s))}>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-gray-900">{s.name}</p>
+                          <p className="font-medium text-slate-900 dark:text-white">{s.name}</p>
                           {s.creditDays > 0 && (
                             <p className="text-xs text-slate-400">เครดิต {s.creditDays} วัน</p>
                           )}
@@ -154,7 +164,7 @@ export default function SupplierAgingPage() {
                   </tbody>
                   <tfoot>
                     <tr className="border-t bg-slate-50">
-                      <td className="px-4 py-2.5 text-xs font-semibold text-gray-500">รวม</td>
+                      <td className="px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">รวม</td>
                       <td className="px-4 py-2.5 text-right font-bold tabular-nums">{formatThaiMoney(data.totals.b0to30)}</td>
                       <td className="px-4 py-2.5 text-right font-bold tabular-nums text-yellow-700">{formatThaiMoney(data.totals.b31to60)}</td>
                       <td className="px-4 py-2.5 text-right font-bold tabular-nums text-orange-700">{formatThaiMoney(data.totals.b61to90)}</td>
@@ -175,8 +185,8 @@ export default function SupplierAgingPage() {
                     onClick={() => router.push(`/suppliers/${s.id}/payables`)}
                   >
                     <div className="flex items-center justify-between">
-                      <p className="font-semibold text-gray-900">{s.name}</p>
-                      <p className="font-bold text-gray-900">{formatThaiMoney(s.total)}</p>
+                      <p className="font-semibold text-slate-900 dark:text-white">{s.name}</p>
+                      <p className="font-bold text-slate-900 dark:text-white">{formatThaiMoney(s.total)}</p>
                     </div>
                     <div className="grid grid-cols-4 gap-1 text-xs">
                       {[

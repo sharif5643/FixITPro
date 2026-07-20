@@ -72,7 +72,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
       .slice(0, 2) || 'U'
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-white dark:bg-slate-900 dark:border-slate-800 px-3 sm:px-6 shadow-sm flex-shrink-0 transition-colors">
+    <header className="flex h-14 items-center justify-between border-b bg-white dark:bg-[#1E293B] dark:border-slate-700/60 px-3 sm:px-6 shadow-sm flex-shrink-0 transition-colors">
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"
@@ -117,7 +117,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="flex items-center gap-2 h-auto px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="flex items-center gap-2 h-auto px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/40"
             >
               <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
                 <AvatarFallback className="bg-blue-600 text-white text-xs font-bold">

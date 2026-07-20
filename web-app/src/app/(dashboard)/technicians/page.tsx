@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -37,7 +37,7 @@ function RankBadge({ rank }: { rank: number }) {
   if (rank === 2) return <span className="text-lg">🥈</span>
   if (rank === 3) return <span className="text-lg">🥉</span>
   return (
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-xs font-bold text-gray-600">
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300">
       {rank}
     </span>
   )
@@ -101,7 +101,7 @@ export default function TechniciansPage() {
       />
 
       {/* Date filter */}
-      <div className="bg-white rounded-xl border p-4 space-y-3">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((p) => (
             <button
@@ -111,7 +111,7 @@ export default function TechniciansPage() {
                 'rounded-full px-3 py-1 text-xs font-semibold transition-all border',
                 (!customStart && !customEnd) && preset === p.key
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400',
+                  : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-slate-400 dark:hover:border-slate-500',
               ].join(' ')}
             >
               {p.label}
@@ -148,22 +148,22 @@ export default function TechniciansPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <Users className="h-4 w-4 text-blue-500" />
             <p className="text-xs text-muted-foreground">ช่างซ่อมทั้งหมด</p>
           </div>
-          <p className="text-xl font-bold text-gray-900">{techs.length}</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-white">{techs.length}</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <Wrench className="h-4 w-4 text-green-500" />
             <p className="text-xs text-muted-foreground">งานซ่อมสำเร็จ</p>
           </div>
-          <p className="text-xl font-bold text-gray-900">{totals.completed}</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-white">{totals.completed}</p>
           <p className="text-xs text-muted-foreground">จาก {totals.total} งาน</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="h-4 w-4 text-purple-500" />
             <p className="text-xs text-muted-foreground">รายได้รวม</p>
@@ -175,7 +175,7 @@ export default function TechniciansPage() {
       </div>
 
       {/* Leaderboard table — desktop */}
-      <div className="hidden md:block bg-white rounded-xl border overflow-hidden">
+      <div className="hidden md:block bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-48 gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -187,7 +187,7 @@ export default function TechniciansPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                   <th className="text-center px-3 py-3 font-medium w-12">อันดับ</th>
                   <th className="text-left px-4 py-3 font-medium">ช่าง</th>
                   <th className="text-center px-4 py-3 font-medium">งานทั้งหมด</th>
@@ -212,7 +212,7 @@ export default function TechniciansPage() {
                       <RankBadge rank={t.rank ?? 0} />
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-gray-900">{t.name}</p>
+                      <p className="font-semibold text-slate-900 dark:text-white">{t.name}</p>
                       <p className="text-xs text-muted-foreground">{t.phone ?? t.email}</p>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -222,11 +222,11 @@ export default function TechniciansPage() {
                       <span className="font-semibold text-green-700">{t.kpi.completedRepairs}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={t.kpi.cancellationRate >= 15 ? 'text-red-600 font-semibold' : 'text-gray-600'}>
+                      <span className={t.kpi.cancellationRate >= 15 ? 'text-red-600 font-semibold' : 'text-slate-600 dark:text-slate-400'}>
                         {t.kpi.cancellationRate.toFixed(1)}%
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center text-xs text-gray-600">
+                    <td className="px-4 py-3 text-center text-xs text-slate-600 dark:text-slate-400">
                       {t.kpi.avgRepairHours != null
                         ? t.kpi.avgRepairHours < 24
                           ? `${t.kpi.avgRepairHours.toFixed(1)} ชม.`
@@ -236,7 +236,7 @@ export default function TechniciansPage() {
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-purple-700">
                       {formatThaiMoney(t.kpi.revenue)}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-sm text-gray-700">
+                    <td className="px-4 py-3 text-right tabular-nums text-sm text-slate-700 dark:text-slate-300">
                       {formatThaiMoney(t.kpi.laborRevenue)}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -249,11 +249,11 @@ export default function TechniciansPage() {
                           {t.kpi.repeatRepairs}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">—</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">—</span>
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                      <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                     </td>
                   </tr>
                 ))}
@@ -266,34 +266,34 @@ export default function TechniciansPage() {
       {/* Mobile cards */}
       <div className="md:hidden space-y-3">
         {isLoading ? (
-          <div className="flex items-center justify-center h-40 bg-white rounded-xl border gap-2 text-muted-foreground">
+          <div className="flex items-center justify-center h-40 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>กำลังโหลด...</span>
           </div>
         ) : techs.length === 0 ? (
-          <div className="bg-white rounded-xl border">
+          <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
             <EmptyState preset="technicians" />
           </div>
         ) : (
           techs.map((t) => (
             <div
               key={t.id}
-              className="bg-white rounded-xl border p-4 space-y-3"
+              className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3"
               onClick={() => router.push(`/technicians/${t.id}`)}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <RankBadge rank={t.rank ?? 0} />
                   <div>
-                    <p className="font-semibold text-gray-900">{t.name}</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{t.name}</p>
                     <p className="text-xs text-muted-foreground">{t.phone ?? '—'}</p>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-gray-400 mt-1" />
+                <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500 mt-1" />
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg bg-gray-50 py-2">
+                <div className="rounded-lg bg-slate-50 py-2">
                   <p className="text-[10px] text-muted-foreground">งานทั้งหมด</p>
                   <p className="font-bold text-sm">{t.kpi.totalRepairs}</p>
                 </div>
@@ -309,7 +309,7 @@ export default function TechniciansPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 text-xs text-gray-600">
+              <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {t.kpi.avgRepairHours != null

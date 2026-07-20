@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/store/auth.store'
+import { toast } from 'sonner'
 import api from '@/lib/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -76,9 +77,22 @@ export default function BackupPage() {
     refetchFiles()
   }
 
-  function downloadUrl(filename: string) {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'
-    return `${base}/backup/download/${encodeURIComponent(filename)}`
+  async function handleDownload(filename: string) {
+    try {
+      const res = await api.get(`/backup/download/${encodeURIComponent(filename)}`, {
+        responseType: 'blob',
+      })
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('ดาวน์โหลด Backup ล้มเหลว')
+    }
   }
 
   const isLoading = statusLoading || filesLoading
@@ -139,7 +153,7 @@ export default function BackupPage() {
       {/* Status card */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* pg_dump status */}
-        <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3 p-4 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
           <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
             status?.pgDumpAvailable ? 'bg-green-100' : 'bg-red-100'
           }`}>
@@ -158,7 +172,7 @@ export default function BackupPage() {
         </div>
 
         {/* Backup directory */}
-        <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3 p-4 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
           <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center">
             <FolderOpen className="h-5 w-5 text-blue-600" />
           </div>
@@ -171,7 +185,7 @@ export default function BackupPage() {
         </div>
 
         {/* Last backup */}
-        <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3 p-4 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
           <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center">
             <Clock className="h-5 w-5 text-amber-600" />
           </div>
@@ -265,7 +279,7 @@ export default function BackupPage() {
             {files.map((f, idx) => (
               <div
                 key={f.filename}
-                className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-colors"
+                className="flex items-center gap-4 p-4 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-2xl hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
               >
                 <div className="h-9 w-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
                   <Database className="h-4 w-4 text-slate-500" />
@@ -294,14 +308,13 @@ export default function BackupPage() {
                   </div>
                 </div>
 
-                <a
-                  href={downloadUrl(f.filename)}
-                  download={f.filename}
+                <button
+                  onClick={() => handleDownload(f.filename)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors shrink-0"
                 >
                   <Download className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">ดาวน์โหลด</span>
-                </a>
+                </button>
               </div>
             ))}
           </div>
@@ -312,7 +325,7 @@ export default function BackupPage() {
       <div className="flex items-center gap-2 text-xs text-slate-400 pt-2">
         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
         <span>
-          เฉพาะ DEV เท่านั้น — ห้าม Restore โดยตรงกับฐานข้อมูล PROD
+          Backup ไฟล์เป็นข้อมูลสำคัญ — เก็บรักษาให้ปลอดภัยและห้ามเผยแพร่
         </span>
       </div>
     </div>

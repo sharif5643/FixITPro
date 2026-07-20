@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -54,17 +54,17 @@ function ProductLabel({ product, size }: { product: Product; size: LabelSize }) 
 
   return (
     <div
-      className="label-item border border-dashed border-gray-300 flex flex-col items-center justify-center overflow-hidden bg-white"
+      className="label-item border border-dashed border-slate-300 dark:border-slate-600/60 flex flex-col items-center justify-center overflow-hidden bg-white dark:bg-[#1E293B]"
       style={{ width: cfg.widthPx, height: cfg.heightPx, padding: isSmall ? 2 : isMedium ? 4 : 6 }}
     >
       <p
-        className="font-bold text-center leading-tight text-gray-900 w-full truncate"
+        className="font-bold text-center leading-tight text-slate-900 dark:text-white w-full truncate"
         style={{ fontSize: isSmall ? 7 : isMedium ? 9 : 11 }}
       >
         {product.name}
       </p>
       <p
-        className="font-bold text-gray-900 tabular-nums"
+        className="font-bold text-slate-900 dark:text-white tabular-nums"
         style={{ fontSize: isSmall ? 8 : isMedium ? 10 : 13 }}
       >
         {formatThaiMoney(Number(product.price))}
@@ -78,7 +78,7 @@ function ProductLabel({ product, size }: { product: Product; size: LabelSize }) 
         displayValue={true}
       />
       <p
-        className="text-gray-500 font-mono"
+        className="text-slate-500 dark:text-slate-400 font-mono"
         style={{ fontSize: isSmall ? 5 : isMedium ? 6 : 8 }}
       >
         {product.sku}
@@ -196,17 +196,17 @@ export default function BarcodePrintPage() {
                   className="pl-9"
                 />
                 {searchOpen && debouncedSearch.length >= 1 && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                  <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.4)] max-h-56 overflow-y-auto">
                     {products.length === 0 ? (
                       <div className="px-3 py-3 text-sm text-muted-foreground text-center">ไม่พบสินค้า</div>
                     ) : (
                       products.map((p) => (
                         <button
                           key={p.id}
-                          className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b last:border-0"
+                          className="w-full text-left px-3 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-slate-100 dark:border-slate-700/40 last:border-0"
                           onClick={() => addProduct(p)}
                         >
-                          <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                          <p className="text-sm font-medium text-slate-900 dark:text-white">{p.name}</p>
                           <p className="text-xs text-muted-foreground">
                             SKU: {p.sku} · {p.barcode ?? 'ไม่มี barcode'}
                           </p>
@@ -237,29 +237,29 @@ export default function BarcodePrintPage() {
             <div className="space-y-2">
               <Label>รายการสินค้า</Label>
               {items.length === 0 ? (
-                <div className="rounded-xl border bg-gray-50 flex flex-col items-center justify-center h-28 gap-2 text-muted-foreground">
-                  <BarcodeIcon className="h-7 w-7 text-gray-200" />
+                <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 flex flex-col items-center justify-center h-28 gap-2 text-slate-400 dark:text-slate-500">
+                  <BarcodeIcon className="h-7 w-7 text-slate-300 dark:text-slate-600" />
                   <p className="text-sm">ยังไม่ได้เลือกสินค้า</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {items.map(({ product, quantity }) => (
-                    <div key={product.id} className="flex items-center gap-3 rounded-lg border bg-white px-3 py-2.5">
+                    <div key={product.id} className="flex items-center gap-3 rounded-lg border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] px-3 py-2.5">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{product.name}</p>
                         <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => setQty(product.id, quantity - 1)}
-                          className="h-6 w-6 rounded border flex items-center justify-center hover:bg-gray-50 text-gray-600"
+                          className="h-6 w-6 rounded border border-slate-200 dark:border-slate-700/60 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700/40 text-slate-600 dark:text-slate-400"
                         >
                           <Minus className="h-3 w-3" />
                         </button>
                         <span className="text-sm font-semibold w-8 text-center tabular-nums">{quantity}</span>
                         <button
                           onClick={() => setQty(product.id, quantity + 1)}
-                          className="h-6 w-6 rounded border flex items-center justify-center hover:bg-gray-50 text-gray-600"
+                          className="h-6 w-6 rounded border border-slate-200 dark:border-slate-700/60 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700/40 text-slate-600 dark:text-slate-400"
                         >
                           <Plus className="h-3 w-3" />
                         </button>
@@ -282,11 +282,11 @@ export default function BarcodePrintPage() {
           <div className="space-y-2">
             <Label>ตัวอย่าง (Preview)</Label>
             {allLabels.length === 0 ? (
-              <div className="rounded-xl border bg-gray-50 flex flex-col items-center justify-center h-48 gap-2 text-muted-foreground">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 flex flex-col items-center justify-center h-48 gap-2 text-slate-400 dark:text-slate-500">
                 <p className="text-sm">เลือกสินค้าเพื่อดูตัวอย่าง</p>
               </div>
             ) : (
-              <div className="rounded-xl border bg-gray-50 p-4 overflow-auto max-h-[60vh]">
+              <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 p-4 overflow-auto max-h-[60vh]">
                 <div className="flex flex-wrap gap-2">
                   {allLabels.map((product, idx) => (
                     <ProductLabel key={`${product.id}-${idx}`} product={product} size={labelSize} />

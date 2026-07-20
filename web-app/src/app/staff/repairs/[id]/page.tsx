@@ -40,7 +40,7 @@ const STATUS_COLOR: Record<string, string> = {
   QC_PENDING:       'bg-indigo-100 text-indigo-700',
   COMPLETED:        'bg-green-100 text-green-700',
   READY_PICKUP:     'bg-emerald-100 text-emerald-700',
-  DELIVERED:        'bg-gray-100 text-gray-600',
+  DELIVERED:        'bg-slate-100 text-slate-600 dark:text-slate-400',
   CANCELLED:        'bg-red-100 text-red-600',
 }
 

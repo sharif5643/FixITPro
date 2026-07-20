@@ -83,7 +83,7 @@ export function SerialPickerDialog({
 
         <div className="space-y-4">
           {/* Product info */}
-          <div className="flex items-center justify-between rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-4 py-3">
+          <div className="flex items-center justify-between rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 px-4 py-3">
             <div>
               <p className="font-semibold text-sm text-slate-900 dark:text-white">{product.name}</p>
               <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
@@ -130,7 +130,7 @@ export function SerialPickerDialog({
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono border transition-all',
                       isSelected
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
+                        : 'bg-white dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
                     )}
                   >
                     {isSelected

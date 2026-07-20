@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -36,8 +36,8 @@ const STATUS_CFG: Record<ClaimStatus, { label: string; cls: string; icon: React.
   REJECTED:       { label: 'ปฏิเสธ',       cls: 'bg-red-100 text-red-700 border-red-200',           icon: XCircle },
   REPLACED:       { label: 'เปลี่ยนแล้ว',  cls: 'bg-teal-100 text-teal-700 border-teal-200',        icon: PackageCheck },
   RETURNED:       { label: 'คืนสินค้า',    cls: 'bg-orange-100 text-orange-700 border-orange-200',  icon: RotateCcw },
-  CLOSED:         { label: 'ปิดเคลม',      cls: 'bg-gray-100 text-gray-600 border-gray-300',        icon: CheckCircle2 },
-  CANCELLED:      { label: 'ยกเลิก',       cls: 'bg-gray-100 text-gray-400 border-gray-200',        icon: XCircle },
+  CLOSED:         { label: 'ปิดเคลม',      cls: 'bg-slate-100 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600/60',        icon: CheckCircle2 },
+  CANCELLED:      { label: 'ยกเลิก',       cls: 'bg-slate-100 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700/60',        icon: XCircle },
 }
 
 const TYPE_CFG: Record<ClaimType, { label: string; cls: string }> = {
@@ -80,7 +80,7 @@ function TypeBadge({ type }: { type: ClaimType }) {
 }
 
 function WarrantyInfo({ warrantyExpiresAt }: { warrantyExpiresAt?: string }) {
-  if (!warrantyExpiresAt) return <span className="text-gray-400 text-xs">ไม่มีประกัน</span>
+  if (!warrantyExpiresAt) return <span className="text-slate-400 dark:text-slate-500 text-xs">ไม่มีประกัน</span>
   const exp = new Date(warrantyExpiresAt)
   const now = new Date()
   const expired = exp < now
@@ -200,7 +200,7 @@ export default function ClaimsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-gray-50">
+                  <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
                     {['เลขเคลม','Serial / IMEI','สินค้า','ลูกค้า','ประเภท','สถานะ','ต้นทุน','วันที่',''].map((h) => (
                       <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>
                     ))}
@@ -211,7 +211,7 @@ export default function ClaimsPage() {
                     const exp = c.serialNumber.warrantyExpiresAt
                     const inWarranty = exp ? new Date(exp) > new Date() : false
                     return (
-                      <tr key={c.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => setDetailClaim(c)}>
+                      <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/20 cursor-pointer transition-colors" onClick={() => setDetailClaim(c)}>
                         <td className="px-4 py-3 font-mono font-medium text-blue-700">{c.claimNumber}</td>
                         <td className="px-4 py-3 font-mono text-xs">{c.serialNumber.serial}</td>
                         <td className="px-4 py-3">
@@ -232,7 +232,7 @@ export default function ClaimsPage() {
                           {c.claimCost ? <span className="text-red-600 font-medium">{formatThaiMoney(Number(c.claimCost))}</span> : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(c.createdAt).toLocaleDateString('th-TH')}</td>
-                        <td className="px-4 py-3"><ChevronRight className="h-4 w-4 text-gray-400" /></td>
+                        <td className="px-4 py-3"><ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500" /></td>
                       </tr>
                     )
                   })}
@@ -366,7 +366,7 @@ function CreateClaimDialog({
             </div>
 
             {foundSerial && (
-              <div className="rounded-xl border p-4 space-y-3 bg-blue-50/50 border-blue-100">
+              <div className="rounded-xl border border-blue-100 dark:border-blue-700/60 bg-blue-50/50 dark:bg-blue-900/10 p-4 space-y-3">
                 <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">พบสินค้า</p>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
@@ -377,18 +377,18 @@ function CreateClaimDialog({
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div className="rounded-lg bg-white border p-2.5">
+                    <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 p-2.5">
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Calendar className="h-3 w-3" />ขายเมื่อ</p>
                       <p className="text-xs font-medium">
                         {foundSerial.soldAt ? new Date(foundSerial.soldAt).toLocaleDateString('th-TH') : '—'}
                       </p>
                     </div>
-                    <div className="rounded-lg bg-white border p-2.5">
+                    <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 p-2.5">
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><ShieldCheck className="h-3 w-3" />ประกัน</p>
                       <WarrantyInfo warrantyExpiresAt={foundSerial.warrantyExpiresAt} />
                     </div>
                     {foundSerial.saleItem?.sale && (
-                      <div className="rounded-lg bg-white border p-2.5 col-span-2">
+                      <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 p-2.5 col-span-2">
                         <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Receipt className="h-3 w-3" />ใบเสร็จ</p>
                         <p className="text-xs font-mono font-medium">{foundSerial.saleItem.sale.receiptNumber}</p>
                       </div>
@@ -408,7 +408,7 @@ function CreateClaimDialog({
         ) : (
           <div className="space-y-4 pt-2">
             {/* Summary */}
-            <div className="rounded-xl bg-gray-50 border p-3 text-sm">
+            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 p-3 text-sm">
               <p className="font-semibold">{foundSerial?.product?.name}</p>
               <p className="text-xs font-mono text-muted-foreground">{foundSerial?.serial}</p>
               <div className="mt-1"><WarrantyInfo warrantyExpiresAt={foundSerial?.warrantyExpiresAt} /></div>
@@ -429,7 +429,7 @@ function CreateClaimDialog({
             <div className="space-y-1.5">
               <Label>อาการเสีย <span className="text-red-500">*</span></Label>
               <textarea
-                className="w-full rounded-lg border border-gray-200 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700/60 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
                 rows={3}
                 placeholder="บรรยายอาการเสียของสินค้า..."
                 value={symptom}
@@ -515,7 +515,7 @@ function ClaimDetailDialog({
               {/* Info grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Warranty */}
-                <div className="rounded-xl border p-3 space-y-2">
+                <div className="rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] p-3 space-y-2">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">ประกัน</p>
                   <WarrantyInfo warrantyExpiresAt={claim.serialNumber.warrantyExpiresAt} />
                   {claim.serialNumber.soldAt && (
@@ -531,7 +531,7 @@ function ClaimDetailDialog({
                 </div>
 
                 {/* Customer */}
-                <div className="rounded-xl border p-3 space-y-1">
+                <div className="rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] p-3 space-y-1">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">ลูกค้า</p>
                   {claim.customer ? (
                     <>
@@ -546,7 +546,7 @@ function ClaimDetailDialog({
               </div>
 
               {/* Symptom */}
-              <div className="rounded-xl border p-3">
+              <div className="rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] p-3">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">อาการเสีย</p>
                 <p className="text-sm">{claim.symptom}</p>
                 {claim.note && <p className="text-xs text-muted-foreground mt-1">{claim.note}</p>}
@@ -554,7 +554,7 @@ function ClaimDetailDialog({
 
               {/* Replacement serial */}
               {claim.replacementSerial && (
-                <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-3">
+                <div className="rounded-xl border border-teal-200 dark:border-teal-700/60 bg-teal-50/50 dark:bg-teal-900/10 p-3">
                   <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide mb-2">สินค้าทดแทน</p>
                   <p className="text-sm font-semibold">{claim.replacementSerial.product.name}</p>
                   <p className="text-xs font-mono text-muted-foreground">{claim.replacementSerial.serial}</p>
@@ -593,7 +593,7 @@ function ClaimDetailDialog({
                             <Icon className="h-3.5 w-3.5" />
                           </div>
                           {idx < (claim.history!.length - 1) && (
-                            <div className="w-px flex-1 bg-gray-200 my-1" />
+                            <div className="w-px flex-1 bg-slate-200 my-1" />
                           )}
                         </div>
                         <div className="pb-3 flex-1 min-w-0">
@@ -656,7 +656,7 @@ function ClaimCostEditor({
 
   if (!editing) {
     return (
-      <div className="rounded-xl border p-3 flex items-center justify-between">
+      <div className="rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] p-3 flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground">ต้นทุนเคลม</p>
           <p className={`text-base font-bold mt-0.5 ${claimCost ? 'text-red-600' : 'text-muted-foreground'}`}>
@@ -671,7 +671,7 @@ function ClaimCostEditor({
   }
 
   return (
-    <div className="rounded-xl border p-3 space-y-3">
+    <div className="rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] p-3 space-y-3">
       <p className="text-xs font-semibold">แก้ไขต้นทุนเคลม</p>
       <div className="flex gap-2 items-center">
         <Banknote className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -757,7 +757,7 @@ function UpdateStatusDialog({
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          <div className="rounded-xl bg-gray-50 border p-3 text-sm">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 p-3 text-sm">
             <p className="text-xs text-muted-foreground">สถานะปัจจุบัน</p>
             <div className="mt-1"><StatusBadge status={claim.status} /></div>
           </div>
@@ -798,7 +798,7 @@ function UpdateStatusDialog({
                       className={`px-2.5 py-1 rounded-lg text-xs font-mono border transition-all
                         ${replSerialId === s.id
                           ? 'bg-teal-600 text-white border-teal-600'
-                          : 'bg-white text-gray-700 border-gray-200 hover:border-teal-400'}`}
+                          : 'bg-white dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/60'}`}
                     >
                       {s.serial}
                     </button>

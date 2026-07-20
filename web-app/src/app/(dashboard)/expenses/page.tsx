@@ -85,10 +85,10 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md border dark:border-slate-800">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="relative bg-white dark:bg-[#1E293B] rounded-2xl shadow-xl w-full max-w-md border dark:border-slate-700/60">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700/60">
           <h2 className="font-bold text-slate-900 dark:text-slate-50">บันทึกค่าใช้จ่าย</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/40 text-slate-500 dark:text-slate-400">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -102,7 +102,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
                 value={form.expenseDate}
                 max={todayStr()}
                 onChange={(e) => set('expenseDate', e.target.value)}
-                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700/60 rounded-lg text-sm bg-white dark:bg-[#1E293B] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
@@ -111,7 +111,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
               <select
                 value={form.categoryId}
                 onChange={(e) => set('categoryId', e.target.value)}
-                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700/60 rounded-lg text-sm bg-white dark:bg-[#1E293B] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
                 <option value="">-- เลือก --</option>
@@ -151,7 +151,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
               <select
                 value={form.paymentMethod}
                 onChange={(e) => set('paymentMethod', e.target.value as any)}
-                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-9 px-3 border border-slate-200 dark:border-slate-700/60 rounded-lg text-sm bg-white dark:bg-[#1E293B] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="CASH">เงินสด</option>
                 <option value="TRANSFER">โอนเงิน</option>
@@ -221,7 +221,7 @@ function VoidExpenseDialog({ expense, onClose, onSuccess }: VoidDialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-xl border dark:border-slate-800 w-full max-w-sm">
+      <div className="relative bg-white dark:bg-[#1E293B] rounded-2xl shadow-xl border dark:border-slate-700/60 w-full max-w-sm">
         <div className="px-5 py-5 space-y-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center shrink-0">
@@ -369,10 +369,10 @@ export default function ExpensesPage() {
 
       {/* Month navigation + filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-1 py-1">
+        <div className="flex items-center gap-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-lg px-1 py-1">
           <button
             onClick={() => setViewMonth((m) => subMonths(m, 1))}
-            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors"
           >
             <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400" />
           </button>
@@ -382,7 +382,7 @@ export default function ExpensesPage() {
           <button
             onClick={() => setViewMonth((m) => addMonths(m, 1))}
             disabled={viewMonth >= startOfMonth(new Date())}
-            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-30"
+            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors disabled:opacity-30"
           >
             <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
           </button>
@@ -391,7 +391,7 @@ export default function ExpensesPage() {
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
-          className="h-9 px-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="h-9 px-3 border border-slate-200 dark:border-slate-700/60 rounded-lg text-sm bg-white dark:bg-[#1E293B] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">ทุกหมวดหมู่</option>
           {categories.filter((c) => c.isActive).map((c) => (
@@ -420,7 +420,7 @@ export default function ExpensesPage() {
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                 c.id === categoryFilter
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400'
+                  : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400'
               }`}
             >
               {c.name}
@@ -515,7 +515,7 @@ export default function ExpensesPage() {
 
         {/* Totals footer */}
         {expenses.length > 0 && (
-          <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 px-4 py-3 flex items-center justify-between">
+          <div className="border-t border-slate-100 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/40 px-4 py-3 flex items-center justify-between">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
               รวม {expenses.filter((e) => !e.voidedAt).length} รายการ
             </span>

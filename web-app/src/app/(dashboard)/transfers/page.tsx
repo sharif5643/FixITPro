@@ -287,7 +287,7 @@ function TransfersContent() {
 
       {/* Source branch pending alert */}
       {!isOwner && pendingSourceCount > 0 && (
-        <div className="flex items-center gap-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/60 px-4 py-3">
           <Bell className="h-5 w-5 text-amber-600 shrink-0" />
           <p className="text-sm font-medium text-amber-800 dark:text-amber-300 flex-1">
             มี {pendingSourceCount} คำขอโอนสินค้ารออนุมัติจากสาขาของคุณ
@@ -311,7 +311,7 @@ function TransfersContent() {
               'rounded-full px-3 py-1 text-xs font-medium border transition-colors',
               filter === f.val
                 ? 'bg-blue-600 border-blue-600 text-white'
-                : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-blue-400',
+                : 'border-slate-300 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:border-blue-400',
             )}
           >
             {f.label}
@@ -323,7 +323,7 @@ function TransfersContent() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-24 rounded-xl bg-slate-100 animate-pulse" />
+            <div key={i} className="h-24 rounded-xl bg-slate-100 dark:bg-slate-700/60 animate-pulse" />
           ))}
         </div>
       ) : transfers.length === 0 ? (
@@ -341,10 +341,10 @@ function TransfersContent() {
                 id={`transfer-${t.id}`}
                 ref={isHighlighted ? highlightRef : null}
                 className={cn(
-                  'rounded-xl border bg-white dark:bg-slate-900 p-4 shadow-sm transition-all',
+                  'rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] transition-all',
                   isHighlighted
                     ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-700 shadow-blue-100'
-                    : 'border-slate-200 dark:border-slate-800',
+                    : 'border-slate-200 dark:border-slate-700/60',
                 )}
               >
                 <div className="flex items-start justify-between gap-4">

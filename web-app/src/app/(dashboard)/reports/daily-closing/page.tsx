@@ -96,13 +96,13 @@ const PM_ICON: Record<string, React.ElementType> = { CASH: Banknote, TRANSFER: S
 
 function SectionHeader({ icon: Icon, title, badge }: { icon: React.ElementType; title: string; badge?: string | number }) {
   return (
-    <div className="flex items-center gap-2 mb-3">
-      <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-        <Icon className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+    <div className="flex items-center gap-2.5 mb-3">
+      <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/30 shrink-0">
+        <Icon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
       </div>
-      <h2 className="font-bold text-gray-900 dark:text-white">{title}</h2>
+      <h2 className="font-bold text-slate-900 dark:text-white">{title}</h2>
       {badge !== undefined && badge !== 0 && (
-        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+        <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full font-bold">
           {badge}
         </span>
       )}
@@ -198,7 +198,7 @@ export default function DailyClosingReportPage() {
         {data.sales.items.map((s: any) => {
           const PMIcon = PM_ICON[s.paymentMethod] ?? PM_ICON.CASH
           return (
-            <div key={s.id} className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+            <div key={s.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-blue-700">{s.receiptNumber}</span>
                 <div className="flex items-center gap-1.5">
@@ -226,7 +226,7 @@ export default function DailyClosingReportPage() {
         {data.repairPayments.items.map((r: any) => {
           const PMIcon = PM_ICON[r.paymentMethod] ?? PM_ICON.CASH
           return (
-            <div key={r.id} className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+            <div key={r.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-blue-700">{r.ticketNumber}</span>
                 <div className="flex items-center gap-1.5">
@@ -252,7 +252,7 @@ export default function DailyClosingReportPage() {
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">{data.packageSales.count} รายการ · {formatThaiMoney(data.revenue.packages.total)}</p>
         {data.packageSales.items.map((p: any) => (
-          <div key={p.id} className="bg-gray-50 rounded-xl p-3 space-y-1">
+          <div key={p.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-blue-700">{p.receiptNumber}</span>
               <span className="font-bold text-sm tabular-nums">{formatThaiMoney(Number(p.profit))}</span>
@@ -381,9 +381,9 @@ export default function DailyClosingReportPage() {
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">{data.expenses.count} รายการ · {formatThaiMoney(data.expenses.totalAmount)}</p>
         {data.expenses.items.map((e: any) => (
-          <div key={e.id} className="bg-gray-50 rounded-xl p-3 space-y-1">
+          <div key={e.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-600">{e.category?.name ?? '-'}</span>
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">{e.category?.name ?? '-'}</span>
               <span className="font-bold text-sm tabular-nums">{formatThaiMoney(Number(e.amount))}</span>
             </div>
             <p className="text-sm">{e.description}</p>
@@ -405,7 +405,7 @@ export default function DailyClosingReportPage() {
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">{items.length} งาน</p>
         {items.map((r: any) => (
-          <div key={r.id} className="bg-gray-50 rounded-xl p-3 space-y-1">
+          <div key={r.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1">
             <span className="font-mono text-xs font-bold text-blue-700">{r.ticketNumber}</span>
             <p className="text-sm font-medium">{r.deviceBrand} {r.deviceModel}</p>
             <p className="text-xs text-muted-foreground">{r.customer?.name ?? '-'}</p>
@@ -442,20 +442,20 @@ export default function DailyClosingReportPage() {
               {/* Quick date nav */}
               <button
                 onClick={() => setDateStr(format(subDays(new Date(dateStr), 1), 'yyyy-MM-dd'))}
-                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-700/40 text-slate-600 dark:text-slate-300 transition-colors"
                 title="วันก่อน"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => setDateStr(todayStr())}
-                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === todayStr() ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === todayStr() ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
               >
                 วันนี้
               </button>
               <button
                 onClick={() => setDateStr(format(subDays(new Date(), 1), 'yyyy-MM-dd'))}
-                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
               >
                 เมื่อวาน
               </button>
@@ -464,7 +464,7 @@ export default function DailyClosingReportPage() {
                   if (dateStr < todayStr()) setDateStr(format(new Date(new Date(dateStr).getTime() + 86400000), 'yyyy-MM-dd'))
                 }}
                 disabled={dateStr >= todayStr()}
-                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-700/40 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="วันถัดไป"
               >
                 <ChevronRightIcon className="h-3.5 w-3.5" />
@@ -474,7 +474,7 @@ export default function DailyClosingReportPage() {
                 value={dateStr}
                 max={todayStr()}
                 onChange={(e) => setDateStr(e.target.value)}
-                className="h-7 px-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-slate-900 dark:text-slate-300 dark:color-scheme-dark focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-7 px-2 border border-slate-200 dark:border-slate-700/60 rounded-lg text-xs bg-white dark:bg-[#1E293B] dark:text-slate-300 dark:color-scheme-dark focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           }
@@ -504,7 +504,7 @@ export default function DailyClosingReportPage() {
         {isLoading && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-24 bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 animate-pulse" />
+              <div key={i} className="h-24 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] animate-pulse" />
             ))}
           </div>
         )}
@@ -542,7 +542,7 @@ export default function DailyClosingReportPage() {
                 <MetricCard
                   label="รวมรายได้"
                   value={formatThaiMoney(data.revenue.grandTotal)}
-                  color="text-gray-900"
+                  color="text-slate-900 dark:text-white"
                   icon={BarChart2}
                 />
               </div>
@@ -590,11 +590,11 @@ export default function DailyClosingReportPage() {
             {/* ── 2. Sales Transactions ── */}
             <section className="print:break-inside-avoid">
               <SectionHeader icon={ShoppingCart} title="รายการขาย POS" badge={data.sales.count} />
-              <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 overflow-hidden">
+              <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                      <tr className="bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700/60 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                         <th className="text-left px-4 py-2.5 font-medium">เวลา</th>
                         <th className="text-left px-4 py-2.5 font-medium">ใบเสร็จ</th>
                         <th className="text-left px-4 py-2.5 font-medium">ลูกค้า</th>
@@ -607,7 +607,7 @@ export default function DailyClosingReportPage() {
                       {data.sales.items.map((s: any) => {
                         const PMIcon = PM_ICON[s.paymentMethod] ?? PM_ICON.CASH
                         return (
-                          <tr key={s.id} className="border-b dark:border-slate-800 last:border-0 hover:bg-gray-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                          <tr key={s.id} className="border-b border-slate-100 dark:border-slate-700/60 last:border-0 hover:bg-slate-50/60 dark:hover:bg-slate-700/20 transition-colors">
                             <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
                               {format(new Date(s.createdAt), 'HH:mm', { locale: th })}
                             </td>
@@ -656,9 +656,9 @@ export default function DailyClosingReportPage() {
                         openDrawer(`งาน: ${label}`, repairStatusDrawer(key))
                       }
                     }}
-                    className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-3 text-center hover:border-blue-300 hover:shadow-sm transition-all group"
+                    className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-3 text-center hover:border-blue-200 dark:hover:border-blue-700/50 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.40)] transition-all duration-200 group"
                   >
-                    <p className={`text-2xl font-bold tabular-nums ${key === 'OVERDUE' ? 'text-red-600' : 'text-gray-900'}`}>{val}</p>
+                    <p className={`text-2xl font-bold tabular-nums ${key === 'OVERDUE' ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>{val}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
                     <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 mx-auto mt-1 transition-opacity" />
                   </button>
@@ -671,13 +671,13 @@ export default function DailyClosingReportPage() {
               <SectionHeader icon={Clock} title="สรุปกะ" badge={data.shifts.items.length} />
               <div className="space-y-3">
                 {data.shifts.items.length === 0 && (
-                  <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4 text-center text-sm text-muted-foreground">ไม่มีข้อมูลกะ</div>
+                  <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-center text-sm text-muted-foreground">ไม่มีข้อมูลกะ</div>
                 )}
                 {data.shifts.items.map((shift) => (
-                  <div key={shift.id} className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4 space-y-3">
+                  <div key={shift.id} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-bold text-gray-900 dark:text-white">{shift.user.name}</p>
+                        <p className="font-bold text-slate-900 dark:text-white">{shift.user.name}</p>
                         <p className="text-xs text-muted-foreground">
                           เปิด {format(new Date(shift.openedAt), 'HH:mm', { locale: th })}
                           {shift.closedAt && ` · ปิด ${format(new Date(shift.closedAt), 'HH:mm', { locale: th })}`}
@@ -728,13 +728,13 @@ export default function DailyClosingReportPage() {
             <section className="print:break-inside-avoid">
               <SectionHeader icon={Receipt} title="ค่าใช้จ่ายวันนี้" badge={data.expenses.count} />
               {data.expenses.byCategory.length > 0 ? (
-                <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4 space-y-3">
+                <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {data.expenses.byCategory.slice(0, 4).map((c) => (
                       <button
                         key={c.categoryId}
                         onClick={() => openDrawer('ค่าใช้จ่ายวันนี้', expenseDrawer)}
-                        className="text-left bg-gray-50 rounded-xl p-3 hover:bg-orange-50 hover:border-orange-200 border border-transparent transition-all"
+                        className="text-left bg-slate-50 dark:bg-slate-800/40 rounded-xl p-3 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-200 dark:hover:border-orange-800/60 border border-transparent dark:border-slate-700/40 transition-all"
                       >
                         <p className="text-xs text-muted-foreground truncate">{c.categoryName}</p>
                         <p className="font-bold tabular-nums text-orange-700 mt-0.5">{formatThaiMoney(c.total)}</p>
@@ -742,8 +742,8 @@ export default function DailyClosingReportPage() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t dark:border-slate-700">
-                    <span className="text-sm font-medium text-gray-700 dark:text-slate-200">รวมค่าใช้จ่ายทั้งหมด</span>
+                  <div className="flex items-center justify-between pt-1 border-t dark:border-slate-700/60">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">รวมค่าใช้จ่ายทั้งหมด</span>
                     <button
                       onClick={() => openDrawer('ค่าใช้จ่ายวันนี้', expenseDrawer)}
                       className="flex items-center gap-1 font-bold text-orange-700 tabular-nums hover:underline"
@@ -754,7 +754,7 @@ export default function DailyClosingReportPage() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4 text-center text-sm text-muted-foreground">
+                <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-center text-sm text-muted-foreground">
                   ไม่มีค่าใช้จ่ายที่บันทึกในวันนี้
                 </div>
               )}
@@ -768,26 +768,26 @@ export default function DailyClosingReportPage() {
                   label="บิลยกเลิก"
                   value={String(data.revenue.voided.count)}
                   sub={data.revenue.voided.count > 0 ? formatThaiMoney(data.revenue.voided.total) : undefined}
-                  color={data.revenue.voided.count > 0 ? 'text-red-600' : 'text-gray-500'}
+                  color={data.revenue.voided.count > 0 ? 'text-red-600' : 'text-slate-500 dark:text-slate-400'}
                   onClick={() => openDrawer('บิลที่ถูกยกเลิก', voidDrawer)}
                 />
                 <MetricCard
                   label="คืนเงิน"
                   value={String(data.revenue.refunds.count)}
                   sub={data.revenue.refunds.count > 0 ? formatThaiMoney(data.revenue.refunds.total) : undefined}
-                  color={data.revenue.refunds.count > 0 ? 'text-orange-600' : 'text-gray-500'}
+                  color={data.revenue.refunds.count > 0 ? 'text-orange-600' : 'text-slate-500 dark:text-slate-400'}
                   onClick={() => openDrawer('รายการคืนเงิน', refundDrawer)}
                 />
                 <MetricCard
                   label="งานซ่อมเกินกำหนด"
                   value={String(data.repairSummary.overdue)}
-                  color={data.repairSummary.overdue > 0 ? 'text-red-600' : 'text-gray-500'}
+                  color={data.repairSummary.overdue > 0 ? 'text-red-600' : 'text-slate-500 dark:text-slate-400'}
                   onClick={() => openDrawer('งานซ่อมเกินกำหนด', overdueDrawer)}
                 />
                 <MetricCard
                   label="สินค้าใกล้หมด"
                   value={String(data.lowStock.count)}
-                  color={data.lowStock.count > 0 ? 'text-orange-600' : 'text-gray-500'}
+                  color={data.lowStock.count > 0 ? 'text-orange-600' : 'text-slate-500 dark:text-slate-400'}
                   icon={Package}
                   onClick={() => openDrawer('สินค้าใกล้หมดสต็อก', lowStockDrawer)}
                 />
@@ -799,7 +799,7 @@ export default function DailyClosingReportPage() {
               <SectionHeader icon={Award} title="ผลงานวันนี้" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Top products */}
-                <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4">
+                <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">สินค้าขายดี</p>
                   <div className="space-y-2">
                     {data.performance.topProducts.slice(0, 5).map((p, idx) => (
@@ -821,7 +821,7 @@ export default function DailyClosingReportPage() {
                 </div>
 
                 {/* Staff performance */}
-                <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-4">
+                <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">ผลงานพนักงาน</p>
                   <div className="space-y-2">
                     {data.performance.topStaff.slice(0, 5).map((s, idx) => (

@@ -52,12 +52,12 @@ export function PageHeader({
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           {Icon && (
-            <div className="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900/60 flex items-center justify-center shrink-0">
-              <Icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-[0_4px_12px_rgba(37,99,235,0.30)] flex items-center justify-center shrink-0">
+              <Icon className="h-5 w-5 text-white" />
             </div>
           )}
           <div className="min-w-0">
-            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-50 leading-tight truncate">{title}</h1>
+            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white leading-tight truncate tracking-tight">{title}</h1>
             {subtitle && (
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">{subtitle}</p>
             )}

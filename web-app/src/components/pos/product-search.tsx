@@ -109,20 +109,20 @@ function ProductCard({
         isZeroPrice
           ? 'opacity-60 border-red-200 dark:border-red-800/50'
           : isOut && !canRequest
-            ? 'opacity-50 border-slate-200 dark:border-slate-700'
+            ? 'opacity-50 border-slate-200 dark:border-slate-700/60'
             : canRequest
               ? 'border-orange-300 dark:border-orange-700/60'
               : cartQty > 0
                 ? 'border-blue-400 dark:border-blue-600/60 shadow-md ring-1 ring-blue-300/60'
                 : isLowStock
                   ? 'border-amber-200 dark:border-amber-700/40'
-                  : 'border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-600/50 hover:shadow-md active:scale-[0.98]',
+                  : 'border-slate-200 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-600/50 hover:shadow-md active:scale-[0.98]',
       )}
     >
       {/* ── Image / color tile ───────────────────────────────────────────── */}
       <div className={cn(
         'relative h-20 flex items-center justify-center overflow-hidden shrink-0',
-        product.imageUrl ? 'bg-slate-100 dark:bg-slate-800' : typeBg,
+        product.imageUrl ? 'bg-slate-100 dark:bg-slate-700/60' : typeBg,
       )}>
         {product.imageUrl ? (
           <img
@@ -139,7 +139,7 @@ function ProductCard({
 
         {/* Out-of-stock overlay */}
         {isOut && (
-          <div className="absolute inset-0 bg-slate-900/30 dark:bg-slate-900/50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-slate-900/30 dark:bg-[#1E293B]/50 flex items-center justify-center">
             {canRequest ? (
               <span className="flex items-center gap-1 text-[11px] font-bold text-white bg-orange-500 px-2.5 py-1 rounded-full shadow-sm">
                 <ArrowRightLeft className="h-3 w-3" />
@@ -155,7 +155,7 @@ function ProductCard({
 
         {/* Zero-price overlay */}
         {isZeroPrice && (
-          <div className="absolute inset-0 bg-slate-900/20 dark:bg-slate-900/40 flex items-center justify-center">
+          <div className="absolute inset-0 bg-slate-900/20 dark:bg-[#1E293B]/40 flex items-center justify-center">
             <span className="text-[11px] font-bold text-white bg-red-600 px-2.5 py-1 rounded-full shadow-sm">
               ไม่มีราคา
             </span>
@@ -177,7 +177,7 @@ function ProductCard({
             'absolute top-1.5 left-1.5 flex h-7 w-7 items-center justify-center rounded-full transition-colors z-10',
             isFavorite
               ? 'bg-amber-500/20 text-amber-500'
-              : 'bg-white/80 dark:bg-slate-900/80 text-slate-400 dark:text-slate-500 hover:text-amber-400',
+              : 'bg-white/80 dark:bg-[#1E293B]/80 text-slate-400 dark:text-slate-500 hover:text-amber-400',
           )}
           tabIndex={-1}
           aria-label={isFavorite ? 'ยกเลิกรายการโปรด' : 'เพิ่มรายการโปรด'}
@@ -205,7 +205,7 @@ function ProductCard({
               'text-[11px] font-medium px-1.5 py-0.5 rounded-md leading-none shrink-0',
               isLowStock
                 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-semibold'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400',
+                : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400',
             )}>
               {isLowStock ? `⚠ ${qty}` : qty}
             </span>
@@ -480,7 +480,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
       <div className="flex flex-col h-full">
 
         {/* ── Search bar V3 ────────────────────────────────────────────── */}
-        <div className="px-4 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0 space-y-3">
+        <div className="px-4 pt-4 pb-3 border-b border-slate-100 dark:border-slate-700/60 shrink-0 space-y-3">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
             <input
@@ -491,7 +491,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
               value={search}
               onChange={handleSearchChange}
               onKeyDown={handleSearchKeyDown}
-              className="w-full h-14 pl-12 pr-28 text-base rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 dark:focus:border-blue-500 transition-all"
+              className="w-full h-14 pl-12 pr-28 text-base rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 dark:focus:border-blue-500 transition-all"
               autoFocus
               autoComplete="off"
               data-pos-search
@@ -532,7 +532,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
                       type="button"
                       className={cn(
                         'flex flex-col items-center gap-1 min-w-[60px] px-3 py-2 rounded-xl border text-center transition-all shrink-0',
-                        'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800',
+                        'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B]',
                         'hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm',
                       )}
                     >
@@ -549,7 +549,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
                       'flex flex-col items-center gap-1 min-w-[60px] px-3 py-2 rounded-xl border text-center transition-all shrink-0',
                       category === qa.category
                         ? 'border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
-                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm',
+                        : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm',
                     )}
                   >
                     <span className="text-lg leading-none">{qa.emoji}</span>
@@ -571,7 +571,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
                 <button
                   key={s}
                   onClick={() => setSearch(s)}
-                  className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 rounded-full px-2.5 py-1 transition-colors"
+                  className="text-xs bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 rounded-full px-2.5 py-1 transition-colors"
                 >
                   {s}
                 </button>
@@ -708,7 +708,7 @@ function EmptyState({
   if (search) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
-        <div className="h-14 w-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+        <div className="h-14 w-14 rounded-full bg-slate-100 dark:bg-slate-700/60 flex items-center justify-center">
           <Search className="h-7 w-7 text-slate-300 dark:text-slate-600" />
         </div>
         <div>
@@ -755,7 +755,7 @@ function EmptyState({
           <Search className="h-4 w-4 text-blue-500 shrink-0" />
           <span className="text-xs text-blue-700 dark:text-blue-300">🔍 ค้นหาชื่อสินค้า, บาร์โค้ด หรือ SKU</span>
         </div>
-        <div className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-4 py-3">
+        <div className="flex items-center gap-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 px-4 py-3">
           <ScanBarcode className="h-4 w-4 text-slate-500 shrink-0" />
           <span className="text-xs text-slate-600 dark:text-slate-400">📷 หรือสแกนบาร์โค้ด</span>
         </div>

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -133,7 +133,7 @@ export default function SerialsPage() {
               key={key}
               onClick={() => setStatusFilter(statusFilter === key ? 'ALL' : key)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all
-                ${statusFilter === key ? cfg.cls + ' ring-2 ring-offset-1 ring-current' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
+                ${statusFilter === key ? cfg.cls + ' ring-2 ring-offset-1 ring-current' : 'bg-white dark:bg-[#1E293B] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60'}`}
             >
               <Icon className="h-3.5 w-3.5" />
               {cfg.label} ({count})
@@ -184,7 +184,7 @@ export default function SerialsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-gray-50">
+                  <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">Serial / IMEI</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">สินค้า</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">ประกัน</th>
@@ -201,12 +201,12 @@ export default function SerialsPage() {
                     return (
                       <tr
                         key={s.id}
-                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                        className="hover:bg-slate-50 dark:hover:bg-slate-700/20 cursor-pointer transition-colors"
                         onClick={() => setDetailSerial(s)}
                       >
                         <td className="px-4 py-3 font-mono font-medium">{s.serial}</td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-gray-900">{s.product?.name}</p>
+                          <p className="font-medium text-slate-900 dark:text-white">{s.product?.name}</p>
                           <p className="text-xs text-muted-foreground">{s.product?.sku}</p>
                         </td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -419,7 +419,7 @@ function BulkSerialDialog({
           <div className="space-y-1.5">
             <Label>Serial / IMEI <span className="text-red-500">*</span></Label>
             <textarea
-              className="w-full rounded-lg border border-gray-200 p-3 text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700/60 p-3 text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={6}
               placeholder={'วางทีละบรรทัด หรือคั่นด้วย comma:\n356789012345678\n356789012345679\n356789012345680'}
               value={serialsText}
@@ -491,7 +491,7 @@ function SerialDetailDialog({
 
         <div className="space-y-4 pt-1">
           {/* Product info */}
-          <div className="rounded-xl bg-gray-50 border p-3 space-y-1 text-sm">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 p-3 space-y-1 text-sm">
             <p className="font-semibold">{serial.product?.name}</p>
             <p className="text-muted-foreground text-xs">{serial.product?.sku}</p>
             <p className="text-xs">
@@ -502,7 +502,7 @@ function SerialDetailDialog({
 
           {/* Warranty & sale info */}
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-xl border p-3">
+            <div className="rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-3">
               <p className="text-xs text-muted-foreground mb-1">หมดประกัน</p>
               {serial.warrantyExpiresAt ? (
                 <p className={`font-semibold ${isExpired ? 'text-red-500' : 'text-emerald-600'}`}>
@@ -513,7 +513,7 @@ function SerialDetailDialog({
                 <p className="text-muted-foreground">—</p>
               )}
             </div>
-            <div className="rounded-xl border p-3">
+            <div className="rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-3">
               <p className="text-xs text-muted-foreground mb-1">ใบเสร็จ</p>
               <p className="font-mono text-xs font-medium">
                 {serial.saleItem?.sale.receiptNumber ?? '—'}

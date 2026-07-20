@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -143,16 +143,16 @@ function ReceiptModal({ result, onClose }: { result: PaymentResult; onClose: () 
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl border dark:border-slate-800 w-full sm:max-w-sm overflow-hidden flex flex-col max-h-[92vh]"
+        className="bg-white dark:bg-[#1E293B] rounded-t-2xl sm:rounded-2xl shadow-2xl border dark:border-slate-700/60 w-full sm:max-w-sm overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b dark:border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b dark:border-slate-700/60 shrink-0">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
             <span className="font-bold text-slate-800 dark:text-slate-50">รับชำระสำเร็จ</span>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors">
             <X className="h-4 w-4 text-slate-400" />
           </button>
         </div>
@@ -228,7 +228,7 @@ function ReceiptModal({ result, onClose }: { result: PaymentResult; onClose: () 
         </div>
 
         {/* Actions */}
-        <div className="px-5 py-4 border-t dark:border-slate-800 shrink-0 flex gap-2">
+        <div className="px-5 py-4 border-t dark:border-slate-700/60 shrink-0 flex gap-2">
           <Button variant="outline" size="sm" className="flex-1 gap-1.5" onClick={handlePrint}>
             <Printer className="h-4 w-4" /> พิมพ์ใบเสร็จ
           </Button>
@@ -294,18 +294,18 @@ function DebtPaymentModal({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-2xl border dark:border-slate-800 w-full sm:max-w-md overflow-hidden flex flex-col max-h-[92vh]"
+        className="bg-white dark:bg-[#1E293B] rounded-t-2xl sm:rounded-2xl shadow-2xl border dark:border-slate-700/60 w-full sm:max-w-md overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-5 py-4 border-b dark:border-slate-800 shrink-0">
+        <div className="flex items-start justify-between px-5 py-4 border-b dark:border-slate-700/60 shrink-0">
           <div>
             <p className="font-bold text-slate-800 dark:text-slate-50 text-base">รับชำระหนี้</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
               {repair.ticketNumber} · {repair.deviceBrand} {repair.deviceModel}
             </p>
           </div>
-          <button onClick={onClose} className="mt-0.5 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <button onClick={onClose} className="mt-0.5 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors">
             <X className="h-4 w-4 text-slate-400" />
           </button>
         </div>
@@ -329,7 +329,7 @@ function DebtPaymentModal({
                 <span className="text-green-600 font-medium">−{money(prevPaid)}</span>
               </div>
             )}
-            <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between font-semibold text-sm">
+            <div className="border-t border-slate-200 dark:border-slate-700/60 pt-2 flex justify-between font-semibold text-sm">
               <span>ยังคงเหลือ</span>
               <span className="text-red-600 text-base">{money(outstanding)}</span>
             </div>
@@ -347,7 +347,7 @@ function DebtPaymentModal({
                   className={`h-14 rounded-2xl border-2 font-bold text-sm transition-all active:scale-95 ${
                     parseFloat(amount) === q.value
                       ? q.color
-                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 active:bg-slate-50'
+                      : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-700 dark:text-slate-200 active:bg-slate-50'
                   }`}
                 >
                   <span className="block text-xs font-normal opacity-70">{q.label}</span>
@@ -366,7 +366,7 @@ function DebtPaymentModal({
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="กำหนดเอง"
                   inputMode="decimal"
-                  className="h-14 w-full pl-6 pr-2 border-2 border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-right bg-white dark:bg-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="h-14 w-full pl-6 pr-2 border-2 border-slate-200 dark:border-slate-700/60 rounded-2xl text-sm font-bold text-right bg-white dark:bg-[#1E293B] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
@@ -392,7 +392,7 @@ function DebtPaymentModal({
                   className={`flex flex-col items-center gap-1.5 h-16 rounded-xl border-2 text-sm font-medium transition-all active:scale-95 ${
                     paymentMethod === opt.value
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 active:bg-slate-50'
+                      : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 active:bg-slate-50'
                   }`}
                 >
                   <span className="text-xl leading-none">{opt.icon}</span>
@@ -421,11 +421,11 @@ function DebtPaymentModal({
         </div>
 
         {/* Footer — large action button */}
-        <div className="px-4 py-4 border-t dark:border-slate-800 shrink-0 flex gap-2">
+        <div className="px-4 py-4 border-t dark:border-slate-700/60 shrink-0 flex gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="h-14 px-5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold active:bg-slate-50 dark:active:bg-slate-800 transition-colors"
+            className="h-14 px-5 rounded-2xl border-2 border-slate-200 dark:border-slate-700/60 text-slate-600 dark:text-slate-300 font-semibold active:bg-slate-50 dark:active:bg-slate-800 transition-colors"
           >
             ยกเลิก
           </button>
@@ -504,7 +504,7 @@ function RepairCard({
   const isPartial    = repair.paymentStatus === 'PARTIAL'
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 p-3.5 space-y-3 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/40 p-3.5 space-y-3 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
       {/* Top row */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -543,18 +543,18 @@ function RepairCard({
 
       {/* Cost grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
-        <div className="bg-white dark:bg-slate-800 rounded-lg px-2.5 py-2 border border-slate-200 dark:border-slate-700">
+        <div className="bg-white dark:bg-[#1E293B] rounded-lg px-2.5 py-2 border border-slate-200 dark:border-slate-700/60">
           <p className="text-slate-400 dark:text-slate-500 mb-0.5">ค่าซ่อม</p>
           <p className="font-semibold text-slate-700 dark:text-slate-200 tabular-nums">{money(finalCost)}</p>
         </div>
         {deposit > 0 && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg px-2.5 py-2 border border-slate-200 dark:border-slate-700">
+          <div className="bg-white dark:bg-[#1E293B] rounded-lg px-2.5 py-2 border border-slate-200 dark:border-slate-700/60">
             <p className="text-slate-400 dark:text-slate-500 mb-0.5">มัดจำ</p>
             <p className="font-semibold text-green-600 dark:text-green-400 tabular-nums">{money(deposit)}</p>
           </div>
         )}
         {prevPaid > 0 && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg px-2.5 py-2 border border-slate-200 dark:border-slate-700">
+          <div className="bg-white dark:bg-[#1E293B] rounded-lg px-2.5 py-2 border border-slate-200 dark:border-slate-700/60">
             <p className="text-slate-400 dark:text-slate-500 mb-0.5">ชำระแล้ว</p>
             <p className="font-semibold text-green-600 dark:text-green-400 tabular-nums">{money(prevPaid)}</p>
           </div>
@@ -603,7 +603,7 @@ function CustomerSection({
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+    <div className="bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/60 overflow-hidden shadow-sm">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
@@ -635,7 +635,7 @@ function CustomerSection({
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-1 space-y-2.5 border-t border-slate-100 dark:border-slate-800">
+        <div className="px-4 pb-4 pt-1 space-y-2.5 border-t border-slate-100 dark:border-slate-700/60">
           {group.repairs.map((repair) => (
             <RepairCard key={repair.id} repair={repair} onPay={onPay} />
           ))}
@@ -695,7 +695,7 @@ export default function DebtPage() {
       {/* Summary chips */}
       {!isLoading && repairs.length > 0 && (
         <div className="flex gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full px-3 py-1.5">
+          <div className="flex items-center gap-1.5 text-xs bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-full px-3 py-1.5">
             <Users className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             <span className="text-slate-600 dark:text-slate-300">{groups.length} ลูกค้า</span>
           </div>
@@ -718,11 +718,11 @@ export default function DebtPage() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-20 bg-white rounded-xl border animate-pulse" />
+            <div key={i} className="h-20 bg-slate-100 dark:bg-slate-700/60 rounded-2xl border border-slate-100 dark:border-slate-700/60 animate-pulse" />
           ))}
         </div>
       ) : groups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 gap-3 bg-white rounded-xl border border-slate-200">
+        <div className="flex flex-col items-center justify-center h-48 gap-3 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
           <CheckCircle2 className="h-12 w-12 text-green-200" />
           <div className="text-center">
             <p className="text-sm font-semibold text-slate-600">ไม่มีหนี้ค้างชำระ</p>

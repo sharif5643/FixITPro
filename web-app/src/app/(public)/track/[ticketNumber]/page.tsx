@@ -1,30 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams, useSearchParams, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Search, Wrench, Loader2, Package, Clock, CheckCircle2, AlertCircle, ChevronRight, ScanLine } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Clock,
-  Wrench,
-  Package,
-  Loader2,
-  AlertCircle,
-  ShieldCheck,
-  Banknote,
-  Camera,
-  History,
-  Circle,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import axios from 'axios'
+import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
 
-// Derive API base from current browser origin so QR codes work from any network.
-// Falls back to env var only when origins match (local dev) or on SSR.
 const API_URL = (() => {
   const env = process.env.NEXT_PUBLIC_API_URL
   if (typeof window === 'undefined') return env ?? '/api/v1'
@@ -34,34 +20,9 @@ const API_URL = (() => {
   return `${window.location.origin}/api/v1`
 })()
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode; step: number }> = {
-  RECEIVED:         { label: 'รับงานแล้ว',             color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',       icon: <Package className="h-4 w-4" />,      step: 1 },
-  DIAGNOSING:       { label: 'กำลังวินิจฉัย',          color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: <Wrench className="h-4 w-4" />,       step: 2 },
-  WAITING_APPROVAL: { label: 'รออนุมัติราคา',           color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',   icon: <Clock className="h-4 w-4" />,        step: 2 },
-  APPROVED:         { label: 'อนุมัติแล้ว',             color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',       icon: <CheckCircle2 className="h-4 w-4" />, step: 3 },
-  WAITING_PARTS:    { label: 'รออะไหล่',                color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: <Package className="h-4 w-4" />,     step: 3 },
-  IN_PROGRESS:      { label: 'กำลังซ่อม',               color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', icon: <Wrench className="h-4 w-4" />,      step: 4 },
-  QC_PENDING:       { label: 'กำลังตรวจ QC',            color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300', icon: <ShieldCheck className="h-4 w-4" />, step: 5 },
-  COMPLETED:        { label: 'ซ่อมเสร็จแล้ว',           color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',   icon: <CheckCircle2 className="h-4 w-4" />, step: 6 },
-  READY_PICKUP:     { label: 'พร้อมรับเครื่อง 🎉',      color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300', icon: <CheckCircle2 className="h-4 w-4" />, step: 6 },
-  DELIVERED:        { label: 'ส่งมอบแล้ว',              color: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',      icon: <CheckCircle2 className="h-4 w-4" />, step: 7 },
-  CANCELLED:        { label: 'ยกเลิก',                  color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300',           icon: <AlertCircle className="h-4 w-4" />,  step: 0 },
-}
+type InputType = 'ticket' | 'phone' | 'unknown'
 
-const STEPS = ['รับงาน', 'วินิจฉัย', 'ซ่อม', 'ตรวจ QC', 'เสร็จ', 'รับเครื่อง']
-
-function fmt(date: string | null | undefined) {
-  if (!date) return '—'
-  try { return format(new Date(date), 'd MMM yyyy HH:mm น.', { locale: th }) } catch { return '—' }
-}
-
-interface StatusEntry {
-  status: string
-  label: string
-  changedAt: string
-}
-
-interface TrackData {
+interface RepairSummary {
   ticketNumber: string
   status: string
   statusLabel: string
@@ -71,362 +32,262 @@ interface TrackData {
   receivedAt: string
   dueDate?: string
   completedAt?: string
-  deliveredAt?: string
-  customerName?: string
-  images: { id: string; url: string; createdAt: string }[]
-  qcPassed: boolean | null
-  qcNote: string | null
-  qcAt?: string
-  outstanding: number
-  paymentStatus: string
-  warranties: { id: string; warrantyNumber: string; status: string; startDate: string; endDate: string; description?: string }[]
-  warrantyExpiresAt?: string
-  warrantyNote?: string
-  statusHistory: StatusEntry[]
 }
 
-export default function TrackDetailPage() {
-  const params       = useParams()
-  const searchParams = useSearchParams()
-  const router       = useRouter()
+const STATUS_COLOR: Record<string, string> = {
+  RECEIVED:         'bg-blue-100 text-blue-700',
+  DIAGNOSING:       'bg-yellow-100 text-yellow-700',
+  WAITING_APPROVAL: 'bg-amber-100 text-amber-700',
+  APPROVED:         'bg-teal-100 text-teal-700',
+  WAITING_PARTS:    'bg-orange-100 text-orange-700',
+  IN_PROGRESS:      'bg-purple-100 text-purple-700',
+  QC_PENDING:       'bg-indigo-100 text-indigo-700',
+  COMPLETED:        'bg-green-100 text-green-700',
+  READY_PICKUP:     'bg-emerald-100 text-emerald-800',
+  DELIVERED:        'bg-slate-100 text-slate-600',
+  CANCELLED:        'bg-red-100 text-red-600',
+}
 
-  const ticketNumber = decodeURIComponent(params.ticketNumber as string)
-  const phone        = searchParams.get('phone') ?? ''
+function detectType(value: string): InputType {
+  const v = value.trim().replace(/\s/g, '')
+  if (!v) return 'unknown'
+  if (/[A-Za-z]/.test(v) || v.includes('-')) return 'ticket'
+  if (/^\d+$/.test(v)) return 'phone'
+  return 'unknown'
+}
 
-  const [data, setData]       = useState<TrackData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState('')
-  const [lightbox, setLightbox] = useState<string | null>(null)
+function normalizePhone(phone: string): string {
+  return phone.trim().replace(/[\s\-]/g, '')
+}
+
+function fmt(date: string | null | undefined) {
+  if (!date) return '—'
+  try { return format(new Date(date), 'd MMM yyyy', { locale: th }) } catch { return '—' }
+}
+
+export default function TrackPage() {
+  const router = useRouter()
+  const [query, setQuery]               = useState('')
+  const [inputType, setInputType]       = useState<InputType>('unknown')
+  const [error, setError]               = useState('')
+  const [loading, setLoading]           = useState(false)
+  const [phoneResults, setPhoneResults] = useState<RepairSummary[] | null>(null)
+  const [scanOpen, setScanOpen]         = useState(false)
+
+  function handleScan(text: string) {
+    setScanOpen(false)
+    const raw = text.trim()
+    // If the QR contains a full URL (e.g. http://host/track/REP-XXX?phone=...)
+    try {
+      const url = new URL(raw)
+      if (url.pathname.startsWith('/track/')) {
+        router.push(url.pathname + url.search)
+        return
+      }
+    } catch { /* not a URL */ }
+    // Otherwise treat as ticket number / phone
+    const upper = raw.toUpperCase()
+    setQuery(upper)
+    if (detectType(upper) !== 'phone') {
+      router.push(`/track/${encodeURIComponent(upper)}`)
+    }
+  }
 
   useEffect(() => {
-    if (!ticketNumber) {
-      setError('ข้อมูลไม่ครบถ้วน กรุณาค้นหาใหม่')
-      setLoading(false)
+    setInputType(detectType(query))
+    setError('')
+    setPhoneResults(null)
+  }, [query])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const v = query.trim()
+    if (!v) { setError('กรุณากรอกเลขใบซ่อมหรือเบอร์โทร'); return }
+
+    const type = detectType(v)
+
+    if (type === 'ticket' || type === 'unknown') {
+      router.push(`/track/${encodeURIComponent(v.toUpperCase())}`)
       return
     }
-    const qs = new URLSearchParams({ ticketNumber })
-    if (phone) qs.set('phone', phone)
-    axios
-      .get<TrackData>(`${API_URL}/public/tracking/repair?${qs}`)
-      .then((r) => setData(r.data))
-      .catch((e) => {
-        const msg = e.response?.data?.message ?? 'ไม่พบข้อมูลงานซ่อม กรุณาตรวจสอบข้อมูลและลองใหม่'
-        setError(Array.isArray(msg) ? msg[0] : msg)
-      })
-      .finally(() => setLoading(false))
-  }, [ticketNumber, phone])
 
-  const cfg         = data ? (STATUS_CONFIG[data.status] ?? STATUS_CONFIG['RECEIVED']) : null
-  const currentStep = cfg?.step ?? 0
+    // phone search
+    setLoading(true)
+    setError('')
+    setPhoneResults(null)
+    try {
+      const qs = new URLSearchParams({ phone: v })
+      const { data } = await axios.get<RepairSummary[]>(
+        `${API_URL}/public/tracking/repair?${qs}`
+      )
+      if (data.length === 0) {
+        setError('ไม่พบงานซ่อมที่ตรงกับเบอร์โทรนี้')
+      } else {
+        setPhoneResults(data)
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+      setError(Array.isArray(msg) ? msg[0] : msg)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-16">
+    <div className="min-h-screen flex flex-col items-center bg-gradient-to-b from-blue-50 to-white dark:from-slate-900 dark:to-slate-950 px-4 py-12">
+      <div className="w-full max-w-md space-y-6">
 
-      {/* Top bar */}
-      <div className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-2xl mx-auto flex items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/track')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm truncate">{ticketNumber}</p>
-            <p className="text-xs text-muted-foreground">ติดตามงานซ่อม</p>
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/30">
+              <Wrench className="h-8 w-8 text-white" />
+            </div>
           </div>
-          {data && cfg && (
-            <span className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.color}`}>
-              {cfg.icon}
-              {cfg.label}
-            </span>
-          )}
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">ติดตามงานซ่อม</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              ตรวจสอบสถานะงานซ่อมแบบ real-time
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-
-        {/* Loading */}
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-            <p className="text-sm text-muted-foreground">กำลังโหลดข้อมูล...</p>
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
-            <CardContent className="pt-6 flex gap-3 items-start">
-              <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-red-700 dark:text-red-400">{error}</p>
-                <Button
-                  variant="link"
-                  className="px-0 h-auto text-red-600 text-sm"
-                  onClick={() => router.push('/track')}
-                >
-                  ← ค้นหาใหม่
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {data && cfg && (
-          <>
-            {/* ─── Status hero card ─── */}
-            <Card className="overflow-hidden shadow-md border-0">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-5 text-white">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-blue-200 text-sm mb-1 truncate">
-                      {data.deviceBrand} {data.deviceModel}
-                      {data.deviceColor ? ` · ${data.deviceColor}` : ''}
-                    </p>
-                    <h2 className="text-xl font-bold">{ticketNumber}</h2>
-                    {data.customerName && (
-                      <p className="text-blue-100 text-sm mt-1">ลูกค้า: {data.customerName}</p>
-                    )}
-                  </div>
-                  <span className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${cfg.color}`}>
-                    {cfg.icon}
-                    {cfg.label}
+        {/* Search card */}
+        <Card className="shadow-xl border-0 dark:bg-[#1E293B]">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">ค้นหางานซ่อม</CardTitle>
+            <CardDescription>กรอกเลขใบซ่อม หรือ เบอร์โทรศัพท์ อย่างใดอย่างหนึ่ง</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-3" noValidate>
+              <div className="relative">
+                <Input
+                  placeholder="REP-XXXXXX  หรือ  0812345678"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="pr-24 font-mono tracking-wide text-base h-12"
+                  autoComplete="off"
+                  autoFocus
+                />
+                {inputType !== 'unknown' && query.trim() && (
+                  <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full pointer-events-none
+                    ${inputType === 'ticket'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                      : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                    }`}
+                  >
+                    {inputType === 'ticket' ? 'เลขใบซ่อม' : 'เบอร์โทร'}
                   </span>
-                </div>
+                )}
               </div>
 
-              {/* Progress stepper */}
-              {data.status !== 'CANCELLED' && (
-                <div className="px-5 py-4 border-b dark:border-slate-700 bg-white dark:bg-slate-800">
-                  <div className="flex items-center">
-                    {STEPS.map((step, i) => {
-                      const done   = i + 1 < currentStep
-                      const active = i + 1 === currentStep
-                      return (
-                        <div key={step} className="flex items-center flex-1 min-w-0">
-                          <div className={`shrink-0 flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold transition-colors
-                            ${done   ? 'bg-blue-600 text-white'
-                              : active ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 ring-2 ring-blue-400'
-                              : 'bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500'}`}
-                          >
-                            {done ? '✓' : i + 1}
-                          </div>
-                          {i < STEPS.length - 1 && (
-                            <div className={`flex-1 h-0.5 mx-1 transition-colors ${done ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`} />
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                  <div className="flex justify-between mt-2">
-                    {STEPS.map((step) => (
-                      <span key={step} className="text-[9px] text-muted-foreground text-center flex-1">{step}</span>
-                    ))}
-                  </div>
-                </div>
+              {error && (
+                <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-md flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {error}
+                </p>
               )}
 
-              {/* Key dates */}
-              <CardContent className="pt-4 pb-5 bg-white dark:bg-slate-800">
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                  <div>
-                    <dt className="text-muted-foreground text-xs">รับเครื่องวันที่</dt>
-                    <dd className="font-medium mt-0.5">{fmt(data.receivedAt)}</dd>
-                  </div>
-                  {data.dueDate && (
-                    <div>
-                      <dt className="text-muted-foreground text-xs">กำหนดเสร็จ</dt>
-                      <dd className="font-medium mt-0.5">{fmt(data.dueDate)}</dd>
-                    </div>
-                  )}
-                  {data.completedAt && (
-                    <div>
-                      <dt className="text-muted-foreground text-xs">ซ่อมเสร็จ</dt>
-                      <dd className="font-medium mt-0.5 text-green-600 dark:text-green-400">{fmt(data.completedAt)}</dd>
-                    </div>
-                  )}
-                  {data.deliveredAt && (
-                    <div>
-                      <dt className="text-muted-foreground text-xs">ส่งมอบ</dt>
-                      <dd className="font-medium mt-0.5">{fmt(data.deliveredAt)}</dd>
-                    </div>
-                  )}
-                </dl>
-              </CardContent>
-            </Card>
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1 gap-2 h-11" size="lg" disabled={loading}>
+                  {loading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Search className="h-4 w-4" />
+                  }
+                  {loading ? 'กำลังค้นหา...' : 'ค้นหา'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="h-11 px-4 border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20 shrink-0"
+                  onClick={() => setScanOpen(true)}
+                  title="สแกน QR จากใบรับซ่อม"
+                >
+                  <ScanLine className="h-5 w-5" />
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
 
-            {/* ─── Outstanding payment ─── */}
-            {data.outstanding > 0 && (
-              <Card className="border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
-                <CardContent className="pt-4 pb-4 flex items-center gap-3">
-                  <Banknote className="h-6 w-6 text-amber-600 shrink-0" />
-                  <div>
-                    <p className="font-semibold text-amber-800 dark:text-amber-300">
-                      ยอดค้างชำระ {data.outstanding.toLocaleString('th-TH')} บาท
-                    </p>
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">กรุณาชำระเมื่อมารับเครื่อง</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ─── QC result ─── */}
-            {data.qcPassed !== null && (
-              <Card>
-                <CardContent className="pt-4 pb-4 flex items-start gap-3">
-                  <ShieldCheck className={`h-5 w-5 shrink-0 mt-0.5 ${data.qcPassed ? 'text-green-500' : 'text-red-500'}`} />
-                  <div>
-                    <p className="font-medium text-sm">
-                      QC {data.qcPassed ? 'ผ่านแล้ว ✓' : 'ยังไม่ผ่าน — กำลังดำเนินการแก้ไข'}
-                    </p>
-                    {data.qcNote && (
-                      <p className="text-xs text-muted-foreground mt-1">{data.qcNote}</p>
-                    )}
-                    {data.qcAt && (
-                      <p className="text-xs text-muted-foreground mt-0.5">ตรวจเมื่อ {fmt(data.qcAt)}</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ─── Photos ─── */}
-            {data.images.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2 pt-4">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Camera className="h-4 w-4" />
-                    รูปภาพงานซ่อม ({data.images.length} รูป)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4">
-                  <div className="grid grid-cols-3 gap-2">
-                    {data.images.map((img) => (
-                      <button
-                        key={img.id}
-                        onClick={() => setLightbox(img.url)}
-                        className="aspect-square rounded-lg overflow-hidden border dark:border-slate-700 hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={`${API_URL.replace('/api/v1', '')}${img.url}`}
-                          alt="repair"
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ─── Warranties ─── */}
-            {data.warranties.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2 pt-4">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-green-500" />
-                    การรับประกัน
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4 space-y-2">
-                  {data.warrantyNote && (
-                    <p className="text-xs text-muted-foreground mb-2">{data.warrantyNote}</p>
-                  )}
-                  {data.warranties.map((w) => (
-                    <div key={w.id} className="flex items-center justify-between py-2 border-b dark:border-slate-700 last:border-0">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{w.warrantyNumber}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {fmt(w.startDate)} — {fmt(w.endDate)}
-                        </p>
-                        {w.description && <p className="text-xs text-muted-foreground mt-0.5">{w.description}</p>}
+        {/* Phone search results */}
+        {phoneResults && phoneResults.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
+              พบ {phoneResults.length} รายการ
+            </p>
+            {phoneResults.map((r) => {
+              const colorCls = STATUS_COLOR[r.status] ?? 'bg-slate-100 text-slate-600'
+              return (
+                <button
+                  key={r.ticketNumber}
+                  type="button"
+                  onClick={() => router.push(`/track/${encodeURIComponent(r.ticketNumber)}?phone=${encodeURIComponent(normalizePhone(query))}`)}
+                  className="w-full text-left bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/60 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all group"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="font-mono text-sm font-bold text-slate-800 dark:text-slate-100">
+                          {r.ticketNumber}
+                        </span>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${colorCls}`}>
+                          {r.statusLabel}
+                        </span>
                       </div>
-                      <Badge variant={w.status === 'ACTIVE' ? 'default' : 'secondary'} className="ml-2 shrink-0">
-                        {w.status === 'ACTIVE' ? 'ใช้งานได้' : 'หมดอายุ'}
-                      </Badge>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ─── Status history timeline ─── */}
-            {data.statusHistory.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2 pt-4">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <History className="h-4 w-4" />
-                    ประวัติสถานะ
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pb-4">
-                  <ol className="relative border-l border-slate-200 dark:border-slate-700 ml-2">
-                    {data.statusHistory.map((entry, i) => {
-                      const isLast    = i === data.statusHistory.length - 1
-                      const entryConf = STATUS_CONFIG[entry.status]
-                      return (
-                        <li key={i} className="mb-0 ml-4 pb-4 last:pb-0">
-                          {/* Timeline dot */}
-                          <span className={`absolute flex items-center justify-center w-4 h-4 rounded-full -left-2 mt-0.5 ring-2 ring-white dark:ring-slate-900
-                            ${isLast ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'}`}
-                          >
-                            {isLast
-                              ? <Circle className="w-2 h-2 fill-white text-white" />
-                              : <CheckCircle2 className="w-3 h-3 text-slate-500 dark:text-slate-400" />
-                            }
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        {r.deviceBrand} {r.deviceModel}
+                        {r.deviceColor ? ` · ${r.deviceColor}` : ''}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+                        {(r.status === 'READY_PICKUP' || r.status === 'COMPLETED' || r.status === 'DELIVERED') ? (
+                          <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                            <CheckCircle2 className="h-3 w-3" />
+                            {r.completedAt ? `เสร็จ ${fmt(r.completedAt)}` : 'เสร็จแล้ว'}
                           </span>
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className={`text-sm font-medium ${isLast ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                                {entryConf?.label ?? entry.label}
-                              </p>
-                              <time className="text-xs text-muted-foreground">{fmt(entry.changedAt)}</time>
-                            </div>
-                          </div>
-                        </li>
-                      )
-                    })}
-                  </ol>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ─── Back button ─── */}
-            <Button
-              variant="outline"
-              className="w-full gap-2"
-              onClick={() => router.push('/track')}
-            >
-              <ArrowLeft className="h-4 w-4" />
-              ค้นหางานซ่อมอื่น
-            </Button>
-          </>
+                        ) : r.dueDate ? (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            กำหนด {fmt(r.dueDate)}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <Package className="h-3 w-3" />
+                            รับเมื่อ {fmt(r.receivedAt)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 shrink-0 mt-1 transition-colors" />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         )}
+
+        {/* Hints */}
+        <div className="text-center space-y-1">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            ค้นหาด้วย <span className="font-medium text-slate-500 dark:text-slate-400">เลขใบซ่อม</span> เช่น REP-20240101-A1B2
+          </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            หรือ <span className="font-medium text-slate-500 dark:text-slate-400">เบอร์โทร</span> เพื่อดูงานซ่อมทั้งหมดของคุณ
+          </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            หรือกด <ScanLine className="inline h-3 w-3" /> <span className="font-medium text-slate-500 dark:text-slate-400">สแกน QR</span> จากใบรับซ่อม
+          </p>
+        </div>
+
       </div>
 
-      {/* ─── Lightbox ─── */}
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
-          onClick={() => setLightbox(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="รูปภาพขยาย"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`${API_URL.replace('/api/v1', '')}${lightbox}`}
-            alt="repair"
-            className="max-w-full max-h-full rounded-lg object-contain"
-          />
-          <button
-            className="absolute top-4 right-4 text-white/70 hover:text-white text-2xl leading-none"
-            onClick={() => setLightbox(null)}
-            aria-label="ปิด"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      <QrScannerDialog
+        open={scanOpen}
+        onOpenChange={setScanOpen}
+        onScan={handleScan}
+      />
     </div>
   )
 }

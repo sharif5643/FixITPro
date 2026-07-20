@@ -35,11 +35,11 @@ export function CashDrawerWidget() {
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 animate-pulse">
-        <div className="h-4 w-24 bg-slate-100 dark:bg-slate-800 rounded mb-3" />
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] p-4 animate-pulse">
+        <div className="h-4 w-24 bg-slate-100 dark:bg-slate-700/60 rounded mb-3" />
         <div className="grid grid-cols-2 gap-3">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-14 bg-slate-100 dark:bg-slate-800 rounded-lg" />
+            <div key={i} className="h-14 bg-slate-100 dark:bg-slate-700/60 rounded-lg" />
           ))}
         </div>
       </div>
@@ -48,8 +48,8 @@ export function CashDrawerWidget() {
 
   if (!shift) {
     return (
-      <div className="rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-5 flex flex-col items-center gap-3 text-center">
-        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+      <div className="rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-[#1E293B]/40 p-5 flex flex-col items-center gap-3 text-center">
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700/60">
           <Clock className="h-5 w-5 text-slate-400 dark:text-slate-500" />
         </div>
         <div>
@@ -118,7 +118,7 @@ export function CashDrawerWidget() {
         {stats.map((s) => {
           const Icon = s.icon
           return (
-            <div key={s.label} className="rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 px-3 py-2.5">
+            <div key={s.label} className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 px-3 py-2.5">
               <div className="flex items-center gap-1.5 mb-1">
                 <Icon className={`h-3 w-3 flex-shrink-0 ${s.iconColor}`} />
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{s.label}</p>

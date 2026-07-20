@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import dynamic from 'next/dynamic'
 import { useState, useMemo } from 'react'
@@ -157,7 +157,7 @@ function RepairReminderCard({ repair, onSelect, isOverdue }: { repair: Repair; o
     <button
       onClick={() => onSelect(repair.id)}
       className={cn(
-        'w-full text-left rounded-xl border bg-white p-4 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group',
+        'w-full text-left bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.40)] transition-all group',
         isOverdue && 'border-red-200 hover:border-red-300',
       )}
     >

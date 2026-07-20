@@ -1,6 +1,7 @@
-'use client'
+﻿'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 import { formatThaiMoney } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
+import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 
 interface SubscriptionRenewal {
@@ -47,7 +49,7 @@ const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: React.El
   TRIAL:     { label: 'ทดลองใช้',     cls: 'bg-blue-50 text-blue-700 border-blue-200',    icon: Clock },
   ACTIVE:    { label: 'ใช้งานอยู่',   cls: 'bg-green-50 text-green-700 border-green-200', icon: CheckCircle2 },
   EXPIRED:   { label: 'หมดอายุแล้ว', cls: 'bg-red-50 text-red-700 border-red-200',        icon: XCircle },
-  SUSPENDED: { label: 'ถูกระงับ',     cls: 'bg-gray-50 text-gray-500 border-gray-200',    icon: AlertTriangle },
+  SUSPENDED: { label: 'ถูกระงับ',     cls: 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60',    icon: AlertTriangle },
   PENDING:   { label: 'รอเปิดใช้งาน', cls: 'bg-blue-50 text-blue-600 border-blue-200',   icon: Clock },
 }
 
@@ -66,6 +68,14 @@ function fmtDate(d: string | null | undefined) {
 }
 
 export default function SubscriptionPage() {
+  const router = useRouter()
+  const user = useAuthStore((s) => s.user)
+
+  if (user && user.role !== 'OWNER' && user.role !== 'SUPER_ADMIN') {
+    router.replace('/403')
+    return null
+  }
+
   const { data: sub, isLoading } = useQuery<SubscriptionData>({
     queryKey: ['subscription'],
     queryFn: async () => (await api.get('/subscription')).data,
@@ -131,14 +141,14 @@ export default function SubscriptionPage() {
       )}
 
       {/* Status Card */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50">
               <Crown className="h-7 w-7 text-blue-600" />
             </div>
             <div>
-              <p className="text-lg font-bold text-gray-900">{sub.planName}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{sub.planName}</p>
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-semibold mt-1 ${cfg.cls}`}>
                 <StatusIcon className="h-3.5 w-3.5" />
                 {cfg.label}
@@ -151,7 +161,7 @@ export default function SubscriptionPage() {
             {isExpired ? (
               <p className="text-2xl font-bold text-red-600">0</p>
             ) : (
-              <p className={`text-2xl font-bold tabular-nums ${isWarning ? 'text-amber-600' : 'text-gray-900'}`}>
+              <p className={`text-2xl font-bold tabular-nums ${isWarning ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
                 {sub.daysRemaining}
               </p>
             )}
@@ -164,14 +174,14 @@ export default function SubscriptionPage() {
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             <div>
               <p className="text-xs text-muted-foreground">วันเริ่มใช้งาน</p>
-              <p className="text-sm font-semibold text-gray-900">{fmtDate(sub.startDate)}</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">{fmtDate(sub.startDate)}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             <div>
               <p className="text-xs text-muted-foreground">วันหมดอายุ</p>
-              <p className={`text-sm font-semibold ${isExpired ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-gray-900'}`}>
+              <p className={`text-sm font-semibold ${isExpired ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
                 {fmtDate(sub.expiryDate)}
               </p>
             </div>
@@ -181,7 +191,7 @@ export default function SubscriptionPage() {
               <GitBranch className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">จำนวนสาขา</p>
-                <p className="text-sm font-semibold text-gray-900">{sub.branchLimit}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{sub.branchLimit}</p>
               </div>
             </div>
           )}
@@ -192,28 +202,28 @@ export default function SubscriptionPage() {
         )}
 
         {/* Contact CTA */}
-        <div className="mt-5 rounded-xl bg-gray-50 border px-4 py-3 text-sm text-gray-600">
+        <div className="mt-5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
           ต้องการต่ออายุหรือเปลี่ยนแพ็กเกจ กรุณาติดต่อ{' '}
           <span className="font-semibold text-blue-700">ผู้ดูแลระบบ</span>
         </div>
       </div>
 
       {/* Renewal History */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <div className="flex items-center gap-2 mb-5">
           <RefreshCw className="h-4 w-4 text-blue-600" />
-          <h2 className="font-semibold text-gray-900">ประวัติการต่ออายุ</h2>
+          <h2 className="font-semibold text-slate-900 dark:text-white">ประวัติการต่ออายุ</h2>
         </div>
 
         {sub.renewals.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8 rounded-xl border bg-gray-50">
+          <p className="text-sm text-muted-foreground text-center py-8 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
             ยังไม่มีประวัติการต่ออายุ
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                   <th className="text-left px-4 py-2.5 font-medium">วันที่</th>
                   <th className="text-left px-4 py-2.5 font-medium">ประเภท</th>
                   <th className="text-left px-4 py-2.5 font-medium">วันหมดอายุใหม่</th>

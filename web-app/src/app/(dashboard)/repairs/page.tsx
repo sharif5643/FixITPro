@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo, useEffect, useRef, Suspense } from 'react'
 import dynamic from 'next/dynamic'
@@ -174,7 +174,7 @@ function RepairsContent() {
         </div>
         <button
           onClick={() => refetch()}
-          className="flex items-center gap-2 h-10 px-4 rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)] text-sm font-medium"
+          className="flex items-center gap-2 h-10 px-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.40)] text-sm font-medium"
         >
           <RefreshCw className="h-4 w-4" />ลองใหม่
         </button>
@@ -228,10 +228,10 @@ function RepairsContent() {
 
   // ── List view — app style ─────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F8F9FB] -m-4 sm:-m-6 lg:-m-8 pb-10">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] -m-4 sm:-m-6 lg:-m-8 pb-10">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white px-5 pb-4 pt-6 shadow-sm sticky top-0 z-10">
+      <div className="bg-white dark:bg-[#1E293B] px-5 pb-4 pt-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] border-b border-transparent dark:border-slate-700/60 sticky top-0 z-10">
         <div className="flex items-center gap-2 mb-4">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-[#111]">งานซ่อม</h1>
@@ -267,7 +267,7 @@ function RepairsContent() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหาชื่อลูกค้า, เบอร์, เลขงาน, IMEI, รุ่น..."
-            className="h-11 w-full rounded-2xl bg-[#F8F9FB] pl-11 pr-10 text-sm outline-none focus:ring-2 focus:ring-[#FFC107]/50 transition"
+            className="h-11 w-full rounded-2xl bg-[#F8FAFC] dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 pl-11 pr-10 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-slate-400"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -288,7 +288,7 @@ function RepairsContent() {
                 onClick={() => setStatusFilter(tab.value)}
                 className={cn(
                   'flex items-center gap-1.5 shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap',
-                  active ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8F9FB] text-slate-500',
+                  active ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8FAFC] dark:bg-[#1E293B] text-slate-500 dark:text-slate-400',
                 )}
               >
                 {tab.dot && !active && (
@@ -320,7 +320,7 @@ function RepairsContent() {
                 'shrink-0 rounded-2xl p-3 text-left transition-all min-w-[86px] active:scale-[0.97]',
                 active
                   ? 'bg-[#FFC107] shadow-[0_4px_16px_rgba(255,193,7,0.4)]'
-                  : 'bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)]',
+                  : 'bg-white dark:bg-[#1E293B] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.40)]',
               )}
             >
               <p className="text-lg mb-1 leading-none">{s.icon}</p>
@@ -348,22 +348,22 @@ function RepairsContent() {
       <div className="px-5 flex flex-col gap-3">
         {isLoading ? (
           Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] animate-pulse">
+            <div key={i} className="rounded-2xl bg-white dark:bg-[#1E293B] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] animate-pulse">
               <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-2xl bg-slate-100 shrink-0" />
+                <div className="h-11 w-11 rounded-2xl bg-slate-100 dark:bg-slate-700/60 shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 w-24 bg-slate-100 rounded-full" />
-                  <div className="h-4 w-40 bg-slate-100 rounded-full" />
-                  <div className="h-3 w-32 bg-slate-100 rounded-full" />
+                  <div className="h-3 w-24 bg-slate-100 dark:bg-slate-700/60 rounded-full" />
+                  <div className="h-4 w-40 bg-slate-100 dark:bg-slate-700/60 rounded-full" />
+                  <div className="h-3 w-32 bg-slate-100 dark:bg-slate-700/60 rounded-full" />
                 </div>
-                <div className="h-6 w-16 rounded-full bg-slate-100 shrink-0" />
+                <div className="h-6 w-16 rounded-full bg-slate-100 dark:bg-slate-700/60 shrink-0" />
               </div>
             </div>
           ))
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-              <Wrench className="h-8 w-8 text-slate-200" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white dark:bg-[#1E293B] shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              <Wrench className="h-8 w-8 text-slate-200 dark:text-slate-700" />
             </div>
             <p className="text-sm font-medium text-slate-400">{search ? 'ไม่พบผลลัพธ์' : 'ยังไม่มีงานซ่อม'}</p>
             {!search && !isGlobalMode && (
@@ -382,7 +382,7 @@ function RepairsContent() {
               <button
                 key={repair.id}
                 onClick={() => setSelectedRepairId(repair.id)}
-                className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-transform text-left w-full"
+                className="flex items-center gap-3 rounded-2xl bg-white dark:bg-[#1E293B] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] border border-transparent dark:border-slate-700/60 active:scale-[0.98] transition-all text-left w-full hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.40)]"
               >
                 {/* Icon avatar */}
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#FFC107]/10">

@@ -126,7 +126,7 @@ export function QcDialog({ repair, open, onClose }: QcDialogProps) {
           </div>
 
           {/* Checklist */}
-          <div className="divide-y dark:divide-slate-700 rounded-lg border dark:border-slate-700 overflow-hidden">
+          <div className="divide-y dark:divide-slate-700 rounded-lg border dark:border-slate-700/60 overflow-hidden">
             {QC_ITEMS.map((item) => {
               const passed = checks[item.key]
               return (
@@ -137,7 +137,7 @@ export function QcDialog({ repair, open, onClose }: QcDialogProps) {
                   className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
                     passed
                       ? 'bg-green-50 dark:bg-green-900/20'
-                      : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                      : 'bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-700/50'
                   }`}
                 >
                   <div className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${

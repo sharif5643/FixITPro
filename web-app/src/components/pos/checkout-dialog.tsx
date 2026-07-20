@@ -132,7 +132,7 @@ function SerialPicker({
   const needed = item.quantity - selected.length
 
   return (
-    <div className="rounded-xl border dark:border-slate-700 p-4 space-y-3">
+    <div className="rounded-xl border dark:border-slate-700/60 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <p className="font-semibold text-sm">{item.product.name}</p>
@@ -140,7 +140,7 @@ function SerialPicker({
         </div>
         <Badge
           variant={selected.length === item.quantity ? 'default' : 'outline'}
-          className="shrink-0 dark:border-slate-700"
+          className="shrink-0 dark:border-slate-700/60"
         >
           {selected.length}/{item.quantity} serial
         </Badge>
@@ -181,8 +181,8 @@ function SerialPicker({
                   isSelected
                     ? 'bg-blue-600 text-white border-blue-600'
                     : disabled
-                      ? 'bg-gray-50 dark:bg-slate-800 text-gray-300 dark:text-slate-600 border-gray-200 dark:border-slate-700 cursor-not-allowed'
-                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
+                      ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700/60 cursor-not-allowed'
+                      : 'bg-white dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
                 )}
               >
                 {isSelected
@@ -334,7 +334,7 @@ export function CheckoutDialog({
             className="space-y-4 pt-1"
           >
             {/* Order Summary */}
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-4 space-y-2 text-sm">
+            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-4 space-y-2 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>สินค้า {cartItems.length} รายการ ({cartItems.reduce((s, i) => s + i.quantity, 0)} ชิ้น)</span>
                 <span className="tabular-nums">{formatThaiMoney(subtotal)}</span>
@@ -345,7 +345,7 @@ export function CheckoutDialog({
                   <span className="tabular-nums">- {formatThaiMoney(discount)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold text-base border-t dark:border-slate-700 pt-2 mt-1">
+              <div className="flex justify-between font-bold text-base border-t dark:border-slate-700/60 pt-2 mt-1">
                 <span>ยอดสุทธิ</span>
                 <span className="text-blue-700 dark:text-blue-400 tabular-nums">{formatThaiMoney(total)}</span>
               </div>
@@ -364,7 +364,7 @@ export function CheckoutDialog({
                       'flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 min-h-[68px] transition-all',
                       paymentMethod === opt.value
                         ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
-                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-500',
+                        : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-500',
                     )}
                   >
                     <opt.icon className="h-5 w-5" />

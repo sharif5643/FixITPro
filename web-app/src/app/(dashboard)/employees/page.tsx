@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -135,7 +135,7 @@ function PermissionPresetPanel({
           {presetPerms.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {presetPerms.slice(0, 8).map((p) => (
-                <span key={p} className="text-[10px] bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-600">
+                <span key={p} className="text-[10px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded px-1.5 py-0.5 text-slate-600">
                   {p}
                 </span>
               ))}
@@ -447,7 +447,7 @@ function ResetPasswordDialog({
             <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 space-y-2">
               <p className="text-sm font-medium text-amber-800">รหัสผ่านชั่วคราว (แสดงเพียงครั้งเดียว)</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-white border border-amber-300 px-3 py-2 text-base font-mono font-bold text-amber-900 tracking-wider">
+                <code className="flex-1 rounded bg-white dark:bg-[#1E293B] border border-amber-300 dark:border-amber-700/60 text-slate-900 dark:text-white px-3 py-2 text-base font-mono font-bold text-amber-900 tracking-wider">
                   {tempPassword}
                 </code>
                 <Button size="sm" variant="outline" className="shrink-0 h-9 border-amber-300" onClick={handleCopy}>
@@ -488,8 +488,11 @@ export default function EmployeesPage() {
   const currentUser = useAuthStore((s) => s.user)
 
   useEffect(() => {
-    if (currentUser?.role === 'SUPER_ADMIN') {
+    if (!currentUser) return
+    if (currentUser.role === 'SUPER_ADMIN') {
       router.replace('/super-admin/tenants')
+    } else if (currentUser.role !== 'OWNER') {
+      router.replace('/403')
     }
   }, [currentUser, router])
 
@@ -550,7 +553,7 @@ export default function EmployeesPage() {
           <span className="text-sm">กำลังโหลด...</span>
         </div>
       ) : users.length === 0 ? (
-        <div className="rounded-xl border bg-slate-50">
+        <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60">
           <EmptyState preset="default" title="ยังไม่มีพนักงาน" description="เพิ่มพนักงานเพื่อเริ่มต้นใช้งานระบบ" icon={Users} />
         </div>
       ) : (
@@ -564,15 +567,15 @@ export default function EmployeesPage() {
               <div
                 key={user.id}
                 className={cn(
-                  'bg-white rounded-xl border p-4 flex items-center gap-4 transition-colors',
-                  !user.isActive && 'opacity-60 bg-gray-50',
+                  'bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 flex items-center gap-4 transition-all',
+                  !user.isActive && 'opacity-60',
                   missingBranch && 'border-amber-200',
                 )}
               >
                 {/* Avatar */}
                 <div className={cn(
                   'flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold shrink-0',
-                  user.isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500',
+                  user.isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500 dark:text-slate-400',
                 )}>
                   {user.name.slice(0, 1).toUpperCase()}
                 </div>
@@ -580,7 +583,7 @@ export default function EmployeesPage() {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900">{user.name}</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{user.name}</p>
                     {isMe && <span className="text-xs bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-2 py-0.5">ฉัน</span>}
                     <span className={cn('text-xs border rounded-full px-2 py-0.5 font-medium', ROLE_COLOR[user.role])}>
                       {ROLE_LABEL[user.role]}

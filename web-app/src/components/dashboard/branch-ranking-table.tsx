@@ -51,7 +51,7 @@ export function BranchRankingTable({ branches, isLoading }: Props) {
     return (
       <div className="space-y-2">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+          <div key={i} className="h-14 bg-slate-100 dark:bg-slate-700/60 rounded-xl animate-pulse" />
         ))}
       </div>
     )
@@ -70,7 +70,7 @@ export function BranchRankingTable({ branches, isLoading }: Props) {
     <div className="overflow-x-auto -mx-1">
       <table className="w-full text-sm min-w-[560px]">
         <thead>
-          <tr className="border-b dark:border-slate-800 text-xs text-slate-400 dark:text-slate-500">
+          <tr className="border-b dark:border-slate-700/60 text-xs text-slate-400 dark:text-slate-500">
             <th className="text-left py-2 pl-2 font-medium w-6">#</th>
             <th className="text-left py-2 font-medium">สาขา</th>
             <th className="text-right py-2 font-medium">ยอดรวม</th>
@@ -97,7 +97,7 @@ export function BranchRankingTable({ branches, isLoading }: Props) {
                 <td className="py-3 pl-2 text-xs font-bold text-slate-300 dark:text-slate-600">{i + 1}</td>
                 <td className="py-3 pr-3">
                   <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700/60">
                       <Building2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                     </div>
                     <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[120px]">

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { Sidebar } from '@/components/layout/sidebar'
-import { Header } from '@/components/layout/header'
+import { SideNav, TopBar, BottomTabBar } from '@/components/shell'
 import { SubscriptionBanner } from '@/components/layout/subscription-banner'
 import { CapacitorBridge } from '@/components/apk/capacitor-bridge'
 import { useAuthStore } from '@/store/auth.store'
@@ -11,7 +10,6 @@ import { Platform } from '@/lib/platform'
 import { getTenantExpiryState } from '@/lib/tenant-expiry'
 import { OperationalAlertCenter } from '@/components/alerts/operational-alert-center'
 import { ReminderPopup } from '@/components/alerts/reminder-popup'
-import { BottomNav } from '@/components/layout/bottom-nav'
 import api from '@/lib/api'
 
 const AUTH_TIMEOUT_MS = 10_000
@@ -195,20 +193,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 transition-colors">
+    <div className="flex h-screen overflow-hidden bg-[#F8FAFC] dark:bg-[#0F172A] transition-colors">
       <CapacitorBridge />
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <SideNav open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <SubscriptionBanner />
-        {/* Hide standard header on mobile when executive dashboard is active */}
         <div className={isOwnerOrManager && pathname === '/dashboard' ? 'hidden md:block' : undefined}>
-          <Header onMenuToggle={() => setSidebarOpen((o) => !o)} />
+          <TopBar onMenuToggle={() => setSidebarOpen((o) => !o)} />
         </div>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] md:pb-6">
+          {children}
+        </main>
       </div>
       <OperationalAlertCenter variant="desktop" />
       <ReminderPopup variant="desktop" />
-      {(user?.role === 'OWNER' || user?.role === 'MANAGER') && <BottomNav />}
+      {(user?.role === 'OWNER' || user?.role === 'MANAGER') && <BottomTabBar />}
     </div>
   )
 }

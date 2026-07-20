@@ -27,10 +27,11 @@ export class ShiftsController {
     @Body() dto: OpenShiftDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('branchId') branchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
     this.logger.log(`openShift userId=${userId} branchId=${branchId ?? 'null'} openBalance=${dto.openBalance}`);
     try {
-      return await this.shiftsService.openShift(dto, userId, branchId ?? undefined);
+      return await this.shiftsService.openShift(dto, userId, branchId ?? undefined, tenantId ?? undefined);
     } catch (err) {
       this.logger.error(`openShift failed userId=${userId} branchId=${branchId ?? 'null'}: ${err?.message}`, err?.stack);
       throw err;

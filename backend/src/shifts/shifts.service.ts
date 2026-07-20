@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { CashDrawerSessionStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService, SHIFT_MISMATCH_THRESHOLD } from '../notifications/notifications.service';
@@ -33,7 +34,7 @@ export class ShiftsService {
     }
   }
 
-  async openShift(dto: OpenShiftDto, userId: string, branchId?: string) {
+  async openShift(dto: OpenShiftDto, userId: string, branchId?: string, tenantId?: string | null) {
     this.logger.log(`openShift start userId=${userId} branchId=${branchId ?? 'null'}`);
     if (branchId) await this.assertBranchActive(branchId);
 
@@ -70,6 +71,63 @@ export class ShiftsService {
 
     if (Object.keys(carrierBalances).length > 0) {
       await this.carrierWalletService.recordOpeningBalances(shift.id, userId, carrierBalances);
+    }
+
+    // Auto-open CashDrawerSession so CASH payments work immediately after opening a shift.
+    // If a session is already open for the branch, we leave it untouched.
+    if (branchId) {
+      try {
+        let drawer = await this.prisma.cashDrawer.findFirst({
+          where: { branchId, isActive: true },
+          select: { id: true },
+        });
+        if (!drawer) {
+          drawer = await this.prisma.cashDrawer.create({
+            data: { name: 'ลิ้นชักหลัก', code: 'MAIN', branchId, tenantId: tenantId ?? undefined },
+            select: { id: true },
+          });
+        }
+
+        const existingSession = await this.prisma.cashDrawerSession.findFirst({
+          where: { cashDrawerId: drawer.id, status: CashDrawerSessionStatus.OPEN },
+          select: { id: true },
+        });
+
+        if (!existingSession) {
+          await this.prisma.$transaction(async (tx) => {
+            const session = await tx.cashDrawerSession.create({
+              data: {
+                tenantId:      tenantId ?? undefined,
+                branchId,
+                cashDrawerId:  drawer!.id,
+                openedById:    userId,
+                openingAmount: dto.openBalance,
+              },
+            });
+            await tx.cashDrawerParticipant.create({
+              data: { sessionId: session.id, userId },
+            });
+            await tx.cashDrawerTransaction.create({
+              data: {
+                sessionId:    session.id,
+                cashDrawerId: drawer!.id,
+                tenantId:     tenantId ?? undefined,
+                branchId,
+                actorUserId:  userId,
+                type:         'OPENING',
+                direction:    'IN',
+                amount:       dto.openBalance,
+                reason:       'เงินตั้งต้นเปิดกะ',
+              },
+            });
+          });
+          this.logger.log(`openShift: auto-opened CashDrawerSession for shift=${shift.id} branch=${branchId}`);
+        } else {
+          this.logger.log(`openShift: CashDrawerSession already open for branch=${branchId}, using existing`);
+        }
+      } catch (err: any) {
+        this.logger.warn(`openShift: could not auto-open CashDrawerSession for branch=${branchId}: ${err?.message}`);
+      }
     }
 
     await this.auditLog.log({

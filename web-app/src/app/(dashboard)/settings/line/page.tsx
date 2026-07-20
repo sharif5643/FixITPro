@@ -80,7 +80,7 @@ export default function LineSettingsPage() {
       />
 
       {/* Setup guide */}
-      <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
+      <Card className="border-blue-200 dark:border-blue-700/60 bg-blue-50 dark:bg-blue-900/20">
         <CardContent className="pt-4 pb-4">
           <div className="flex gap-3">
             <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
@@ -166,7 +166,7 @@ export default function LineSettingsPage() {
               Webhook URL (ใช้ใน LINE Console)
             </Label>
             <div className="flex gap-2">
-              <code className="flex-1 rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">
+              <code className="flex-1 rounded-lg bg-slate-100 dark:bg-slate-700/60 px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">
                 {webhookUrl}
               </code>
               <Button

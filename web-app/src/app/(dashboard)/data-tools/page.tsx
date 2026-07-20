@@ -1,6 +1,7 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { format, subDays, startOfMonth } from 'date-fns'
 import {
   Download, Upload, FileText, Users, Package, BarChart2,
@@ -12,6 +13,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -38,7 +40,7 @@ const EXPORT_TYPES = [
   { key: 'repairs',         label: 'งานซ่อม',            icon: Wrench,      color: 'text-rose-600',   bg: 'bg-rose-50',   border: 'border-rose-200' },
   { key: 'expenses',        label: 'ค่าใช้จ่าย',          icon: Receipt,     color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200' },
   { key: 'warranties',      label: 'การรับประกัน',        icon: BadgeCheck,  color: 'text-teal-600',   bg: 'bg-teal-50',   border: 'border-teal-200' },
-  { key: 'audit-logs',      label: 'ประวัติกิจกรรม',      icon: ScrollText,  color: 'text-gray-600',   bg: 'bg-gray-50',   border: 'border-gray-200' },
+  { key: 'audit-logs',      label: 'ประวัติกิจกรรม',      icon: ScrollText,  color: 'text-slate-600 dark:text-slate-400',   bg: 'bg-slate-50',   border: 'border-slate-200 dark:border-slate-700/60' },
 ] as const
 
 type ImportType = 'products' | 'customers' | 'categories' | 'suppliers'
@@ -99,10 +101,10 @@ function ExportSection() {
   ]
 
   return (
-    <div className="bg-white rounded-xl border p-5 space-y-4">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5 space-y-4">
       <div className="flex items-center gap-2">
         <Download className="h-5 w-5 text-blue-500" />
-        <h2 className="text-base font-semibold text-gray-900">ส่งออกข้อมูล (Export)</h2>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">ส่งออกข้อมูล (Export)</h2>
         <span className="text-xs text-muted-foreground ml-1">ไฟล์ CSV (เปิดได้ใน Excel)</span>
       </div>
 
@@ -117,7 +119,7 @@ function ExportSection() {
                 'rounded-full px-3 py-1 text-xs font-semibold border transition-all',
                 (!start && !end) && preset === p.key
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400',
+                  : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-slate-400',
               ].join(' ')}
             >
               {p.label}
@@ -231,10 +233,10 @@ function ImportSection() {
   }
 
   return (
-    <div className="bg-white rounded-xl border p-5 space-y-4">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5 space-y-4">
       <div className="flex items-center gap-2">
         <Upload className="h-5 w-5 text-green-500" />
-        <h2 className="text-base font-semibold text-gray-900">นำเข้าข้อมูล (Import)</h2>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">นำเข้าข้อมูล (Import)</h2>
       </div>
 
       {/* Tabs */}
@@ -247,7 +249,7 @@ function ImportSection() {
               'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors',
               activeTab === key
                 ? 'border-blue-600 text-blue-700'
-                : 'border-transparent text-muted-foreground hover:text-gray-900',
+                : 'border-transparent text-muted-foreground hover:text-slate-900 dark:text-white',
             ].join(' ')}
           >
             <Icon className="h-3.5 w-3.5" />
@@ -277,12 +279,12 @@ function ImportSection() {
       {/* Step: idle / upload area */}
       {step === 'idle' && (
         <div
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-200 p-8 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
+          className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700/60 p-8 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all"
           onClick={() => fileInputRef.current?.click()}
         >
-          <FileUp className="h-10 w-10 text-gray-300" />
+          <FileUp className="h-10 w-10 text-slate-300 dark:text-slate-500" />
           <div className="text-center">
-            <p className="text-sm font-medium text-gray-700">คลิกเพื่อเลือกไฟล์ CSV</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">คลิกเพื่อเลือกไฟล์ CSV</p>
             <p className="text-xs text-muted-foreground mt-1">รองรับ .csv เท่านั้น ขนาดสูงสุด 5 MB</p>
           </div>
           <input
@@ -309,7 +311,7 @@ function ImportSection() {
           {/* Stats bar */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5 text-sm">
-              <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700">
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
                 ทั้งหมด {preview.stats.total} แถว
               </span>
             </div>
@@ -327,24 +329,24 @@ function ImportSection() {
           </div>
 
           {/* Preview table */}
-          <div className="rounded-xl border overflow-hidden">
+          <div className="rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden bg-white dark:bg-[#1E293B]">
             <div className="overflow-x-auto max-h-64">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-gray-50 border-b">
+                <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-700/60">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500 w-10">#</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 w-10">#</th>
                     {preview.headers.map((h, i) => (
-                      <th key={i} className="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap">{h}</th>
+                      <th key={i} className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">{h}</th>
                     ))}
-                    <th className="px-3 py-2 text-left font-medium text-gray-500 w-32">สถานะ</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 w-32">สถานะ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {preview.rows.slice(0, 100).map((row, i) => (
                     <tr key={i} className={row.valid ? '' : 'bg-red-50'}>
-                      <td className="px-3 py-1.5 text-gray-400">{i + 2}</td>
+                      <td className="px-3 py-1.5 text-slate-400 dark:text-slate-500">{i + 2}</td>
                       {row.data.map((cell, j) => (
-                        <td key={j} className="px-3 py-1.5 text-gray-700 whitespace-nowrap max-w-[160px] truncate">{cell || '—'}</td>
+                        <td key={j} className="px-3 py-1.5 text-slate-700 dark:text-slate-300 whitespace-nowrap max-w-[160px] truncate">{cell || '—'}</td>
                       ))}
                       <td className="px-3 py-1.5">
                         {row.valid ? (
@@ -412,7 +414,7 @@ function ImportSection() {
       {step === 'done' && result && (
         <div className="space-y-4">
           {/* Result summary */}
-          <div className={`rounded-xl border p-4 ${result.imported > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className={`rounded-xl border p-4 ${result.imported > 0 ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-700/60' : 'bg-red-50 border-red-200'}`}>
             <div className="flex items-center gap-2 mb-2">
               {result.imported > 0
                 ? <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -441,14 +443,14 @@ function ImportSection() {
 
           {/* Error detail */}
           {result.errors.length > 0 && (
-            <div className="rounded-xl border border-red-200 overflow-hidden">
+            <div className="rounded-2xl border border-red-200 dark:border-red-700/60 overflow-hidden bg-white dark:bg-[#1E293B]">
               <div className="bg-red-50 px-4 py-2 border-b border-red-200">
                 <p className="text-xs font-semibold text-red-700">รายการที่มีปัญหา</p>
               </div>
               <div className="divide-y max-h-48 overflow-y-auto">
                 {result.errors.map((e) => (
                   <div key={e.row} className="flex items-start gap-3 px-4 py-2">
-                    <span className="text-xs text-gray-400 shrink-0">แถว {e.row}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">แถว {e.row}</span>
                     <span className="text-xs text-red-600">{e.message}</span>
                   </div>
                 ))}
@@ -474,6 +476,14 @@ function ImportSection() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DataToolsPage() {
+  const router = useRouter()
+  const hasPerm = useAuthStore((s) => s.hasPermission)
+
+  if (!hasPerm('data.export')) {
+    router.replace('/403')
+    return null
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader

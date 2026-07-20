@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -209,13 +209,13 @@ export function ProductCatalogEnrollDialog({
                   key={p.id}
                   type="button"
                   onClick={() => handleSelectProduct(p)}
-                  className="w-full text-left rounded-lg border border-gray-200 px-3 py-2.5 hover:border-blue-300 hover:bg-blue-50/50 transition-colors group"
+                  className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-700/60 px-3 py-2.5 hover:border-blue-300 hover:bg-blue-50/50 transition-colors group"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-gray-900 truncate">{p.name}</p>
+                      <p className="font-semibold text-sm text-slate-900 dark:text-white truncate">{p.name}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <code className="text-xs bg-gray-100 rounded px-1.5 py-0.5">{p.sku}</code>
+                        <code className="text-xs bg-slate-100 rounded px-1.5 py-0.5">{p.sku}</code>
                         {p.barcode && (
                           <span className="text-xs text-muted-foreground">{p.barcode}</span>
                         )}
@@ -228,7 +228,7 @@ export function ProductCatalogEnrollDialog({
                       <Badge variant="outline" className="text-xs">
                         {TYPE_LABELS[p.type] ?? p.type}
                       </Badge>
-                      <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                      <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500 group-hover:text-blue-600 transition-colors" />
                     </div>
                   </div>
                 </button>
@@ -242,7 +242,7 @@ export function ProductCatalogEnrollDialog({
           <div className="space-y-4 py-1">
             {/* Selected product card */}
             <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3.5">
-              <p className="font-semibold text-gray-900 text-sm">{selectedProduct.name}</p>
+              <p className="font-semibold text-slate-900 dark:text-white text-sm">{selectedProduct.name}</p>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <code className="text-xs bg-white rounded border px-1.5 py-0.5">{selectedProduct.sku}</code>
                 {selectedProduct.barcode && (

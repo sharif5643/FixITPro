@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -29,7 +29,7 @@ function SectionHeader({ icon: Icon, title, description }: {
         <Icon className="h-[18px] w-[18px] text-blue-600" />
       </div>
       <div>
-        <p className="font-semibold text-gray-900">{title}</p>
+        <p className="font-semibold text-slate-900 dark:text-white">{title}</p>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
     </div>
@@ -45,7 +45,7 @@ function ToggleSwitch({ checked, onChange, label, description }: {
   return (
     <div className="flex items-center justify-between py-3 border-b last:border-0">
       <div>
-        <p className="text-sm font-medium text-gray-900">{label}</p>
+        <p className="text-sm font-medium text-slate-900 dark:text-white">{label}</p>
         {description && <p className="text-xs text-muted-foreground">{description}</p>}
       </div>
       <button
@@ -55,7 +55,7 @@ function ToggleSwitch({ checked, onChange, label, description }: {
         onClick={() => onChange(!checked)}
         className={[
           'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 shrink-0',
-          checked ? 'bg-blue-600' : 'bg-gray-200',
+          checked ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700',
         ].join(' ')}
       >
         <span
@@ -117,7 +117,7 @@ export default function NotificationSettingsPage() {
       />
 
       {/* Master toggle */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <SectionHeader
           icon={BellRing}
           title="การแจ้งเตือนอัจฉริยะ"
@@ -132,7 +132,7 @@ export default function NotificationSettingsPage() {
       </div>
 
       {/* Sound settings */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <SectionHeader
           icon={Volume2}
           title="เสียงแจ้งเตือน"
@@ -155,7 +155,7 @@ export default function NotificationSettingsPage() {
 
         {/* Sound preview */}
         <div className="pt-2">
-          <p className="text-sm font-medium text-gray-700 mb-3">ทดสอบเสียง</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">ทดสอบเสียง</p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -209,7 +209,7 @@ export default function NotificationSettingsPage() {
       </div>
 
       {/* Alert types */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <SectionHeader
           icon={Bell}
           title="ประเภทการแจ้งเตือน"
@@ -264,7 +264,7 @@ export default function NotificationSettingsPage() {
       </div>
 
       {/* Repeat interval */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <SectionHeader
           icon={Settings2}
           title="ความถี่การตรวจสอบ"
@@ -281,7 +281,7 @@ export default function NotificationSettingsPage() {
                   'px-3 py-2.5 rounded-xl text-sm font-medium border transition-colors',
                   settings.intervalMinutes === min
                     ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50',
+                    : 'bg-white dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20',
                 ].join(' ')}
               >
                 {min} นาที

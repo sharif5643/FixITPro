@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -28,6 +28,7 @@ import { BranchIssueList } from '@/components/dashboard/branch-issue-list'
 import { DashboardEmptyState } from '@/components/dashboard/dashboard-empty-state'
 import { ExecutiveMobileDashboard } from '@/components/dashboard/executive-mobile-dashboard'
 import { CashDrawerWidget } from '@/components/dashboard/cash-drawer-widget'
+import { OwnerCommandCenter } from '@/components/dashboard/owner-command-center/index'
 import type { OperationalAlert } from '@/components/alerts/operational-alert-center'
 import type { Repair } from '@/types'
 
@@ -141,7 +142,7 @@ const REPAIR_STATUS_COLOR: Record<string, string> = {
   WAITING_PARTS:    'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   IN_PROGRESS:      'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
   COMPLETED:        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  DELIVERED:        'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+  DELIVERED:        'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-400',
   CANCELLED:        'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 }
 
@@ -154,7 +155,7 @@ const thaiTime = (iso: string) => {
   try { return format(new Date(iso), 'HH:mm', { locale: th }) } catch { return '' }
 }
 
-// ── KPI Card V3 ───────────────────────────────────────────────────────────────
+// ── KPI Card V4 (Premium) ─────────────────────────────────────────────────────
 
 function KpiCard({
   label, value, sub, icon: Icon, accentColor, iconBg, urgent, href, loading,
@@ -164,32 +165,38 @@ function KpiCard({
 }) {
   const inner = (
     <div className={cn(
-      'relative bg-white dark:bg-slate-900 rounded-xl shadow-sm overflow-hidden transition-all duration-150 border-l-4',
+      'group relative bg-white dark:bg-[#1E293B] rounded-2xl border transition-all duration-200',
+      'hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.40)]',
+      'shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]',
       urgent
-        ? 'border-l-red-500 border border-red-100 dark:border-red-900/60 shadow-red-50/60 dark:shadow-none'
-        : `border-l-${accentColor}-500 border border-slate-100 dark:border-slate-800 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700`,
+        ? 'border-red-200 dark:border-red-800/60 ring-1 ring-red-400/20'
+        : 'border-slate-100 dark:border-slate-700/60 hover:border-slate-200 dark:hover:border-slate-600',
     )}>
+      {urgent && <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-2xl bg-red-500" />}
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className={cn('text-xs font-medium uppercase tracking-wide', urgent ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500')}>
+            <p className={cn('text-[11px] font-bold uppercase tracking-widest', urgent ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500')}>
               {label}
             </p>
             {loading ? (
-              <div className="h-9 w-32 bg-slate-100 dark:bg-slate-800 rounded animate-pulse mt-2" />
+              <div className="h-8 w-28 bg-slate-100 dark:bg-slate-700/60 rounded-lg animate-pulse mt-2" />
             ) : (
               <p className={cn(
-                'text-3xl font-bold mt-1 tracking-tight leading-none',
+                'text-2xl font-extrabold mt-1.5 tracking-tight leading-none',
                 urgent ? 'text-red-700 dark:text-red-400' : 'text-slate-900 dark:text-white',
               )}>
                 {value}
               </p>
             )}
             {sub && !loading && (
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 leading-snug">{sub}</p>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 leading-snug">{sub}</p>
             )}
           </div>
-          <div className={cn('rounded-xl p-2.5 shrink-0 mt-0.5', iconBg)}>
+          <div className={cn(
+            'flex h-11 w-11 items-center justify-center rounded-2xl shrink-0 shadow-sm transition-transform duration-200 group-hover:scale-105',
+            iconBg,
+          )}>
             <Icon className="h-5 w-5 text-white" />
           </div>
         </div>
@@ -202,14 +209,14 @@ function KpiCard({
 
 function SkeletonKpi() {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border-l-4 border-l-slate-200 dark:border-l-slate-700 border border-slate-100 dark:border-slate-800 shadow-sm p-5">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2 mt-1">
-          <div className="h-2.5 w-20 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-          <div className="h-9 w-28 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-          <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-2.5 w-20 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+          <div className="h-8 w-28 bg-slate-100 dark:bg-slate-700/60 rounded-lg animate-pulse" />
+          <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
         </div>
-        <div className="h-10 w-10 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+        <div className="h-11 w-11 bg-slate-100 dark:bg-slate-700/60 rounded-2xl animate-pulse" />
       </div>
     </div>
   )
@@ -288,42 +295,42 @@ function DashboardReminderWidget() {
       </div>
       <div className="flex flex-wrap gap-3">
         {repairOverdue > 0 && (
-          <Link href="/repairs" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+          <Link href="/repairs" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
             <Wrench className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">งานซ่อมค้าง</span>
             <Badge className="bg-red-600 text-white text-xs ml-1">{repairOverdue} งาน</Badge>
           </Link>
         )}
         {transferPending > 0 && (
-          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
             <ArrowRightLeft className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">คำขอโอนรออนุมัติ</span>
             <Badge className="bg-amber-500 text-white text-xs ml-1">{transferPending} รายการ</Badge>
           </Link>
         )}
         {transferTransit > 0 && (
-          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+          <Link href="/transfers" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-amber-200 dark:border-amber-800/60 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
             <Send className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">สินค้ารอรับ</span>
             <Badge className="bg-blue-600 text-white text-xs ml-1">{transferTransit} รายการ</Badge>
           </Link>
         )}
         {totalUrgent > 0 && (
-          <Link href="/repairs?filter=urgent" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-red-200 dark:border-red-800/60 px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+          <Link href="/repairs?filter=urgent" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-red-200 dark:border-red-800/60 px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
             <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">งานซ่อมเร่งด่วน</span>
             <Badge className="bg-red-600 text-white text-xs ml-1">{totalUrgent} งาน</Badge>
           </Link>
         )}
         {partsCount > 0 && (
-          <Link href="/repairs?filter=waiting_parts" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-orange-200 dark:border-orange-800/60 px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+          <Link href="/repairs?filter=waiting_parts" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-orange-200 dark:border-orange-800/60 px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
             <Settings2 className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">รอชิ้นส่วน</span>
             <Badge className="bg-orange-500 text-white text-xs ml-1">{partsCount} งาน</Badge>
           </Link>
         )}
         {pickupCount > 0 && (
-          <Link href="/repairs?filter=completed" className="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 border border-green-200 dark:border-green-800/60 px-3 py-2 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+          <Link href="/repairs?filter=completed" className="flex items-center gap-2 rounded-lg bg-white dark:bg-[#1E293B]border border-green-200 dark:border-green-800/60 px-3 py-2 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
             <Clock className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
             <span className="text-sm text-slate-700 dark:text-slate-300">รอรับเครื่อง</span>
             <Badge className="bg-green-600 text-white text-xs ml-1">{pickupCount} งาน</Badge>
@@ -343,7 +350,7 @@ function RecentRepairsWidget({ repairs, isLoading }: { repairs: Repair[]; isLoad
     return (
       <div className="space-y-2">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-[52px] bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
+          <div key={i} className="h-[52px] bg-slate-100 dark:bg-slate-700/60 rounded-lg animate-pulse" />
         ))}
       </div>
     )
@@ -352,7 +359,7 @@ function RecentRepairsWidget({ repairs, isLoading }: { repairs: Repair[]; isLoad
   if (!items.length) {
     return (
       <div className="flex flex-col items-center py-8 text-center">
-        <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-2">
+        <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-700/60 flex items-center justify-center mb-2">
           <Wrench className="h-5 w-5 text-slate-300 dark:text-slate-600" />
         </div>
         <p className="text-sm text-slate-400 dark:text-slate-500">ยังไม่มีงานซ่อม</p>
@@ -364,13 +371,13 @@ function RecentRepairsWidget({ repairs, isLoading }: { repairs: Repair[]; isLoad
     <div className="space-y-1.5">
       {items.map(repair => (
         <Link key={repair.id} href="/repairs">
-          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-900/40 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
+          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-800/30 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-700/40 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{repair.ticketNumber}</span>
                 <span className={cn(
                   'text-[10px] font-medium px-1.5 py-0.5 rounded-full leading-none',
-                  REPAIR_STATUS_COLOR[repair.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+                  REPAIR_STATUS_COLOR[repair.status] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-400',
                 )}>
                   {REPAIR_STATUS_LABEL[repair.status] ?? repair.status}
                 </span>
@@ -408,7 +415,7 @@ function RevenueBar({ label, value, total, color }: {
         <span className="text-slate-500 dark:text-slate-400">{label}</span>
         <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(value)}</span>
       </div>
-      <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-slate-100 dark:bg-slate-700/60 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-500 ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -500,7 +507,7 @@ function RecentSalesWidget({
     return (
       <div className="space-y-2">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
+          <div key={i} className="h-12 bg-slate-100 dark:bg-slate-700/60 rounded-lg animate-pulse" />
         ))}
       </div>
     )
@@ -517,7 +524,7 @@ function RecentSalesWidget({
     <div className="space-y-1.5">
       {sales.map(s => (
         <Link key={s.id} href="/sales">
-          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-900/40 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
+          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-800/30 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-700/40 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{s.receiptNumber}</span>
@@ -582,7 +589,7 @@ const ROLE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
     { label: 'งานซ่อม',   sub: 'ทั้งหมด',     href: '/repairs',                     icon: Wrench,       iconBg: 'bg-orange-100 dark:bg-orange-900/30', iconColor: 'text-orange-600' },
     { label: 'รออะไหล่',  sub: 'ต้องติดตาม',  href: '/repairs?status=WAITING_PARTS', icon: Package,      iconBg: 'bg-amber-100 dark:bg-amber-900/30',   iconColor: 'text-amber-600'  },
     { label: 'รอ QC',     sub: 'ตรวจสอบ',     href: '/repairs?status=QC_PENDING',    icon: CheckCircle,  iconBg: 'bg-indigo-100 dark:bg-indigo-900/30', iconColor: 'text-indigo-600' },
-    { label: 'แจ้งเตือน', sub: 'ข่าวสาร',     href: '/notifications',               icon: Bell,         iconBg: 'bg-slate-100 dark:bg-slate-800',      iconColor: 'text-slate-600'  },
+    { label: 'แจ้งเตือน', sub: 'ข่าวสาร',     href: '/notifications',               icon: Bell,         iconBg: 'bg-slate-100 dark:bg-slate-700/60',      iconColor: 'text-slate-600'  },
   ],
   STOCK_STAFF: [
     { label: 'สินค้า',     sub: 'จัดการสต็อก',      href: '/products',        icon: Package,      iconBg: 'bg-purple-100 dark:bg-purple-900/30', iconColor: 'text-purple-600' },
@@ -602,7 +609,7 @@ function QuickActionsPanel({ role }: { role: string }) {
           <Link
             key={action.href}
             href={action.href}
-            className="flex items-center gap-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md active:scale-[0.97] transition-all min-h-[64px]"
+            className="flex items-center gap-3 p-3.5 rounded-2xl bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] hover:shadow-md hover:-translate-y-0.5 active:scale-[0.97] transition-all min-h-[64px]"
           >
             <div className={cn('h-11 w-11 rounded-xl flex items-center justify-center shrink-0', action.iconBg)}>
               <action.icon className={cn('h-5 w-5', action.iconColor)} />
@@ -694,6 +701,11 @@ export default function DashboardPage() {
     ? format(new Date(), "EEEEที่ d MMMM yyyy", { locale: th })
     : `${startDate} ถึง ${endDate}`
 
+  // Owner Command Center replaces the entire dashboard for OWNER / SUPER_ADMIN
+  if (isOwner) {
+    return <OwnerCommandCenter />
+  }
+
   return (
     <>
       {/* Executive mobile dashboard — OWNER/MANAGER only, mobile only */}
@@ -706,10 +718,11 @@ export default function DashboardPage() {
     <div className={cn('space-y-6 max-w-7xl pb-10', isOwnerOrManager && 'hidden md:block')}>
 
       {/* ── Greeting card ─────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 px-5 py-5 sm:px-6 text-white overflow-hidden relative">
-        {/* Decorative circles */}
-        <div className="absolute -top-6 -right-6 h-32 w-32 rounded-full bg-blue-600/20 pointer-events-none" />
-        <div className="absolute top-4 right-20 h-16 w-16 rounded-full bg-blue-500/10 pointer-events-none" />
+      <div className="rounded-2xl bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 px-5 py-5 sm:px-6 text-white overflow-hidden relative shadow-[0_4px_20px_rgba(37,99,235,0.35)]">
+        {/* Decorative shapes */}
+        <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/8 pointer-events-none" />
+        <div className="absolute top-6 right-28 h-20 w-20 rounded-full bg-white/5 pointer-events-none" />
+        <div className="absolute -bottom-8 left-1/3 h-28 w-28 rounded-full bg-indigo-400/20 pointer-events-none" />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between relative">
           <div>
@@ -856,11 +869,13 @@ export default function DashboardPage() {
 
       {/* ── Monthly Overview (OWNER/MANAGER) ─────────────────────────────────── */}
       {isOwnerOrManager && (
-        <Card>
-          <CardContent className="p-5">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
+          <div className="p-5">
             <div className="flex items-center gap-2 mb-4">
-              <CalendarDays className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30">
+                <CalendarDays className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
                 ภาพรวมเดือนนี้
               </h3>
             </div>
@@ -868,8 +883,8 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="space-y-1.5">
-                    <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-                    <div className="h-7 w-20 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                    <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+                    <div className="h-7 w-20 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
                   </div>
                 ))}
               </div>
@@ -920,22 +935,20 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* ── Business Health Cards (OWNER/MANAGER) ───────────────────────────── */}
       {isOwnerOrManager && ownerSummary && (
-        <Card>
-          <CardContent className="p-5">
-            <BusinessHealthCards
-              health={ownerSummary.health}
-              hasRepair={hasModule('repair')}
-              hasStock={hasModule('stock')}
-              hasFinance={hasModule('finance')}
-            />
-          </CardContent>
-        </Card>
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
+          <BusinessHealthCards
+            health={ownerSummary.health}
+            hasRepair={hasModule('repair')}
+            hasStock={hasModule('stock')}
+            hasFinance={hasModule('finance')}
+          />
+        </div>
       )}
 
       {/* ── สิ่งที่ต้องดำเนินการ ─────────────────────────────────────────────── */}
@@ -945,22 +958,19 @@ export default function DashboardPage() {
       {showRepairs && hasModule('repair') && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
 
-          {/* Recent Repairs — new in V3 */}
-          <Card className="lg:col-span-3">
-            <CardContent className="p-5">
-              <SectionHeader title="งานซ่อมล่าสุด" icon={Wrench} href="/repairs" />
-              <RecentRepairsWidget repairs={recentRepairs} isLoading={repairsLoading} />
-            </CardContent>
-          </Card>
+          {/* Recent Repairs */}
+          <div className="lg:col-span-3 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
+            <SectionHeader title="งานซ่อมล่าสุด" icon={Wrench} href="/repairs" />
+            <RecentRepairsWidget repairs={recentRepairs} isLoading={repairsLoading} />
+          </div>
 
           {/* Repair Status Breakdown */}
-          <Card className="lg:col-span-2">
-            <CardContent className="p-5">
-              <SectionHeader title="สถานะงานซ่อม" icon={Layers} href="/repairs" />
+          <div className="lg:col-span-2 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
+            <SectionHeader title="สถานะงานซ่อม" icon={Layers} href="/repairs" />
               {isLoading ? (
                 <div className="space-y-2">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="h-9 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
+                    <div key={i} className="h-9 bg-slate-100 dark:bg-slate-700/60 rounded-lg animate-pulse" />
                   ))}
                 </div>
               ) : (
@@ -975,7 +985,7 @@ export default function DashboardPage() {
                     <div
                       key={row.label}
                       className={`flex items-center justify-between rounded-lg px-3 py-2 transition-colors ${
-                        row.urgent && row.count > 0 ? 'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200 dark:ring-red-800/60' : 'bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                        row.urgent && row.count > 0 ? 'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200 dark:ring-red-800/60' : 'bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60'
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -987,20 +997,20 @@ export default function DashboardPage() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </div>
 
         </div>
       )}
 
       {/* ── Today's Sales Summary (OWNER/MANAGER) ───────────────────────────── */}
       {isOwnerOrManager && (
-        <Card>
-          <CardContent className="p-5">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">รายรับ{isToday ? 'วันนี้' : ''}</h3>
+                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
+                  <ShoppingCart className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">รายรับ{isToday ? 'วันนี้' : ''}</h3>
               </div>
               <Link href="/reports">
                 <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 -mr-1">
@@ -1013,8 +1023,8 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="space-y-1.5">
-                    <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-                    <div className="h-7 w-20 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                    <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+                    <div className="h-7 w-20 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
                   </div>
                 ))}
               </div>
@@ -1062,7 +1072,7 @@ export default function DashboardPage() {
 
                 {/* Revenue breakdown sub-row */}
                 {(f?.totalRevenue ?? 0) > 0 && (
-                  <div className="pt-3 border-t dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="pt-3 border-t dark:border-slate-700/60 grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="text-xs">
                       <span className="text-slate-400 dark:text-slate-500">POS </span>
                       <span className="font-semibold text-blue-700 dark:text-blue-400">{formatThaiMoney(f?.salesRevenue ?? 0)}</span>
@@ -1083,21 +1093,18 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+        </div>
       )}
 
       {/* ── Recent Bills (OWNER/MANAGER with pos module) ────────────────────── */}
       {isOwnerOrManager && hasModule('pos') && (
-        <Card>
-          <CardContent className="p-5">
-            <SectionHeader title="บิลขายล่าสุด" icon={ShoppingCart} href="/sales" />
-            <RecentSalesWidget
-              sales={ownerSummary?.recentSales ?? []}
-              isLoading={ownerLoading}
-            />
-          </CardContent>
-        </Card>
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
+          <SectionHeader title="บิลขายล่าสุด" icon={ShoppingCart} href="/sales" />
+          <RecentSalesWidget
+            sales={ownerSummary?.recentSales ?? []}
+            isLoading={ownerLoading}
+          />
+        </div>
       )}
 
       {/* ── Weekly Chart + Alerts ────────────────────────────────────────────── */}
@@ -1117,11 +1124,11 @@ export default function DashboardPage() {
                 </div>
               </div>
               {isLoading ? (
-                <div className="h-36 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                <div className="h-36 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
               ) : data?.weeklyRevenue ? (
                 <>
                   <RevenueBarChart data={data.weeklyRevenue} shortDate={shortDate} />
-                  <div className="mt-3 pt-3 border-t dark:border-slate-800 flex justify-between items-center">
+                  <div className="mt-3 pt-3 border-t dark:border-slate-700/60 flex justify-between items-center">
                     <span className="text-xs text-slate-500 dark:text-slate-400">รวม 7 วัน</span>
                     <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
                       {formatThaiMoney(data.weeklyRevenue.reduce((s, d) => s + d.total, 0))}
@@ -1148,7 +1155,7 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-9 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
+                  <div key={i} className="h-9 bg-slate-100 dark:bg-slate-700/60 rounded-lg animate-pulse" />
                 ))}
               </div>
             ) : totalAlerts === 0 ? (
@@ -1255,8 +1262,8 @@ export default function DashboardPage() {
               <SectionHeader title="ลูกหนี้ค้างชำระ" icon={Wallet} href="/repairs" linkLabel="ดู" />
               {isLoading ? (
                 <div className="space-y-2">
-                  <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-                  <div className="h-5 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                  <div className="h-8 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+                  <div className="h-5 w-24 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
                 </div>
               ) : (
                 <>
@@ -1284,8 +1291,8 @@ export default function DashboardPage() {
             <SectionHeader title="สถานะสต็อก" icon={Package} href="/products" linkLabel="สินค้า" />
             {isLoading ? (
               <div className="space-y-2">
-                <div className="h-9 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-                <div className="h-9 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
               </div>
             ) : (
               <div className="space-y-2">
@@ -1297,7 +1304,7 @@ export default function DashboardPage() {
                     <span className="text-sm text-slate-700 dark:text-slate-300">สินค้าหมด</span>
                   </div>
                   <Badge variant="outline" className={`text-xs font-bold ${
-                    (data?.stock.outOfStock ?? 0) > 0 ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                    (data?.stock.outOfStock ?? 0) > 0 ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300' : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400'
                   }`}>{data?.stock.outOfStock ?? 0}</Badge>
                 </div>
                 <div className={`flex items-center justify-between rounded-lg px-3 py-2 ${
@@ -1305,7 +1312,7 @@ export default function DashboardPage() {
                 }`}>
                   <span className="text-sm text-slate-700 dark:text-slate-300">ใกล้หมด</span>
                   <Badge variant="outline" className={`text-xs font-bold ${
-                    (data?.stock.lowStock ?? 0) > 0 ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                    (data?.stock.lowStock ?? 0) > 0 ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300' : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400'
                   }`}>{data?.stock.lowStock ?? 0}</Badge>
                 </div>
                 {(data?.stock.outOfStock ?? 0) === 0 && (data?.stock.lowStock ?? 0) === 0 && (
@@ -1326,8 +1333,8 @@ export default function DashboardPage() {
             <SectionHeader title="การรับประกัน" icon={Shield} href="/warranties" linkLabel="ดู" />
             {isLoading ? (
               <div className="space-y-2">
-                <div className="h-9 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-                <div className="h-9 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+                <div className="h-9 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
               </div>
             ) : (
               <div className="space-y-2">
@@ -1348,7 +1355,7 @@ export default function DashboardPage() {
                     <span className="text-sm text-slate-700 dark:text-slate-300">หมดใน 7 วัน</span>
                   </div>
                   <Badge variant="outline" className={`text-xs font-bold ${
-                    (data?.warranties.expiringSoon ?? 0) > 0 ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                    (data?.warranties.expiringSoon ?? 0) > 0 ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300' : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400'
                   }`}>{data?.warranties.expiringSoon ?? 0}</Badge>
                 </div>
               </div>
@@ -1368,7 +1375,7 @@ export default function DashboardPage() {
               {isLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                    <div key={i} className="h-8 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
                   ))}
                 </div>
               ) : !data?.topProducts?.length ? (
@@ -1408,7 +1415,7 @@ export default function DashboardPage() {
               {isLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="h-10 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                    <div key={i} className="h-10 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
                   ))}
                 </div>
               ) : !data?.topTechnicians?.length ? (
@@ -1447,7 +1454,7 @@ export default function DashboardPage() {
             <CardContent className="p-5">
               <SectionHeader title="กะปัจจุบัน" icon={Clock} href="/shifts" linkLabel="กะ" />
               {isLoading ? (
-                <div className="h-12 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                <div className="h-12 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
               ) : shift?.isOpen ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
@@ -1489,7 +1496,7 @@ export default function DashboardPage() {
                   ...(isOwnerOrManager ? [{ label: 'วิเคราะห์', href: '/analytics', icon: BarChart2, color: 'bg-rose-600' }] : []),
                 ].map(a => (
                   <Link key={a.href} href={a.href}
-                    className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 dark:border-slate-800 p-2.5 hover:border-blue-200 dark:hover:border-blue-800/60 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm transition-all">
+                    className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 dark:border-slate-700/60 p-2.5 hover:border-blue-200 dark:hover:border-blue-800/60 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm transition-all">
                     <div className={`rounded-lg p-1.5 ${a.color}`}>
                       <a.icon className="h-3.5 w-3.5 text-white" />
                     </div>
@@ -1540,7 +1547,7 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-10 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                  <div key={i} className="h-10 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
                 ))}
               </div>
             ) : !data?.branchPerformance?.length ? (
@@ -1580,7 +1587,7 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-2.5">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                  <div key={i} className="h-12 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
                 ))}
               </div>
             ) : !notif?.latest?.length ? (
@@ -1591,9 +1598,9 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-2">
                 {notif.latest.map(n => (
-                  <div key={n.id} className="flex items-start gap-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-all">
+                  <div key={n.id} className="flex items-start gap-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-700/40 hover:shadow-sm transition-all">
                     <div className="mt-0.5 shrink-0">
-                      <Badge className={`text-[10px] px-1.5 ${severityColor[n.severity] ?? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
+                      <Badge className={`text-[10px] px-1.5 ${severityColor[n.severity] ?? 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400'}`}>
                         {n.severity === 'CRITICAL' ? '!!' : n.severity === 'ERROR' ? '!' : n.severity === 'WARNING' ? '⚠' : 'i'}
                       </Badge>
                     </div>
@@ -1625,7 +1632,7 @@ export default function DashboardPage() {
             {isLoading ? (
               <div className="space-y-2.5">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-10 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                  <div key={i} className="h-10 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
                 ))}
               </div>
             ) : !data?.recentActivities?.length ? (
@@ -1637,7 +1644,7 @@ export default function DashboardPage() {
               <div className="space-y-1.5">
                 {data.recentActivities.map(a => (
                   <div key={a.id} className="flex items-center gap-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 px-2 py-1.5 transition-colors">
-                    <div className="h-6 w-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                    <div className="h-6 w-6 rounded-full bg-slate-100 dark:bg-slate-700/60 flex items-center justify-center shrink-0">
                       <Activity className="h-3 w-3 text-slate-500 dark:text-slate-400" />
                     </div>
                     <div className="min-w-0 flex-1">

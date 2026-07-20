@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -38,7 +38,7 @@ function getTier(salesCount: number, totalSpending: number): Tier {
 const TIER_CONFIG: Record<Tier, { label: string; Icon: React.ElementType; cls: string }> = {
   VIP:     { label: 'VIP',    Icon: Crown,    cls: 'bg-yellow-50 text-yellow-700 border-yellow-300' },
   REGULAR: { label: 'ประจำ', Icon: Star,     cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  NEW:     { label: 'ใหม่',  Icon: Sparkles, cls: 'bg-gray-50 text-gray-500 border-gray-200' },
+  NEW:     { label: 'ใหม่',  Icon: Sparkles, cls: 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60' },
 }
 
 interface CustomerDetail extends Customer {
@@ -97,7 +97,7 @@ const REPAIR_STATUS_COLOR: Record<RepairStatus, string> = {
   QC_PENDING:       'bg-indigo-100 text-indigo-700',
   COMPLETED:        'bg-green-100 text-green-700',
   READY_PICKUP:     'bg-emerald-100 text-emerald-700',
-  DELIVERED:        'bg-gray-100 text-gray-700',
+  DELIVERED:        'bg-slate-100 text-slate-700 dark:text-slate-300',
   CANCELLED:        'bg-red-100 text-red-700',
 }
 
@@ -136,10 +136,10 @@ export function CustomerDetailDialog({
         ) : !customer ? null : (
           <div className="space-y-5">
             {/* Customer info card */}
-            <div className="rounded-xl border bg-gray-50 p-4 space-y-3">
+            <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-lg font-bold text-gray-900 truncate">{customer.name}</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-white truncate">{customer.name}</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {(() => {
                       const tier = getTier(customer._count.sales, customer.totalSpending)
@@ -169,20 +169,20 @@ export function CustomerDetailDialog({
 
               {/* Stats summary */}
               <div className="grid grid-cols-3 gap-2 pt-1">
-                <div className="rounded-lg bg-white border text-center py-2.5 px-1">
+                <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 text-center py-2.5 px-1">
                   <p className="text-[10px] text-muted-foreground">ยอดรวม</p>
                   <p className="font-bold text-sm text-blue-700 tabular-nums truncate">
                     {formatThaiMoney(customer.totalSpending)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-white border text-center py-2.5 px-1">
+                <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 text-center py-2.5 px-1">
                   <p className="text-[10px] text-muted-foreground">ซื้อทั้งหมด</p>
                   <p className="font-bold text-sm">
                     {customer._count.sales}
                     <span className="text-xs font-normal text-muted-foreground ml-0.5">ครั้ง</span>
                   </p>
                 </div>
-                <div className="rounded-lg bg-white border text-center py-2.5 px-1">
+                <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 text-center py-2.5 px-1">
                   <p className="text-[10px] text-muted-foreground">ซ่อมทั้งหมด</p>
                   <p className="font-bold text-sm">
                     {customer._count.repairs}
@@ -193,19 +193,19 @@ export function CustomerDetailDialog({
 
               <div className="space-y-1.5 border-t pt-3">
                 {customer.phone && (
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                     <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     {customer.phone}
                   </div>
                 )}
                 {customer.email && (
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                     <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     {customer.email}
                   </div>
                 )}
                 {customer.address && (
-                  <div className="flex items-start gap-2 text-sm text-gray-700">
+                  <div className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
                     <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                     <span>{customer.address}</span>
                   </div>
@@ -226,7 +226,7 @@ export function CustomerDetailDialog({
             <div>
               <div className="flex items-center gap-2 mb-2.5">
                 <ShoppingCart className="h-4 w-4 text-blue-600" />
-                <p className="font-semibold text-gray-900 text-sm">ประวัติการซื้อ</p>
+                <p className="font-semibold text-slate-900 dark:text-white text-sm">ประวัติการซื้อ</p>
                 <span className="text-xs text-muted-foreground ml-auto">
                   {customer.sales.length < customer._count.sales
                     ? `${customer.sales.length} รายการล่าสุด (จาก ${customer._count.sales})`
@@ -234,14 +234,14 @@ export function CustomerDetailDialog({
                 </span>
               </div>
               {customer.sales.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-5 rounded-xl border bg-gray-50">
+                <p className="text-sm text-muted-foreground text-center py-5 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
                   ยังไม่มีประวัติการซื้อ
                 </p>
               ) : (
                 <div className="rounded-xl border overflow-hidden">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b bg-gray-50 text-gray-500">
+                      <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400">
                         <th className="text-left px-3 py-2 font-medium">เลขใบเสร็จ</th>
                         <th className="text-left px-3 py-2 font-medium">สถานะ</th>
                         <th className="text-right px-3 py-2 font-medium">ยอด</th>
@@ -256,7 +256,7 @@ export function CustomerDetailDialog({
                           </td>
                           <td className="px-3 py-2">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SALE_STATUS_COLOR[sale.status] ?? 'bg-gray-100 text-gray-700'}`}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SALE_STATUS_COLOR[sale.status] ?? 'bg-slate-100 text-slate-700 dark:text-slate-300'}`}
                             >
                               {SALE_STATUS_LABEL[sale.status] ?? sale.status}
                             </span>
@@ -279,7 +279,7 @@ export function CustomerDetailDialog({
             <div>
               <div className="flex items-center gap-2 mb-2.5">
                 <Wrench className="h-4 w-4 text-blue-600" />
-                <p className="font-semibold text-gray-900 text-sm">ประวัติงานซ่อม</p>
+                <p className="font-semibold text-slate-900 dark:text-white text-sm">ประวัติงานซ่อม</p>
                 <span className="text-xs text-muted-foreground ml-auto">
                   {customer.repairs.length < customer._count.repairs
                     ? `${customer.repairs.length} รายการล่าสุด (จาก ${customer._count.repairs})`
@@ -287,14 +287,14 @@ export function CustomerDetailDialog({
                 </span>
               </div>
               {customer.repairs.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-5 rounded-xl border bg-gray-50">
+                <p className="text-sm text-muted-foreground text-center py-5 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40">
                   ยังไม่มีประวัติงานซ่อม
                 </p>
               ) : (
                 <div className="rounded-xl border overflow-hidden">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b bg-gray-50 text-gray-500">
+                      <tr className="border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 text-slate-500 dark:text-slate-400">
                         <th className="text-left px-3 py-2 font-medium">เลขงาน</th>
                         <th className="text-left px-3 py-2 font-medium">อุปกรณ์</th>
                         <th className="text-left px-3 py-2 font-medium">สถานะ</th>
@@ -307,12 +307,12 @@ export function CustomerDetailDialog({
                           <td className="px-3 py-2 font-mono font-semibold text-blue-700">
                             {repair.ticketNumber}
                           </td>
-                          <td className="px-3 py-2 text-gray-900">
+                          <td className="px-3 py-2 text-slate-900 dark:text-white">
                             {repair.deviceBrand} {repair.deviceModel}
                           </td>
                           <td className="px-3 py-2">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${REPAIR_STATUS_COLOR[repair.status] ?? 'bg-gray-100 text-gray-700'}`}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${REPAIR_STATUS_COLOR[repair.status] ?? 'bg-slate-100 text-slate-700 dark:text-slate-300'}`}
                             >
                               {REPAIR_STATUS_LABEL[repair.status] ?? repair.status}
                             </span>

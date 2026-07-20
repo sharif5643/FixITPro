@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Building2, Plus, Pencil, X,
@@ -74,8 +75,8 @@ function BranchModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between border-b dark:border-slate-800 px-6 py-4">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between border-b dark:border-slate-700/60 px-6 py-4">
           <h2 className="font-semibold text-lg dark:text-white">{branch ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่'}</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 transition-colors">
             <X className="h-5 w-5 text-slate-500" />
@@ -85,7 +86,7 @@ function BranchModal({
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ชื่อสาขา *</label>
             <input
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="เช่น สาขาสยาม"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -95,7 +96,7 @@ function BranchModal({
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ที่อยู่</label>
             <textarea
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={2}
               placeholder="ที่อยู่สาขา"
               value={address}
@@ -105,7 +106,7 @@ function BranchModal({
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">เบอร์โทร</label>
             <input
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="02-xxx-xxxx"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -144,8 +145,10 @@ function BranchModal({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function BranchesPage() {
-  const qc   = useQueryClient()
-  const role = useAuthStore((s) => s.user?.role)
+  const router = useRouter()
+  const qc     = useQueryClient()
+  const role   = useAuthStore((s) => s.user?.role)
+  const hasPerm = useAuthStore((s) => s.hasPermission)
   const isSuperAdmin = role === 'SUPER_ADMIN'
 
   const [tab, setTab]               = useState<Tab>('branches')
@@ -154,6 +157,10 @@ export default function BranchesPage() {
   const [selectedBranchForStock, setSelectedBranchForStock] = useState<string>('')
   const [stockSearch, setStockSearch] = useState('')
   const [error, setError]           = useState('')
+  const [rejectDialog,     setRejectDialog]     = useState<{ id: string; name: string } | null>(null)
+  const [suspendDialog,    setSuspendDialog]    = useState<{ id: string; name: string } | null>(null)
+  const [deactivateDialog, setDeactivateDialog] = useState<{ id: string; name: string } | null>(null)
+  const [reasonInput, setReasonInput]           = useState('')
 
   // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -212,6 +219,13 @@ export default function BranchesPage() {
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
   })
 
+  // ── Guard ────────────────────────────────────────────────────────────────────
+
+  if (!hasPerm('branches.manage')) {
+    router.replace('/403')
+    return null
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   const activeBranches = branches.filter((b) => b.isActive)
@@ -237,7 +251,7 @@ export default function BranchesPage() {
       />
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+        <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-4 py-3 text-sm text-red-700 dark:text-red-400">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
           <button className="ml-auto" onClick={() => setError('')}><X className="h-4 w-4" /></button>
@@ -245,7 +259,7 @@ export default function BranchesPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+      <div className="flex gap-1 bg-slate-100 dark:bg-slate-700/60 rounded-lg p-1">
         {([
           { id: 'branches', label: 'สาขา', icon: Building2 },
           { id: 'stock',    label: 'สต็อกสาขา', icon: Package },
@@ -284,8 +298,8 @@ export default function BranchesPage() {
                 <div
                   key={branch.id}
                   className={cn(
-                    'rounded-xl border bg-white dark:bg-slate-900 p-4 space-y-2 transition-all',
-                    branch.isActive ? 'border-slate-200 dark:border-slate-700' : 'border-slate-100 dark:border-slate-800 opacity-60',
+                    'rounded-xl border bg-white dark:bg-[#1E293B] p-4 space-y-2 transition-all',
+                    branch.isActive ? 'border-slate-200 dark:border-slate-700/60' : 'border-slate-100 dark:border-slate-700/60 opacity-60',
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -314,10 +328,7 @@ export default function BranchesPage() {
                             อนุมัติ
                           </button>
                           <button
-                            onClick={() => {
-                              const reason = prompt('เหตุผลที่ปฏิเสธ:')
-                              if (reason) rejectMut.mutate({ id: branch.id, reason })
-                            }}
+                            onClick={() => { setReasonInput(''); setRejectDialog({ id: branch.id, name: branch.name }) }}
                             className="flex items-center gap-1 rounded-lg border border-red-300 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50"
                             title="ปฏิเสธสาขา"
                           >
@@ -328,10 +339,7 @@ export default function BranchesPage() {
                       )}
                       {isSuperAdmin && branch.status === 'ACTIVE' && !branch.isDefault && (
                         <button
-                          onClick={() => {
-                            const reason = prompt('เหตุผลที่ระงับ:')
-                            if (reason) suspendMut.mutate({ id: branch.id, reason })
-                          }}
+                          onClick={() => { setReasonInput(''); setSuspendDialog({ id: branch.id, name: branch.name }) }}
                           className="p-1.5 rounded-lg hover:bg-orange-50 transition-colors"
                           title="ระงับสาขา"
                         >
@@ -340,11 +348,7 @@ export default function BranchesPage() {
                       )}
                       {!branch.isDefault && branch.isActive && (
                         <button
-                          onClick={() => {
-                            if (confirm(`ปิดใช้งานสาขา "${branch.name}"?`)) {
-                              deactivateMut.mutate(branch.id)
-                            }
-                          }}
+                          onClick={() => setDeactivateDialog({ id: branch.id, name: branch.name })}
                           className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                         >
                           <StarOff className="h-3.5 w-3.5 text-red-400" />
@@ -367,7 +371,7 @@ export default function BranchesPage() {
                   {branch.status === 'SUSPENDED' && (
                     <p className="text-xs font-medium text-orange-600">⚠ สาขานี้ถูกระงับการใช้งาน</p>
                   )}
-                  <div className="flex gap-3 pt-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex gap-3 pt-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-700/60">
                     <span className="flex items-center gap-1">
                       <Users className="h-3 w-3" />
                       {branch._count?.users ?? 0} พนักงาน
@@ -389,7 +393,7 @@ export default function BranchesPage() {
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <select
-              className="rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={selectedBranchForStock}
               onChange={(e) => setSelectedBranchForStock(e.target.value)}
             >
@@ -402,7 +406,7 @@ export default function BranchesPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="ค้นหาสินค้า..."
                   value={stockSearch}
                   onChange={(e) => setStockSearch(e.target.value)}
@@ -420,13 +424,13 @@ export default function BranchesPage() {
           ) : branchStock.length === 0 ? (
             <EmptyState preset="stock" title="ยังไม่มีข้อมูลสต็อก" description="ไม่มีข้อมูลสต็อกสำหรับสาขานี้" />
           ) : (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] overflow-hidden">
               <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 text-xs text-blue-700 font-medium flex items-center gap-1">
                 <Package className="h-3.5 w-3.5" />
                 สต็อกเฉพาะสาขา — {branches.find(b => b.id === selectedBranchForStock)?.name}
               </div>
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700/60">
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400">สินค้า</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400 hidden md:table-cell">รหัสสต็อก</th>
@@ -483,6 +487,66 @@ export default function BranchesPage() {
             }
           }}
         />
+      )}
+
+      {/* Reject / Suspend reason dialog */}
+      {(rejectDialog || suspendDialog) && (() => {
+        const isReject = !!rejectDialog
+        const target   = rejectDialog ?? suspendDialog!
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-xl w-full max-w-sm p-6 space-y-4">
+              <h3 className="font-bold text-slate-900 dark:text-white">
+                {isReject ? 'ปฏิเสธสาขา' : 'ระงับสาขา'}: {target.name}
+              </h3>
+              <textarea
+                rows={3}
+                placeholder="ระบุเหตุผล..."
+                value={reasonInput}
+                onChange={(e) => setReasonInput(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 dark:text-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => { setRejectDialog(null); setSuspendDialog(null) }}
+                  className="px-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/40 dark:text-slate-300"
+                >ยกเลิก</button>
+                <button
+                  disabled={!reasonInput.trim()}
+                  onClick={() => {
+                    if (!reasonInput.trim()) return
+                    if (isReject) rejectMut.mutate({ id: target.id, reason: reasonInput })
+                    else suspendMut.mutate({ id: target.id, reason: reasonInput })
+                    setRejectDialog(null); setSuspendDialog(null)
+                  }}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
+                >{isReject ? 'ปฏิเสธ' : 'ระงับ'}</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Deactivate confirm dialog */}
+      {deactivateDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-bold text-slate-900 dark:text-white">ปิดใช้งานสาขา</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              ยืนยันปิดใช้งานสาขา <span className="font-semibold">"{deactivateDialog.name}"</span>?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeactivateDialog(null)}
+                className="px-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/40 dark:text-slate-300"
+              >ยกเลิก</button>
+              <button
+                onClick={() => { deactivateMut.mutate(deactivateDialog.id); setDeactivateDialog(null) }}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >ปิดใช้งาน</button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

@@ -335,7 +335,7 @@ function SidebarNav({ role, hasPerm, hasModule, isOwner }: SidebarNavProps) {
       <div key={key} className="mb-1">
         {section.label && (
           <div className="mx-3 mb-1 mt-3">
-            <div className="h-px bg-slate-100 dark:bg-slate-800 mb-2" />
+            <div className="h-px bg-slate-100 dark:bg-slate-700/60 mb-2" />
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 select-none">
               {section.label}
             </p>
@@ -352,7 +352,7 @@ function SidebarNav({ role, hasPerm, hasModule, isOwner }: SidebarNavProps) {
                 'relative flex items-center gap-3 mx-2 my-0.5 px-3 py-2.5 rounded-xl transition-all min-h-[44px]',
                 active
                   ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100',
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/40 hover:text-slate-900 dark:hover:text-slate-100',
               )}
             >
               <Icon className={cn('h-5 w-5 flex-shrink-0', active ? 'text-white' : 'text-slate-400 dark:text-slate-500')} />
@@ -375,7 +375,7 @@ function SidebarNav({ role, hasPerm, hasModule, isOwner }: SidebarNavProps) {
         if (!hasVisible) return null
         return (
           <div className="mx-3 mt-3">
-            <div className="h-px bg-slate-100 dark:bg-slate-800 mb-1" />
+            <div className="h-px bg-slate-100 dark:bg-slate-700/60 mb-1" />
             <button
               onClick={() => setOthersOpen(o => !o)}
               className="flex items-center justify-between w-full py-2 group"
@@ -418,8 +418,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       <aside
         className={cn(
           'flex flex-col flex-shrink-0',
-          'bg-white dark:bg-slate-900',
-          'border-r border-slate-200 dark:border-slate-800',
+          'bg-white dark:bg-[#1E293B]',
+          'border-r border-slate-200 dark:border-slate-700/60',
           'overflow-hidden',
           'hidden md:flex md:relative md:w-60',
           open && 'fixed inset-y-0 left-0 z-50 !flex !w-60 shadow-2xl',
@@ -454,7 +454,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         </Suspense>
 
         {/* User info */}
-        <div className="flex-shrink-0 border-t border-slate-100 dark:border-slate-800 p-3 overflow-hidden">
+        <div className="flex-shrink-0 border-t border-slate-100 dark:border-slate-700/60 p-3 overflow-hidden">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 shadow-sm">
               <span className="text-xs font-bold text-white">

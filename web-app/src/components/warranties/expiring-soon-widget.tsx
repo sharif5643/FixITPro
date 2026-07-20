@@ -38,7 +38,7 @@ export function ExpiringSoonWidget() {
       {isLoading ? (
         <div className="space-y-2 p-1">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />
+            <div key={i} className="h-12 bg-slate-100 dark:bg-slate-700/60 rounded-lg animate-pulse" />
           ))}
         </div>
       ) : expiring.length === 0 ? (

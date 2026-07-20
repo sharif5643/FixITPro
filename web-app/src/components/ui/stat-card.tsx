@@ -12,7 +12,7 @@ const COLOR_MAP: Record<StatColor, { icon: string; bg: string; border: string }>
   purple:  { icon: 'text-purple-600 dark:text-purple-400',   bg: 'bg-purple-50 dark:bg-purple-900/20',   border: 'border-l-purple-500 dark:border-l-purple-600'   },
   teal:    { icon: 'text-teal-600 dark:text-teal-400',       bg: 'bg-teal-50 dark:bg-teal-900/20',       border: 'border-l-teal-500 dark:border-l-teal-600'       },
   amber:   { icon: 'text-amber-600 dark:text-amber-400',     bg: 'bg-amber-50 dark:bg-amber-900/20',     border: 'border-l-amber-500 dark:border-l-amber-600'     },
-  slate:   { icon: 'text-slate-500 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-800',       border: 'border-l-slate-400 dark:border-l-slate-600'     },
+  slate:   { icon: 'text-slate-500 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-700/60',       border: 'border-l-slate-400 dark:border-l-slate-600'     },
 }
 
 interface StatCardProps {
@@ -41,32 +41,35 @@ export function StatCard({
   className,
 }: StatCardProps) {
   const colors = urgent
-    ? { icon: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-l-red-500 dark:border-l-red-600' }
+    ? { icon: 'text-red-600 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/20', border: '' }
     : COLOR_MAP[color]
 
   const inner = (
     <div className={cn(
-      'relative bg-white dark:bg-slate-900 rounded-xl border-l-4 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden',
-      'hover:shadow-md transition-shadow duration-150',
-      colors.border,
-      urgent && 'border-red-100 dark:border-red-900/60',
+      'group relative bg-white dark:bg-[#1E293B] rounded-2xl border transition-all duration-200 overflow-hidden',
+      'shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]',
+      'hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.40)]',
+      urgent
+        ? 'border-red-200 dark:border-red-800/60 ring-1 ring-red-400/20'
+        : 'border-slate-100 dark:border-slate-700/60 hover:border-slate-200 dark:hover:border-slate-600',
       className,
     )}>
+      {urgent && <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-2xl bg-red-500" />}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className={cn(
-              'text-xs font-medium uppercase tracking-wide',
+              'text-xs font-semibold uppercase tracking-wide',
               urgent ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500',
             )}>
               {label}
             </p>
 
             {loading ? (
-              <div className="h-8 w-28 bg-slate-100 dark:bg-slate-800 rounded animate-pulse mt-2" />
+              <div className="h-8 w-28 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse mt-2" />
             ) : (
               <p className={cn(
-                'text-2xl font-bold mt-1 tracking-tight leading-none',
+                'text-2xl font-extrabold mt-1 tracking-tight leading-none tabular-nums',
                 urgent ? 'text-red-700 dark:text-red-400' : 'text-slate-900 dark:text-white',
               )}>
                 {value}
@@ -92,7 +95,10 @@ export function StatCard({
           </div>
 
           {Icon && (
-            <div className={cn('rounded-xl p-2 shrink-0', colors.bg)}>
+            <div className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-2xl shrink-0 transition-transform duration-200 group-hover:scale-105',
+              colors.bg,
+            )}>
               <Icon className={cn('h-5 w-5', colors.icon)} />
             </div>
           )}
@@ -107,14 +113,14 @@ export function StatCard({
 
 export function StatCardSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border-l-4 border-l-slate-200 dark:border-l-slate-700 border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2 mt-1">
-          <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-          <div className="h-8 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-          <div className="h-2.5 w-12 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+          <div className="h-8 w-24 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+          <div className="h-2.5 w-12 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
         </div>
-        <div className="h-9 w-9 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+        <div className="h-10 w-10 bg-slate-100 dark:bg-slate-700/60 rounded-2xl animate-pulse" />
       </div>
     </div>
   )

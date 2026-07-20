@@ -105,7 +105,7 @@ export function SaleReceiptPreviewDialog({
         </div>
 
         {/* Receipt preview */}
-        <div className="rounded-xl border bg-gray-50 p-3 overflow-y-auto max-h-[60vh] flex justify-center">
+        <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 p-3 overflow-y-auto max-h-[60vh] flex justify-center">
           {isLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground py-12">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -182,7 +182,7 @@ export function RepairReceiptPreviewDialog({
         </div>
 
         {/* Receipt preview */}
-        <div className="rounded-xl border bg-gray-50 p-3 overflow-y-auto max-h-[60vh] flex justify-center">
+        <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 p-3 overflow-y-auto max-h-[60vh] flex justify-center">
           {isLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground py-12">
               <Loader2 className="h-5 w-5 animate-spin" />

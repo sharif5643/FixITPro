@@ -92,7 +92,7 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
         <div className="flex-1 space-y-4 px-4 py-4">
 
           {/* Order summary */}
-          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3.5 space-y-2 text-sm">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 p-3.5 space-y-2 text-sm">
             <div className="flex justify-between text-muted-foreground">
               <span>{items.length} รายการ ({totalQty} ชิ้น)</span>
               <span className="tabular-nums">{formatThaiMoney(subtotal)}</span>
@@ -103,7 +103,7 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
                 <span className="tabular-nums">- {formatThaiMoney(discount)}</span>
               </div>
             )}
-            <div className="flex justify-between font-black text-lg border-t dark:border-slate-700 pt-2">
+            <div className="flex justify-between font-black text-lg border-t dark:border-slate-700/60 pt-2">
               <span className="text-slate-700 dark:text-slate-200">ยอดสุทธิ</span>
               <span className="text-blue-700 dark:text-blue-400 tabular-nums">{formatThaiMoney(total)}</span>
             </div>
@@ -121,7 +121,7 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
               value={discount || ''}
               onChange={(e) => setDiscount(Number(e.target.value) || 0)}
               placeholder="0"
-              className="h-9 text-sm text-right dark:bg-slate-800 dark:border-slate-700"
+              className="h-9 text-sm text-right dark:bg-[#1E293B] dark:border-slate-700/60"
             />
             <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0">บาท</span>
           </div>
@@ -141,7 +141,7 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
                     'flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 min-h-[66px] transition-all',
                     method === value
                       ? 'border-blue-500 bg-blue-600 text-white shadow-sm'
-                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-600',
+                      : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 hover:border-blue-300 dark:hover:border-blue-600',
                   )}
                 >
                   <Icon className="h-5 w-5" />
@@ -197,7 +197,7 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
                     key={v}
                     type="button"
                     onClick={() => setCashInput(String(v))}
-                    className="py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors tabular-nums"
+                    className="py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors tabular-nums"
                   >
                     {v >= 1000 ? `${v / 1000}K` : v}
                   </button>
