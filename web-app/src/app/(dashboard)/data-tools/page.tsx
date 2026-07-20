@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { format, subDays, startOfMonth } from 'date-fns'
 import {
   Download, Upload, FileText, Users, Package, BarChart2,
@@ -12,6 +13,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -474,6 +476,14 @@ function ImportSection() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DataToolsPage() {
+  const router = useRouter()
+  const hasPerm = useAuthStore((s) => s.hasPermission)
+
+  if (!hasPerm('data.export')) {
+    router.replace('/403')
+    return null
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader

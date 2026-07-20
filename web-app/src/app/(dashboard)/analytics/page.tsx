@@ -762,6 +762,18 @@ export default function AnalyticsPage() {
       {/* Content */}
       <div className="flex-1 p-4 space-y-4 max-w-screen-2xl mx-auto w-full">
 
+        {/* API error banner */}
+        {(overviewQ.isError || deadStockQ.isError || repairAgingQ.isError || profitQ.isError || techQ.isError || branchStockQ.isError) && (
+          <div className="flex items-center gap-3 rounded-xl border border-red-200 dark:border-red-700/60 bg-red-50 dark:bg-red-900/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>บางส่วนของข้อมูลโหลดไม่สำเร็จ — กด "รีเฟรช" เพื่อลองใหม่</span>
+            <button
+              onClick={refetchAll}
+              className="ml-auto text-xs font-semibold underline underline-offset-2"
+            >รีเฟรช</button>
+          </div>
+        )}
+
         {/* Overview stat cards */}
         <OverviewCards data={overviewQ.data} loading={overviewQ.isLoading} />
 

@@ -488,8 +488,11 @@ export default function EmployeesPage() {
   const currentUser = useAuthStore((s) => s.user)
 
   useEffect(() => {
-    if (currentUser?.role === 'SUPER_ADMIN') {
+    if (!currentUser) return
+    if (currentUser.role === 'SUPER_ADMIN') {
       router.replace('/super-admin/tenants')
+    } else if (currentUser.role !== 'OWNER') {
+      router.replace('/403')
     }
   }, [currentUser, router])
 

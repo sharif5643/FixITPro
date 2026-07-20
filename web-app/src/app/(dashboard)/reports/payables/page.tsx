@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn, formatThaiMoney } from '@/lib/utils'
+import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import type { SupplierAging, SupplierAgingRow } from '@/types'
 
@@ -37,12 +38,21 @@ function severityColor(row: SupplierAgingRow): string {
 
 export default function SupplierAgingPage() {
   const router = useRouter()
+  const hasPerm = useAuthStore((s) => s.hasPermission)
+
+  const authorized = hasPerm('reports.view')
 
   const { data, isLoading, refetch, isRefetching } = useQuery<SupplierAging>({
     queryKey: ['supplier-aging'],
     queryFn:  () => api.get('/reports/supplier-aging').then((r) => r.data),
     staleTime: 2 * 60_000,
+    enabled: authorized,
   })
+
+  if (!authorized) {
+    router.replace('/403')
+    return null
+  }
 
   const hasOverdue90 = (data?.suppliers ?? []).some((s) => s.b90plus > 0)
 

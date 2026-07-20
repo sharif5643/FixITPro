@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/store/auth.store'
+import { toast } from 'sonner'
 import api from '@/lib/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -76,9 +77,22 @@ export default function BackupPage() {
     refetchFiles()
   }
 
-  function downloadUrl(filename: string) {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000'
-    return `${base}/backup/download/${encodeURIComponent(filename)}`
+  async function handleDownload(filename: string) {
+    try {
+      const res = await api.get(`/backup/download/${encodeURIComponent(filename)}`, {
+        responseType: 'blob',
+      })
+      const url = URL.createObjectURL(res.data as Blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('ดาวน์โหลด Backup ล้มเหลว')
+    }
   }
 
   const isLoading = statusLoading || filesLoading
@@ -294,14 +308,13 @@ export default function BackupPage() {
                   </div>
                 </div>
 
-                <a
-                  href={downloadUrl(f.filename)}
-                  download={f.filename}
+                <button
+                  onClick={() => handleDownload(f.filename)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors shrink-0"
                 >
                   <Download className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">ดาวน์โหลด</span>
-                </a>
+                </button>
               </div>
             ))}
           </div>
@@ -312,7 +325,7 @@ export default function BackupPage() {
       <div className="flex items-center gap-2 text-xs text-slate-400 pt-2">
         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
         <span>
-          เฉพาะ DEV เท่านั้น — ห้าม Restore โดยตรงกับฐานข้อมูล PROD
+          Backup ไฟล์เป็นข้อมูลสำคัญ — เก็บรักษาให้ปลอดภัยและห้ามเผยแพร่
         </span>
       </div>
     </div>

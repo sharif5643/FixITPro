@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react'
 import { formatThaiMoney } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
+import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 
 interface SubscriptionRenewal {
@@ -66,6 +68,14 @@ function fmtDate(d: string | null | undefined) {
 }
 
 export default function SubscriptionPage() {
+  const router = useRouter()
+  const user = useAuthStore((s) => s.user)
+
+  if (user && user.role !== 'OWNER' && user.role !== 'SUPER_ADMIN') {
+    router.replace('/403')
+    return null
+  }
+
   const { data: sub, isLoading } = useQuery<SubscriptionData>({
     queryKey: ['subscription'],
     queryFn: async () => (await api.get('/subscription')).data,

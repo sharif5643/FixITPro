@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Building2, Plus, Pencil, X,
@@ -144,8 +145,10 @@ function BranchModal({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function BranchesPage() {
-  const qc   = useQueryClient()
-  const role = useAuthStore((s) => s.user?.role)
+  const router = useRouter()
+  const qc     = useQueryClient()
+  const role   = useAuthStore((s) => s.user?.role)
+  const hasPerm = useAuthStore((s) => s.hasPermission)
   const isSuperAdmin = role === 'SUPER_ADMIN'
 
   const [tab, setTab]               = useState<Tab>('branches')
@@ -154,6 +157,10 @@ export default function BranchesPage() {
   const [selectedBranchForStock, setSelectedBranchForStock] = useState<string>('')
   const [stockSearch, setStockSearch] = useState('')
   const [error, setError]           = useState('')
+  const [rejectDialog,     setRejectDialog]     = useState<{ id: string; name: string } | null>(null)
+  const [suspendDialog,    setSuspendDialog]    = useState<{ id: string; name: string } | null>(null)
+  const [deactivateDialog, setDeactivateDialog] = useState<{ id: string; name: string } | null>(null)
+  const [reasonInput, setReasonInput]           = useState('')
 
   // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -211,6 +218,13 @@ export default function BranchesPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['branches'] }); toast.success('ระงับสาขาเรียบร้อย') },
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
   })
+
+  // ── Guard ────────────────────────────────────────────────────────────────────
+
+  if (!hasPerm('branches.manage')) {
+    router.replace('/403')
+    return null
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -314,10 +328,7 @@ export default function BranchesPage() {
                             อนุมัติ
                           </button>
                           <button
-                            onClick={() => {
-                              const reason = prompt('เหตุผลที่ปฏิเสธ:')
-                              if (reason) rejectMut.mutate({ id: branch.id, reason })
-                            }}
+                            onClick={() => { setReasonInput(''); setRejectDialog({ id: branch.id, name: branch.name }) }}
                             className="flex items-center gap-1 rounded-lg border border-red-300 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50"
                             title="ปฏิเสธสาขา"
                           >
@@ -328,10 +339,7 @@ export default function BranchesPage() {
                       )}
                       {isSuperAdmin && branch.status === 'ACTIVE' && !branch.isDefault && (
                         <button
-                          onClick={() => {
-                            const reason = prompt('เหตุผลที่ระงับ:')
-                            if (reason) suspendMut.mutate({ id: branch.id, reason })
-                          }}
+                          onClick={() => { setReasonInput(''); setSuspendDialog({ id: branch.id, name: branch.name }) }}
                           className="p-1.5 rounded-lg hover:bg-orange-50 transition-colors"
                           title="ระงับสาขา"
                         >
@@ -340,11 +348,7 @@ export default function BranchesPage() {
                       )}
                       {!branch.isDefault && branch.isActive && (
                         <button
-                          onClick={() => {
-                            if (confirm(`ปิดใช้งานสาขา "${branch.name}"?`)) {
-                              deactivateMut.mutate(branch.id)
-                            }
-                          }}
+                          onClick={() => setDeactivateDialog({ id: branch.id, name: branch.name })}
                           className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                         >
                           <StarOff className="h-3.5 w-3.5 text-red-400" />
@@ -483,6 +487,66 @@ export default function BranchesPage() {
             }
           }}
         />
+      )}
+
+      {/* Reject / Suspend reason dialog */}
+      {(rejectDialog || suspendDialog) && (() => {
+        const isReject = !!rejectDialog
+        const target   = rejectDialog ?? suspendDialog!
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-xl w-full max-w-sm p-6 space-y-4">
+              <h3 className="font-bold text-slate-900 dark:text-white">
+                {isReject ? 'ปฏิเสธสาขา' : 'ระงับสาขา'}: {target.name}
+              </h3>
+              <textarea
+                rows={3}
+                placeholder="ระบุเหตุผล..."
+                value={reasonInput}
+                onChange={(e) => setReasonInput(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 dark:text-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => { setRejectDialog(null); setSuspendDialog(null) }}
+                  className="px-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/40 dark:text-slate-300"
+                >ยกเลิก</button>
+                <button
+                  disabled={!reasonInput.trim()}
+                  onClick={() => {
+                    if (!reasonInput.trim()) return
+                    if (isReject) rejectMut.mutate({ id: target.id, reason: reasonInput })
+                    else suspendMut.mutate({ id: target.id, reason: reasonInput })
+                    setRejectDialog(null); setSuspendDialog(null)
+                  }}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-40"
+                >{isReject ? 'ปฏิเสธ' : 'ระงับ'}</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Deactivate confirm dialog */}
+      {deactivateDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-bold text-slate-900 dark:text-white">ปิดใช้งานสาขา</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              ยืนยันปิดใช้งานสาขา <span className="font-semibold">"{deactivateDialog.name}"</span>?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeactivateDialog(null)}
+                className="px-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/40 dark:text-slate-300"
+              >ยกเลิก</button>
+              <button
+                onClick={() => { deactivateMut.mutate(deactivateDialog.id); setDeactivateDialog(null) }}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >ปิดใช้งาน</button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
