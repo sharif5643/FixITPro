@@ -51,6 +51,7 @@ interface CustomerDetail extends Customer {
 const REPAIR_STATUS_LABEL: Partial<Record<RepairStatus, string>> = {
   RECEIVED: 'รับงาน', DIAGNOSING: 'ตรวจสอบ', WAITING_APPROVAL: 'รออนุมัติ',
   APPROVED: 'อนุมัติแล้ว', WAITING_PARTS: 'รออะไหล่', IN_PROGRESS: 'กำลังซ่อม',
+  QC_PENDING: 'รอ QC', READY_PICKUP: 'รอรับสินค้า',
   COMPLETED: 'ซ่อมเสร็จ', DELIVERED: 'ส่งคืนแล้ว', CANCELLED: 'ยกเลิก',
 }
 
