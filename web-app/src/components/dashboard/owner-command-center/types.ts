@@ -59,3 +59,34 @@ export interface SmartInsight {
   text: string
   level: 'critical' | 'warning' | 'info' | 'positive'
 }
+
+// ── Sprint 2: Operational Intelligence ───────────────────────────────────────
+
+export interface LowStockItem {
+  id: string
+  productId: string
+  name: string
+  sku: string
+  stock: number
+  minStock: number
+  branchId: string
+  branchName: string
+  stockCode: string | null
+  severity: 'OUT_OF_STOCK' | 'LOW_STOCK'
+}
+
+export interface CustomerDebtItem {
+  customerId: string
+  name: string
+  phone: string
+  totalDebt: number
+  repairCount: number
+}
+
+export interface DailyPriority {
+  id: string
+  text: string
+  level: 'critical' | 'warning' | 'info'
+  link: string
+  linkLabel: string
+}
