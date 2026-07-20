@@ -6,6 +6,23 @@ All notable changes to the Premium UX redesign on branch `feature/premium-ui-v2`
 
 ## [Unreleased] — Phase A: Premium UX Completion
 
+### Sprint 1.12 — 2026-07-20 · Commit `e83c90b`
+
+#### Changed — Final Dark Mode Token Cleanup (6 files)
+- **transfers** — amber banner `dark:border-amber-700/60`; skeleton `dark:bg-slate-700/60`
+- **analytics** — active bucket border `dark:border-blue-500/60`
+- **branches** — error banner `dark:border-red-700/60`
+- **settings/hardware** — status result card `dark:border-*-700/60 dark:bg-*-900/20`
+- **settings/line** — info Card `dark:border-blue-700/60`
+- **notifications** — badge `dark:bg-slate-700/60`
+
+#### QA
+- TypeScript: 0 errors
+- Build: ✓ Compiled successfully (107/107 pages)
+- Dark mode scan: 0 structural `bg-white rounded-xl/2xl` missing dark mode in entire dashboard
+
+---
+
 ### Sprint 1.8–1.10 — 2026-07-20 · Commits `c1bbd27` `d3d1c49` `1d1ffc2` `083749c`
 
 #### Changed — Global Dark Mode Completion (40+ files)
