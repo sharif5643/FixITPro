@@ -287,7 +287,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
           <div className="py-4 space-y-4">
             <div className="flex flex-col items-center gap-2 text-center">
               <CheckCircle2 className="h-10 w-10 text-green-500" />
-              <p className="font-semibold text-gray-900">เลขงาน: {createdRepair.ticketNumber}</p>
+              <p className="font-semibold text-slate-900 dark:text-white">เลขงาน: {createdRepair.ticketNumber}</p>
               <p className="text-sm text-muted-foreground">
                 {Platform.isNative() ? 'สร้างงานซ่อมสำเร็จ' : 'เลือกรูปแบบพิมพ์ใบรับงานซ่อม'}
               </p>
@@ -336,7 +336,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-blue-600 shrink-0" />
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">{selectedCustomer.name}</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{selectedCustomer.name}</p>
                         {selectedCustomer.phone && <p className="text-xs text-muted-foreground">{selectedCustomer.phone}</p>}
                       </div>
                     </div>

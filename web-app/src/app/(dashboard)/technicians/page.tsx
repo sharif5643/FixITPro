@@ -37,7 +37,7 @@ function RankBadge({ rank }: { rank: number }) {
   if (rank === 2) return <span className="text-lg">🥈</span>
   if (rank === 3) return <span className="text-lg">🥉</span>
   return (
-    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-xs font-bold text-gray-600">
+    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300">
       {rank}
     </span>
   )
@@ -111,7 +111,7 @@ export default function TechniciansPage() {
                 'rounded-full px-3 py-1 text-xs font-semibold transition-all border',
                 (!customStart && !customEnd) && preset === p.key
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400',
+                  : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-slate-400 dark:hover:border-slate-500',
               ].join(' ')}
             >
               {p.label}
@@ -153,14 +153,14 @@ export default function TechniciansPage() {
             <Users className="h-4 w-4 text-blue-500" />
             <p className="text-xs text-muted-foreground">ช่างซ่อมทั้งหมด</p>
           </div>
-          <p className="text-xl font-bold text-gray-900">{techs.length}</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-white">{techs.length}</p>
         </div>
         <div className="bg-white rounded-xl border p-4">
           <div className="flex items-center gap-2 mb-1">
             <Wrench className="h-4 w-4 text-green-500" />
             <p className="text-xs text-muted-foreground">งานซ่อมสำเร็จ</p>
           </div>
-          <p className="text-xl font-bold text-gray-900">{totals.completed}</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-white">{totals.completed}</p>
           <p className="text-xs text-muted-foreground">จาก {totals.total} งาน</p>
         </div>
         <div className="bg-white rounded-xl border p-4">
@@ -212,7 +212,7 @@ export default function TechniciansPage() {
                       <RankBadge rank={t.rank ?? 0} />
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-gray-900">{t.name}</p>
+                      <p className="font-semibold text-slate-900 dark:text-white">{t.name}</p>
                       <p className="text-xs text-muted-foreground">{t.phone ?? t.email}</p>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -222,11 +222,11 @@ export default function TechniciansPage() {
                       <span className="font-semibold text-green-700">{t.kpi.completedRepairs}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={t.kpi.cancellationRate >= 15 ? 'text-red-600 font-semibold' : 'text-gray-600'}>
+                      <span className={t.kpi.cancellationRate >= 15 ? 'text-red-600 font-semibold' : 'text-slate-600 dark:text-slate-400'}>
                         {t.kpi.cancellationRate.toFixed(1)}%
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center text-xs text-gray-600">
+                    <td className="px-4 py-3 text-center text-xs text-slate-600 dark:text-slate-400">
                       {t.kpi.avgRepairHours != null
                         ? t.kpi.avgRepairHours < 24
                           ? `${t.kpi.avgRepairHours.toFixed(1)} ชม.`
@@ -236,7 +236,7 @@ export default function TechniciansPage() {
                     <td className="px-4 py-3 text-right tabular-nums font-semibold text-purple-700">
                       {formatThaiMoney(t.kpi.revenue)}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-sm text-gray-700">
+                    <td className="px-4 py-3 text-right tabular-nums text-sm text-slate-700 dark:text-slate-300">
                       {formatThaiMoney(t.kpi.laborRevenue)}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -285,7 +285,7 @@ export default function TechniciansPage() {
                 <div className="flex items-center gap-2">
                   <RankBadge rank={t.rank ?? 0} />
                   <div>
-                    <p className="font-semibold text-gray-900">{t.name}</p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{t.name}</p>
                     <p className="text-xs text-muted-foreground">{t.phone ?? '—'}</p>
                   </div>
                 </div>
@@ -309,7 +309,7 @@ export default function TechniciansPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 text-xs text-gray-600">
+              <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {t.kpi.avgRepairHours != null

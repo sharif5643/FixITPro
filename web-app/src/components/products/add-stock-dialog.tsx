@@ -170,7 +170,7 @@ export function AddStockDialog({
           {/* ── Product: pre-filled OR picker ── */}
           {propProduct ? (
             <div className="rounded-lg border bg-slate-50 px-3 py-2.5">
-              <p className="text-sm font-semibold text-gray-900 truncate">{propProduct.name}</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{propProduct.name}</p>
               <p className="text-xs text-muted-foreground font-mono mt-0.5">{propProduct.sku}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 สต็อกปัจจุบัน:{' '}
@@ -205,7 +205,7 @@ export function AddStockDialog({
                           onClick={() => { setPickedProduct(p); setProductSearch('') }}
                           className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b last:border-0 transition-colors"
                         >
-                          <p className="font-medium text-gray-900 truncate">{p.name}</p>
+                          <p className="font-medium text-slate-900 dark:text-white truncate">{p.name}</p>
                           <p className="text-xs text-muted-foreground font-mono">{p.sku}</p>
                         </button>
                       ))
@@ -215,7 +215,7 @@ export function AddStockDialog({
               ) : (
                 <div className="mt-1 flex items-center gap-2 rounded-lg border bg-green-50 border-green-200 px-3 py-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{pickedProduct.name}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{pickedProduct.name}</p>
                     <p className="text-xs text-muted-foreground font-mono">{pickedProduct.sku}</p>
                   </div>
                   <button

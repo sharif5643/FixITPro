@@ -182,7 +182,7 @@ function SerialPicker({
                     ? 'bg-blue-600 text-white border-blue-600'
                     : disabled
                       ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700/60 cursor-not-allowed'
-                      : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
+                      : 'bg-white dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20',
                 )}
               >
                 {isSelected

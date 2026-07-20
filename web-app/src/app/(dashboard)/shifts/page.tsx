@@ -256,7 +256,7 @@ export default function ShiftsPage() {
           </div>
           <div className="space-y-4">
             {/* Meta */}
-            <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-gray-700">
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-slate-700 dark:text-slate-300">
               <span className="flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5 text-muted-foreground" />
                 {currentShift.user.name}
@@ -581,7 +581,7 @@ export default function ShiftsPage() {
                 <Label htmlFor="closeBalance">เงินสดจริง ณ ปิดกะ (บาท)</Label>
                 {currentShift?.expectedCashBalance !== undefined && (
                   <span className="text-xs text-muted-foreground">
-                    คาด: <span className="font-semibold text-gray-700">{formatThaiMoney(Number(currentShift.expectedCashBalance))}</span>
+                    คาด: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(Number(currentShift.expectedCashBalance))}</span>
                   </span>
                 )}
               </div>

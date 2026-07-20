@@ -458,7 +458,7 @@ export default function SalesPage() {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setHeldBillsOpen(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div
-            className="relative bg-white dark:bg-[#1E293B]rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[70vh] overflow-hidden flex flex-col shadow-2xl"
+            className="relative bg-white dark:bg-[#1E293B] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[70vh] overflow-hidden flex flex-col shadow-2xl dark:shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3.5 border-b dark:border-slate-700/60 shrink-0">
