@@ -28,6 +28,7 @@ import { BranchIssueList } from '@/components/dashboard/branch-issue-list'
 import { DashboardEmptyState } from '@/components/dashboard/dashboard-empty-state'
 import { ExecutiveMobileDashboard } from '@/components/dashboard/executive-mobile-dashboard'
 import { CashDrawerWidget } from '@/components/dashboard/cash-drawer-widget'
+import { OwnerCommandCenter } from '@/components/dashboard/owner-command-center/index'
 import type { OperationalAlert } from '@/components/alerts/operational-alert-center'
 import type { Repair } from '@/types'
 
@@ -699,6 +700,11 @@ export default function DashboardPage() {
   const periodLabel = isToday
     ? format(new Date(), "EEEEที่ d MMMM yyyy", { locale: th })
     : `${startDate} ถึง ${endDate}`
+
+  // Owner Command Center replaces the entire dashboard for OWNER / SUPER_ADMIN
+  if (isOwner) {
+    return <OwnerCommandCenter />
+  }
 
   return (
     <>
