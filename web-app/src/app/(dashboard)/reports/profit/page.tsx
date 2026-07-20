@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -142,7 +142,7 @@ function StatCard({
   icon: React.ElementType; color: string; onClick?: () => void
 }) {
   const inner = (
-    <div className="rounded-xl border bg-white p-4 flex items-start gap-3 shadow-sm h-full">
+    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 flex items-start gap-3 h-full">
       <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${color}`}>
         <Icon className="h-5 w-5 text-white" />
       </div>
@@ -405,13 +405,13 @@ export default function ProfitReportPage() {
               <div className="flex rounded-lg border overflow-hidden text-sm">
                 <button
                   onClick={() => setMode('month')}
-                  className={`px-3 py-1.5 ${mode === 'month' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                  className={`px-3 py-1.5 ${mode === 'month' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
                 >
                   รายเดือน
                 </button>
                 <button
                   onClick={() => setMode('custom')}
-                  className={`px-3 py-1.5 ${mode === 'custom' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                  className={`px-3 py-1.5 ${mode === 'custom' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
                 >
                   กำหนดเอง
                 </button>
@@ -481,7 +481,7 @@ export default function ProfitReportPage() {
             </div>
 
             {/* Profit breakdown by segment — clickable bars */}
-            <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
               <h2 className="font-semibold text-slate-800 mb-4">กำไรแยกตามหมวด</h2>
               <div className="space-y-5">
                 <ProfitBar
@@ -513,7 +513,7 @@ export default function ProfitReportPage() {
               {/* POS */}
               <button
                 onClick={() => openDrawer('pos')}
-                className="rounded-xl border bg-white p-4 shadow-sm text-left hover:border-blue-300 hover:shadow-md transition-all group"
+                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-left hover:border-blue-300 hover:-translate-y-0.5 dark:hover:border-blue-700 transition-all group"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -545,7 +545,7 @@ export default function ProfitReportPage() {
               {/* Repair */}
               <button
                 onClick={() => openDrawer('repair')}
-                className="rounded-xl border bg-white p-4 shadow-sm text-left hover:border-purple-300 hover:shadow-md transition-all group"
+                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-left hover:border-purple-300 hover:-translate-y-0.5 dark:hover:border-purple-700 transition-all group"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -581,7 +581,7 @@ export default function ProfitReportPage() {
               {/* Package */}
               <button
                 onClick={() => openDrawer('package')}
-                className="rounded-xl border bg-white p-4 shadow-sm text-left hover:border-teal-300 hover:shadow-md transition-all group"
+                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-left hover:border-teal-300 hover:-translate-y-0.5 dark:hover:border-teal-700 transition-all group"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -609,7 +609,7 @@ export default function ProfitReportPage() {
               {/* Expense */}
               <button
                 onClick={() => openDrawer('expense')}
-                className="rounded-xl border bg-white p-4 shadow-sm text-left hover:border-orange-300 hover:shadow-md transition-all group"
+                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-left hover:border-orange-300 hover:-translate-y-0.5 dark:hover:border-orange-700 transition-all group"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">

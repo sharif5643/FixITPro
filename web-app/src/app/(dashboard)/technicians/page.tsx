@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -101,7 +101,7 @@ export default function TechniciansPage() {
       />
 
       {/* Date filter */}
-      <div className="bg-white rounded-xl border p-4 space-y-3">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((p) => (
             <button
@@ -148,14 +148,14 @@ export default function TechniciansPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <Users className="h-4 w-4 text-blue-500" />
             <p className="text-xs text-muted-foreground">ช่างซ่อมทั้งหมด</p>
           </div>
           <p className="text-xl font-bold text-slate-900 dark:text-white">{techs.length}</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <Wrench className="h-4 w-4 text-green-500" />
             <p className="text-xs text-muted-foreground">งานซ่อมสำเร็จ</p>
@@ -163,7 +163,7 @@ export default function TechniciansPage() {
           <p className="text-xl font-bold text-slate-900 dark:text-white">{totals.completed}</p>
           <p className="text-xs text-muted-foreground">จาก {totals.total} งาน</p>
         </div>
-        <div className="bg-white rounded-xl border p-4">
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="h-4 w-4 text-purple-500" />
             <p className="text-xs text-muted-foreground">รายได้รวม</p>
@@ -175,7 +175,7 @@ export default function TechniciansPage() {
       </div>
 
       {/* Leaderboard table — desktop */}
-      <div className="hidden md:block bg-white rounded-xl border overflow-hidden">
+      <div className="hidden md:block bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-48 gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -266,19 +266,19 @@ export default function TechniciansPage() {
       {/* Mobile cards */}
       <div className="md:hidden space-y-3">
         {isLoading ? (
-          <div className="flex items-center justify-center h-40 bg-white rounded-xl border gap-2 text-muted-foreground">
+          <div className="flex items-center justify-center h-40 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>กำลังโหลด...</span>
           </div>
         ) : techs.length === 0 ? (
-          <div className="bg-white rounded-xl border">
+          <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
             <EmptyState preset="technicians" />
           </div>
         ) : (
           techs.map((t) => (
             <div
               key={t.id}
-              className="bg-white rounded-xl border p-4 space-y-3"
+              className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3"
               onClick={() => router.push(`/technicians/${t.id}`)}
             >
               <div className="flex items-start justify-between gap-2">

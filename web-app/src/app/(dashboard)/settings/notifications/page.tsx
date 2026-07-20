@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -117,7 +117,7 @@ export default function NotificationSettingsPage() {
       />
 
       {/* Master toggle */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <SectionHeader
           icon={BellRing}
           title="การแจ้งเตือนอัจฉริยะ"
@@ -132,7 +132,7 @@ export default function NotificationSettingsPage() {
       </div>
 
       {/* Sound settings */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <SectionHeader
           icon={Volume2}
           title="เสียงแจ้งเตือน"
@@ -209,7 +209,7 @@ export default function NotificationSettingsPage() {
       </div>
 
       {/* Alert types */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <SectionHeader
           icon={Bell}
           title="ประเภทการแจ้งเตือน"
@@ -264,7 +264,7 @@ export default function NotificationSettingsPage() {
       </div>
 
       {/* Repeat interval */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <SectionHeader
           icon={Settings2}
           title="ความถี่การตรวจสอบ"

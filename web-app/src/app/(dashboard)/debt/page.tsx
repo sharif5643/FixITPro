@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
@@ -718,7 +718,7 @@ export default function DebtPage() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-20 bg-white rounded-xl border animate-pulse" />
+            <div key={i} className="h-20 bg-slate-100 dark:bg-slate-700/60 rounded-2xl border border-slate-100 dark:border-slate-700/60 animate-pulse" />
           ))}
         </div>
       ) : groups.length === 0 ? (

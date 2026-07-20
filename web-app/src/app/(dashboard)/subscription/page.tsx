@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -131,7 +131,7 @@ export default function SubscriptionPage() {
       )}
 
       {/* Status Card */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50">
@@ -199,7 +199,7 @@ export default function SubscriptionPage() {
       </div>
 
       {/* Renewal History */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
         <div className="flex items-center gap-2 mb-5">
           <RefreshCw className="h-4 w-4 text-blue-600" />
           <h2 className="font-semibold text-slate-900 dark:text-white">ประวัติการต่ออายุ</h2>

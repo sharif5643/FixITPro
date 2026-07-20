@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -135,7 +135,7 @@ function PermissionPresetPanel({
           {presetPerms.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {presetPerms.slice(0, 8).map((p) => (
-                <span key={p} className="text-[10px] bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-600">
+                <span key={p} className="text-[10px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded px-1.5 py-0.5 text-slate-600">
                   {p}
                 </span>
               ))}
@@ -447,7 +447,7 @@ function ResetPasswordDialog({
             <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 space-y-2">
               <p className="text-sm font-medium text-amber-800">รหัสผ่านชั่วคราว (แสดงเพียงครั้งเดียว)</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-white border border-amber-300 px-3 py-2 text-base font-mono font-bold text-amber-900 tracking-wider">
+                <code className="flex-1 rounded bg-white dark:bg-[#1E293B] border border-amber-300 dark:border-amber-700/60 text-slate-900 dark:text-white px-3 py-2 text-base font-mono font-bold text-amber-900 tracking-wider">
                   {tempPassword}
                 </code>
                 <Button size="sm" variant="outline" className="shrink-0 h-9 border-amber-300" onClick={handleCopy}>
@@ -550,7 +550,7 @@ export default function EmployeesPage() {
           <span className="text-sm">กำลังโหลด...</span>
         </div>
       ) : users.length === 0 ? (
-        <div className="rounded-xl border bg-slate-50">
+        <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60">
           <EmptyState preset="default" title="ยังไม่มีพนักงาน" description="เพิ่มพนักงานเพื่อเริ่มต้นใช้งานระบบ" icon={Users} />
         </div>
       ) : (

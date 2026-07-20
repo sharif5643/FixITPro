@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -139,7 +139,7 @@ export default function BackupPage() {
       {/* Status card */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* pg_dump status */}
-        <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3 p-4 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
           <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
             status?.pgDumpAvailable ? 'bg-green-100' : 'bg-red-100'
           }`}>
@@ -158,7 +158,7 @@ export default function BackupPage() {
         </div>
 
         {/* Backup directory */}
-        <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3 p-4 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
           <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center">
             <FolderOpen className="h-5 w-5 text-blue-600" />
           </div>
@@ -171,7 +171,7 @@ export default function BackupPage() {
         </div>
 
         {/* Last backup */}
-        <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3 p-4 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
           <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center">
             <Clock className="h-5 w-5 text-amber-600" />
           </div>
@@ -265,7 +265,7 @@ export default function BackupPage() {
             {files.map((f, idx) => (
               <div
                 key={f.filename}
-                className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-colors"
+                className="flex items-center gap-4 p-4 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-2xl hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
               >
                 <div className="h-9 w-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
                   <Database className="h-4 w-4 text-slate-500" />

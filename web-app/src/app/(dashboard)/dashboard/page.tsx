@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -370,7 +370,7 @@ function RecentRepairsWidget({ repairs, isLoading }: { repairs: Repair[]; isLoad
     <div className="space-y-1.5">
       {items.map(repair => (
         <Link key={repair.id} href="/repairs">
-          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-800/30 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
+          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-800/30 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-700/40 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{repair.ticketNumber}</span>
@@ -523,7 +523,7 @@ function RecentSalesWidget({
     <div className="space-y-1.5">
       {sales.map(s => (
         <Link key={s.id} href="/sales">
-          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-800/30 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
+          <div className="group flex items-center gap-3 rounded-lg border border-transparent bg-slate-50 dark:bg-slate-800/30 px-3 py-2.5 hover:bg-white dark:hover:bg-slate-700/40 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-sm transition-all cursor-pointer">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">{s.receiptNumber}</span>

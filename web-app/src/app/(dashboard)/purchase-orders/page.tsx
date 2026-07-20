@@ -881,7 +881,7 @@ export default function PurchaseOrdersPage() {
                         key={m}
                         type="button"
                         onClick={() => setPayMethod(m)}
-                        className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs font-medium transition-all ${payMethod === m ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-gray-200 dark:border-slate-700/60 hover:border-slate-300 dark:border-slate-600/60 dark:hover:border-slate-600 dark:text-slate-300'}`}
+                        className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs font-medium transition-all ${payMethod === m ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700/60 hover:border-slate-300 dark:border-slate-600/60 dark:hover:border-slate-600 dark:text-slate-300'}`}
                       >
                         {m === 'CASH' ? <Banknote className="h-5 w-5" /> : m === 'TRANSFER' ? <ArrowUpFromLine className="h-5 w-5" /> : <CreditCard className="h-5 w-5" />}
                         {PAY_METHOD_LABEL[m]}

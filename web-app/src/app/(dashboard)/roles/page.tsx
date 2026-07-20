@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -103,7 +103,7 @@ function RoleCard({ rolePerms }: { rolePerms: RolePerms }) {
       </div>
 
       {/* Permission groups */}
-      <div className="p-4 space-y-4 bg-white">
+      <div className="p-4 space-y-4 bg-white dark:bg-[#1E293B]">
         {PERMISSION_GROUPS.map((group) => (
           <div key={group.label}>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
