@@ -572,7 +572,7 @@ export default function EmployeesPage() {
                 {/* Avatar */}
                 <div className={cn(
                   'flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold shrink-0',
-                  user.isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500',
+                  user.isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-500 dark:text-slate-400',
                 )}>
                   {user.name.slice(0, 1).toUpperCase()}
                 </div>

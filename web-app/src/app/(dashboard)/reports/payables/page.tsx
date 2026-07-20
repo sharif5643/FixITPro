@@ -125,7 +125,7 @@ export default function SupplierAgingPage() {
                     {data.suppliers.map((s) => (
                       <tr key={s.id} className={cn('border-b last:border-0 hover:bg-slate-50/60', severityColor(s))}>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-gray-900">{s.name}</p>
+                          <p className="font-medium text-slate-900 dark:text-white">{s.name}</p>
                           {s.creditDays > 0 && (
                             <p className="text-xs text-slate-400">เครดิต {s.creditDays} วัน</p>
                           )}
@@ -154,7 +154,7 @@ export default function SupplierAgingPage() {
                   </tbody>
                   <tfoot>
                     <tr className="border-t bg-slate-50">
-                      <td className="px-4 py-2.5 text-xs font-semibold text-gray-500">รวม</td>
+                      <td className="px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">รวม</td>
                       <td className="px-4 py-2.5 text-right font-bold tabular-nums">{formatThaiMoney(data.totals.b0to30)}</td>
                       <td className="px-4 py-2.5 text-right font-bold tabular-nums text-yellow-700">{formatThaiMoney(data.totals.b31to60)}</td>
                       <td className="px-4 py-2.5 text-right font-bold tabular-nums text-orange-700">{formatThaiMoney(data.totals.b61to90)}</td>
@@ -175,8 +175,8 @@ export default function SupplierAgingPage() {
                     onClick={() => router.push(`/suppliers/${s.id}/payables`)}
                   >
                     <div className="flex items-center justify-between">
-                      <p className="font-semibold text-gray-900">{s.name}</p>
-                      <p className="font-bold text-gray-900">{formatThaiMoney(s.total)}</p>
+                      <p className="font-semibold text-slate-900 dark:text-white">{s.name}</p>
+                      <p className="font-bold text-slate-900 dark:text-white">{formatThaiMoney(s.total)}</p>
                     </div>
                     <div className="grid grid-cols-4 gap-1 text-xs">
                       {[

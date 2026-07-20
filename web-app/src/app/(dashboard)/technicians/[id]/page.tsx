@@ -68,7 +68,7 @@ function BarChart({
 
   return (
     <div>
-      <p className="text-xs font-medium text-gray-600 mb-1">{label}</p>
+      <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{label}</p>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
@@ -143,7 +143,7 @@ function ClaimGauge({ rate }: { rate: number }) {
         <span className="text-xs text-muted-foreground">อัตราเคลม (warranty)</span>
         <span className="text-sm font-bold" style={{ color }}>{rate.toFixed(1)}% — {label}</span>
       </div>
-      <div className="h-3 rounded-full bg-gray-100 overflow-hidden">
+      <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
         <div
           className="h-full rounded-full transition-all"
           style={{ width: `${clamped}%`, backgroundColor: color }}
@@ -160,7 +160,7 @@ function KpiCard({
   label,
   value,
   sub,
-  color = 'text-gray-900',
+  color = 'text-slate-900 dark:text-white',
   bg = 'bg-white',
 }: {
   icon: React.ElementType
@@ -190,7 +190,7 @@ const STATUS_LABEL: Record<string, string> = {
   COMPLETED: 'ซ่อมเสร็จ', DELIVERED: 'ส่งคืน', CANCELLED: 'ยกเลิก',
 }
 const STATUS_COLOR: Record<string, string> = {
-  DELIVERED:  'bg-gray-100 text-gray-700',
+  DELIVERED:  'bg-slate-100 text-slate-700 dark:text-slate-300',
   COMPLETED:  'bg-green-100 text-green-700',
   CANCELLED:  'bg-red-100 text-red-700',
   IN_PROGRESS:'bg-purple-100 text-purple-700',
@@ -247,7 +247,7 @@ export default function TechnicianProfilePage() {
       <div className="flex items-center gap-2">
         <Link
           href="/technicians"
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-gray-900 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-slate-900 dark:text-white transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           ช่างซ่อม
@@ -261,7 +261,7 @@ export default function TechnicianProfilePage() {
             {tech.name.charAt(0).toUpperCase()}
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{tech.name}</h1>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">{tech.name}</h1>
             <p className="text-sm text-muted-foreground">{tech.phone ?? tech.email}</p>
             <span className={`inline-block mt-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${tech.isActive ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700/60' : 'bg-slate-50 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700/60'}`}>
               {tech.isActive ? 'ใช้งานอยู่' : 'ไม่ใช้งาน'}
@@ -281,7 +281,7 @@ export default function TechnicianProfilePage() {
                 'rounded-full px-3 py-1 text-xs font-semibold transition-all border',
                 (!customStart && !customEnd) && preset === p.key
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400',
+                  : 'bg-white text-slate-600 dark:text-slate-400 border-gray-200 hover:border-gray-400',
               ].join(' ')}
             >
               {p.label}
@@ -303,7 +303,7 @@ export default function TechnicianProfilePage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KpiCard icon={Wrench}       label="งานทั้งหมด"   value={String(kpi.totalRepairs)}                       sub={`กำลังซ่อม ${kpi.inProgressRepairs} งาน`} />
         <KpiCard icon={CheckCircle2} label="สำเร็จ"        value={String(kpi.completedRepairs)}                  color="text-green-700" bg="bg-green-50/30" />
-        <KpiCard icon={XCircle}      label="ยกเลิก"        value={`${kpi.cancellationRate.toFixed(1)}%`}         color={kpi.cancellationRate >= 15 ? 'text-red-600' : 'text-gray-700'} sub={`${kpi.cancelledRepairs} งาน`} />
+        <KpiCard icon={XCircle}      label="ยกเลิก"        value={`${kpi.cancellationRate.toFixed(1)}%`}         color={kpi.cancellationRate >= 15 ? 'text-red-600' : 'text-slate-700 dark:text-slate-300'} sub={`${kpi.cancelledRepairs} งาน`} />
         <KpiCard icon={Clock}        label="เวลาเฉลี่ย"    value={
           kpi.avgRepairHours != null
             ? kpi.avgRepairHours < 24
@@ -313,13 +313,13 @@ export default function TechnicianProfilePage() {
         } />
         <KpiCard icon={TrendingUp}   label="รายได้รวม"     value={formatThaiMoney(kpi.revenue)}                  color="text-purple-700" bg="bg-purple-50/30" />
         <KpiCard icon={DollarSign}   label="ค่าแรง"         value={formatThaiMoney(kpi.laborRevenue)}             color="text-blue-700" />
-        <KpiCard icon={Hammer}       label="ต้นทุนอะไหล่"  value={formatThaiMoney(kpi.partsCost)}                color="text-gray-700" />
+        <KpiCard icon={Hammer}       label="ต้นทุนอะไหล่"  value={formatThaiMoney(kpi.partsCost)}                color="text-slate-700 dark:text-slate-300" />
         <KpiCard icon={RotateCcw}    label="ซ่อมซ้ำ"        value={String(kpi.repeatRepairs)}                     sub="ลูกค้ากลับมา 30 วัน" />
       </div>
 
       {/* Warranty claim gauge */}
       <div className="bg-white rounded-xl border p-4 space-y-3">
-        <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
           <ShieldAlert className="h-4 w-4 text-amber-500" />
           อัตราเคลมการรับประกัน
         </h2>
@@ -332,7 +332,7 @@ export default function TechnicianProfilePage() {
       {/* Charts */}
       {tech.daily.length > 0 && (
         <div className="bg-white rounded-xl border p-5 space-y-6">
-          <h2 className="text-sm font-semibold text-gray-900">กราฟรายวัน</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">กราฟรายวัน</h2>
           <BarChart
             data={tech.daily}
             valueKey="repairs"
@@ -353,7 +353,7 @@ export default function TechnicianProfilePage() {
       {/* Recent repairs table */}
       <div className="bg-white rounded-xl border overflow-hidden">
         <div className="px-5 py-4 border-b flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">ประวัติงานซ่อม</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">ประวัติงานซ่อม</h2>
           <span className="text-xs text-muted-foreground">แสดง {tech.recentRepairs.length} รายการ</span>
         </div>
 
@@ -384,18 +384,18 @@ export default function TechnicianProfilePage() {
                       <td className="px-4 py-2.5 font-mono text-xs font-semibold text-blue-700">
                         {r.ticketNumber}
                       </td>
-                      <td className="px-4 py-2.5 text-sm text-gray-700">
+                      <td className="px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300">
                         {r.customer?.name ?? '—'}
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-600">
+                      <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">
                         {r.deviceBrand} {r.deviceModel}
                       </td>
                       <td className="px-4 py-2.5">
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[r.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[r.status] ?? 'bg-slate-100 text-slate-600 dark:text-slate-400'}`}>
                           {STATUS_LABEL[r.status] ?? r.status}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-gray-800">
+                      <td className="px-4 py-2.5 text-right tabular-nums text-sm font-semibold text-slate-800 dark:text-slate-100">
                         {r.finalCost ? formatThaiMoney(Number(r.finalCost)) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
@@ -418,14 +418,14 @@ export default function TechnicianProfilePage() {
                 <div key={r.id} className="px-4 py-3 space-y-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-mono text-xs font-semibold text-blue-700">{r.ticketNumber}</p>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[r.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_COLOR[r.status] ?? 'bg-slate-100 text-slate-600 dark:text-slate-400'}`}>
                       {STATUS_LABEL[r.status] ?? r.status}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-800">{r.deviceBrand} {r.deviceModel}</p>
+                  <p className="text-sm text-slate-800 dark:text-slate-100">{r.deviceBrand} {r.deviceModel}</p>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{r.customer?.name ?? '—'}</span>
-                    <span className="font-semibold text-gray-700 tabular-nums">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
                       {r.finalCost ? formatThaiMoney(Number(r.finalCost)) : '—'}
                     </span>
                   </div>

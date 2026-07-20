@@ -383,7 +383,7 @@ export default function DailyClosingReportPage() {
         {data.expenses.items.map((e: any) => (
           <div key={e.id} className="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-xl p-3 space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-600">{e.category?.name ?? '-'}</span>
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">{e.category?.name ?? '-'}</span>
               <span className="font-bold text-sm tabular-nums">{formatThaiMoney(Number(e.amount))}</span>
             </div>
             <p className="text-sm">{e.description}</p>
@@ -658,7 +658,7 @@ export default function DailyClosingReportPage() {
                     }}
                     className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-3 text-center hover:border-blue-200 dark:hover:border-blue-700/50 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_8px_24px_rgba(0,0,0,0.40)] transition-all duration-200 group"
                   >
-                    <p className={`text-2xl font-bold tabular-nums ${key === 'OVERDUE' ? 'text-red-600' : 'text-gray-900'}`}>{val}</p>
+                    <p className={`text-2xl font-bold tabular-nums ${key === 'OVERDUE' ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>{val}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
                     <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 mx-auto mt-1 transition-opacity" />
                   </button>
@@ -677,7 +677,7 @@ export default function DailyClosingReportPage() {
                   <div key={shift.id} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-bold text-gray-900 dark:text-white">{shift.user.name}</p>
+                        <p className="font-bold text-slate-900 dark:text-white dark:text-white">{shift.user.name}</p>
                         <p className="text-xs text-muted-foreground">
                           เปิด {format(new Date(shift.openedAt), 'HH:mm', { locale: th })}
                           {shift.closedAt && ` · ปิด ${format(new Date(shift.closedAt), 'HH:mm', { locale: th })}`}
@@ -743,7 +743,7 @@ export default function DailyClosingReportPage() {
                     ))}
                   </div>
                   <div className="flex items-center justify-between pt-1 border-t dark:border-slate-700/60">
-                    <span className="text-sm font-medium text-gray-700 dark:text-slate-200">รวมค่าใช้จ่ายทั้งหมด</span>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">รวมค่าใช้จ่ายทั้งหมด</span>
                     <button
                       onClick={() => openDrawer('ค่าใช้จ่ายวันนี้', expenseDrawer)}
                       className="flex items-center gap-1 font-bold text-orange-700 tabular-nums hover:underline"
@@ -768,26 +768,26 @@ export default function DailyClosingReportPage() {
                   label="บิลยกเลิก"
                   value={String(data.revenue.voided.count)}
                   sub={data.revenue.voided.count > 0 ? formatThaiMoney(data.revenue.voided.total) : undefined}
-                  color={data.revenue.voided.count > 0 ? 'text-red-600' : 'text-gray-500'}
+                  color={data.revenue.voided.count > 0 ? 'text-red-600' : 'text-slate-500 dark:text-slate-400'}
                   onClick={() => openDrawer('บิลที่ถูกยกเลิก', voidDrawer)}
                 />
                 <MetricCard
                   label="คืนเงิน"
                   value={String(data.revenue.refunds.count)}
                   sub={data.revenue.refunds.count > 0 ? formatThaiMoney(data.revenue.refunds.total) : undefined}
-                  color={data.revenue.refunds.count > 0 ? 'text-orange-600' : 'text-gray-500'}
+                  color={data.revenue.refunds.count > 0 ? 'text-orange-600' : 'text-slate-500 dark:text-slate-400'}
                   onClick={() => openDrawer('รายการคืนเงิน', refundDrawer)}
                 />
                 <MetricCard
                   label="งานซ่อมเกินกำหนด"
                   value={String(data.repairSummary.overdue)}
-                  color={data.repairSummary.overdue > 0 ? 'text-red-600' : 'text-gray-500'}
+                  color={data.repairSummary.overdue > 0 ? 'text-red-600' : 'text-slate-500 dark:text-slate-400'}
                   onClick={() => openDrawer('งานซ่อมเกินกำหนด', overdueDrawer)}
                 />
                 <MetricCard
                   label="สินค้าใกล้หมด"
                   value={String(data.lowStock.count)}
-                  color={data.lowStock.count > 0 ? 'text-orange-600' : 'text-gray-500'}
+                  color={data.lowStock.count > 0 ? 'text-orange-600' : 'text-slate-500 dark:text-slate-400'}
                   icon={Package}
                   onClick={() => openDrawer('สินค้าใกล้หมดสต็อก', lowStockDrawer)}
                 />

@@ -97,7 +97,7 @@ const REPAIR_STATUS_COLOR: Record<RepairStatus, string> = {
   QC_PENDING:       'bg-indigo-100 text-indigo-700',
   COMPLETED:        'bg-green-100 text-green-700',
   READY_PICKUP:     'bg-emerald-100 text-emerald-700',
-  DELIVERED:        'bg-gray-100 text-gray-700',
+  DELIVERED:        'bg-slate-100 text-slate-700 dark:text-slate-300',
   CANCELLED:        'bg-red-100 text-red-700',
 }
 
@@ -139,7 +139,7 @@ export function CustomerDetailDialog({
             <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-lg font-bold text-gray-900 truncate">{customer.name}</p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-white truncate">{customer.name}</p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {(() => {
                       const tier = getTier(customer._count.sales, customer.totalSpending)
@@ -193,19 +193,19 @@ export function CustomerDetailDialog({
 
               <div className="space-y-1.5 border-t pt-3">
                 {customer.phone && (
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                     <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     {customer.phone}
                   </div>
                 )}
                 {customer.email && (
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                     <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     {customer.email}
                   </div>
                 )}
                 {customer.address && (
-                  <div className="flex items-start gap-2 text-sm text-gray-700">
+                  <div className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
                     <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
                     <span>{customer.address}</span>
                   </div>
@@ -226,7 +226,7 @@ export function CustomerDetailDialog({
             <div>
               <div className="flex items-center gap-2 mb-2.5">
                 <ShoppingCart className="h-4 w-4 text-blue-600" />
-                <p className="font-semibold text-gray-900 text-sm">ประวัติการซื้อ</p>
+                <p className="font-semibold text-slate-900 dark:text-white text-sm">ประวัติการซื้อ</p>
                 <span className="text-xs text-muted-foreground ml-auto">
                   {customer.sales.length < customer._count.sales
                     ? `${customer.sales.length} รายการล่าสุด (จาก ${customer._count.sales})`
@@ -256,7 +256,7 @@ export function CustomerDetailDialog({
                           </td>
                           <td className="px-3 py-2">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SALE_STATUS_COLOR[sale.status] ?? 'bg-gray-100 text-gray-700'}`}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SALE_STATUS_COLOR[sale.status] ?? 'bg-slate-100 text-slate-700 dark:text-slate-300'}`}
                             >
                               {SALE_STATUS_LABEL[sale.status] ?? sale.status}
                             </span>
@@ -279,7 +279,7 @@ export function CustomerDetailDialog({
             <div>
               <div className="flex items-center gap-2 mb-2.5">
                 <Wrench className="h-4 w-4 text-blue-600" />
-                <p className="font-semibold text-gray-900 text-sm">ประวัติงานซ่อม</p>
+                <p className="font-semibold text-slate-900 dark:text-white text-sm">ประวัติงานซ่อม</p>
                 <span className="text-xs text-muted-foreground ml-auto">
                   {customer.repairs.length < customer._count.repairs
                     ? `${customer.repairs.length} รายการล่าสุด (จาก ${customer._count.repairs})`
@@ -307,12 +307,12 @@ export function CustomerDetailDialog({
                           <td className="px-3 py-2 font-mono font-semibold text-blue-700">
                             {repair.ticketNumber}
                           </td>
-                          <td className="px-3 py-2 text-gray-900">
+                          <td className="px-3 py-2 text-slate-900 dark:text-white">
                             {repair.deviceBrand} {repair.deviceModel}
                           </td>
                           <td className="px-3 py-2">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${REPAIR_STATUS_COLOR[repair.status] ?? 'bg-gray-100 text-gray-700'}`}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${REPAIR_STATUS_COLOR[repair.status] ?? 'bg-slate-100 text-slate-700 dark:text-slate-300'}`}
                             >
                               {REPAIR_STATUS_LABEL[repair.status] ?? repair.status}
                             </span>

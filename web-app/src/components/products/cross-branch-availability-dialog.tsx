@@ -95,7 +95,7 @@ export function CrossBranchAvailabilityDialog({
         <div className="space-y-4 py-1">
           {/* Product info */}
           <div className="rounded-lg border bg-slate-50 px-3 py-2.5">
-            <p className="text-sm font-semibold text-gray-900 truncate">{product?.name}</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{product?.name}</p>
             <p className="text-xs text-muted-foreground font-mono mt-0.5">{product?.sku}</p>
             <p className="text-xs text-red-500 mt-1">ไม่มีสินค้าในสาขานี้</p>
           </div>
@@ -126,16 +126,16 @@ export function CrossBranchAvailabilityDialog({
                         'w-full flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors',
                         isSelected
                           ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500'
-                          : 'border-gray-200 bg-white hover:bg-gray-50',
+                          : 'border-gray-200 bg-white hover:bg-slate-50',
                       )}
                     >
                       <div className="flex items-center gap-3">
                         {isSelected ? (
                           <CheckCircle2 className="h-4 w-4 text-blue-600 shrink-0" />
                         ) : (
-                          <Package className="h-4 w-4 text-gray-400 shrink-0" />
+                          <Package className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
                         )}
-                        <span className={cn('text-sm font-medium', isSelected ? 'text-blue-900' : 'text-gray-800')}>
+                        <span className={cn('text-sm font-medium', isSelected ? 'text-blue-900' : 'text-slate-800 dark:text-slate-100')}>
                           {b.branchName}
                         </span>
                       </div>
@@ -155,7 +155,7 @@ export function CrossBranchAvailabilityDialog({
           {/* Destination */}
           <div>
             <Label className="text-sm font-medium">ส่งมายัง</Label>
-            <div className="mt-1 rounded-md border bg-slate-100 px-3 py-2 text-sm font-medium text-gray-700">
+            <div className="mt-1 rounded-md border bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300">
               {currentBranchName ?? currentBranchId ?? 'สาขาปัจจุบัน'}
             </div>
           </div>

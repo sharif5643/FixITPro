@@ -105,7 +105,7 @@ export function RequestTransferDialog({
         <div className="space-y-4 py-1">
           {/* Product */}
           <div className="rounded-lg border bg-slate-50 px-3 py-2.5">
-            <p className="text-sm font-semibold text-gray-900 truncate">{product?.name}</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{product?.name}</p>
             <p className="text-xs text-muted-foreground font-mono mt-0.5">{product?.sku}</p>
           </div>
 

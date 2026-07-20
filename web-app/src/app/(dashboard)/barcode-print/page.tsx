@@ -78,7 +78,7 @@ function ProductLabel({ product, size }: { product: Product; size: LabelSize }) 
         displayValue={true}
       />
       <p
-        className="text-gray-500 font-mono"
+        className="text-slate-500 dark:text-slate-400 font-mono"
         style={{ fontSize: isSmall ? 5 : isMedium ? 6 : 8 }}
       >
         {product.sku}

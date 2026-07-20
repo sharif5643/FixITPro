@@ -263,7 +263,7 @@ function TypeSection({
               onClick={() => onAddCategory(type.id)}
               className="w-full flex flex-col items-center justify-center py-6 gap-2 rounded-lg border border-dashed text-muted-foreground hover:border-blue-300 hover:text-blue-500 transition-colors"
             >
-              <Tag className="h-7 w-7 text-gray-300" />
+              <Tag className="h-7 w-7 text-slate-300 dark:text-slate-500" />
               <p className="text-sm">ยังไม่มีหมวดหมู่ — คลิกเพื่อเพิ่ม</p>
             </button>
           ) : (
@@ -452,7 +452,7 @@ export default function CategoriesPage() {
       <Dialog open={!!deleteTypeTarget} onOpenChange={(v) => { if (!v) setDeleteTypeTarget(null) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>ยืนยันการลบประเภท</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-700 py-2">
+          <p className="text-sm text-slate-700 dark:text-slate-300 py-2">
             ต้องการลบประเภท <span className="font-semibold">&ldquo;{deleteTypeTarget?.name}&rdquo;</span> ใช่หรือไม่?
           </p>
           <DialogFooter>
@@ -475,7 +475,7 @@ export default function CategoriesPage() {
       <Dialog open={!!deleteCatTarget} onOpenChange={(v) => { if (!v) setDeleteCatTarget(null) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>ยืนยันการลบหมวดหมู่</DialogTitle></DialogHeader>
-          <p className="text-sm text-gray-700 py-2">
+          <p className="text-sm text-slate-700 dark:text-slate-300 py-2">
             ต้องการลบหมวดหมู่ <span className="font-semibold">&ldquo;{deleteCatTarget?.name}&rdquo;</span> ใช่หรือไม่?
           </p>
           <DialogFooter>

@@ -61,7 +61,7 @@ const STATUS_COLOR: Record<RepairStatus, string> = {
   QC_PENDING:       'bg-indigo-100 text-indigo-700',
   COMPLETED:        'bg-green-100 text-green-700',
   READY_PICKUP:     'bg-emerald-100 text-emerald-700',
-  DELIVERED:        'bg-gray-100 text-gray-700',
+  DELIVERED:        'bg-slate-100 text-slate-700 dark:text-slate-300',
   CANCELLED:        'bg-red-100 text-red-700',
 }
 
@@ -88,7 +88,7 @@ function InfoRow({ label, value }: { label: string; value?: React.ReactNode }) {
   return (
     <div className="flex gap-2 text-sm">
       <span className="text-muted-foreground shrink-0 w-28">{label}</span>
-      <span className="font-medium text-gray-900 break-all">{value}</span>
+      <span className="font-medium text-slate-900 dark:text-white break-all">{value}</span>
     </div>
   )
 }
@@ -488,7 +488,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     </button>
                     <button
                       onClick={() => setImeiEditing(false)}
-                      className="h-7 w-7 flex items-center justify-center rounded-md border hover:bg-gray-100"
+                      className="h-7 w-7 flex items-center justify-center rounded-md border hover:bg-slate-100"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -517,7 +517,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         {deviceHistory.filter((h) => h.id !== repair.id).map((h: any) => (
                           <div key={h.id} className="flex items-start justify-between gap-2 text-xs bg-white rounded-lg border px-2.5 py-1.5">
                             <div className="min-w-0">
-                              <p className="font-medium text-gray-800 truncate">{h.issue}</p>
+                              <p className="font-medium text-slate-800 dark:text-slate-100 truncate">{h.issue}</p>
                               <p className="text-muted-foreground">{h.status} · {h.technician?.name ?? 'ไม่ระบุช่าง'}</p>
                             </div>
                             <span className="text-muted-foreground shrink-0 whitespace-nowrap">
@@ -542,12 +542,12 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 </div>
                 <div className="text-sm">
                   <p className="text-muted-foreground text-xs mb-0.5">อาการ</p>
-                  <p className="font-medium text-gray-900 whitespace-pre-wrap">{repair.issue}</p>
+                  <p className="font-medium text-slate-900 dark:text-white whitespace-pre-wrap">{repair.issue}</p>
                 </div>
                 {repair.note && (
                   <div className="text-sm">
                     <p className="text-muted-foreground text-xs mb-0.5">หมายเหตุ</p>
-                    <p className="text-gray-700 whitespace-pre-wrap">{repair.note}</p>
+                    <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{repair.note}</p>
                   </div>
                 )}
               </div>
@@ -567,7 +567,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                       <button
                         key={img.id}
                         onClick={() => setLightboxIdx(idx)}
-                        className="aspect-square overflow-hidden rounded-lg bg-gray-200 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="aspect-square overflow-hidden rounded-lg bg-slate-200 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <img
                           src={getAssetUrl(img.url)}
@@ -605,7 +605,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                       return (
                         <div key={part.id} className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-transparent dark:border-slate-700/40 px-3 py-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{part.product.name}</p>
+                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{part.product.name}</p>
                             <p className="text-xs text-muted-foreground">
                               ×{part.quantity} · {formatThaiMoney(Number(part.price))} / ชิ้น
                               {deducted && (
@@ -648,7 +648,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                   addingPart ? (
                     <div className="rounded-lg border bg-blue-50/40 p-3 space-y-2.5">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900 truncate flex-1">{addingPart.name}</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate flex-1">{addingPart.name}</p>
                         <button onClick={() => setAddingPart(null)} className="text-muted-foreground hover:text-foreground ml-2">
                           <X className="h-4 w-4" />
                         </button>
@@ -725,7 +725,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                                     setPartPrice('')
                                   }}
                                 >
-                                  <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                                  <p className="text-sm font-medium text-slate-900 dark:text-white flex items-center gap-1.5">
                                     {p.name}
                                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                                       p.type === 'PHONE'     ? 'bg-blue-100 text-blue-700' :
@@ -778,7 +778,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
 
                   <div className="space-y-2">
                     <div className="flex items-center gap-3">
-                      <label className="text-sm text-gray-700 w-32 shrink-0">ค่าแรง (บาท)</label>
+                      <label className="text-sm text-slate-700 dark:text-slate-300 w-32 shrink-0">ค่าแรง (บาท)</label>
                       <Input
                         type="number"
                         min={0}
@@ -789,18 +789,18 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                       />
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm text-gray-700 w-32 shrink-0">ค่าอะไหล่</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300 w-32 shrink-0">ค่าอะไหล่</span>
                       <span className="text-sm font-medium tabular-nums">{formatThaiMoney(computedPartsCost)}</span>
                     </div>
                     <div className="flex items-center gap-3 border-t pt-2">
-                      <span className="text-sm font-bold text-gray-900 w-32 shrink-0">รวมประมาณ</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white w-32 shrink-0">รวมประมาณ</span>
                       <span className="text-base font-bold text-blue-700 tabular-nums">{formatThaiMoney(computedTotal)}</span>
                     </div>
                   </div>
 
                   {repair.estimatedTotal != null && (
                     <div className="text-xs text-muted-foreground bg-white rounded-lg border px-3 py-2 space-y-0.5">
-                      <p>ประมาณล่าสุด: <span className="font-semibold text-gray-900">{formatThaiMoney(Number(repair.estimatedTotal))}</span></p>
+                      <p>ประมาณล่าสุด: <span className="font-semibold text-slate-900 dark:text-white">{formatThaiMoney(Number(repair.estimatedTotal))}</span></p>
                       {repair.approvedAt && (
                         <p className="text-green-600">อนุมัติเมื่อ {fmtDate(repair.approvedAt)}</p>
                       )}
@@ -910,7 +910,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               {repair.paymentStatus === 'PAID' && (
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-1.5 text-sm">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-gray-600 font-semibold">
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-semibold">
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                       ชำระเงินแล้ว
                     </div>
@@ -1005,7 +1005,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               {/* Status change — DELIVERED removed (must go through payment) */}
               {repair.status !== 'DELIVERED' && (
                 <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
-                  <p className="text-sm font-semibold text-gray-900">เปลี่ยนสถานะงานซ่อม</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">เปลี่ยนสถานะงานซ่อม</p>
                   <div className="flex gap-2">
                     <Select value={localStatus} onValueChange={(v) => setLocalStatus(v as RepairStatus)}>
                       <SelectTrigger className="flex-1 bg-white">

@@ -133,7 +133,7 @@ export default function SerialsPage() {
               key={key}
               onClick={() => setStatusFilter(statusFilter === key ? 'ALL' : key)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all
-                ${statusFilter === key ? cfg.cls + ' ring-2 ring-offset-1 ring-current' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}
+                ${statusFilter === key ? cfg.cls + ' ring-2 ring-offset-1 ring-current' : 'bg-white text-slate-500 dark:text-slate-400 border-gray-200 hover:border-gray-300'}`}
             >
               <Icon className="h-3.5 w-3.5" />
               {cfg.label} ({count})

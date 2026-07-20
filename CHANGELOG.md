@@ -6,6 +6,25 @@ All notable changes to the Premium UX redesign on branch `feature/premium-ui-v2`
 
 ## [Unreleased] — Phase A: Premium UX Completion
 
+### Sprint 1.7 — 2026-07-20 · Commit `a1229d2`
+
+#### Changed — Complete Dark Mode Token Upgrade (46 files)
+- **Kanban board** (`repair-kanban-board.tsx`) — fixed context menu popup `dark:bg-[#1E293B]` surface + `dark:border-slate-700/60` quick-action divider
+- **Border sweep** — `dark:border-slate-700` → `dark:border-slate-700/60` across 30 files (zero remaining)
+- **Skeleton sweep** — `bg-slate-100 dark:bg-slate-800` → `dark:bg-slate-700/60` (21 files — all animate-pulse elements)
+- **Surface sweep** — `bg-white dark:bg-slate-800` → `dark:bg-[#1E293B]` (10 files — cards, dialogs, inputs)
+- **Form input sweep** — standalone `dark:bg-slate-800` inputs/selects → `dark:bg-[#1E293B]` (branches, cart, payment panel)
+- **Hover state sweep** — `dark:hover:bg-slate-800` → `dark:hover:bg-slate-700/40` (12 files — nav, buttons, rows)
+- **Design system** — `FiButton` secondary: `dark:bg-slate-700/40 dark:hover:bg-slate-700/60`; outline/ghost: `dark:hover:bg-slate-700/40`
+- **Status badges** — DELIVERED neutral badge: `dark:bg-slate-700/40` (muted, not solid)
+- **Public pages** — track page Card: `dark:bg-[#1E293B]`
+
+#### QA
+- TypeScript: 0 errors
+- Dark mode scan: 0 remaining `dark:bg-slate-800` or `dark:border-slate-700` (non-opacity) across entire codebase
+
+---
+
 ### Sprint 1.6 — 2026-07-19 · Commit (pending)
 
 #### Changed — Global Dark Mode Pass (40 files)

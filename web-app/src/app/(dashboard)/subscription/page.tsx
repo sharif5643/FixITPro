@@ -138,7 +138,7 @@ export default function SubscriptionPage() {
               <Crown className="h-7 w-7 text-blue-600" />
             </div>
             <div>
-              <p className="text-lg font-bold text-gray-900">{sub.planName}</p>
+              <p className="text-lg font-bold text-slate-900 dark:text-white">{sub.planName}</p>
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-semibold mt-1 ${cfg.cls}`}>
                 <StatusIcon className="h-3.5 w-3.5" />
                 {cfg.label}
@@ -151,7 +151,7 @@ export default function SubscriptionPage() {
             {isExpired ? (
               <p className="text-2xl font-bold text-red-600">0</p>
             ) : (
-              <p className={`text-2xl font-bold tabular-nums ${isWarning ? 'text-amber-600' : 'text-gray-900'}`}>
+              <p className={`text-2xl font-bold tabular-nums ${isWarning ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
                 {sub.daysRemaining}
               </p>
             )}
@@ -164,14 +164,14 @@ export default function SubscriptionPage() {
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             <div>
               <p className="text-xs text-muted-foreground">วันเริ่มใช้งาน</p>
-              <p className="text-sm font-semibold text-gray-900">{fmtDate(sub.startDate)}</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-white">{fmtDate(sub.startDate)}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             <div>
               <p className="text-xs text-muted-foreground">วันหมดอายุ</p>
-              <p className={`text-sm font-semibold ${isExpired ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-gray-900'}`}>
+              <p className={`text-sm font-semibold ${isExpired ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
                 {fmtDate(sub.expiryDate)}
               </p>
             </div>
@@ -181,7 +181,7 @@ export default function SubscriptionPage() {
               <GitBranch className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">จำนวนสาขา</p>
-                <p className="text-sm font-semibold text-gray-900">{sub.branchLimit}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">{sub.branchLimit}</p>
               </div>
             </div>
           )}
@@ -202,7 +202,7 @@ export default function SubscriptionPage() {
       <div className="bg-white rounded-xl border p-6">
         <div className="flex items-center gap-2 mb-5">
           <RefreshCw className="h-4 w-4 text-blue-600" />
-          <h2 className="font-semibold text-gray-900">ประวัติการต่ออายุ</h2>
+          <h2 className="font-semibold text-slate-900 dark:text-white">ประวัติการต่ออายุ</h2>
         </div>
 
         {sub.renewals.length === 0 ? (

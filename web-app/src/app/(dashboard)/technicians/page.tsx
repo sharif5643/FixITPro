@@ -249,11 +249,11 @@ export default function TechniciansPage() {
                           {t.kpi.repeatRepairs}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">—</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">—</span>
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                      <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                     </td>
                   </tr>
                 ))}
@@ -289,11 +289,11 @@ export default function TechniciansPage() {
                     <p className="text-xs text-muted-foreground">{t.phone ?? '—'}</p>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-gray-400 mt-1" />
+                <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500 mt-1" />
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg bg-gray-50 py-2">
+                <div className="rounded-lg bg-slate-50 py-2">
                   <p className="text-[10px] text-muted-foreground">งานทั้งหมด</p>
                   <p className="font-bold text-sm">{t.kpi.totalRepairs}</p>
                 </div>

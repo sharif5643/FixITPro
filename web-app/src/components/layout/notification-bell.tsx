@@ -120,7 +120,7 @@ export function NotificationBell() {
   if (!enabled) {
     return (
       <Button variant="ghost" size="icon" className="relative h-9 w-9" disabled>
-        <Bell className="h-4 w-4 text-gray-400" />
+        <Bell className="h-4 w-4 text-slate-400 dark:text-slate-500" />
       </Button>
     )
   }
@@ -129,7 +129,7 @@ export function NotificationBell() {
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative h-9 w-9">
-          <Bell className={`h-4 w-4 ${unread > 0 ? 'text-blue-600' : 'text-gray-500'}`} />
+          <Bell className={`h-4 w-4 ${unread > 0 ? 'text-blue-600' : 'text-slate-500 dark:text-slate-400'}`} />
           {/* Unread notifications badge */}
           {unread > 0 && (
             <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
