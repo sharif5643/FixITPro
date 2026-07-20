@@ -608,7 +608,7 @@ function QuickActionsPanel({ role }: { role: string }) {
           <Link
             key={action.href}
             href={action.href}
-            className="flex items-center gap-3 p-3.5 rounded-2xl bg-white dark:bg-[#1E293B]border border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md active:scale-[0.97] transition-all min-h-[64px]"
+            className="flex items-center gap-3 p-3.5 rounded-2xl bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] hover:shadow-md hover:-translate-y-0.5 active:scale-[0.97] transition-all min-h-[64px]"
           >
             <div className={cn('h-11 w-11 rounded-xl flex items-center justify-center shrink-0', action.iconBg)}>
               <action.icon className={cn('h-5 w-5', action.iconColor)} />
