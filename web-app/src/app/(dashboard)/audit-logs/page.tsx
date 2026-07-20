@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -371,7 +371,7 @@ function RawJsonBlock({ label, data }: { label: string; data: Record<string, any
         {open && (
           <button
             onClick={copy}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded hover:bg-white transition-colors"
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded hover:bg-white dark:hover:bg-slate-700/40 transition-colors"
           >
             {copied ? (
               <Check className="h-3 w-3 text-green-500" />

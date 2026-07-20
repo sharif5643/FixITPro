@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -378,7 +378,7 @@ export default function ShiftsPage() {
                     key={label}
                     type="button"
                     onClick={() => openForm.setValue('note', label)}
-                    className="rounded-full border border-emerald-200 bg-white text-emerald-700 text-xs px-3 py-1 hover:bg-emerald-50 transition-colors"
+                    className="rounded-full border border-emerald-200 dark:border-emerald-700/60 bg-white dark:bg-transparent text-emerald-700 dark:text-emerald-400 text-xs px-3 py-1 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                   >
                     {label}
                   </button>

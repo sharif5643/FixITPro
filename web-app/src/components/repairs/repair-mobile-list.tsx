@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
@@ -69,7 +69,7 @@ function RepairCard({ repair, onClick }: { repair: Repair; onClick: () => void }
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left bg-white rounded-2xl border border-slate-100 px-4 py-3.5 flex gap-3 shadow-sm active:bg-slate-50 transition-colors"
+      className="w-full text-left bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 px-4 py-3.5 flex gap-3 shadow-sm active:bg-slate-50 transition-colors"
     >
       {/* Device image */}
       <div className="shrink-0 h-[72px] w-[72px] rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center">
@@ -211,7 +211,7 @@ export function RepairMobileList({
     <div className="bg-slate-100 min-h-screen pb-24 flex flex-col">
 
       {/* ── Header ── */}
-      <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+      <div className="bg-white dark:bg-[#1E293B] border-b border-slate-100 dark:border-slate-700/60 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2">
           <Link href="/dashboard" className="p-1.5 -ml-1.5 rounded-lg hover:bg-slate-100">
             <ArrowLeft className="h-5 w-5 text-slate-700" />
@@ -241,7 +241,7 @@ export function RepairMobileList({
       </div>
 
       {/* ── Status chips ── */}
-      <div className="bg-white border-b border-slate-100 px-4 py-2.5">
+      <div className="bg-white dark:bg-[#1E293B] border-b border-slate-100 dark:border-slate-700/60 px-4 py-2.5">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-0.5">
           {STATUS_TABS.map((tab) => {
             const count = tab.value === 'ALL' ? total : (statusCounts[tab.value] ?? 0)
@@ -254,7 +254,7 @@ export function RepairMobileList({
                   'shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[12px] font-semibold transition-colors',
                   active
                     ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/20'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300',
+                    : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-blue-300',
                 )}
               >
                 {tab.label}
@@ -272,7 +272,7 @@ export function RepairMobileList({
 
       {/* ── Search bar (collapsible) ── */}
       {searchVisible && (
-        <div className="bg-white border-b border-slate-100 px-4 py-2.5">
+        <div className="bg-white dark:bg-[#1E293B] border-b border-slate-100 dark:border-slate-700/60 px-4 py-2.5">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
             <input
@@ -295,7 +295,7 @@ export function RepairMobileList({
       <div className="flex-1 px-4 pt-3 space-y-3">
         {isLoading ? (
           Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-2xl h-[110px] animate-pulse border border-slate-100" />
+            <div key={i} className="bg-slate-100 dark:bg-slate-700/60 rounded-2xl h-[110px] animate-pulse border border-slate-100 dark:border-slate-700/60" />
           ))
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">

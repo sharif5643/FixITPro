@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo, useEffect, useRef, Suspense } from 'react'
 import dynamic from 'next/dynamic'
@@ -174,7 +174,7 @@ function RepairsContent() {
         </div>
         <button
           onClick={() => refetch()}
-          className="flex items-center gap-2 h-10 px-4 rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)] text-sm font-medium"
+          className="flex items-center gap-2 h-10 px-4 rounded-2xl bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.40)] text-sm font-medium"
         >
           <RefreshCw className="h-4 w-4" />ลองใหม่
         </button>
@@ -320,7 +320,7 @@ function RepairsContent() {
                 'shrink-0 rounded-2xl p-3 text-left transition-all min-w-[86px] active:scale-[0.97]',
                 active
                   ? 'bg-[#FFC107] shadow-[0_4px_16px_rgba(255,193,7,0.4)]'
-                  : 'bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)]',
+                  : 'bg-white dark:bg-[#1E293B] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.40)]',
               )}
             >
               <p className="text-lg mb-1 leading-none">{s.icon}</p>

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -242,7 +242,7 @@ export default function SettingsPage() {
                         'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap shrink-0 text-left w-full',
                         active
                           ? 'bg-blue-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)]'
-                          : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800/60 hover:shadow-sm hover:text-slate-900 dark:hover:text-white',
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700/40 hover:shadow-sm hover:text-slate-900 dark:hover:text-white',
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />

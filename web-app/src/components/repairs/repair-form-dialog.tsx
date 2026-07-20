@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
@@ -341,7 +341,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] bg-white border rounded-full px-2 py-0.5 text-slate-500 dark:text-slate-400">
+                      <span className="text-[10px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-full px-2 py-0.5 text-slate-500 dark:text-slate-400">
                         ซ่อม {selectedCustomer._count.repairs} · ซื้อ {selectedCustomer._count.sales}
                       </span>
                       <button type="button" onClick={clearCustomer} className="text-muted-foreground hover:text-red-500">
@@ -358,7 +358,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                           </div>
                           <div className="space-y-1">
                             {customerDetail.repairs.slice(0, 2).map((r) => (
-                              <div key={r.id} className="flex items-center gap-2 text-xs bg-white rounded-lg px-2 py-1.5 border">
+                              <div key={r.id} className="flex items-center gap-2 text-xs bg-white dark:bg-[#1E293B] rounded-lg px-2 py-1.5 border border-slate-100 dark:border-slate-700/60">
                                 <div className="flex-1 min-w-0">
                                   <span className="font-medium">{r.deviceBrand} {r.deviceModel}</span>
                                   <p className="text-muted-foreground truncate">{r.issue}</p>
@@ -378,7 +378,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                           </div>
                           <div className="space-y-1">
                             {customerDetail.sales.slice(0, 2).map((s) => (
-                              <div key={s.id} className="flex items-center justify-between text-xs bg-white rounded-lg px-2 py-1.5 border">
+                              <div key={s.id} className="flex items-center justify-between text-xs bg-white dark:bg-[#1E293B] rounded-lg px-2 py-1.5 border border-slate-100 dark:border-slate-700/60">
                                 <span className="font-mono text-blue-700">{s.receiptNumber}</span>
                                 <span className="font-medium tabular-nums">{formatThaiMoney(Number(s.total))}</span>
                                 <span className="text-muted-foreground">{format(new Date(s.createdAt), 'dd MMM yy', { locale: th })}</span>
@@ -409,7 +409,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                       )}
                     </div>
                     {searchOpen && normalizedSearch.length >= 2 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-lg shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.4)] max-h-52 overflow-y-auto">
                         {isSearching ? (
                           <div className="flex items-center justify-center gap-2 px-3 py-4 text-sm text-muted-foreground">
                             <Loader2 className="h-4 w-4 animate-spin" />กำลังค้นหา...
@@ -469,7 +469,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                           'flex items-center gap-2 px-4 py-2.5 rounded-full border text-sm font-medium transition-all min-h-[44px]',
                           deviceType === value
                             ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300',
+                            : 'bg-white dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-blue-300',
                         )}>
                         <Icon className="h-4 w-4" />
                         {value}
@@ -511,7 +511,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                           'px-3 py-2 rounded-full border text-xs font-medium transition-all min-h-[36px]',
                           issueTags.includes(tag)
                             ? 'bg-blue-600 text-white border-blue-600'
-                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300',
+                            : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-blue-300',
                         )}>
                         {tag}
                       </button>
@@ -523,7 +523,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                 <div className="space-y-1.5">
                   <Label>รายละเอียดอาการ <span className="text-red-500">*</span></Label>
                   <textarea rows={3} placeholder="ระบุอาการที่พบโดยละเอียด..."
-                    className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                    className="w-full rounded-md border border-input bg-white dark:bg-[#1E293B] px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
                     {...register('issue')} />
                   {errors.issue && <p className="text-xs text-red-500">{errors.issue.message}</p>}
                 </div>
@@ -562,7 +562,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                 )}
                 {/* Real-time net */}
                 {estimateCost > 0 && (
-                  <div className="rounded-lg bg-white border border-slate-200 px-3 py-2 flex items-center justify-between text-sm">
+                  <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 px-3 py-2 flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">เหลือชำระเมื่อรับ</span>
                     <span className={cn('font-bold', deposit > estimateCost ? 'text-red-600' : 'text-green-700')}>
                       {formatThaiMoney(Math.max(0, estimateCost - deposit))}
@@ -669,7 +669,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                             'px-3 py-2 rounded-full border text-xs font-medium transition-all min-h-[36px]',
                             accessories.includes(opt)
                               ? 'bg-indigo-600 text-white border-indigo-600'
-                              : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300',
+                              : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-indigo-300',
                           )}>
                           {opt}
                         </button>
@@ -728,7 +728,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                               'flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm font-medium transition-all min-h-[40px]',
                               selectedTechId === t.id
                                 ? 'bg-purple-600 text-white border-purple-600'
-                                : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300',
+                                : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60 hover:border-purple-300',
                             )}
                           >
                             <TechnicianAvatar name={t.name} size="sm" />

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -169,20 +169,20 @@ export function CustomerDetailDialog({
 
               {/* Stats summary */}
               <div className="grid grid-cols-3 gap-2 pt-1">
-                <div className="rounded-lg bg-white border text-center py-2.5 px-1">
+                <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 text-center py-2.5 px-1">
                   <p className="text-[10px] text-muted-foreground">ยอดรวม</p>
                   <p className="font-bold text-sm text-blue-700 tabular-nums truncate">
                     {formatThaiMoney(customer.totalSpending)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-white border text-center py-2.5 px-1">
+                <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 text-center py-2.5 px-1">
                   <p className="text-[10px] text-muted-foreground">ซื้อทั้งหมด</p>
                   <p className="font-bold text-sm">
                     {customer._count.sales}
                     <span className="text-xs font-normal text-muted-foreground ml-0.5">ครั้ง</span>
                   </p>
                 </div>
-                <div className="rounded-lg bg-white border text-center py-2.5 px-1">
+                <div className="rounded-lg bg-white dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 text-center py-2.5 px-1">
                   <p className="text-[10px] text-muted-foreground">ซ่อมทั้งหมด</p>
                   <p className="font-bold text-sm">
                     {customer._count.repairs}

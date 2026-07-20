@@ -722,7 +722,7 @@ export default function DebtPage() {
           ))}
         </div>
       ) : groups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-48 gap-3 bg-white rounded-xl border border-slate-200">
+        <div className="flex flex-col items-center justify-center h-48 gap-3 bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]">
           <CheckCircle2 className="h-12 w-12 text-green-200" />
           <div className="text-center">
             <p className="text-sm font-semibold text-slate-600">ไม่มีหนี้ค้างชำระ</p>

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
@@ -80,7 +80,7 @@ export default function SupplierAgingPage() {
             { label: '61–90 วัน',   value: data.totals.b61to90, cls: data.totals.b61to90 > 0 ? 'bg-orange-50 border-orange-200' : '' },
             { label: '90+ วัน',     value: data.totals.b90plus, cls: data.totals.b90plus > 0 ? 'bg-red-50 border-red-200 text-red-700' : '' },
           ].map(({ label, value, cls }) => (
-            <div key={label} className={cn('rounded-xl border p-3.5 bg-white', cls)}>
+            <div key={label} className={cn('rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-3.5', cls)}>
               <p className="text-xs text-slate-500 mb-1">{label}</p>
               <p className="text-lg font-bold tabular-nums">{formatThaiMoney(value)}</p>
             </div>
