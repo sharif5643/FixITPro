@@ -1,4 +1,4 @@
-import type { DashboardOverview, OwnerSummaryData, SmartInsight } from './types'
+import type { DashboardOverview, OwnerSummaryData, SmartInsight, DailyPriority } from './types'
 
 // ── Thai timezone helper ──────────────────────────────────────────────────────
 
@@ -96,4 +96,53 @@ export function computeInsights(
   return insights
     .sort((a, b) => ORDER[a.level] - ORDER[b.level])
     .slice(0, 4)
+}
+
+// ── Sprint 2: time-of-day helper ──────────────────────────────────────────────
+
+export function getTimeOfDay(): 'morning' | 'afternoon' | 'evening' | 'night' {
+  const h = thaiToday().getUTCHours()
+  if (h >= 5 && h < 12) return 'morning'
+  if (h >= 12 && h < 17) return 'afternoon'
+  if (h >= 17 && h < 21) return 'evening'
+  return 'night'
+}
+
+// ── Sprint 2: actionable daily priorities from live data ──────────────────────
+
+export function computePriorities(
+  overview: DashboardOverview | undefined,
+  summary: OwnerSummaryData | undefined,
+): DailyPriority[] {
+  if (!overview || !summary) return []
+
+  const items: DailyPriority[] = []
+  const { alerts, repairOps, currentShift } = overview
+
+  if (!currentShift.isOpen) {
+    items.push({ id: 'shift', level: 'critical', text: 'ยังไม่ได้เปิดกะวันนี้', link: '/shifts', linkLabel: 'เปิดกะ' })
+  }
+  if (alerts.overdueRepairs > 0) {
+    items.push({ id: 'overdue', level: 'critical', text: `งานซ่อมเกินกำหนด ${alerts.overdueRepairs} ชิ้น`, link: '/repairs', linkLabel: 'ดูงาน' })
+  }
+  if (alerts.outOfStock > 0) {
+    items.push({ id: 'out_of_stock', level: 'critical', text: `สินค้าหมดสต็อก ${alerts.outOfStock} รายการ`, link: '/stock', linkLabel: 'ดูสต็อก' })
+  }
+  if (repairOps.waitingApproval > 0) {
+    items.push({ id: 'approval', level: 'warning', text: `รออนุมัติ ${repairOps.waitingApproval} งาน`, link: '/repairs?status=WAITING_APPROVAL', linkLabel: 'อนุมัติ' })
+  }
+  if (alerts.unpaidDebt > 0) {
+    items.push({ id: 'debt', level: 'warning', text: `หนี้ค้างชำระ ${alerts.unpaidDebt} รายการ`, link: '/customers', linkLabel: 'ติดตาม' })
+  }
+  if (repairOps.completedNotDelivered >= 3) {
+    items.push({ id: 'pickup', level: 'warning', text: `รอรับงาน ${repairOps.completedNotDelivered} ชิ้น — แจ้งลูกค้า`, link: '/repairs?status=READY_PICKUP', linkLabel: 'แจ้งลูกค้า' })
+  }
+  if (alerts.lowStock > 0) {
+    items.push({ id: 'low_stock', level: 'info', text: `สต็อกใกล้หมด ${alerts.lowStock} รายการ`, link: '/stock', linkLabel: 'สั่งซื้อ' })
+  }
+  if (alerts.expiringWarranties > 0) {
+    items.push({ id: 'warranty', level: 'info', text: `ประกันใกล้หมดอายุ ${alerts.expiringWarranties} รายการ`, link: '/repairs', linkLabel: 'ดู' })
+  }
+
+  return items.slice(0, 6)
 }
