@@ -138,10 +138,16 @@ export class AccountingService {
     });
 
     if (!session) {
+      // Cash drawer session is optional — the sale must never fail due to drawer state.
+      // STRICT policy logs a warning so operators can investigate; the record is written
+      // as unassigned so the ledger stays complete without blocking the transaction.
       if (policy === CashDrawerPolicy.STRICT) {
-        throw new BadRequestException('CASH_DRAWER_SESSION_REQUIRED');
+        this.logger.warn(
+          `Accounting.record: no open CashDrawerSession for branch=${entry.branchId} ` +
+          `(policy=STRICT, source=${entry.sourceType}) — recording as unassigned. ` +
+          `Connect cash drawer via Settings > Hardware.`,
+        );
       }
-      // ALLOW_UNASSIGNED: record outside caller's tx so the business record succeeds
       return this.createUnassignedEntry(entry, idempotencyKey);
     }
 

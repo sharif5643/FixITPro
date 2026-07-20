@@ -448,6 +448,12 @@ function PreviewStep({
         win.document.close()
         win.focus()
         setTimeout(() => { win.print(); setTimeout(() => win.close(), 800) }, 300)
+        // Pulse the cash drawer after the browser print dialog is dismissed
+        win.addEventListener('afterprint', () => {
+          import('@/lib/cash-drawer')
+            .then(({ openCashDrawer }) => openCashDrawer())
+            .catch((e) => console.error('[CashDrawer]', e))
+        })
       }
     }
   }

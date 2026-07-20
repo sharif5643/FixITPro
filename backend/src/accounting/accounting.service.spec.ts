@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AccountingService, ACCOUNTING_SOURCE, AccountingEntry } from './accounting.service';
 import { PrismaService } from '../database/prisma.service';
@@ -116,36 +115,58 @@ describe('AccountingService', () => {
     expect(prisma.branch.findUnique).not.toHaveBeenCalled(); // exits before policy check
   });
 
-  // ── 3. STRICT mode: no session → BadRequestException ────────────────────
+  // ── 3. STRICT mode: no session → unassigned entry (drawer is optional) ─────
 
-  it('throws BadRequestException in STRICT mode when no open session', async () => {
+  it('creates unassigned entry in STRICT mode when no open session (drawer is optional)', async () => {
     prisma.cashDrawerTransaction.findUnique.mockResolvedValue(null);
     prisma.branch.findUnique.mockResolvedValue(STRICT_BRANCH);
     prisma.cashDrawerSession.findFirst.mockResolvedValue(null);
+    prisma.cashDrawerTransaction.create.mockResolvedValue({ ...CREATED_TX, sessionId: null, cashDrawerId: null });
 
-    await expect(service.record(makeEntry())).rejects.toThrow(BadRequestException);
-    await expect(service.record(makeEntry())).rejects.toThrow('CASH_DRAWER_SESSION_REQUIRED');
-    expect(prisma.cashDrawerTransaction.create).not.toHaveBeenCalled();
+    const result = await service.record(makeEntry());
+
+    expect(result).not.toBeNull();
+    expect(prisma.cashDrawerTransaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessionId: null, cashDrawerId: null }),
+      }),
+    );
   });
 
-  it('throws in STRICT mode for CASH repair payment with no session', async () => {
+  it('creates unassigned entry in STRICT mode for CASH repair payment with no session', async () => {
     prisma.cashDrawerTransaction.findUnique.mockResolvedValue(null);
     prisma.branch.findUnique.mockResolvedValue(STRICT_BRANCH);
     prisma.cashDrawerSession.findFirst.mockResolvedValue(null);
+    prisma.cashDrawerTransaction.create.mockResolvedValue({ ...CREATED_TX, sessionId: null, cashDrawerId: null });
 
-    await expect(
-      service.record(makeEntry({ sourceType: ACCOUNTING_SOURCE.REPAIR_FINAL_PAYMENT, sourceId: 'repair-1' })),
-    ).rejects.toThrow('CASH_DRAWER_SESSION_REQUIRED');
+    const result = await service.record(
+      makeEntry({ sourceType: ACCOUNTING_SOURCE.REPAIR_FINAL_PAYMENT, sourceId: 'repair-1' }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(prisma.cashDrawerTransaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessionId: null }),
+      }),
+    );
   });
 
-  it('throws in STRICT mode for CASH expense with no session', async () => {
+  it('creates unassigned entry in STRICT mode for CASH expense with no session', async () => {
     prisma.cashDrawerTransaction.findUnique.mockResolvedValue(null);
     prisma.branch.findUnique.mockResolvedValue(STRICT_BRANCH);
     prisma.cashDrawerSession.findFirst.mockResolvedValue(null);
+    prisma.cashDrawerTransaction.create.mockResolvedValue({ ...CREATED_TX, sessionId: null, cashDrawerId: null });
 
-    await expect(
-      service.record(makeEntry({ sourceType: ACCOUNTING_SOURCE.EXPENSE_PAYMENT, sourceId: 'exp-1', direction: 'OUT' })),
-    ).rejects.toThrow('CASH_DRAWER_SESSION_REQUIRED');
+    const result = await service.record(
+      makeEntry({ sourceType: ACCOUNTING_SOURCE.EXPENSE_PAYMENT, sourceId: 'exp-1', direction: 'OUT' }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(prisma.cashDrawerTransaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessionId: null }),
+      }),
+    );
   });
 
   // ── 4. ALLOW_UNASSIGNED: no session → creates unassigned entry ───────────

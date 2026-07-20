@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import { buildReceiptHtml, buildReceiptPreviewData } from '@/lib/printer'
+import { openCashDrawer } from '@/lib/cash-drawer'
 import { SaleReceiptPreviewDialog } from '@/components/receipt/receipt-preview-dialog'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import { useAuthStore } from '@/store/auth.store'
@@ -91,6 +92,12 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
       )
       if (!win) {
         alert('กรุณาอนุญาต Popup เพื่อใช้งานการพิมพ์')
+      } else {
+        // After browser print dialog is dismissed, pulse the cash drawer.
+        // afterprint fires even on cancel — acceptable for POS usage.
+        win.addEventListener('afterprint', () => {
+          openCashDrawer().catch((e) => console.error('[CashDrawer]', e))
+        })
       }
     }
   }

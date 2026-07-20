@@ -286,7 +286,7 @@ describe('RepairsService — Workflow tests (RC1)', () => {
 
     it('TC-RP4: accounting.record throws inside tx → reversePayment rejects, auditLog NOT written', async () => {
       (prisma.repair.findFirst as jest.Mock).mockResolvedValue(MOCK_REPAIR_DELIVERED);
-      accounting.record.mockRejectedValue(new BadRequestException('CASH_DRAWER_SESSION_REQUIRED'));
+      accounting.record.mockRejectedValue(new Error('LEDGER_WRITE_FAILED'));
 
       (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
         const tx = {
@@ -299,7 +299,7 @@ describe('RepairsService — Workflow tests (RC1)', () => {
 
       await expect(
         service.reversePayment('r-2', { reason: 'ทดสอบ' } as any, ACTOR_ID, TENANT_ID),
-      ).rejects.toThrow('CASH_DRAWER_SESSION_REQUIRED');
+      ).rejects.toThrow('LEDGER_WRITE_FAILED');
 
       expect(auditLog.log).not.toHaveBeenCalled();
     });
