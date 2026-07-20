@@ -76,7 +76,7 @@ export function ModuleGate({ module, children }: ModuleGateProps) {
           <button
             type="button"
             onClick={() => window.history.back()}
-            className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-slate-300 dark:hover:bg-slate-700/60"
           >
             ย้อนกลับ
           </button>

@@ -28,7 +28,7 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
         placeholder={placeholder}
         autoFocus={autoFocus}
         className={cn(
-          'h-11 w-full rounded-2xl bg-[#F8F9FB] dark:bg-slate-800 pl-11 pr-10 text-sm outline-none',
+          'h-11 w-full rounded-2xl bg-[#F8F9FB] dark:bg-[#1E293B] pl-11 pr-10 text-sm outline-none',
           'border border-transparent focus:border-[#FFC107]/40 focus:ring-2 focus:ring-[#FFC107]/20',
           'text-[#111] dark:text-white placeholder:text-slate-400 transition',
         )}

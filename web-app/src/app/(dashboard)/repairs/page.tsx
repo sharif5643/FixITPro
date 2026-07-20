@@ -267,7 +267,7 @@ function RepairsContent() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหาชื่อลูกค้า, เบอร์, เลขงาน, IMEI, รุ่น..."
-            className="h-11 w-full rounded-2xl bg-[#F8FAFC] dark:bg-slate-800 border border-slate-100 dark:border-slate-700 pl-11 pr-10 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-slate-400"
+            className="h-11 w-full rounded-2xl bg-[#F8FAFC] dark:bg-[#1E293B] border border-slate-100 dark:border-slate-700/60 pl-11 pr-10 text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition placeholder:text-slate-400"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -288,7 +288,7 @@ function RepairsContent() {
                 onClick={() => setStatusFilter(tab.value)}
                 className={cn(
                   'flex items-center gap-1.5 shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap',
-                  active ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8FAFC] dark:bg-slate-800 text-slate-500 dark:text-slate-400',
+                  active ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8FAFC] dark:bg-[#1E293B] text-slate-500 dark:text-slate-400',
                 )}
               >
                 {tab.dot && !active && (
@@ -350,13 +350,13 @@ function RepairsContent() {
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-2xl bg-white dark:bg-[#1E293B] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] animate-pulse">
               <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-2xl bg-slate-100 dark:bg-slate-800 shrink-0" />
+                <div className="h-11 w-11 rounded-2xl bg-slate-100 dark:bg-slate-700/60 shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 w-24 bg-slate-100 dark:bg-slate-800 rounded-full" />
-                  <div className="h-4 w-40 bg-slate-100 dark:bg-slate-800 rounded-full" />
-                  <div className="h-3 w-32 bg-slate-100 dark:bg-slate-800 rounded-full" />
+                  <div className="h-3 w-24 bg-slate-100 dark:bg-slate-700/60 rounded-full" />
+                  <div className="h-4 w-40 bg-slate-100 dark:bg-slate-700/60 rounded-full" />
+                  <div className="h-3 w-32 bg-slate-100 dark:bg-slate-700/60 rounded-full" />
                 </div>
-                <div className="h-6 w-16 rounded-full bg-slate-100 dark:bg-slate-800 shrink-0" />
+                <div className="h-6 w-16 rounded-full bg-slate-100 dark:bg-slate-700/60 shrink-0" />
               </div>
             </div>
           ))

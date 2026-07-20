@@ -154,7 +154,7 @@ export default function TrackPage() {
         </div>
 
         {/* Search card */}
-        <Card className="shadow-xl border-0 dark:bg-slate-800">
+        <Card className="shadow-xl border-0 dark:bg-[#1E293B]">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">ค้นหางานซ่อม</CardTitle>
             <CardDescription>กรอกเลขใบซ่อม หรือ เบอร์โทรศัพท์ อย่างใดอย่างหนึ่ง</CardDescription>
@@ -225,7 +225,7 @@ export default function TrackPage() {
                   key={r.ticketNumber}
                   type="button"
                   onClick={() => router.push(`/track/${encodeURIComponent(r.ticketNumber)}?phone=${encodeURIComponent(normalizePhone(query))}`)}
-                  className="w-full text-left bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all group"
+                  className="w-full text-left bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/60 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all group"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">

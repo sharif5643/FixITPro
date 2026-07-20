@@ -442,20 +442,20 @@ export default function DailyClosingReportPage() {
               {/* Quick date nav */}
               <button
                 onClick={() => setDateStr(format(subDays(new Date(dateStr), 1), 'yyyy-MM-dd'))}
-                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors"
+                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-700/40 text-slate-600 dark:text-slate-300 transition-colors"
                 title="วันก่อน"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => setDateStr(todayStr())}
-                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === todayStr() ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === todayStr() ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
               >
                 วันนี้
               </button>
               <button
                 onClick={() => setDateStr(format(subDays(new Date(), 1), 'yyyy-MM-dd'))}
-                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                className={`h-7 px-2.5 rounded border text-xs font-medium transition-colors ${dateStr === format(subDays(new Date(), 1), 'yyyy-MM-dd') ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
               >
                 เมื่อวาน
               </button>
@@ -464,7 +464,7 @@ export default function DailyClosingReportPage() {
                   if (dateStr < todayStr()) setDateStr(format(new Date(new Date(dateStr).getTime() + 86400000), 'yyyy-MM-dd'))
                 }}
                 disabled={dateStr >= todayStr()}
-                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="h-7 w-7 flex items-center justify-center rounded border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] hover:bg-slate-50 dark:hover:bg-slate-700/40 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="วันถัดไป"
               >
                 <ChevronRightIcon className="h-3.5 w-3.5" />
@@ -474,7 +474,7 @@ export default function DailyClosingReportPage() {
                 value={dateStr}
                 max={todayStr()}
                 onChange={(e) => setDateStr(e.target.value)}
-                className="h-7 px-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs bg-white dark:bg-[#1E293B] dark:text-slate-300 dark:color-scheme-dark focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-7 px-2 border border-slate-200 dark:border-slate-700/60 rounded-lg text-xs bg-white dark:bg-[#1E293B] dark:text-slate-300 dark:color-scheme-dark focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           }
@@ -742,7 +742,7 @@ export default function DailyClosingReportPage() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t dark:border-slate-700">
+                  <div className="flex items-center justify-between pt-1 border-t dark:border-slate-700/60">
                     <span className="text-sm font-medium text-gray-700 dark:text-slate-200">รวมค่าใช้จ่ายทั้งหมด</span>
                     <button
                       onClick={() => openDrawer('ค่าใช้จ่ายวันนี้', expenseDrawer)}

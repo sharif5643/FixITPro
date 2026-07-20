@@ -166,7 +166,7 @@ export default function SuppliersPage() {
                     <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
                       s.isActive
                         ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                        : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60'
                     }`}>
                       {s.isActive ? 'ใช้งาน' : 'ปิดการใช้'}
                     </span>
@@ -212,7 +212,7 @@ export default function SuppliersPage() {
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold shrink-0 ${
                   s.isActive
                     ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                    : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60'
                 }`}>
                   {s.isActive ? 'ใช้งาน' : 'ปิดการใช้'}
                 </span>

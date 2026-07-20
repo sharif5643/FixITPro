@@ -37,7 +37,7 @@ export function TopSellingWidget({ branchId, days = 30 }: TopSellingWidgetProps)
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+            <div key={i} className="h-8 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
           ))}
         </div>
       ) : items.length === 0 ? (

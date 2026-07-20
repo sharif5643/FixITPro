@@ -117,7 +117,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="flex items-center gap-2 h-auto px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="flex items-center gap-2 h-auto px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/40"
             >
               <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
                 <AvatarFallback className="bg-blue-600 text-white text-xs font-bold">

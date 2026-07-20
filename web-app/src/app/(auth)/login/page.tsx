@@ -177,7 +177,7 @@ export default function LoginPage() {
                 className={`w-full h-11 px-4 rounded-xl border text-sm bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 focus:border-blue-500 disabled:opacity-50 ${
                   errors.email
                     ? 'border-red-400 focus:ring-red-400'
-                    : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500 hover:border-slate-300'
+                    : 'border-slate-200 dark:border-slate-700/60 focus:ring-blue-500 hover:border-slate-300'
                 }`}
               />
               {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
@@ -199,7 +199,7 @@ export default function LoginPage() {
                   className={`w-full h-11 pl-4 pr-11 rounded-xl border text-sm bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 focus:border-blue-500 disabled:opacity-50 ${
                     errors.password
                       ? 'border-red-400 focus:ring-red-400'
-                      : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500 hover:border-slate-300'
+                      : 'border-slate-200 dark:border-slate-700/60 focus:ring-blue-500 hover:border-slate-300'
                   }`}
                 />
                 <button
@@ -237,7 +237,7 @@ export default function LoginPage() {
           </form>
 
           {/* Demo account */}
-          <div className="mt-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 px-4 py-3.5">
+          <div className="mt-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 px-4 py-3.5">
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">
               บัญชีทดสอบ
             </p>

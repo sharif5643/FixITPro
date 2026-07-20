@@ -116,7 +116,7 @@ function TechnicianQueueBar({
           'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
           filterTechId === null
             ? 'bg-blue-600 text-white border-blue-600 dark:bg-blue-600 dark:border-blue-600'
-            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600',
+            : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-600',
         )}
       >
         ทั้งหมด
@@ -130,7 +130,7 @@ function TechnicianQueueBar({
             'flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors',
             filterTechId === id
               ? 'bg-purple-600 text-white border-purple-600 dark:bg-purple-600 dark:border-purple-600'
-              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600',
+              : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-purple-300 dark:hover:border-purple-600',
           )}
         >
           <TechnicianAvatar name={name} size="sm" />
@@ -237,7 +237,7 @@ function RepairCard({
       style={style}
       {...(isDragOverlay ? {} : { ...listeners, ...attributes })}
       className={cn(
-        'bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm select-none',
+        'bg-white dark:bg-[#1E293B] rounded-xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] select-none',
         isDragOverlay
           ? 'opacity-95 shadow-xl rotate-1 cursor-grabbing ring-2 ring-blue-400 dark:ring-blue-600'
           : isDragging
@@ -321,7 +321,7 @@ function RepairCard({
               )}
             </button>
             {showTechPicker && (
-              <div className="absolute bottom-full left-0 mb-1 z-50 w-44 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg py-1 text-xs">
+              <div className="absolute bottom-full left-0 mb-1 z-50 w-44 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] shadow-lg dark:shadow-[0_8px_24px_rgba(0,0,0,0.4)] py-1 text-xs">
                 {repair.technician && (
                   <button
                     onClick={() => { onAssignTech(repair.id, null); setShowTechPicker(false) }}
@@ -359,7 +359,7 @@ function RepairCard({
 
         {/* Quick actions */}
         <div
-          className="flex items-center gap-1 pt-1 border-t border-slate-100 dark:border-slate-700"
+          className="flex items-center gap-1 pt-1 border-t border-slate-100 dark:border-slate-700/60"
           onPointerDown={(e) => e.stopPropagation()} // prevent drag when clicking actions
         >
           {repair.status === 'QC_PENDING' && (
@@ -452,7 +452,7 @@ function KanbanColumn({
         {repairs.length === 0 ? (
           <div className={cn(
             'flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-8 gap-2 text-slate-400 dark:text-slate-500 transition-colors',
-            isOver ? 'border-blue-400 dark:border-blue-600 bg-blue-50/50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700',
+            isOver ? 'border-blue-400 dark:border-blue-600 bg-blue-50/50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700/60',
           )}>
             <Wrench className="h-6 w-6 opacity-30" />
             <p className="text-xs text-center">ไม่มีงานในสถานะนี้</p>

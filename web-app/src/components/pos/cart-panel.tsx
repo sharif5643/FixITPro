@@ -90,7 +90,7 @@ export function CartPanel({
 
           /* ── Empty state ─────────────────────────────────────────────── */
           <div className="flex flex-col items-center justify-center h-full gap-4 py-10 px-4">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 ring-4 ring-slate-50 dark:ring-slate-900">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700/60 ring-4 ring-slate-50 dark:ring-slate-900">
               <ShoppingCart className="h-9 w-9 text-slate-300 dark:text-slate-600" />
             </div>
             <div className="text-center space-y-1">
@@ -158,7 +158,7 @@ export function CartPanel({
                         value={item.itemDiscount || ''}
                         onChange={(e) => setItemDiscount(item.product.id, Number(e.target.value) || 0)}
                         placeholder="ส่วนลด/ชิ้น"
-                        className="w-24 h-6 text-xs text-right px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="w-24 h-6 text-xs text-right px-2 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                       {(item.itemDiscount ?? 0) > 0 && (
                         <span className="text-[10px] text-red-500 dark:text-red-400 font-medium whitespace-nowrap">
@@ -210,7 +210,7 @@ export function CartPanel({
                     <div className="flex items-center gap-0.5">
                       <button
                         onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity - 1) }}
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors"
                         aria-label="ลด"
                       >
                         <Minus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
@@ -235,7 +235,7 @@ export function CartPanel({
                             }
                             if (e.key === 'Escape') setEditingQtyId(null)
                           }}
-                          className="w-11 h-11 text-center text-sm font-bold border border-blue-400 dark:border-blue-600 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
+                          className="w-11 h-11 text-center text-sm font-bold border border-blue-400 dark:border-blue-600 rounded-xl bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white outline-none"
                         />
                       ) : (
                         <button
@@ -255,7 +255,7 @@ export function CartPanel({
                       <button
                         onClick={(e) => { e.stopPropagation(); updateQuantity(item.product.id, item.quantity + 1) }}
                         disabled={item.quantity >= available}
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         aria-label="เพิ่ม"
                       >
                         <Plus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
@@ -312,7 +312,7 @@ export function CartPanel({
             value={discount || ''}
             onChange={(e) => setDiscount(Number(e.target.value) || 0)}
             placeholder="0"
-            className="h-9 text-sm text-right dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+            className="h-9 text-sm text-right dark:bg-[#1E293B] dark:border-slate-700/60 dark:text-white"
           />
           <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0">บาท</span>
         </div>

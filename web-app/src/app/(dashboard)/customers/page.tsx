@@ -40,7 +40,7 @@ function getTier(salesCount: number, totalSpending: number): Tier {
 const TIER_CONFIG: Record<Tier, { label: string; Icon: React.ElementType; cls: string }> = {
   VIP:     { label: 'VIP',    Icon: Crown,    cls: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-800/60' },
   REGULAR: { label: 'ประจำ', Icon: Star,     cls: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/60' },
-  NEW:     { label: 'ใหม่',  Icon: Sparkles, cls: 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' },
+  NEW:     { label: 'ใหม่',  Icon: Sparkles, cls: 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60' },
 }
 
 function TierBadge({ salesCount, totalSpending }: { salesCount: number; totalSpending: number }) {
@@ -272,11 +272,11 @@ export default function CustomersPage() {
                 </div>
 
                 <div className="grid grid-cols-4 gap-2 text-center">
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 py-2">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 py-2">
                     <p className="text-[10px] text-slate-400 dark:text-slate-500">ซื้อ</p>
                     <p className="font-bold text-sm dark:text-slate-200">{salesCount}</p>
                   </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800 py-2">
+                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 py-2">
                     <p className="text-[10px] text-slate-400 dark:text-slate-500">ซ่อม</p>
                     <p className="font-bold text-sm dark:text-slate-200">{repairsCount}</p>
                   </div>

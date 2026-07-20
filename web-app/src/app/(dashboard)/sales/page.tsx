@@ -335,7 +335,7 @@ export default function SalesPage() {
             'flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-semibold transition-colors',
             mobileTab === 'products'
               ? 'bg-blue-600 text-white'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800',
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/40',
           )}
         >
           <span>🛍</span>
@@ -348,7 +348,7 @@ export default function SalesPage() {
             'flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-semibold transition-colors',
             mobileTab === 'cart'
               ? 'bg-blue-600 text-white'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800',
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/40',
           )}
         >
           <span>🛒</span>
@@ -444,7 +444,7 @@ export default function SalesPage() {
             { key: 'ESC', label: 'ยกเลิก' },
           ].map(({ key, label }) => (
             <span key={key} className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 select-none">
-              <kbd className="inline-flex items-center rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:text-slate-400">
+              <kbd className="inline-flex items-center rounded border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:text-slate-400">
                 {key}
               </kbd>
               {label}
@@ -477,7 +477,7 @@ export default function SalesPage() {
               {heldBills.map((bill) => (
                 <div
                   key={bill.id}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60"
+                  className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/60"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-slate-400 dark:text-slate-500">
@@ -504,7 +504,7 @@ export default function SalesPage() {
                     <button
                       type="button"
                       onClick={() => handleDeleteHeld(bill.id)}
-                      className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 dark:hover:text-red-400 text-xs transition-colors"
+                      className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/60 text-slate-400 hover:text-red-500 dark:hover:text-red-400 text-xs transition-colors"
                     >
                       ลบ
                     </button>

@@ -311,7 +311,7 @@ function TransfersContent() {
               'rounded-full px-3 py-1 text-xs font-medium border transition-colors',
               filter === f.val
                 ? 'bg-blue-600 border-blue-600 text-white'
-                : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-blue-400',
+                : 'border-slate-300 dark:border-slate-700/60 text-slate-600 dark:text-slate-400 hover:border-blue-400',
             )}
           >
             {f.label}

@@ -12,7 +12,7 @@ const COLOR_MAP: Record<StatColor, { icon: string; bg: string; border: string }>
   purple:  { icon: 'text-purple-600 dark:text-purple-400',   bg: 'bg-purple-50 dark:bg-purple-900/20',   border: 'border-l-purple-500 dark:border-l-purple-600'   },
   teal:    { icon: 'text-teal-600 dark:text-teal-400',       bg: 'bg-teal-50 dark:bg-teal-900/20',       border: 'border-l-teal-500 dark:border-l-teal-600'       },
   amber:   { icon: 'text-amber-600 dark:text-amber-400',     bg: 'bg-amber-50 dark:bg-amber-900/20',     border: 'border-l-amber-500 dark:border-l-amber-600'     },
-  slate:   { icon: 'text-slate-500 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-800',       border: 'border-l-slate-400 dark:border-l-slate-600'     },
+  slate:   { icon: 'text-slate-500 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-700/60',       border: 'border-l-slate-400 dark:border-l-slate-600'     },
 }
 
 interface StatCardProps {
@@ -66,7 +66,7 @@ export function StatCard({
             </p>
 
             {loading ? (
-              <div className="h-8 w-28 bg-slate-100 dark:bg-slate-800 rounded animate-pulse mt-2" />
+              <div className="h-8 w-28 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse mt-2" />
             ) : (
               <p className={cn(
                 'text-2xl font-extrabold mt-1 tracking-tight leading-none tabular-nums',
@@ -116,11 +116,11 @@ export function StatCardSkeleton() {
     <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 space-y-2 mt-1">
-          <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-          <div className="h-8 w-24 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
-          <div className="h-2.5 w-12 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+          <div className="h-2.5 w-16 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+          <div className="h-8 w-24 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
+          <div className="h-2.5 w-12 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse" />
         </div>
-        <div className="h-10 w-10 bg-slate-100 dark:bg-slate-800 rounded-2xl animate-pulse" />
+        <div className="h-10 w-10 bg-slate-100 dark:bg-slate-700/60 rounded-2xl animate-pulse" />
       </div>
     </div>
   )

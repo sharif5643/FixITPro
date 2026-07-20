@@ -1,316 +1,324 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
-import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
-import { th } from 'date-fns/locale'
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { toast } from 'sonner'
 import {
-  ChevronLeft, ChevronRight, Building2, AlertTriangle,
-  TrendingDown, ArrowUpRight, ArrowDownLeft, Wallet,
+  Plus, Pencil, Trash2, Loader2, Building2, Phone,
+  Mail, MapPin, CreditCard, FileText,
 } from 'lucide-react'
-import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn, formatThaiMoney } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Textarea } from '@/components/ui/textarea'
+import { PageHeader } from '@/components/ui/page-header'
+import { FilterBar } from '@/components/ui/filter-bar'
+import { SectionCard } from '@/components/ui/section-card'
+import { EmptyState } from '@/components/ui/empty-state'
+import {
+  DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
+  DataTableRow, DataTableCell, DataTableLoadingRows,
+} from '@/components/ui/data-table'
+import Link from 'next/link'
 import api from '@/lib/api'
-import type { SupplierStatement, SupplierStatementPO, POPaymentStatus } from '@/types'
+import type { Supplier } from '@/types'
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+const supplierSchema = z.object({
+  name:        z.string().min(1, 'ต้องระบุชื่อซัพพลายเออร์'),
+  phone:       z.string().optional(),
+  email:       z.string().email('อีเมลไม่ถูกต้อง').optional().or(z.literal('')),
+  address:     z.string().optional(),
+  taxId:       z.string().optional(),
+  creditDays:  z.coerce.number().int().min(0).default(0),
+  note:        z.string().optional(),
+})
+type SupplierForm = z.infer<typeof supplierSchema>
 
-const PAY_STATUS_CFG: Record<POPaymentStatus, { label: string; cls: string }> = {
-  UNPAID:       { label: 'ยังไม่จ่าย',   cls: 'bg-red-100 text-red-700 border-red-200' },
-  PARTIAL_PAID: { label: 'จ่ายบางส่วน', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  PAID:         { label: 'จ่ายครบ',      cls: 'bg-green-100 text-green-700 border-green-200' },
-}
+export default function SuppliersPage() {
+  const queryClient = useQueryClient()
+  const [search, setSearch]             = useState('')
+  const [formOpen, setFormOpen]         = useState(false)
+  const [editing, setEditing]           = useState<Supplier | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null)
 
-function agingBucket(daysOverdue: number): { label: string; cls: string } {
-  if (daysOverdue === 0)       return { label: 'ปัจจุบัน',      cls: 'bg-green-100 text-green-700' }
-  if (daysOverdue <= 30)       return { label: '1–30 วัน',    cls: 'bg-yellow-100 text-yellow-700' }
-  if (daysOverdue <= 60)       return { label: '31–60 วัน',   cls: 'bg-orange-100 text-orange-700' }
-  if (daysOverdue <= 90)       return { label: '61–90 วัน',   cls: 'bg-red-100 text-red-600' }
-  return                               { label: '90+ วัน',    cls: 'bg-red-200 text-red-800 font-bold' }
-}
-
-function fmtDate(s: string | null | undefined) {
-  if (!s) return '—'
-  return format(new Date(s), 'd MMM yyyy', { locale: th })
-}
-
-// ── KPI card ─────────────────────────────────────────────────────────────────
-
-function KpiCard({
-  label, value, sub, icon: Icon, accent = 'slate',
-}: {
-  label: string; value: string; sub?: string
-  icon: React.ElementType
-  accent?: 'slate' | 'blue' | 'green' | 'amber' | 'red'
-}) {
-  const bg = { slate: 'bg-white', blue: 'bg-blue-50', green: 'bg-green-50', amber: 'bg-amber-50', red: 'bg-red-50' }
-  const ic = { slate: 'text-slate-500 bg-slate-100', blue: 'text-blue-600 bg-blue-100', green: 'text-green-600 bg-green-100', amber: 'text-amber-600 bg-amber-100', red: 'text-red-600 bg-red-100' }
-  const vc = { slate: 'text-slate-900', blue: 'text-blue-700', green: 'text-green-700', amber: 'text-amber-700', red: 'text-red-700' }
-  return (
-    <div className={cn('rounded-xl border p-4 space-y-2', bg[accent])}>
-      <div className="flex items-center gap-2">
-        <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', ic[accent])}>
-          <Icon className="h-4 w-4" />
-        </span>
-        <p className="text-xs text-slate-500 font-medium leading-tight">{label}</p>
-      </div>
-      <p className={cn('text-2xl font-bold tabular-nums', vc[accent])}>{value}</p>
-      {sub && <p className="text-xs text-slate-400">{sub}</p>}
-    </div>
-  )
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
-
-export default function SupplierPayablesPage() {
-  const params    = useParams<{ id: string }>()
-  const router    = useRouter()
-  const supplierId = params.id
-
-  const [refMonth, setRefMonth] = useState(() => new Date())
-
-  const startDate = format(startOfMonth(refMonth), 'yyyy-MM-dd')
-  const endDate   = format(endOfMonth(refMonth),   'yyyy-MM-dd')
-
-  const { data, isLoading } = useQuery<SupplierStatement>({
-    queryKey: ['supplier-statement', supplierId, startDate, endDate],
-    queryFn:  () =>
-      api.get(`/suppliers/${supplierId}/statement`, { params: { startDate, endDate } }).then((r) => r.data),
-    staleTime: 60_000,
+  const { data: suppliers = [], isLoading } = useQuery<Supplier[]>({
+    queryKey: ['suppliers', search],
+    queryFn: async () =>
+      (await api.get('/suppliers', { params: { search: search || undefined } })).data,
+    staleTime: 30_000,
   })
 
-  const overduePos = useMemo(
-    () => (data?.outstandingPos ?? []).filter((p) => p.daysOverdue > 0),
-    [data],
-  )
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<SupplierForm>({
+    resolver: zodResolver(supplierSchema),
+    defaultValues: { creditDays: 0 },
+  })
 
-  const totalOutstanding = useMemo(
-    () => (data?.outstandingPos ?? []).reduce((s, p) => s + p.balance, 0),
-    [data],
-  )
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="h-8 w-64 bg-slate-200 rounded animate-pulse" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-28 bg-slate-100 rounded-xl animate-pulse" />
-          ))}
-        </div>
-      </div>
-    )
+  const openCreate = () => {
+    setEditing(null)
+    reset({ name: '', phone: '', email: '', address: '', taxId: '', creditDays: 0, note: '' })
+    setFormOpen(true)
   }
 
-  if (!data) return null
+  const openEdit = (s: Supplier) => {
+    setEditing(s)
+    reset({
+      name: s.name, phone: s.phone ?? '', email: s.email ?? '',
+      address: s.address ?? '', taxId: s.taxId ?? '',
+      creditDays: s.creditDays, note: s.note ?? '',
+    })
+    setFormOpen(true)
+  }
 
-  const { supplier } = data
+  const saveMutation = useMutation({
+    mutationFn: async (data: SupplierForm) => {
+      const payload = { ...data, email: data.email || undefined }
+      if (editing) return (await api.patch(`/suppliers/${editing.id}`, payload)).data
+      return (await api.post('/suppliers', payload)).data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
+      setFormOpen(false)
+      toast.success(editing ? 'แก้ไขซัพพลายเออร์แล้ว' : 'เพิ่มซัพพลายเออร์แล้ว')
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message ?? err.message
+      toast.error(Array.isArray(msg) ? msg[0] : msg ?? 'เกิดข้อผิดพลาด')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/suppliers/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] })
+      setDeleteTarget(null)
+      toast.success('ปิดการใช้งานซัพพลายเออร์แล้ว')
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message ?? err.message
+      toast.error(Array.isArray(msg) ? msg[0] : msg ?? 'เกิดข้อผิดพลาด')
+    },
+  })
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" className="gap-1 -ml-2" onClick={() => router.push('/suppliers')}>
-          <ChevronLeft className="h-4 w-4" />
-          ซัพพลายเออร์
-        </Button>
-      </div>
-
+    <div className="space-y-5">
       <PageHeader
-        title={supplier.name}
+        title="ซัพพลายเออร์"
         icon={Building2}
-        subtitle={`บัญชีเจ้าหนี้${supplier.creditDays > 0 ? ` · เครดิต ${supplier.creditDays} วัน` : ''}`}
-        breadcrumbs={[{ label: 'ซัพพลายเออร์', href: '/suppliers' }, { label: supplier.name }]}
-        secondaryActions={
-          <div className="flex items-center gap-2 border rounded-lg px-3 py-1.5 bg-white w-fit">
-            <button onClick={() => setRefMonth((m) => subMonths(m, 1))} className="p-1 hover:bg-slate-100 rounded">
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="text-sm font-medium w-28 text-center">
-              {format(refMonth, 'MMMM yyyy', { locale: th })}
-            </span>
-            <button
-              onClick={() => setRefMonth((m) => addMonths(m, 1))}
-              disabled={format(addMonths(refMonth, 1), 'yyyy-MM') > format(new Date(), 'yyyy-MM')}
-              className="p-1 hover:bg-slate-100 rounded disabled:opacity-30"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+        subtitle="จัดการผู้จัดจำหน่ายสินค้า"
+        primaryAction={
+          <Button onClick={openCreate} className="gap-2 shrink-0">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">เพิ่มซัพพลายเออร์</span>
+            <span className="sm:hidden">เพิ่ม</span>
+          </Button>
         }
       />
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard
-          label="ยอดยกมา"
-          value={formatThaiMoney(data.openingBalance)}
-          icon={Wallet}
-          accent="slate"
-        />
-        <KpiCard
-          label="ซื้อในเดือน"
-          value={formatThaiMoney(data.purchases)}
-          icon={ArrowUpRight}
-          accent="blue"
-        />
-        <KpiCard
-          label="จ่ายในเดือน"
-          value={formatThaiMoney(data.payments)}
-          icon={ArrowDownLeft}
-          accent="green"
-        />
-        <KpiCard
-          label="ยอดคงค้าง"
-          value={formatThaiMoney(data.closingBalance)}
-          sub={`รวมทุก PO: ${formatThaiMoney(totalOutstanding)}`}
-          icon={TrendingDown}
-          accent={data.closingBalance > 0 ? 'amber' : 'slate'}
-        />
+      <FilterBar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="ค้นหาซัพพลายเออร์..."
+      />
+
+      {/* Desktop table */}
+      <SectionCard noPadding className="hidden md:block">
+        <DataTable>
+          <DataTableHead>
+            <DataTableHeadCell>ชื่อ</DataTableHeadCell>
+            <DataTableHeadCell hidden>เบอร์โทร</DataTableHeadCell>
+            <DataTableHeadCell hidden>อีเมล</DataTableHeadCell>
+            <DataTableHeadCell className="text-center">เครดิต (วัน)</DataTableHeadCell>
+            <DataTableHeadCell className="text-center">สถานะ</DataTableHeadCell>
+            <DataTableHeadCell className="text-center w-28">จัดการ</DataTableHeadCell>
+          </DataTableHead>
+          <DataTableBody>
+            {isLoading ? (
+              <DataTableLoadingRows rows={5} cols={6} />
+            ) : suppliers.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-0">
+                  <EmptyState preset={search ? 'search' : 'default'} size="md" title={search ? 'ไม่พบซัพพลายเออร์' : 'ยังไม่มีซัพพลายเออร์'} />
+                </td>
+              </tr>
+            ) : (
+              suppliers.map((s) => (
+                <DataTableRow key={s.id}>
+                  <DataTableCell>
+                    <p className="font-semibold text-slate-900">{s.name}</p>
+                    {s.taxId && (
+                      <p className="text-xs text-slate-400 mt-0.5">เลขผู้เสียภาษี: {s.taxId}</p>
+                    )}
+                  </DataTableCell>
+                  <DataTableCell hidden muted>{s.phone ?? '—'}</DataTableCell>
+                  <DataTableCell hidden muted>{s.email ?? '—'}</DataTableCell>
+                  <DataTableCell className="text-center font-medium">{s.creditDays}</DataTableCell>
+                  <DataTableCell className="text-center">
+                    <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
+                      s.isActive
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'
+                        : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60'
+                    }`}>
+                      {s.isActive ? 'ใช้งาน' : 'ปิดการใช้'}
+                    </span>
+                  </DataTableCell>
+                  <DataTableCell className="text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <Link href={`/suppliers/${s.id}/payables`}>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:text-blue-800 hover:bg-blue-50" title="ดูบัญชีเจ้าหนี้">
+                          <FileText className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-slate-100" onClick={() => openEdit(s)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      {s.isActive && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteTarget(s)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </DataTableCell>
+                </DataTableRow>
+              ))
+            )}
+          </DataTableBody>
+        </DataTable>
+      </SectionCard>
+
+      {/* Mobile cards */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <SectionCard><div className="h-32 flex items-center justify-center"><div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" /></div></SectionCard>
+        ) : suppliers.length === 0 ? (
+          <SectionCard noPadding><EmptyState preset="default" size="md" title={search ? 'ไม่พบซัพพลายเออร์' : 'ยังไม่มีซัพพลายเออร์'} /></SectionCard>
+        ) : (
+          suppliers.map((s) => (
+            <div key={s.id} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-900 dark:text-slate-50">{s.name}</p>
+                  {s.taxId && <p className="text-xs text-slate-400 dark:text-slate-500">{s.taxId}</p>}
+                </div>
+                <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold shrink-0 ${
+                  s.isActive
+                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60'
+                    : 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60'
+                }`}>
+                  {s.isActive ? 'ใช้งาน' : 'ปิดการใช้'}
+                </span>
+              </div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 space-y-0.5">
+                {s.phone && <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />{s.phone}</p>}
+                {s.email && <p className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" />{s.email}</p>}
+                <p className="flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5" />เครดิต {s.creditDays} วัน</p>
+              </div>
+              <div className="flex gap-2">
+                <Link href={`/suppliers/${s.id}/payables`} className="flex-1">
+                  <Button size="sm" variant="outline" className="w-full gap-1.5 h-8 text-xs text-blue-600 border-blue-200 hover:bg-blue-50">
+                    <FileText className="h-3 w-3" />ดูบัญชี
+                  </Button>
+                </Link>
+                <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-8 text-xs" onClick={() => openEdit(s)}>
+                  <Pencil className="h-3 w-3" />แก้ไข
+                </Button>
+                {s.isActive && (
+                  <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-8 text-xs text-red-500 border-red-200 hover:bg-red-50" onClick={() => setDeleteTarget(s)}>
+                    <Trash2 className="h-3 w-3" />ปิดการใช้
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
-      {/* Overdue alert */}
-      {overduePos.length > 0 && (
-        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700 font-medium">
-            มี {overduePos.length} รายการเกินกำหนดชำระ
-            · ยอดรวม {formatThaiMoney(overduePos.reduce((s, p) => s + p.balance, 0))}
-          </p>
-        </div>
-      )}
-
-      {/* Outstanding POs */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">PO ค้างชำระทั้งหมด</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {data.outstandingPos.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">ไม่มี PO ค้างชำระ</p>
-          ) : (
-            <>
-              {/* Desktop */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-gray-50 text-gray-500 text-xs">
-                      <th className="text-left px-4 py-2.5 font-medium">เลข PO</th>
-                      <th className="text-left px-4 py-2.5 font-medium">วันที่สั่ง</th>
-                      <th className="text-left px-4 py-2.5 font-medium">ครบกำหนด</th>
-                      <th className="text-right px-4 py-2.5 font-medium">มูลค่า</th>
-                      <th className="text-right px-4 py-2.5 font-medium">จ่ายแล้ว</th>
-                      <th className="text-right px-4 py-2.5 font-medium">คงเหลือ</th>
-                      <th className="text-center px-4 py-2.5 font-medium">อายุหนี้</th>
-                      <th className="text-center px-4 py-2.5 font-medium">สถานะ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.outstandingPos.map((po) => {
-                      const aging = agingBucket(po.daysOverdue)
-                      const payStatus = PAY_STATUS_CFG[po.paymentStatus]
-                      return (
-                        <tr key={po.id} className="border-b last:border-0 hover:bg-slate-50/60">
-                          <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700">{po.poNumber}</td>
-                          <td className="px-4 py-3 text-gray-600">{fmtDate(po.orderDate)}</td>
-                          <td className="px-4 py-3 text-gray-600">
-                            {po.dueDate ? (
-                              <span className={cn(po.daysOverdue > 0 ? 'text-red-600 font-medium' : '')}>
-                                {fmtDate(po.dueDate)}
-                              </span>
-                            ) : '—'}
-                          </td>
-                          <td className="px-4 py-3 text-right tabular-nums">{formatThaiMoney(po.total)}</td>
-                          <td className="px-4 py-3 text-right tabular-nums text-green-700">{formatThaiMoney(po.paidTotal)}</td>
-                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-red-700">{formatThaiMoney(po.balance)}</td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', aging.cls)}>
-                              {aging.label}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={cn('rounded-full border px-2 py-0.5 text-[11px] font-semibold', payStatus.cls)}>
-                              {payStatus.label}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t bg-slate-50">
-                      <td colSpan={5} className="px-4 py-2.5 text-xs font-semibold text-gray-500">รวมคงค้าง</td>
-                      <td className="px-4 py-2.5 text-right font-bold text-red-700 tabular-nums">
-                        {formatThaiMoney(totalOutstanding)}
-                      </td>
-                      <td colSpan={2} />
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Mobile */}
-              <div className="md:hidden divide-y">
-                {data.outstandingPos.map((po) => {
-                  const aging = agingBucket(po.daysOverdue)
-                  return (
-                    <div key={po.id} className="p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs font-bold text-blue-700">{po.poNumber}</span>
-                        <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', aging.cls)}>
-                          {aging.label}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">ครบกำหนด</span>
-                        <span className={cn(po.daysOverdue > 0 ? 'text-red-600 font-medium' : '')}>
-                          {fmtDate(po.dueDate)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">คงเหลือ</span>
-                        <span className="font-bold text-red-700">{formatThaiMoney(po.balance)}</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Payment history */}
-      {data.paymentHistory.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              ประวัติการจ่าย — {format(refMonth, 'MMMM yyyy', { locale: th })}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {data.paymentHistory.map((p) => (
-                <div key={p.id} className="px-4 py-3 flex items-center justify-between text-sm">
-                  <div>
-                    <p className="font-medium text-gray-800">{formatThaiMoney(p.amount)}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {fmtDate(p.paidAt)} · {p.poNumber}
-                      {p.note && ` · ${p.note}`}
-                    </p>
-                  </div>
-                  <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
-                    {{ CASH: 'เงินสด', TRANSFER: 'โอน', CARD: 'บัตร' }[p.paymentMethod] ?? p.paymentMethod}
-                  </span>
-                </div>
-              ))}
+      {/* Add / Edit Dialog */}
+      <Dialog open={formOpen} onOpenChange={(v) => { if (!v) setFormOpen(false) }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-blue-600" />
+              {editing ? 'แก้ไขซัพพลายเออร์' : 'เพิ่มซัพพลายเออร์'}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit((d) => saveMutation.mutate(d))} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>ชื่อซัพพลายเออร์ <span className="text-red-500">*</span></Label>
+              <Input placeholder="เช่น บริษัท ไทยโมบาย จำกัด" {...register('name')} />
+              {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />เบอร์โทร</Label>
+                <Input placeholder="02-XXX-XXXX" {...register('phone')} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" />อีเมล</Label>
+                <Input type="email" placeholder="supplier@email.com" {...register('email')} />
+                {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />ที่อยู่</Label>
+              <Textarea rows={2} placeholder="ที่อยู่บริษัท..." {...register('address')} className="text-sm resize-none" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>เลขผู้เสียภาษี</Label>
+                <Input placeholder="0-0000-00000-00-0" {...register('taxId')} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5" />เงื่อนไขเครดิต (วัน)</Label>
+                <Input type="number" min={0} step={1} placeholder="0" {...register('creditDays')} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>หมายเหตุ</Label>
+              <Textarea rows={2} placeholder="หมายเหตุเพิ่มเติม..." {...register('note')} className="text-sm resize-none" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setFormOpen(false)} disabled={saveMutation.isPending}>
+                ยกเลิก
+              </Button>
+              <Button type="submit" disabled={saveMutation.isPending} className="gap-2 min-w-[100px]">
+                {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {editing ? 'บันทึกการแก้ไข' : 'เพิ่มซัพพลายเออร์'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ปิดการใช้งานซัพพลายเออร์?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &ldquo;{deleteTarget?.name}&rdquo; จะถูกปิดการใช้งาน แต่ข้อมูลใน PO เดิมจะยังคงอยู่
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              ปิดการใช้งาน
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

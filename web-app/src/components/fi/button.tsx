@@ -13,9 +13,9 @@ interface FiButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles = {
   primary:   'bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-fi-primary active:shadow-none',
-  secondary: 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200',
-  outline:   'border border-[var(--fi-border)] bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 text-[var(--fi-text)]',
-  ghost:     'bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--fi-text-muted)]',
+  secondary: 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/40 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200',
+  outline:   'border border-[var(--fi-border)] bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/40 text-[var(--fi-text)]',
+  ghost:     'bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700/40 text-[var(--fi-text-muted)]',
   danger:    'bg-[#EF4444] hover:bg-[#DC2626] text-white shadow-fi-danger active:shadow-none',
   success:   'bg-[#22C55E] hover:bg-[#16A34A] text-white shadow-fi-success active:shadow-none',
   warning:   'bg-[#F59E0B] hover:bg-[#D97706] text-white',

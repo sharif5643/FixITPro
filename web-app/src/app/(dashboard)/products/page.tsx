@@ -391,7 +391,7 @@ export default function ProductsPage() {
               paginated.flatMap((p, idx) => {
                 const rowIdx       = (currentPage - 1) * PAGE_SIZE + idx
                 const typeLabel    = p.category?.categoryType?.name ?? TYPE_CONFIG[p.type]?.label ?? p.type
-                const typeInfo     = TYPE_CONFIG[p.type] ?? { label: typeLabel, cls: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' }
+                const typeInfo     = TYPE_CONFIG[p.type] ?? { label: typeLabel, cls: 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700/60' }
                 const q            = stockOf(p)
                 const isOut        = q === 0
                 const isLow        = !isOut && q <= p.minStock
@@ -421,7 +421,7 @@ export default function ProductsPage() {
 
                     {/* SKU */}
                     <DataTableCell hidden className="min-w-[120px]">
-                      <code className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-xs font-mono text-slate-700 dark:text-slate-300">
+                      <code className="rounded bg-slate-100 dark:bg-slate-700/60 px-1.5 py-0.5 text-xs font-mono text-slate-700 dark:text-slate-300">
                         {p.sku}
                       </code>
                       {!isViewAll && p.stockCode && (
@@ -607,7 +607,7 @@ export default function ProductsPage() {
                                   key={b.branchId}
                                   className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
                                     b.quantity === 0
-                                      ? 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
+                                      ? 'border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500'
                                       : 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
                                   }`}
                                 >

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
-    <div className={cn('bg-slate-100 dark:bg-slate-800 rounded animate-pulse', className)} style={style} />
+    <div className={cn('bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse', className)} style={style} />
   )
 }
 

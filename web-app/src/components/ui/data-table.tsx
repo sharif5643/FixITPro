@@ -146,7 +146,7 @@ export function DataTableLoadingRows({
           {Array.from({ length: cols }).map((_, j) => (
             <td key={j} className="py-3 px-3">
               <div
-                className="h-4 bg-slate-100 dark:bg-slate-800 rounded animate-pulse"
+                className="h-4 bg-slate-100 dark:bg-slate-700/60 rounded animate-pulse"
                 style={{ width: `${60 + (j * 10) % 40}%` }}
               />
             </td>

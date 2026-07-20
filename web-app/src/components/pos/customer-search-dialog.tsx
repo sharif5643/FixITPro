@@ -102,7 +102,7 @@ export function CustomerSearchDialog({ open, onSelect, onClose }: CustomerSearch
                     'border-transparent hover:border-blue-200 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20',
                   )}
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 shrink-0">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700/60 shrink-0">
                     <User className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                   </div>
                   <div className="flex-1 min-w-0">

@@ -109,7 +109,7 @@ export function QuickSearch() {
       {/* Trigger button (shown in header) */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:bg-white dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors min-w-[120px] sm:min-w-[180px]"
+        className="flex items-center gap-2 h-8 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:bg-white dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors min-w-[120px] sm:min-w-[180px]"
         aria-label="ค้นหา (Cmd+K)"
       >
         <Search className="h-3.5 w-3.5 shrink-0" />
@@ -170,7 +170,7 @@ export function QuickSearch() {
                       'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors',
                       i === activeIndex
                         ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800',
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/40',
                     )}
                   >
                     <div className="min-w-0 flex-1">

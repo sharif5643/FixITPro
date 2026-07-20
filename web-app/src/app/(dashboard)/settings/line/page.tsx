@@ -166,7 +166,7 @@ export default function LineSettingsPage() {
               Webhook URL (ใช้ใน LINE Console)
             </Label>
             <div className="flex gap-2">
-              <code className="flex-1 rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">
+              <code className="flex-1 rounded-lg bg-slate-100 dark:bg-slate-700/60 px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-300 break-all">
                 {webhookUrl}
               </code>
               <Button

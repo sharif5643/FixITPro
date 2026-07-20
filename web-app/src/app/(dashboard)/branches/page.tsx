@@ -85,7 +85,7 @@ function BranchModal({
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ชื่อสาขา *</label>
             <input
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="เช่น สาขาสยาม"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -95,7 +95,7 @@ function BranchModal({
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ที่อยู่</label>
             <textarea
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={2}
               placeholder="ที่อยู่สาขา"
               value={address}
@@ -105,7 +105,7 @@ function BranchModal({
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">เบอร์โทร</label>
             <input
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="02-xxx-xxxx"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -245,7 +245,7 @@ export default function BranchesPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+      <div className="flex gap-1 bg-slate-100 dark:bg-slate-700/60 rounded-lg p-1">
         {([
           { id: 'branches', label: 'สาขา', icon: Building2 },
           { id: 'stock',    label: 'สต็อกสาขา', icon: Package },
@@ -285,7 +285,7 @@ export default function BranchesPage() {
                   key={branch.id}
                   className={cn(
                     'rounded-xl border bg-white dark:bg-[#1E293B] p-4 space-y-2 transition-all',
-                    branch.isActive ? 'border-slate-200 dark:border-slate-700' : 'border-slate-100 dark:border-slate-700/60 opacity-60',
+                    branch.isActive ? 'border-slate-200 dark:border-slate-700/60' : 'border-slate-100 dark:border-slate-700/60 opacity-60',
                   )}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -389,7 +389,7 @@ export default function BranchesPage() {
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <select
-              className="rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={selectedBranchForStock}
               onChange={(e) => setSelectedBranchForStock(e.target.value)}
             >
@@ -402,7 +402,7 @@ export default function BranchesPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
-                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700/60 dark:bg-[#1E293B] dark:text-white pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="ค้นหาสินค้า..."
                   value={stockSearch}
                   onChange={(e) => setStockSearch(e.target.value)}
@@ -426,7 +426,7 @@ export default function BranchesPage() {
                 สต็อกเฉพาะสาขา — {branches.find(b => b.id === selectedBranchForStock)?.name}
               </div>
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700/60">
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400">สินค้า</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400 hidden md:table-cell">รหัสสต็อก</th>

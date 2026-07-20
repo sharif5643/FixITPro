@@ -340,7 +340,7 @@ export default function PurchaseOrdersPage() {
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                 statusFilter === s
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600'
+                  : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-600'
               }`}
             >
               {s === '' ? 'ทั้งหมด' : STATUS_CFG[s].label}
@@ -520,13 +520,13 @@ export default function PurchaseOrdersPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="ค้นหาสินค้าเพื่อเพิ่ม (ชื่อ / SKU)..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)} className="pl-9" />
                 {productSearch.length >= 2 && (
-                  <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white dark:bg-[#1E293B] border dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white dark:bg-[#1E293B] border dark:border-slate-700/60 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                     {searchingProducts ? (
                       <div className="flex items-center justify-center py-4 gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" />กำลังค้นหา...</div>
                     ) : productResults.length === 0 ? (
                       <div className="py-4 text-center text-sm text-muted-foreground">ไม่พบสินค้า</div>
                     ) : productResults.map((p) => (
-                      <button key={p.id} type="button" className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm border-b dark:border-slate-700 last:border-0" onClick={() => addProduct(p)}>
+                      <button key={p.id} type="button" className="w-full text-left px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/40 text-sm border-b dark:border-slate-700/60 last:border-0" onClick={() => addProduct(p)}>
                         <span className="font-medium dark:text-slate-200">{p.name}</span>
                         <span className="text-muted-foreground ml-2 text-xs">({p.sku})</span>
                         <span className="float-right text-gray-500 dark:text-slate-400 text-xs">ราคาทุน: ฿{fmt(p.costPrice)}</span>
@@ -539,7 +539,7 @@ export default function PurchaseOrdersPage() {
                 <div className="border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 dark:bg-slate-800/60 border-b dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400">
+                      <tr className="bg-gray-50 dark:bg-slate-800/60 border-b dark:border-slate-700/60 text-xs text-gray-500 dark:text-slate-400">
                         <th className="text-left px-3 py-2 font-medium">สินค้า</th>
                         <th className="text-center px-3 py-2 font-medium w-20">จำนวน</th>
                         <th className="text-center px-3 py-2 font-medium w-28">ราคาทุน/ชิ้น</th>
@@ -552,7 +552,7 @@ export default function PurchaseOrdersPage() {
                       {items.map((item, idx) => {
                         const lineTotal = item.unitCost * item.quantity - item.discount
                         return (
-                          <tr key={idx} className="border-b dark:border-slate-700 last:border-0">
+                          <tr key={idx} className="border-b dark:border-slate-700/60 last:border-0">
                             <td className="px-3 py-2"><p className="font-medium text-gray-900 dark:text-slate-200 text-sm">{item.productName}</p><p className="text-xs text-muted-foreground">{item.sku}</p></td>
                             <td className="px-3 py-2"><Input type="number" min={1} className="h-8 text-center text-sm" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', Math.max(1, Number(e.target.value) || 1))} /></td>
                             <td className="px-3 py-2"><Input type="number" min={0} step={0.01} className="h-8 text-right text-sm" value={item.unitCost} onChange={(e) => updateItem(idx, 'unitCost', Number(e.target.value) || 0)} /></td>
@@ -572,11 +572,11 @@ export default function PurchaseOrdersPage() {
               )}
             </div>
             {items.length > 0 && (
-              <div className="space-y-1.5 text-sm border-t dark:border-slate-700 pt-4">
+              <div className="space-y-1.5 text-sm border-t dark:border-slate-700/60 pt-4">
                 <div className="flex justify-between text-gray-600 dark:text-slate-400"><span>ยอดรวมสินค้า</span><span>฿{fmt(itemsSubtotal)}</span></div>
                 {orderDiscount > 0 && <div className="flex justify-between text-gray-600 dark:text-slate-400"><span>ส่วนลดรวม</span><span className="text-red-600 dark:text-red-400">-฿{fmt(orderDiscount)}</span></div>}
                 {vatPercent > 0 && <div className="flex justify-between text-gray-600 dark:text-slate-400"><span>VAT {vatPercent}%</span><span>฿{fmt(vatAmount)}</span></div>}
-                <div className="flex justify-between font-bold text-base text-gray-900 dark:text-slate-50 border-t dark:border-slate-700 pt-2 mt-1"><span>มูลค่ารวมทั้งสิ้น</span><span className="text-blue-700 dark:text-blue-400">฿{fmt(grandTotal)}</span></div>
+                <div className="flex justify-between font-bold text-base text-gray-900 dark:text-slate-50 border-t dark:border-slate-700/60 pt-2 mt-1"><span>มูลค่ารวมทั้งสิ้น</span><span className="text-blue-700 dark:text-blue-400">฿{fmt(grandTotal)}</span></div>
               </div>
             )}
             <div className="space-y-1.5">
@@ -621,12 +621,12 @@ export default function PurchaseOrdersPage() {
                 {/* Items */}
                 <div className="border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead><tr className="bg-gray-50 dark:bg-slate-800/60 border-b dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400"><th className="text-left px-3 py-2 font-medium">สินค้า</th><th className="text-center px-3 py-2 font-medium">สั่ง</th><th className="text-center px-3 py-2 font-medium">รับแล้ว</th><th className="text-center px-3 py-2 font-medium">คงเหลือ</th><th className="text-right px-3 py-2 font-medium">ราคา/ชิ้น</th><th className="text-right px-3 py-2 font-medium">รวม</th></tr></thead>
+                    <thead><tr className="bg-gray-50 dark:bg-slate-800/60 border-b dark:border-slate-700/60 text-xs text-gray-500 dark:text-slate-400"><th className="text-left px-3 py-2 font-medium">สินค้า</th><th className="text-center px-3 py-2 font-medium">สั่ง</th><th className="text-center px-3 py-2 font-medium">รับแล้ว</th><th className="text-center px-3 py-2 font-medium">คงเหลือ</th><th className="text-right px-3 py-2 font-medium">ราคา/ชิ้น</th><th className="text-right px-3 py-2 font-medium">รวม</th></tr></thead>
                     <tbody>
                       {detail.items.map((item) => {
                         const remaining = item.quantity - item.receivedQty
                         return (
-                          <tr key={item.id} className="border-b dark:border-slate-700 last:border-0">
+                          <tr key={item.id} className="border-b dark:border-slate-700/60 last:border-0">
                             <td className="px-3 py-2"><p className="font-medium text-gray-900 dark:text-slate-200">{item.product.name}</p><p className="text-xs text-muted-foreground">{item.product.sku}</p></td>
                             <td className="px-3 py-2 text-center">{item.quantity}</td>
                             <td className="px-3 py-2 text-center"><span className={item.receivedQty > 0 ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-gray-400 dark:text-slate-600'}>{item.receivedQty}</span></td>
@@ -641,11 +641,11 @@ export default function PurchaseOrdersPage() {
                 </div>
 
                 {/* Totals + payment summary */}
-                <div className="space-y-1.5 text-sm border-t dark:border-slate-700 pt-3">
+                <div className="space-y-1.5 text-sm border-t dark:border-slate-700/60 pt-3">
                   <div className="flex justify-between text-gray-600 dark:text-slate-400"><span>ยอดรวมสินค้า</span><span>฿{fmt(Number(detail.subtotal))}</span></div>
                   {Number(detail.discount) > 0 && <div className="flex justify-between text-gray-600 dark:text-slate-400"><span>ส่วนลด</span><span className="text-red-600 dark:text-red-400">-฿{fmt(Number(detail.discount))}</span></div>}
                   {Number(detail.vatAmount) > 0 && <div className="flex justify-between text-gray-600 dark:text-slate-400"><span>VAT {Number(detail.vatPercent)}%</span><span>฿{fmt(Number(detail.vatAmount))}</span></div>}
-                  <div className="flex justify-between font-bold text-base border-t dark:border-slate-700 pt-2 mt-1"><span>มูลค่ารวมทั้งสิ้น</span><span className="text-blue-700 dark:text-blue-400">฿{fmt(Number(detail.total))}</span></div>
+                  <div className="flex justify-between font-bold text-base border-t dark:border-slate-700/60 pt-2 mt-1"><span>มูลค่ารวมทั้งสิ้น</span><span className="text-blue-700 dark:text-blue-400">฿{fmt(Number(detail.total))}</span></div>
                   {Number(detail.paidTotal) > 0 && <>
                     <div className="flex justify-between text-green-700 dark:text-green-400"><span>จ่ายแล้ว</span><span>฿{fmt(Number(detail.paidTotal))}</span></div>
                     <div className="flex justify-between font-semibold text-red-600 dark:text-red-400"><span>ยอดค้างชำระ</span><span>฿{fmt(Math.max(0, Number(detail.total) - Number(detail.paidTotal)))}</span></div>
@@ -654,12 +654,12 @@ export default function PurchaseOrdersPage() {
 
                 {/* Payment history */}
                 {(detail.payments?.length ?? 0) > 0 && (
-                  <div className="border dark:border-slate-700 rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 dark:bg-slate-800/60 border-b dark:border-slate-700 px-3 py-2 text-xs font-semibold text-gray-600 dark:text-slate-400 flex items-center gap-2">
+                  <div className="border dark:border-slate-700/60 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 dark:bg-slate-800/60 border-b dark:border-slate-700/60 px-3 py-2 text-xs font-semibold text-gray-600 dark:text-slate-400 flex items-center gap-2">
                       <History className="h-3.5 w-3.5" />ประวัติการจ่ายเงิน
                     </div>
                     {detail.payments!.map((p) => (
-                      <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 text-sm border-b dark:border-slate-700 last:border-0">
+                      <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 text-sm border-b dark:border-slate-700/60 last:border-0">
                         <ArrowUpFromLine className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
                         <div className="flex-1">
                           <span className="font-medium text-gray-900 dark:text-slate-200">{PAY_METHOD_LABEL[p.paymentMethod]}</span>
@@ -673,7 +673,7 @@ export default function PurchaseOrdersPage() {
                 )}
 
                 {/* Stock movement history */}
-                <div className="border-t dark:border-slate-700 pt-4">
+                <div className="border-t dark:border-slate-700/60 pt-4">
                   <p className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3 flex items-center gap-2"><History className="h-4 w-4" />ประวัติการรับสินค้า</p>
                   {loadingMovements ? (
                     <div className="flex items-center gap-2 text-muted-foreground text-sm py-2"><Loader2 className="h-4 w-4 animate-spin" />กำลังโหลด...</div>
@@ -682,7 +682,7 @@ export default function PurchaseOrdersPage() {
                   ) : (
                     <div className="space-y-1.5">
                       {movements.map((m) => (
-                        <div key={m.id} className="flex items-center gap-3 text-sm py-1.5 border-b dark:border-slate-700 last:border-0">
+                        <div key={m.id} className="flex items-center gap-3 text-sm py-1.5 border-b dark:border-slate-700/60 last:border-0">
                           <ChevronRight className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
                           <div className="flex-1"><span className="font-medium text-gray-900 dark:text-slate-200">{m.product.name}</span><span className="text-muted-foreground ml-1.5 text-xs">({m.product.sku})</span></div>
                           <span className="text-green-700 dark:text-green-400 font-semibold">+{m.quantity} ชิ้น</span>
@@ -744,16 +744,16 @@ export default function PurchaseOrdersPage() {
                   </div>
                   <p className="text-blue-700 dark:text-blue-400 mt-0.5">{receiveDetail.supplier.name}</p>
                 </div>
-                <div className="border dark:border-slate-700 rounded-lg overflow-hidden">
+                <div className="border dark:border-slate-700/60 rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead><tr className="bg-gray-50 dark:bg-slate-800/60 border-b dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400"><th className="text-left px-3 py-2 font-medium">สินค้า</th><th className="text-center px-3 py-2 font-medium w-16">สั่ง</th><th className="text-center px-3 py-2 font-medium w-16">รับแล้ว</th><th className="text-center px-3 py-2 font-medium w-20">คงเหลือ</th><th className="text-center px-3 py-2 font-medium w-28">รับครั้งนี้</th></tr></thead>
+                    <thead><tr className="bg-gray-50 dark:bg-slate-800/60 border-b dark:border-slate-700/60 text-xs text-gray-500 dark:text-slate-400"><th className="text-left px-3 py-2 font-medium">สินค้า</th><th className="text-center px-3 py-2 font-medium w-16">สั่ง</th><th className="text-center px-3 py-2 font-medium w-16">รับแล้ว</th><th className="text-center px-3 py-2 font-medium w-20">คงเหลือ</th><th className="text-center px-3 py-2 font-medium w-28">รับครั้งนี้</th></tr></thead>
                     <tbody>
                       {receiveDetail.items.map((item) => {
                         const remaining = item.quantity - item.receivedQty
                         const thisQty = receiveQtys[item.id] ?? 0
                         const isOver = thisQty > remaining
                         return (
-                          <tr key={item.id} className="border-b dark:border-slate-700 last:border-0">
+                          <tr key={item.id} className="border-b dark:border-slate-700/60 last:border-0">
                             <td className="px-3 py-2.5"><p className="font-medium text-gray-900 dark:text-slate-200">{item.product.name}</p><p className="text-xs text-muted-foreground">{item.product.sku}</p></td>
                             <td className="px-3 py-2.5 text-center text-gray-700 dark:text-slate-300">{item.quantity}</td>
                             <td className="px-3 py-2.5 text-center"><span className={item.receivedQty > 0 ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-gray-400 dark:text-slate-600'}>{item.receivedQty}</span></td>
@@ -818,7 +818,7 @@ export default function PurchaseOrdersPage() {
               </DialogHeader>
               <div className="space-y-4 py-1">
                 {/* PO Info */}
-                <div className="rounded-lg bg-gray-50 dark:bg-slate-800/60 border dark:border-slate-700 px-4 py-3 text-sm space-y-1">
+                <div className="rounded-lg bg-gray-50 dark:bg-slate-800/60 border dark:border-slate-700/60 px-4 py-3 text-sm space-y-1">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">PO</span>
                     <span className="font-mono font-semibold">{payDetail.poNumber}</span>
@@ -881,7 +881,7 @@ export default function PurchaseOrdersPage() {
                         key={m}
                         type="button"
                         onClick={() => setPayMethod(m)}
-                        className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs font-medium transition-all ${payMethod === m ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 dark:text-slate-300'}`}
+                        className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs font-medium transition-all ${payMethod === m ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-gray-200 dark:border-slate-700/60 hover:border-gray-300 dark:hover:border-slate-600 dark:text-slate-300'}`}
                       >
                         {m === 'CASH' ? <Banknote className="h-5 w-5" /> : m === 'TRANSFER' ? <ArrowUpFromLine className="h-5 w-5" /> : <CreditCard className="h-5 w-5" />}
                         {PAY_METHOD_LABEL[m]}

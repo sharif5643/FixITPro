@@ -240,7 +240,7 @@ function DataFieldList({ data }: { data: Record<string, any> }) {
   const keys = Object.keys(data).filter((k) => data[k] !== undefined && data[k] !== null)
   if (keys.length === 0) return <p className="text-sm text-slate-400 italic">ไม่มีข้อมูล</p>
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700/60 overflow-hidden">
       {keys.map((key) => (
         <div key={key} className="flex items-start gap-3 px-3 py-2 border-b border-slate-100 dark:border-slate-700/60 last:border-0">
           <span className="text-xs text-slate-400 shrink-0 w-32 pt-0.5 leading-snug">
@@ -278,9 +278,9 @@ function ComparisonTable({
       {changedKeys.length === 0 ? (
         <p className="text-sm text-slate-400 italic">ไม่พบการเปลี่ยนแปลง</p>
       ) : (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700/60 overflow-hidden">
           {/* column headers */}
-          <div className="grid grid-cols-[1fr_1fr_1fr] bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <div className="grid grid-cols-[1fr_1fr_1fr] bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700/60 text-xs font-semibold text-slate-500 dark:text-slate-400">
             <div className="px-3 py-2">ฟิลด์</div>
             <div className="px-3 py-2 text-red-600">ก่อน</div>
             <div className="px-3 py-2 text-green-700">หลัง</div>
@@ -324,7 +324,7 @@ function ComparisonTable({
             ฟิลด์ที่ไม่เปลี่ยนแปลง ({unchangedKeys.length})
           </button>
           {showUnchanged && (
-            <div className="mt-1.5 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="mt-1.5 rounded-lg border border-slate-200 dark:border-slate-700/60 overflow-hidden">
               {unchangedKeys.map((key) => (
                 <div
                   key={key}
@@ -357,7 +357,7 @@ function RawJsonBlock({ label, data }: { label: string; data: Record<string, any
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700/60 overflow-hidden">
       <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 px-3 py-2">
         <button
           onClick={() => setOpen((v) => !v)}
@@ -595,7 +595,7 @@ export default function AuditLogsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700/60">
                   <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">วันเวลา</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">ผู้กระทำ</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">Action</th>

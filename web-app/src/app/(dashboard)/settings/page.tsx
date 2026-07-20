@@ -278,7 +278,7 @@ export default function SettingsPage() {
                       />
                       <p className="text-xs text-slate-400">ใส่ URL รูปภาพ (png, jpg, svg)</p>
                     </div>
-                    <div className="h-16 w-16 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center shrink-0 overflow-hidden">
+                    <div className="h-16 w-16 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center shrink-0 overflow-hidden">
                       {logoPreview ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={logoPreview} alt="logo" className="h-full w-full object-contain" onError={() => setLogoPreview('')} />

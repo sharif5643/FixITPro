@@ -63,7 +63,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
       <div className="flex items-center gap-2 min-w-0">
         <button
           onClick={onMenuToggle}
-          className="md:hidden h-9 w-9 inline-flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
+          className="md:hidden h-9 w-9 inline-flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors flex-shrink-0"
           aria-label="เปิดเมนู"
         >
           <Menu className="h-5 w-5 text-slate-600 dark:text-slate-300" />
@@ -107,7 +107,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
         {/* Theme toggle */}
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="h-9 w-9 inline-flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500 dark:text-slate-400"
+          className="h-9 w-9 inline-flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors text-slate-500 dark:text-slate-400"
           aria-label="สลับธีม"
         >
           {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -116,7 +116,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
         {/* User dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none">
+            <button className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors focus:outline-none">
               <FiAvatar name={user?.name ?? 'U'} size="sm" />
               <div className="text-left hidden sm:block">
                 <p className="text-xs font-semibold text-slate-900 dark:text-white leading-none">{user?.name}</p>
