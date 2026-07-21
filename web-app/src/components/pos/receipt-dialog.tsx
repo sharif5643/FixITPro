@@ -93,11 +93,17 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
       if (!win) {
         alert('กรุณาอนุญาต Popup เพื่อใช้งานการพิมพ์')
       } else {
-        // After browser print dialog is dismissed, pulse the cash drawer.
-        // afterprint fires even on cancel — acceptable for POS usage.
-        win.addEventListener('afterprint', () => {
-          openCashDrawer().catch((e) => console.error('[CashDrawer]', e))
-        })
+        // Listen for postMessage from the print popup (more reliable than
+        // cross-window afterprint listener which Chrome doesn't fire).
+        const onMessage = (e: MessageEvent) => {
+          if (e.data === 'receipt-afterprint') {
+            window.removeEventListener('message', onMessage)
+            openCashDrawer().catch((err) => console.error('[CashDrawer]', err))
+          }
+        }
+        window.addEventListener('message', onMessage)
+        // Clean up if popup is closed without printing
+        win.addEventListener('unload', () => window.removeEventListener('message', onMessage))
       }
     }
   }

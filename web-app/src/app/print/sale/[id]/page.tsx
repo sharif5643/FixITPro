@@ -65,6 +65,13 @@ export default function SalePrintPage() {
     return () => document.getElementById('print-page-size')?.remove()
   }, [paperWidth])
 
+  // Notify opener (receipt-dialog) when print dialog closes so it can pulse the cash drawer
+  useEffect(() => {
+    const handler = () => window.opener?.postMessage('receipt-afterprint', '*')
+    window.addEventListener('afterprint', handler)
+    return () => window.removeEventListener('afterprint', handler)
+  }, [])
+
   // Auto-print when ?autoprint=1 — only once per page load
   useEffect(() => {
     if (!autoPrint || !data || printFiredRef.current) return
