@@ -10,7 +10,9 @@ export interface POSShortcutHandlers {
   onFocusDiscount: () => void
   /** F5 — select QR payment method */
   onSelectQR: () => void
-  /** F6 — select CASH payment method + focus cash input */
+  /** F6 — open cash drawer manually */
+  onOpenDrawer: () => void
+  /** F6 legacy alias (kept for non-lg layout fallback) */
   onSelectCash: () => void
   /** F7 — select TRANSFER payment method */
   onSelectTransfer: () => void
@@ -44,6 +46,7 @@ export function usePOSShortcuts({
   onFocusCustomerSearch,
   onFocusDiscount,
   onSelectQR,
+  onOpenDrawer,
   onSelectCash,
   onSelectTransfer,
   onCheckout,
@@ -58,6 +61,7 @@ export function usePOSShortcuts({
     onFocusCustomerSearch,
     onFocusDiscount,
     onSelectQR,
+    onOpenDrawer,
     onSelectCash,
     onSelectTransfer,
     onCheckout,
@@ -73,6 +77,7 @@ export function usePOSShortcuts({
       onFocusCustomerSearch,
       onFocusDiscount,
       onSelectQR,
+      onOpenDrawer,
       onSelectCash,
       onSelectTransfer,
       onCheckout,
@@ -96,7 +101,7 @@ export function usePOSShortcuts({
         case 'F3': e.preventDefault(); cb.current.onFocusCustomerSearch(); return
         case 'F4': e.preventDefault(); cb.current.onFocusDiscount(); return
         case 'F5': e.preventDefault(); cb.current.onSelectQR(); return
-        case 'F6': e.preventDefault(); cb.current.onSelectCash(); return
+        case 'F6': e.preventDefault(); cb.current.onOpenDrawer(); return
         case 'F7': e.preventDefault(); cb.current.onSelectTransfer(); return
         case 'F8': e.preventDefault(); cb.current.onCheckout(); return
         case 'Escape': cb.current.onEscape(); return

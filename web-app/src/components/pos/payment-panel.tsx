@@ -2,11 +2,13 @@
 
 import { useState, useMemo, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Banknote, Smartphone, CreditCard, QrCode, ShoppingCart, Tag } from 'lucide-react'
+import { Banknote, Smartphone, CreditCard, QrCode, ShoppingCart, Tag, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatThaiMoney, cn } from '@/lib/utils'
 import { useCartStore } from '@/store/cart.store'
+import { openCashDrawer } from '@/lib/cash-drawer'
+import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
 import type { ShopSettings, PaymentMethod } from '@/types'
 
@@ -240,7 +242,7 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
         </div>
 
         {/* Checkout button — pinned to bottom */}
-        <div className="px-4 pb-4 pt-2 shrink-0">
+        <div className="px-4 pb-4 pt-2 shrink-0 space-y-2">
           <Button
             size="lg"
             className={cn(
@@ -261,6 +263,17 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
               hasZeroPrice ? 'มีสินค้าไม่มีราคา' : 'ชำระเงิน'
             )}
           </Button>
+
+          {!Platform.isNative() && (
+            <button
+              type="button"
+              onClick={handleTestPrint}
+              className="w-full flex items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors py-1"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              พิมพ์ใบเสร็จทดสอบ
+            </button>
+          )}
         </div>
       </div>
     )
@@ -268,6 +281,28 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
     function handleCheckout() {
       if (!canCheckout) return
       onCheckout({ paymentMethod: method, amountPaid: method === 'CASH' ? cashInputFloat : total })
+    }
+
+    function handleTestPrint() {
+      const pw: string = (settings as any)?.paperWidth ?? '80mm'
+      const width = pw === '58mm' ? 340 : 440
+      const win = window.open(
+        `/print/test?paper=${pw}&autoprint=1`,
+        '_blank',
+        `width=${width},height=750,scrollbars=yes,toolbar=no,menubar=no,location=no`,
+      )
+      if (!win) {
+        alert('กรุณาอนุญาต Popup เพื่อใช้งานการพิมพ์')
+      } else {
+        const onMsg = (e: MessageEvent) => {
+          if (e.data === 'receipt-afterprint') {
+            window.removeEventListener('message', onMsg)
+            openCashDrawer().catch((err) => console.error('[CashDrawer test]', err))
+          }
+        }
+        window.addEventListener('message', onMsg)
+        win.addEventListener('unload', () => window.removeEventListener('message', onMsg))
+      }
     }
   }
 )

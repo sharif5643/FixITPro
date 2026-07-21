@@ -21,6 +21,7 @@ import { usePOSShortcuts } from '@/hooks/usePOSShortcuts'
 import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
 import { Platform } from '@/lib/platform'
+import { openCashDrawer } from '@/lib/cash-drawer'
 import api from '@/lib/api'
 import type { Sale, PaymentMethod } from '@/types'
 import type { CartItem } from '@/store/cart.store'
@@ -141,6 +142,10 @@ export default function SalesPage() {
     }
   }, [isLgLayout, total, items.length, hasZeroPriceItem])
 
+  const handleOpenDrawer = useCallback(() => {
+    openCashDrawer().catch((e) => console.error('[CashDrawer F6]', e))
+  }, [])
+
   const handleSelectCash = useCallback(() => {
     if (isLgLayout) {
       paymentPanelRef.current?.focusCashInput()
@@ -241,6 +246,7 @@ export default function SalesPage() {
     onFocusCustomerSearch: handleFocusCustomerSearch,
     onFocusDiscount:       handleFocusDiscount,
     onSelectQR:            handleSelectQR,
+    onOpenDrawer:          handleOpenDrawer,
     onSelectCash:          handleSelectCash,
     onSelectTransfer:      handleSelectTransfer,
     onCheckout:            handleOpenCheckout,
@@ -412,7 +418,7 @@ export default function SalesPage() {
         <div className="hidden lg:flex flex-col bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] w-72 shrink-0">
           <div className="px-4 pt-3.5 pb-2.5 border-b border-slate-100 dark:border-slate-700/60 shrink-0 flex items-center justify-between">
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-              สรุปและชำระเงิน
+              สรุปการชำระเงิน
             </p>
             {heldBills.length > 0 && (
               <button
@@ -437,8 +443,8 @@ export default function SalesPage() {
             { key: 'F2', label: 'ค้นหา' },
             { key: 'F3', label: 'ลูกค้า' },
             { key: 'F4', label: 'ส่วนลด' },
-            { key: 'F5', label: 'QR' },
-            { key: 'F6', label: 'เงินสด' },
+            { key: 'F5', label: 'QR Code' },
+            { key: 'F6', label: 'เปิดลิ้นชัก' },
             { key: 'F7', label: 'โอน' },
             { key: 'F8', label: 'คิดเงิน' },
             { key: 'ESC', label: 'ยกเลิก' },
