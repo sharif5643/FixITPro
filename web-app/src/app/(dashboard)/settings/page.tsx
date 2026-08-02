@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import {
   Loader2, Save, Store, Receipt, DollarSign, Settings2, Bell, Image, BellRing, ChevronRight,
-  MessageSquare, Database,
+  MessageSquare, Database, AlertTriangle, Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -88,11 +88,12 @@ function ToggleSwitch({
 // ── Tab config ────────────────────────────────────────────────────────────────
 
 const SETTINGS_TABS = [
-  { id: 'shop',    label: 'ข้อมูลร้าน',    icon: Store     },
-  { id: 'receipt', label: 'ใบเสร็จ',        icon: Receipt   },
-  { id: 'finance', label: 'การเงิน',         icon: DollarSign },
-  { id: 'system',  label: 'ระบบ',           icon: Settings2 },
-  { id: 'alerts',  label: 'การแจ้งเตือน',  icon: Bell      },
+  { id: 'shop',    label: 'ข้อมูลร้าน',    icon: Store,         ownerOnly: false },
+  { id: 'receipt', label: 'ใบเสร็จ',        icon: Receipt,       ownerOnly: false },
+  { id: 'finance', label: 'การเงิน',         icon: DollarSign,    ownerOnly: false },
+  { id: 'system',  label: 'ระบบ',           icon: Settings2,     ownerOnly: false },
+  { id: 'alerts',  label: 'การแจ้งเตือน',  icon: Bell,          ownerOnly: false },
+  { id: 'danger',  label: 'รีเซ็ตข้อมูล',  icon: AlertTriangle, ownerOnly: true  },
 ] as const
 
 type TabId = typeof SETTINGS_TABS[number]['id']
@@ -103,6 +104,9 @@ export default function SettingsPage() {
   const queryClient               = useQueryClient()
   const [logoPreview, setLogoPreview] = useState('')
   const [activeTab, setActiveTab] = useState<TabId>('shop')
+  const [resetDialog, setResetDialog] = useState<{ open: boolean; step: 1 | 2; input: string }>({
+    open: false, step: 1, input: '',
+  })
   const user = useAuthStore((s) => s.user)
 
   const { data: settings, isLoading } = useQuery<ShopSettings>({
@@ -191,6 +195,19 @@ export default function SettingsPage() {
     },
   })
 
+  const resetMutation = useMutation({
+    mutationFn: () => api.post('/settings/reset-data'),
+    onSuccess: () => {
+      setResetDialog({ open: false, step: 1, input: '' })
+      toast.success('รีเซ็ตข้อมูลเรียบร้อยแล้ว ระบบพร้อมใช้งานใหม่')
+      queryClient.invalidateQueries()
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message ?? err.message
+      toast.error(Array.isArray(msg) ? msg[0] : msg ?? 'เกิดข้อผิดพลาด')
+    },
+  })
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64 gap-3 text-slate-500">
@@ -230,9 +247,10 @@ export default function SettingsPage() {
           <nav className="lg:w-52 shrink-0">
             <div className="lg:sticky lg:top-4">
               <div className="flex lg:flex-col gap-1 overflow-x-auto scrollbar-none pb-1 lg:pb-0 -mx-1 px-1 lg:mx-0 lg:px-0">
-                {SETTINGS_TABS.map((tab) => {
+                {SETTINGS_TABS.filter(t => !t.ownerOnly || user?.role === 'OWNER').map((tab) => {
                   const Icon = tab.icon
                   const active = activeTab === tab.id
+                  const isDanger = tab.id === 'danger'
                   return (
                     <button
                       key={tab.id}
@@ -240,14 +258,19 @@ export default function SettingsPage() {
                       onClick={() => setActiveTab(tab.id)}
                       className={cn(
                         'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap shrink-0 text-left w-full',
-                        active
+                        isDanger && 'lg:mt-3',
+                        isDanger && active
+                          ? 'bg-red-600 text-white shadow-[0_4px_12px_rgba(220,38,38,0.25)]'
+                          : isDanger
+                          ? 'text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                          : active
                           ? 'bg-blue-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)]'
                           : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700/40 hover:shadow-sm hover:text-slate-900 dark:hover:text-white',
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
                       {tab.label}
-                      {active && isDirty && (
+                      {active && isDirty && !isDanger && (
                         <span className="ml-auto h-2 w-2 rounded-full bg-white/70 shrink-0" />
                       )}
                     </button>
@@ -514,9 +537,153 @@ export default function SettingsPage() {
               </>
             )}
 
+            {/* ── Tab: รีเซ็ตข้อมูล (OWNER only) ── */}
+            {activeTab === 'danger' && user?.role === 'OWNER' && (
+              <div className="space-y-5">
+                <div className="rounded-2xl border-2 border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-900/10 p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="h-10 w-10 rounded-xl bg-red-600 flex items-center justify-center shrink-0 shadow-[0_4px_8px_rgba(220,38,38,0.3)]">
+                      <AlertTriangle className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-red-700 dark:text-red-400">Danger Zone — รีเซ็ตข้อมูลทั้งหมด</h3>
+                      <p className="text-sm text-red-600 dark:text-red-500 mt-1">
+                        การดำเนินการนี้จะลบข้อมูลทั้งหมดของร้านอย่างถาวร ไม่สามารถกู้คืนได้
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/40 divide-y divide-slate-100 dark:divide-slate-700/60">
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">สิ่งที่จะถูกลบ</p>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-slate-600 dark:text-slate-400">
+                      {[
+                        'ลูกค้าทั้งหมด','สินค้าทั้งหมด','หมวดหมู่','ซัพพลายเออร์',
+                        'ประวัติการขาย','ประวัติงานซ่อม','ใบสั่งซื้อ','กะงานและค่าใช้จ่าย',
+                        'สต็อกสินค้า','Serial Numbers','ลิ้นชัก Sessions','Warranties & Claims',
+                        'การแจ้งเตือน','Audit Logs',
+                      ].map(item => (
+                        <div key={item} className="flex items-center gap-2">
+                          <Trash2 className="h-3 w-3 text-red-400 shrink-0" />
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">สิ่งที่จะเก็บไว้</p>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm text-slate-600 dark:text-slate-400">
+                      {[
+                        'บัญชีผู้ใช้งานทุกคน','การตั้งค่าร้านและใบเสร็จ',
+                        'สาขา','สิทธิ์การใช้งาน','Config ลิ้นชัก',
+                      ].map(item => (
+                        <div key={item} className="flex items-center gap-2">
+                          <span className="h-3 w-3 rounded-full bg-green-400 shrink-0" />
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setResetDialog({ open: true, step: 1, input: '' })}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors shadow-[0_4px_12px_rgba(220,38,38,0.25)]"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  เริ่มต้นใหม่ — ลบข้อมูลทั้งหมด
+                </button>
+              </div>
+            )}
+
           </div>
         </div>
       </div>
+
+      {/* ── Reset Confirmation Dialog ── */}
+      {resetDialog.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-red-200 dark:border-red-800/60 overflow-hidden">
+
+            {/* Header */}
+            <div className="flex items-center gap-3 px-6 py-5 bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800/60">
+              <div className="h-9 w-9 rounded-xl bg-red-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-red-700 dark:text-red-400">ยืนยันการรีเซ็ตข้อมูล</h2>
+                <p className="text-xs text-red-500 dark:text-red-500">ขั้นตอน {resetDialog.step} จาก 2</p>
+              </div>
+            </div>
+
+            <div className="px-6 py-5">
+              {resetDialog.step === 1 ? (
+                <>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 mb-4">
+                    การดำเนินการนี้จะ<strong className="text-red-600 dark:text-red-400">ลบข้อมูลทั้งหมดอย่างถาวร</strong>{' '}
+                    รวมถึงสินค้า ลูกค้า งานซ่อม ประวัติการขาย และข้อมูลอื่นๆ ทั้งหมด
+                  </p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 mb-6">
+                    ข้อมูลที่ลบแล้ว<strong>ไม่สามารถกู้คืนได้</strong> คุณแน่ใจหรือไม่?
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setResetDialog({ open: false, step: 1, input: '' })}
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResetDialog(d => ({ ...d, step: 2 }))}
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors"
+                    >
+                      ดำเนินการต่อ →
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 mb-4">
+                    พิมพ์ <strong className="text-red-600 dark:text-red-400 font-mono">รีเซ็ต</strong>{' '}
+                    เพื่อยืนยันการลบข้อมูลทั้งหมด
+                  </p>
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder='พิมพ์ "รีเซ็ต" เพื่อยืนยัน'
+                    value={resetDialog.input}
+                    onChange={e => setResetDialog(d => ({ ...d, input: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setResetDialog({ open: false, step: 1, input: '' })}
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      disabled={resetDialog.input !== 'รีเซ็ต' || resetMutation.isPending}
+                      onClick={() => resetMutation.mutate()}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+                    >
+                      {resetMutation.isPending
+                        ? <><Loader2 className="h-4 w-4 animate-spin" /> กำลังลบ...</>
+                        : <><Trash2 className="h-4 w-4" /> ลบข้อมูลทั้งหมด</>}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   )
 }
