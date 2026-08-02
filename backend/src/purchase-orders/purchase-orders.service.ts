@@ -226,10 +226,10 @@ export class PurchaseOrdersService {
           data: { receivedQty: { increment: recv.quantity } },
         });
 
-        // P0-2 FIX: upsert BranchStock for the receiving branch, then shadow-sync
-        // Product.stock from SUM(BranchStock) to prevent drift.
+        // Upsert BranchStock for the receiving branch, then sync Product.stock
+        // from SUM(BranchStock) so the two sources never drift.
         if (dto.branchId) {
-          await (tx as any).branchStock.upsert({
+          await tx.branchStock.upsert({
             where: {
               branchId_productId: { branchId: dto.branchId, productId: poItem.productId },
             },
@@ -242,7 +242,7 @@ export class PurchaseOrdersService {
             update: { quantity: { increment: recv.quantity } },
           });
 
-          const agg = await (tx as any).branchStock.aggregate({
+          const agg = await tx.branchStock.aggregate({
             where: { productId: poItem.productId },
             _sum: { quantity: true },
           });
@@ -251,7 +251,7 @@ export class PurchaseOrdersService {
             data:  { stock: (agg._sum.quantity as number | null) ?? 0 },
           });
         } else {
-          // No branch context: fall back to direct increment (legacy / no-branch tenants)
+          // No branch context (single-branch / legacy): increment Product.stock directly.
           await tx.product.update({
             where: { id: poItem.productId },
             data:  { stock: { increment: recv.quantity } },

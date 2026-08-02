@@ -32,6 +32,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/auth.store'
 import type { PurchaseOrder, Supplier, Product, SupplierPayment, POPaymentStatus } from '@/types'
 
 // ─────────────────────── local types ───────────────────────
@@ -86,6 +87,7 @@ const fmtDate = (s: string) =>
 // ═══════════════════════════════════════════════════════════
 export default function PurchaseOrdersPage() {
   const queryClient = useQueryClient()
+  const user = useAuthStore((s) => s.user)
 
   // ── filters ──
   const [search, setSearch] = useState('')
@@ -214,6 +216,7 @@ export default function PurchaseOrdersPage() {
     mutationFn: async (poId: string) =>
       (await api.post(`/purchase-orders/${poId}/receive`, {
         note: receiveNote || undefined,
+        branchId: user?.branchId ?? undefined,
         items: Object.entries(receiveQtys)
           .map(([purchaseOrderItemId, quantity]) => ({ purchaseOrderItemId, quantity }))
           .filter((i) => i.quantity > 0),
