@@ -244,7 +244,12 @@ export class SettingsService {
       if (branchIds.length) {
         await tx.expense.deleteMany({ where: { branchId: { in: branchIds } } });
         await tx.shift.deleteMany({ where: { branchId: { in: branchIds } } });
-        await tx.branchStock.deleteMany({ where: { branchId: { in: branchIds } } });
+      }
+      // Delete all BranchStocks for this tenant's products — use productIds, not branchIds,
+      // so cross-tenant BranchStock rows (product owned by this tenant but stocked in another
+      // tenant's branch) are also removed and don't block the Product delete below.
+      if (productIds.length) {
+        await tx.branchStock.deleteMany({ where: { productId: { in: productIds } } });
       }
       if (poIds.length) {
         await tx.purchaseOrder.deleteMany({ where: { id: { in: poIds } } });
