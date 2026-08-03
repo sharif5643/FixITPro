@@ -7,6 +7,7 @@ import {
   Plus, Search, Loader2, ClipboardList, Eye, Ban,
   CheckCircle2, AlertTriangle, Package, X, CalendarDays, Percent,
   PackageCheck, History, ChevronRight, Banknote, CreditCard, ArrowUpFromLine,
+  MapPin,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -89,7 +90,7 @@ const fmtDate = (s: string) =>
 export default function PurchaseOrdersPage() {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
-  const { branchId: contextBranchId } = useBranchContext()
+  const { branchId: contextBranchId, branchName: contextBranchName, isOwner } = useBranchContext()
 
   // ── filters ──
   const [search, setSearch] = useState('')
@@ -104,6 +105,7 @@ export default function PurchaseOrdersPage() {
 
   // ── create-form state ──
   const [supplierId, setSupplierId] = useState('')
+  const [createBranchId, setCreateBranchId] = useState('')
   const [expectedDate, setExpectedDate] = useState('')
   const [vatPercent, setVatPercent] = useState(0)
   const [orderDiscount, setOrderDiscount] = useState(0)
@@ -135,6 +137,14 @@ export default function PurchaseOrdersPage() {
     queryFn: async () => (await api.get('/suppliers')).data,
     staleTime: 60_000,
   })
+
+  const { data: branches = [] } = useQuery<{ id: string; name: string; isActive: boolean }[]>({
+    queryKey: ['branches-simple'],
+    queryFn: async () => (await api.get('/branches')).data,
+    enabled: isOwner && formOpen,
+    staleTime: 5 * 60_000,
+  })
+  const activeBranches = branches.filter((b) => b.isActive)
 
   const { data: productResults = [], isFetching: searchingProducts } = useQuery<Product[]>({
     queryKey: ['products-search-po', productSearch],
@@ -179,6 +189,7 @@ export default function PurchaseOrdersPage() {
     mutationFn: async (status: 'DRAFT' | 'ORDERED') =>
       (await api.post('/purchase-orders', {
         supplierId,
+        branchId: createBranchId || undefined,
         expectedDate: expectedDate || undefined,
         vatPercent,
         discount: orderDiscount,
@@ -218,7 +229,8 @@ export default function PurchaseOrdersPage() {
     mutationFn: async (poId: string) =>
       (await api.post(`/purchase-orders/${poId}/receive`, {
         note: receiveNote || undefined,
-        branchId: contextBranchId,
+        // Use PO's locked branch if available; fall back to header-context branch for legacy POs
+        branchId: receiveDetail?.branchId ?? contextBranchId,
         items: Object.entries(receiveQtys)
           .map(([purchaseOrderItemId, quantity]) => ({ purchaseOrderItemId, quantity }))
           .filter((i) => i.quantity > 0),
@@ -262,7 +274,9 @@ export default function PurchaseOrdersPage() {
 
   // ─────────────────────── helpers ───────────────────────
   const openCreate = () => {
-    setSupplierId(''); setExpectedDate(''); setVatPercent(0)
+    setSupplierId('')
+    setCreateBranchId(contextBranchId ?? '')  // pre-fill from current header branch
+    setExpectedDate(''); setVatPercent(0)
     setOrderDiscount(0); setNote(''); setItems([]); setProductSearch('')
     setFormOpen(true)
   }
@@ -282,7 +296,9 @@ export default function PurchaseOrdersPage() {
   const removeItem = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx))
 
   const openReceive = (po: PurchaseOrder) => {
-    if (!contextBranchId) {
+    // If PO has a locked branch → always safe to open
+    // If PO has no branch (legacy) → need contextBranchId to know where stock goes
+    if (!po.branchId && !contextBranchId) {
       toast.error('กรุณาเลือกสาขาก่อนรับสินค้า เพื่อบันทึกสต็อกให้ถูกสาขา')
       return
     }
@@ -307,7 +323,7 @@ export default function PurchaseOrdersPage() {
   const vatBase = itemsSubtotal - orderDiscount
   const vatAmount = (vatBase * vatPercent) / 100
   const grandTotal = vatBase + vatAmount
-  const canSubmit = supplierId && items.length > 0
+  const canSubmit = supplierId && items.length > 0 && (!isOwner || !!createBranchId)
   const canReceiveSubmit = !!receiveId && Object.values(receiveQtys).some((q) => q > 0)
 
   const payRemaining = payDetail
@@ -364,6 +380,7 @@ export default function PurchaseOrdersPage() {
           <DataTableHead>
             <DataTableHeadCell>เลข PO</DataTableHeadCell>
             <DataTableHeadCell>ซัพพลายเออร์</DataTableHeadCell>
+            <DataTableHeadCell>สาขา</DataTableHeadCell>
             <DataTableHeadCell className="text-center">สถานะรับ</DataTableHeadCell>
             <DataTableHeadCell className="text-center">สถานะจ่าย</DataTableHeadCell>
             <DataTableHeadCell right>ยอดรวม</DataTableHeadCell>
@@ -372,10 +389,10 @@ export default function PurchaseOrdersPage() {
           </DataTableHead>
           <DataTableBody>
             {isLoading ? (
-              <DataTableLoadingRows rows={5} cols={7} />
+              <DataTableLoadingRows rows={5} cols={8} />
             ) : pos.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-0">
+                <td colSpan={8} className="py-0">
                   <EmptyState preset={search || statusFilter ? 'search' : 'default'} size="md" title={search || statusFilter ? 'ไม่พบ PO ที่ค้นหา' : 'ยังไม่มี PO'} />
                 </td>
               </tr>
@@ -394,6 +411,11 @@ export default function PurchaseOrdersPage() {
                     </DataTableCell>
                     <DataTableCell>
                       <p className="font-medium text-slate-800">{po.supplier.name}</p>
+                    </DataTableCell>
+                    <DataTableCell>
+                      {po.branch?.name
+                        ? <span className="flex items-center gap-1 text-sm text-slate-700 dark:text-slate-300"><MapPin className="h-3 w-3 text-slate-400" />{po.branch.name}</span>
+                        : <span className="text-slate-400 text-xs">—</span>}
                     </DataTableCell>
                     <DataTableCell className="text-center">
                       <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${cfg.cls}`}>{cfg.label}</span>
@@ -458,6 +480,7 @@ export default function PurchaseOrdersPage() {
                   <div>
                     <p className="font-mono font-semibold text-slate-900 dark:text-slate-50">{po.poNumber}</p>
                     <p className="text-sm text-slate-600 dark:text-slate-400">{po.supplier.name}</p>
+                    {po.branch?.name && <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><MapPin className="h-2.5 w-2.5" />{po.branch.name}</p>}
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cfg.cls}`}>{cfg.label}</span>
@@ -507,6 +530,29 @@ export default function PurchaseOrdersPage() {
                 <Input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} />
               </div>
             </div>
+
+            {/* Branch: OWNER selects destination, staff see their branch read-only */}
+            {isOwner ? (
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" />สาขาที่รับสินค้า <span className="text-red-500">*</span>
+                </Label>
+                <Select value={createBranchId} onValueChange={setCreateBranchId}>
+                  <SelectTrigger><SelectValue placeholder="เลือกสาขาปลายทาง..." /></SelectTrigger>
+                  <SelectContent>
+                    {activeBranches.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">สาขานี้จะถูกบันทึกไว้ใน PO และใช้เมื่อรับสินค้าเข้า</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />สาขาที่รับสินค้า</p>
+                <p className="text-sm font-medium">{contextBranchName || 'สาขาของคุณ (กำหนดอัตโนมัติ)'}</p>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5"><Percent className="h-3.5 w-3.5" />ภาษีมูลค่าเพิ่ม (VAT)</Label>
@@ -752,6 +798,18 @@ export default function PurchaseOrdersPage() {
                     <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_CFG[receiveDetail.status].cls}`}>{STATUS_CFG[receiveDetail.status].label}</span>
                   </div>
                   <p className="text-blue-700 dark:text-blue-400 mt-0.5">{receiveDetail.supplier.name}</p>
+                </div>
+
+                {/* Destination branch — locked from PO or falls back to header context */}
+                <div className="flex items-center gap-2 rounded-lg border dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-4 py-2.5 text-sm">
+                  <MapPin className="h-4 w-4 text-slate-400 shrink-0" />
+                  <span className="text-muted-foreground">รับเข้าสาขา:</span>
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">
+                    {receiveDetail.branch?.name ?? contextBranchName ?? 'สาขาปัจจุบัน'}
+                  </span>
+                  {!receiveDetail.branchId && (
+                    <span className="text-xs text-amber-600 dark:text-amber-400 ml-auto">(จากส่วนหัว)</span>
+                  )}
                 </div>
                 <div className="border dark:border-slate-700/60 rounded-lg overflow-hidden">
                   <table className="w-full text-sm">

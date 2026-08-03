@@ -11,8 +11,9 @@ import { ReceiveGoodsDto } from './dto/receive-goods.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 
 const PO_INCLUDE = {
-  supplier: { select: { id: true, name: true, phone: true } },
+  supplier:  { select: { id: true, name: true, phone: true } },
   createdBy: { select: { id: true, name: true } },
+  branch:    { select: { id: true, name: true } },
   items: {
     include: {
       product: { select: { id: true, name: true, sku: true, stock: true } },
@@ -80,6 +81,7 @@ export class PurchaseOrdersService {
           data: {
             poNumber,
             supplierId: dto.supplierId,
+            branchId: dto.branchId ?? undefined,
             createdById: userId,
             status: (dto.status as any) || 'DRAFT',
             expectedDate: dto.expectedDate ? new Date(dto.expectedDate) : undefined,
@@ -128,8 +130,9 @@ export class PurchaseOrdersService {
     return this.prisma.purchaseOrder.findMany({
       where,
       include: {
-        supplier: { select: { id: true, name: true } },
+        supplier:  { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true } },
+        branch:    { select: { id: true, name: true } },
         _count: { select: { items: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -209,6 +212,9 @@ export class PurchaseOrdersService {
       }
     }
 
+    // Effective branch: explicit dto override → PO's locked branch → undefined (single-branch legacy)
+    const effectiveBranchId = dto.branchId ?? po.branchId ?? undefined;
+
     await this.prisma.$transaction(async (tx) => {
       for (const recv of itemsToReceive) {
         const poItem = po.items.find((i) => i.id === recv.purchaseOrderItemId)!;
@@ -236,13 +242,13 @@ export class PurchaseOrdersService {
 
         // Upsert BranchStock for the receiving branch, then sync Product.stock
         // from SUM(BranchStock) so the two sources never drift.
-        if (dto.branchId) {
+        if (effectiveBranchId) {
           await tx.branchStock.upsert({
             where: {
-              branchId_productId: { branchId: dto.branchId, productId: poItem.productId },
+              branchId_productId: { branchId: effectiveBranchId, productId: poItem.productId },
             },
             create: {
-              branchId:  dto.branchId,
+              branchId:  effectiveBranchId,
               productId: poItem.productId,
               quantity:  recv.quantity,
               minStock:  0,
@@ -271,7 +277,7 @@ export class PurchaseOrdersService {
             type: 'IN',
             quantity: recv.quantity,
             productId: poItem.productId,
-            branchId: dto.branchId ?? undefined,
+            branchId: effectiveBranchId,
             note: dto.note ?? `รับสินค้าจาก PO: ${po.poNumber}`,
             referenceType: 'PURCHASE_ORDER',
             referenceId: poId,

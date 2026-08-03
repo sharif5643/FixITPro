@@ -711,6 +711,8 @@ export interface PurchaseOrder {
   supplier: Pick<Supplier, 'id' | 'name' | 'phone'>
   createdById: string
   createdBy: { id: string; name: string }
+  branchId?: string | null
+  branch?: { id: string; name: string } | null
   items: PurchaseOrderItem[]
   payments?: SupplierPayment[]
   _count?: { items: number }

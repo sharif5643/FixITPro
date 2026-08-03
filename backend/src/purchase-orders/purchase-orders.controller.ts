@@ -49,9 +49,15 @@ export class PurchaseOrdersController {
   @RequirePermission('purchase.create')
   create(
     @Body() dto: CreatePurchaseOrderDto,
-    @CurrentUser('id') userId: string,
+    @CurrentUser('id')       userId: string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('branchId') jwtBranchId: string | null,
+    @CurrentUser('role')     role: string,
   ) {
+    // Staff always create POs for their own branch — lock it from JWT
+    if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && jwtBranchId) {
+      dto.branchId = jwtBranchId;
+    }
     return this.poService.create(dto, userId, tenantId);
   }
 

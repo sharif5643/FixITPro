@@ -200,6 +200,7 @@ model Branch {
   cashDrawers            CashDrawer[]
   cashDrawerSessions     CashDrawerSession[]
   cashDrawerTransactions CashDrawerTransaction[]
+  purchaseOrders         PurchaseOrder[]
 
   @@index([tenantId])
   @@index([isActive])
@@ -987,6 +988,9 @@ model PurchaseOrder {
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
 
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
   items    PurchaseOrderItem[]
   payments SupplierPayment[]
 
@@ -995,6 +999,7 @@ model PurchaseOrder {
   @@index([paymentStatus])
   @@index([createdAt])
   @@index([dueDate])
+  @@index([branchId])
 }
 
 model SupplierPayment {

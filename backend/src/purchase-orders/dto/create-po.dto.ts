@@ -41,6 +41,10 @@ export class CreatePurchaseOrderDto {
 
   @IsOptional()
   @IsString()
+  branchId?: string;
+
+  @IsOptional()
+  @IsString()
   expectedDate?: string;
 
   @IsOptional()
