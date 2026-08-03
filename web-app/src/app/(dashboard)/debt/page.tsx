@@ -119,20 +119,49 @@ function ReceiptModal({ result, onClose }: { result: PaymentResult; onClose: () 
   const dateStr = format(new Date(result.payment.createdAt), 'dd MMM yyyy HH:mm', { locale: th })
 
   function handlePrint() {
-    const el = document.getElementById('debt-receipt-print')
-    if (!el) return
-    const win = window.open('', '_blank', 'width=420,height=680,scrollbars=yes')
-    if (!win) return
+    const win = window.open('', '_blank', 'width=420,height=680,scrollbars=yes,toolbar=no,menubar=no,location=no')
+    if (!win) { alert('กรุณาอนุญาต Popup เพื่อใช้งานการพิมพ์'); return }
+
+    const { payment, repair, receiptNumber } = result
+    const isPaid  = repair.paymentStatus === 'PAID'
+    const dateStr = format(new Date(payment.createdAt), 'dd MMM yyyy HH:mm', { locale: th })
+    const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+
+    const optionalRows = [
+      repair.customer?.phone ? `<div class="row"><span class="lbl">เบอร์:</span><span>${esc(repair.customer.phone)}</span></div>` : '',
+      payment.note           ? `<div class="row"><span class="lbl">หมายเหตุ:</span><span>${esc(payment.note)}</span></div>` : '',
+    ].join('')
+
     win.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8"/>
-      <title>ใบเสร็จ ${result.receiptNumber}</title>
+      <title>ใบเสร็จ ${esc(receiptNumber)}</title>
       <style>
         body{font-family:'Courier New',monospace;margin:24px;font-size:13px;color:#000}
-        .c{text-align:center}.b{font-weight:bold}.sep{border-top:1px dashed #555;margin:8px 0}
+        .c{text-align:center}.b{font-weight:bold}
+        .sep{border-top:1px dashed #555;margin:8px 0}
         .row{display:flex;justify-content:space-between;margin:3px 0}
-        .big{font-size:16px;font-weight:bold}.green{color:#15803d}.red{color:#dc2626}
+        .lbl{color:#666}.big{font-size:16px;font-weight:bold}
+        .green{color:#15803d}.red{color:#dc2626}
       </style>
-    </head><body>${el.innerHTML}</body></html>`)
+    </head><body>
+      <p class="c b" style="font-size:16px">FixITPro</p>
+      <p class="c" style="font-size:11px;color:#666">ใบเสร็จรับเงิน (หนี้ค้างชำระ)</p>
+      <div class="sep"></div>
+      <div class="row"><span class="lbl">เลขที่:</span><span class="b">${esc(receiptNumber)}</span></div>
+      <div class="row"><span class="lbl">วันที่:</span><span>${esc(dateStr)}</span></div>
+      <div class="sep"></div>
+      <div class="row"><span class="lbl">ลูกค้า:</span><span class="b">${esc(repair.customer?.name ?? '—')}</span></div>
+      ${optionalRows}
+      <div class="sep"></div>
+      <div class="row"><span class="lbl">ใบงาน:</span><span>${esc(repair.ticketNumber)}</span></div>
+      <div class="row"><span class="lbl">อุปกรณ์:</span><span>${esc(repair.deviceBrand)} ${esc(repair.deviceModel)}</span></div>
+      <div class="row"><span class="lbl">ค่าซ่อมรวม:</span><span>${esc(money(repair.finalCost))}</span></div>
+      <div class="sep"></div>
+      <div class="row"><span class="b">รับชำระ:</span><span class="big green">${esc(money(repair.amountPaid))}</span></div>
+      <div class="row"><span class="lbl">วิธีชำระ:</span><span>${esc(PAYMENT_LABEL[payment.paymentMethod] ?? payment.paymentMethod)}</span></div>
+      <div class="sep"></div>
+      <div class="row b"><span>ยอดคงเหลือ:</span><span class="${isPaid ? 'green' : 'red'}">${isPaid ? '&#10003; ชำระครบแล้ว' : esc(money(repair.remainingAfter))}</span></div>
+    </body></html>`)
     win.document.close()
     setTimeout(() => { win.focus(); win.print() }, 300)
   }
