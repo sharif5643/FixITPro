@@ -250,7 +250,7 @@ export default function ProductsPage() {
   const openEdit = (p: Product) => { setEditProduct(p); setFormOpen(true) }
   const isFormLoading = createMutation.isPending || updateMutation.isPending
   const canAdjust = hasPerm('stock.adjust')
-  const canRequestTransfer = hasPerm('stock.transfer') || user?.role === 'MANAGER' || user?.role === 'STOCK_STAFF'
+  const canRequestTransfer = isOwner || hasPerm('stock.transfer') || user?.role === 'MANAGER' || user?.role === 'STOCK_STAFF'
 
   const openAddStockDialog = (product: Product | null) => {
     if (isOwner && isViewAll) {
@@ -540,7 +540,7 @@ export default function ProductsPage() {
                             <PackagePlus className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        {!isViewAll && effectiveBranch && isOut && otherHaveStock && canRequestTransfer && (
+                        {!isViewAll && effectiveBranch && (isOwner || isOut || isLow) && otherHaveStock && canRequestTransfer && (
                           <Button
                             size="icon" variant="ghost"
                             className="h-7 w-7 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 dark:hover:text-amber-400"
