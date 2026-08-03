@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
-  Loader2, Wrench, User, Smartphone, ClipboardList, Printer,
+  Loader2, Wrench, User, Smartphone, ClipboardList, Printer, FileText,
   Plus, Trash2, Package, CheckCircle2, Clock, DollarSign, X,
   Banknote, CreditCard as CardIcon, Smartphone as TransferIcon, Lock,
   Camera, ChevronLeft, ChevronRight, ArrowRightLeft, History, ChevronDown,
@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatThaiMoney, getAssetUrl, apiErrorMessage } from '@/lib/utils'
-import { RepairReceiptPreviewDialog } from '@/components/receipt/receipt-preview-dialog'
+import { Platform } from '@/lib/platform'
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
@@ -1201,12 +1201,46 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       )}
 
       {repairId && (
-        <RepairReceiptPreviewDialog
-          open={printOpen}
-          repairId={repairId}
-          initialData={repair}
-          onClose={() => setPrintOpen(false)}
-        />
+        <Dialog open={printOpen} onOpenChange={(v) => { if (!v) setPrintOpen(false) }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Printer className="h-4 w-4 text-blue-600" />
+                พิมพ์ใบรับงานซ่อม
+              </DialogTitle>
+            </DialogHeader>
+            {Platform.isNative() ? (
+              <p className="text-sm text-muted-foreground text-center py-4">ไม่รองรับการพิมพ์บนแอป</p>
+            ) : (
+              <div className="space-y-3">
+                <button type="button"
+                  onClick={() => window.open(`/print/repair/${repairId}?paper=58mm&copies=2`, '_blank')}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-blue-600 bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                  <Printer className="h-5 w-5" />
+                  พิมพ์ 2 ฉบับ (ร้าน + ลูกค้า) ✂
+                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <button type="button"
+                    onClick={() => window.open(`/print/repair/${repairId}?paper=58mm&copy=shop`, '_blank')}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 dark:border-slate-700/60 dark:bg-slate-800/40 px-3 py-3 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors">
+                    <Printer className="h-5 w-5" />58mm<br />(ใบร้าน)
+                  </button>
+                  <button type="button"
+                    onClick={() => window.open(`/print/repair/${repairId}?paper=58mm`, '_blank')}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 dark:border-slate-700/60 dark:bg-slate-800/40 px-3 py-3 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors">
+                    <Printer className="h-5 w-5" />58mm<br />(ใบลูกค้า)
+                  </button>
+                  <button type="button"
+                    onClick={() => window.open(`/print/repair/${repairId}?paper=A4`, '_blank')}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 dark:border-slate-700/60 dark:bg-slate-800/40 px-3 py-3 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors">
+                    <FileText className="h-5 w-5" />A4<br />(เอกสาร)
+                  </button>
+                </div>
+              </div>
+            )}
+            <Button variant="outline" onClick={() => setPrintOpen(false)} className="w-full">ปิด</Button>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ─── Reverse Payment Dialog ─── */}
