@@ -10,7 +10,7 @@ import {
   AlertCircle, Wallet, Send, Building2, Shield,
   Bell, Activity, Filter, BarChart2, ArrowRightLeft, Settings2,
   CreditCard, Layers, UserPlus, CalendarDays,
-  Users, ClipboardList,
+  Users, ClipboardList, PackageCheck,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -75,7 +75,7 @@ interface DashboardOverview {
   alerts: {
     overdueRepairs: number; unpaidRepairs: number; unpaidDebt: number
     outOfStock: number; lowStock: number; expiringWarranties: number
-    pendingClaims: number; overdueSuppliers: number; apOutstanding: number
+    pendingClaims: number; overdueSuppliers: number; pendingReceivePo: number; apOutstanding: number
   }
 }
 
@@ -693,6 +693,7 @@ export default function DashboardPage() {
     (alerts?.outOfStock ?? 0) +
     (alerts?.pendingClaims ?? 0) +
     (alerts?.overdueSuppliers ?? 0) +
+    (alerts?.pendingReceivePo ?? 0) +
     (alerts?.expiringWarranties ?? 0)
 
   const updatedLabel = dataUpdatedAt ? format(new Date(dataUpdatedAt), 'HH:mm') : null
@@ -1244,6 +1245,17 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <Badge className="bg-amber-500 dark:bg-amber-600 text-white text-xs">{alerts?.overdueSuppliers} PO</Badge>
+                    </div>
+                  </Link>
+                )}
+                {(alerts?.pendingReceivePo ?? 0) > 0 && (
+                  <Link href="/purchase-orders?status=ORDERED">
+                    <div className="flex items-center justify-between rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 px-3 py-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <PackageCheck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                        <span className="text-sm font-medium text-blue-800 dark:text-blue-300">PO รอรับสินค้า</span>
+                      </div>
+                      <Badge className="bg-blue-600 dark:bg-blue-500 text-white text-xs">{alerts?.pendingReceivePo} รายการ</Badge>
                     </div>
                   </Link>
                 )}

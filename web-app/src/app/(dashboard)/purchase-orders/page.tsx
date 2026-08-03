@@ -381,6 +381,7 @@ export default function PurchaseOrdersPage() {
             <DataTableHeadCell>เลข PO</DataTableHeadCell>
             <DataTableHeadCell>ซัพพลายเออร์</DataTableHeadCell>
             <DataTableHeadCell>สาขา</DataTableHeadCell>
+            <DataTableHeadCell className="text-center">คาดรับสินค้า</DataTableHeadCell>
             <DataTableHeadCell className="text-center">สถานะรับ</DataTableHeadCell>
             <DataTableHeadCell className="text-center">สถานะจ่าย</DataTableHeadCell>
             <DataTableHeadCell right>ยอดรวม</DataTableHeadCell>
@@ -389,10 +390,10 @@ export default function PurchaseOrdersPage() {
           </DataTableHead>
           <DataTableBody>
             {isLoading ? (
-              <DataTableLoadingRows rows={5} cols={8} />
+              <DataTableLoadingRows rows={5} cols={9} />
             ) : pos.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-0">
+                <td colSpan={9} className="py-0">
                   <EmptyState preset={search || statusFilter ? 'search' : 'default'} size="md" title={search || statusFilter ? 'ไม่พบ PO ที่ค้นหา' : 'ยังไม่มี PO'} />
                 </td>
               </tr>
@@ -403,8 +404,9 @@ export default function PurchaseOrdersPage() {
                 const canReceive = ['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)
                 const canPay = !['CANCELLED', 'DRAFT'].includes(po.status) && po.paymentStatus !== 'PAID'
                 const remaining = Number(po.total) - Number(po.paidTotal ?? 0)
+                const isOverdueReceive = canReceive && po.expectedDate && new Date(po.expectedDate) < new Date(new Date().toDateString())
                 return (
-                  <DataTableRow key={po.id}>
+                  <DataTableRow key={po.id} className={isOverdueReceive ? 'bg-orange-50/60 dark:bg-orange-900/10' : undefined}>
                     <DataTableCell>
                       <p className="font-mono font-semibold text-slate-900 dark:text-slate-50">{po.poNumber}</p>
                       <p className="text-xs text-slate-400 dark:text-slate-500">{new Date(po.createdAt).toLocaleDateString('th-TH')}</p>
@@ -416,6 +418,16 @@ export default function PurchaseOrdersPage() {
                       {po.branch?.name
                         ? <span className="flex items-center gap-1 text-sm text-slate-700 dark:text-slate-300"><MapPin className="h-3 w-3 text-slate-400" />{po.branch.name}</span>
                         : <span className="text-slate-400 text-xs">—</span>}
+                    </DataTableCell>
+                    <DataTableCell className="text-center">
+                      {po.expectedDate ? (
+                        <span className={`text-xs font-medium ${isOverdueReceive ? 'text-orange-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                          {isOverdueReceive && <AlertTriangle className="inline h-3 w-3 mr-0.5 -mt-0.5" />}
+                          {new Date(po.expectedDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
+                      )}
                     </DataTableCell>
                     <DataTableCell className="text-center">
                       <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${cfg.cls}`}>{cfg.label}</span>
@@ -474,13 +486,20 @@ export default function PurchaseOrdersPage() {
             const canReceive = ['ORDERED', 'PARTIAL_RECEIVED'].includes(po.status)
             const canPay = !['CANCELLED', 'DRAFT'].includes(po.status) && po.paymentStatus !== 'PAID'
             const remaining = Number(po.total) - Number(po.paidTotal ?? 0)
+            const isOverdueReceive = canReceive && po.expectedDate && new Date(po.expectedDate) < new Date(new Date().toDateString())
             return (
-              <div key={po.id} className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-2">
+              <div key={po.id} className={`rounded-2xl border shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-2 ${isOverdueReceive ? 'bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800/50' : 'bg-white dark:bg-[#1E293B] border-slate-100 dark:border-slate-700/60'}`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-mono font-semibold text-slate-900 dark:text-slate-50">{po.poNumber}</p>
                     <p className="text-sm text-slate-600 dark:text-slate-400">{po.supplier.name}</p>
                     {po.branch?.name && <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><MapPin className="h-2.5 w-2.5" />{po.branch.name}</p>}
+                    {isOverdueReceive && po.expectedDate && (
+                      <p className="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-0.5 mt-0.5">
+                        <AlertTriangle className="h-2.5 w-2.5" />
+                        คาดรับ {new Date(po.expectedDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} — เกินกำหนด
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cfg.cls}`}>{cfg.label}</span>

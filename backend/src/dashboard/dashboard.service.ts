@@ -78,6 +78,7 @@ export class DashboardService {
       pendingClaimsCount,
       overdueSupplierPoCount,
       apOutstandingAgg,
+      pendingReceivePoCount,
       salesByBranch,
       repairsByBranch,
       openRepairsByBranch,
@@ -215,6 +216,14 @@ export class DashboardService {
           ...(tenantId ? { supplier: { tenantId } } : {}),
         },
         _sum: { total: true, paidTotal: true },
+      }),
+      // POs waiting to receive goods — branch-scoped for staff, tenant-scoped for owner
+      this.prisma.purchaseOrder.count({
+        where: {
+          status: { in: ['ORDERED', 'PARTIAL_RECEIVED'] },
+          ...(tenantId ? { supplier: { tenantId } } : {}),
+          ...(params.branchId ? { branchId: params.branchId } : {}),
+        },
       }),
       // Branch performance (scoped to tenant)
       this.prisma.sale.groupBy({
@@ -476,6 +485,7 @@ export class DashboardService {
         expiringWarranties:  expiringWarrantyCount,
         pendingClaims:       pendingClaimsCount,
         overdueSuppliers:    overdueSupplierPoCount,
+        pendingReceivePo:    pendingReceivePoCount,
         apOutstanding,
       },
     };
