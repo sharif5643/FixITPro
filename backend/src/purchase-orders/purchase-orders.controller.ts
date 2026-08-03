@@ -32,8 +32,10 @@ export class PurchaseOrdersController {
   findAll(
     @Query() query: { status?: string; supplierId?: string; search?: string },
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('branchId') jwtBranchId: string | null,
+    @CurrentUser('role')     role: string,
   ) {
-    return this.poService.findAll(query, tenantId);
+    return this.poService.findAll(query, tenantId, jwtBranchId, role);
   }
 
   @Get(':id')

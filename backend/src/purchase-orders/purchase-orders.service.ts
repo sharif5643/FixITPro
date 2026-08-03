@@ -120,12 +120,22 @@ export class PurchaseOrdersService {
     throw new BadRequestException('ไม่สามารถสร้างเลข PO ได้ กรุณาลองใหม่');
   }
 
-  findAll(query: { status?: string; supplierId?: string; search?: string }, tenantId?: string | null) {
+  findAll(
+    query: { status?: string; supplierId?: string; search?: string },
+    tenantId?: string | null,
+    jwtBranchId?: string | null,
+    role?: string,
+  ) {
     const where: any = {};
-    if (query.status)     where.status      = query.status;
-    if (query.supplierId) where.supplierId  = query.supplierId;
-    if (query.search)     where.poNumber    = { contains: query.search, mode: 'insensitive' };
-    if (tenantId)         where.supplier    = { tenantId };
+    if (query.status)     where.status     = query.status;
+    if (query.supplierId) where.supplierId = query.supplierId;
+    if (query.search)     where.poNumber   = { contains: query.search, mode: 'insensitive' };
+    if (tenantId)         where.supplier   = { tenantId };
+
+    // Non-owner staff see only POs assigned to their branch (or legacy unassigned POs)
+    if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && jwtBranchId) {
+      where.OR = [{ branchId: jwtBranchId }, { branchId: null }];
+    }
 
     return this.prisma.purchaseOrder.findMany({
       where,
