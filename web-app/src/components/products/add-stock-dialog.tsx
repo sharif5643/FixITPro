@@ -72,7 +72,7 @@ export function AddStockDialog({
     enabled:  isOwner && open && !propBranchId,
     staleTime: 5 * 60_000,
   })
-  const activeBranches = branches.filter((b) => b.isActive && (b as any).status === 'ACTIVE')
+  const activeBranches = branches.filter((b) => b.isActive && b.status === 'ACTIVE')
 
   // Effective branch:
   //   staff/SUNMI → always JWT branchId from context (isBranchLocked = true)

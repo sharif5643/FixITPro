@@ -282,6 +282,10 @@ export default function PurchaseOrdersPage() {
   const removeItem = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx))
 
   const openReceive = (po: PurchaseOrder) => {
+    if (!contextBranchId) {
+      toast.error('กรุณาเลือกสาขาก่อนรับสินค้า เพื่อบันทึกสต็อกให้ถูกสาขา')
+      return
+    }
     setReceiveId(po.id); setReceiveQtys({}); setReceiveNote('')
   }
 

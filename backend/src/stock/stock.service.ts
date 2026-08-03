@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -11,6 +12,8 @@ import { AdjustStockDto } from './dto/adjust-stock.dto';
 
 @Injectable()
 export class StockService {
+  private readonly logger = new Logger(StockService.name);
+
   constructor(
     private prisma: PrismaService,
     private auditLog: AuditLogService,
@@ -55,6 +58,14 @@ export class StockService {
       throw new BadRequestException('กรุณาระบุสาขา (branchId is required)');
     }
 
+    // C-2: IN and OUT must have positive quantity; ADJUST allows negative (manual count)
+    if (dto.type !== 'ADJUST' && dto.quantity <= 0) {
+      throw new BadRequestException('จำนวนต้องมากกว่า 0 สำหรับประเภท IN และ OUT');
+    }
+    if (dto.quantity === 0) {
+      throw new BadRequestException('จำนวนต้องไม่เป็น 0');
+    }
+
     await this.assertBranchActive(dto.branchId);
 
     // Validate branch belongs to the calling tenant
@@ -74,8 +85,7 @@ export class StockService {
     if (!product) throw new NotFoundException('Product not found');
 
     const isDeduction = dto.type === 'OUT';
-
-    // Branch-scoped adjustment — BranchStock is the source of truth
+    const isAdjust    = dto.type === 'ADJUST';
     const bs = await this.prisma.branchStock.findUnique({
       where: { branchId_productId: { branchId: dto.branchId, productId: dto.productId } },
     });
@@ -84,6 +94,13 @@ export class StockService {
     if (isDeduction && available < dto.quantity) {
       throw new BadRequestException(
         `สต็อกสาขาไม่พอ คงเหลือ: ${available} ชิ้น`,
+      );
+    }
+
+    // W-1: ADJUST with negative delta must not drive BranchStock below zero
+    if (isAdjust && (available + dto.quantity) < 0) {
+      throw new BadRequestException(
+        `ไม่สามารถปรับสต็อกต่ำกว่า 0 (คงเหลือ: ${available} ชิ้น)`,
       );
     }
 
@@ -143,7 +160,8 @@ export class StockService {
       await this.syncProductShadowStock(dto.productId, tx);
     });
 
-    await this.auditLog.log({
+    // I-2: audit log failure must never roll back a successful stock operation
+    this.auditLog.log({
       actorId, actorName,
       action: 'STOCK_ADJUSTED',
       entityType: 'Product',
@@ -152,7 +170,7 @@ export class StockService {
         type: dto.type, quantity: dto.quantity,
         branchId: dto.branchId ?? null, note: dto.note,
       },
-    });
+    }).catch((err) => this.logger.error('[adjustStock] audit log failed', err));
 
     if (isDeduction) {
       const updatedBs = await this.prisma.branchStock.findUnique({

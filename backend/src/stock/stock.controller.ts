@@ -29,7 +29,7 @@ export class StockController {
 
   @Post('adjust')
   @UseGuards(PermissionGuard)
-  @RequirePermission('inventory.manage')
+  @RequirePermission('stock.adjust')
   adjustStock(
     @Body() dto: AdjustStockDto,
     @CurrentUser('id')       actorId: string,
@@ -60,7 +60,7 @@ export class StockController {
 
   @Get('movements/:productId')
   @UseGuards(PermissionGuard)
-  @RequirePermission('inventory.view')
+  @RequirePermission('products.view')
   getMovements(
     @Param('productId')      productId: string,
     @CurrentUser('tenantId') tenantId: string,
@@ -75,7 +75,7 @@ export class StockController {
 
   @Get('low-stock')
   @UseGuards(PermissionGuard)
-  @RequirePermission('inventory.view')
+  @RequirePermission('products.view')
   getLowStockProducts(
     @CurrentUser('role')     role: string,
     @CurrentUser('branchId') jwtBranchId: string | null,

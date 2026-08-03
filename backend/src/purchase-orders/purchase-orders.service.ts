@@ -48,8 +48,6 @@ export class PurchaseOrdersService {
       throw new BadRequestException('ต้องมีสินค้าอย่างน้อย 1 รายการ');
     }
 
-    const poNumber = await this.generatePoNumber();
-
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: dto.supplierId },
       select: { creditDays: true, tenantId: true },
@@ -74,40 +72,50 @@ export class PurchaseOrdersService {
     const vatAmount = (vatBase * vatPercent) / 100;
     const total = vatBase + vatAmount;
 
-    const po = await this.prisma.purchaseOrder.create({
-      data: {
-        poNumber,
-        supplierId: dto.supplierId,
-        createdById: userId,
-        status: (dto.status as any) || 'DRAFT',
-        expectedDate: dto.expectedDate ? new Date(dto.expectedDate) : undefined,
-        dueDate,
-        subtotal,
-        discount,
-        vatPercent,
-        vatAmount,
-        total,
-        note: dto.note,
-        items: {
-          create: dto.items.map((item, idx) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            unitCost: item.unitCost,
-            discount: item.discount || 0,
-            total: itemSubtotals[idx],
-          })),
-        },
-      },
-      include: PO_INCLUDE,
-    });
-    await this.auditLog.log({
-      actorId: userId,
-      action: 'PO_CREATED',
-      entityType: 'PurchaseOrder',
-      entityId: po.id,
-      afterData: { poNumber, supplierId: dto.supplierId, total: Number(total), itemCount: dto.items.length },
-    });
-    return po;
+    // W-4: retry up to 3 times in case of concurrent same-day PO creation (P2002)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const poNumber = await this.generatePoNumber();
+      try {
+        const po = await this.prisma.purchaseOrder.create({
+          data: {
+            poNumber,
+            supplierId: dto.supplierId,
+            createdById: userId,
+            status: (dto.status as any) || 'DRAFT',
+            expectedDate: dto.expectedDate ? new Date(dto.expectedDate) : undefined,
+            dueDate,
+            subtotal,
+            discount,
+            vatPercent,
+            vatAmount,
+            total,
+            note: dto.note,
+            items: {
+              create: dto.items.map((item, idx) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                unitCost: item.unitCost,
+                discount: item.discount || 0,
+                total: itemSubtotals[idx],
+              })),
+            },
+          },
+          include: PO_INCLUDE,
+        });
+        await this.auditLog.log({
+          actorId: userId,
+          action: 'PO_CREATED',
+          entityType: 'PurchaseOrder',
+          entityId: po.id,
+          afterData: { poNumber, supplierId: dto.supplierId, total: Number(total), itemCount: dto.items.length },
+        });
+        return po;
+      } catch (err: any) {
+        if (attempt < 2 && err?.code === 'P2002') continue;
+        throw err;
+      }
+    }
+    throw new BadRequestException('ไม่สามารถสร้างเลข PO ได้ กรุณาลองใหม่');
   }
 
   findAll(query: { status?: string; supplierId?: string; search?: string }, tenantId?: string | null) {
@@ -263,6 +271,7 @@ export class PurchaseOrdersService {
             type: 'IN',
             quantity: recv.quantity,
             productId: poItem.productId,
+            branchId: dto.branchId ?? undefined,
             note: dto.note ?? `รับสินค้าจาก PO: ${po.poNumber}`,
             referenceType: 'PURCHASE_ORDER',
             referenceId: poId,
@@ -284,7 +293,7 @@ export class PurchaseOrdersService {
       });
     });
 
-    const result = await this.findOne(poId);
+    const result = await this.findOne(poId, tenantId);
     await this.auditLog.log({
       actorId,
       action: 'PO_GOODS_RECEIVED',

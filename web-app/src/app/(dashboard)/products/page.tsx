@@ -36,6 +36,7 @@ import { formatThaiMoney } from '@/lib/utils'
 import { ModuleGate } from '@/components/auth/module-gate'
 import { useAuthStore } from '@/store/auth.store'
 import { useBranchStore } from '@/store/branch.store'
+import { useBranchContext } from '@/hooks/useBranchContext'
 import api from '@/lib/api'
 import type { Product, BranchAvailability } from '@/types'
 
@@ -55,14 +56,11 @@ const PAGE_SIZE = 50
 export default function ProductsPage() {
   const queryClient = useQueryClient()
 
-  const user             = useAuthStore((s) => s.user)
-  const hasPerm          = useAuthStore((s) => s.hasPermission)
-  const hasModule        = useAuthStore((s) => s.hasModule)
-  const selectedBranchId = useBranchStore((s) => s.selectedBranchId)
+  const user    = useAuthStore((s) => s.user)
+  const hasPerm = useAuthStore((s) => s.hasPermission)
+  const hasModule = useAuthStore((s) => s.hasModule)
 
-  const isOwner         = user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN'
-  const effectiveBranch = isOwner ? (selectedBranchId ?? undefined) : (user?.branchId ?? undefined)
-  const isViewAll       = isOwner && !effectiveBranch
+  const { branchId: effectiveBranch, isOwner, isGlobalMode: isViewAll } = useBranchContext()
 
   const { data: branches = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['branches-simple'],

@@ -7,6 +7,7 @@ import {
   Param,
   Query,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { PurchaseOrdersService } from './purchase-orders.service';
 import { CreatePurchaseOrderDto } from './dto/create-po.dto';
@@ -77,8 +78,11 @@ export class PurchaseOrdersController {
     @CurrentUser('branchId') jwtBranchId: string | null,
     @CurrentUser('role')     role: string,
   ) {
-    // P0-2: non-owner staff always receive into their JWT branch
-    if (role !== 'OWNER' && role !== 'SUPER_ADMIN' && jwtBranchId) {
+    // W-2: non-owner staff must always receive into their JWT branch; reject if unassigned
+    if (role !== 'OWNER' && role !== 'SUPER_ADMIN') {
+      if (!jwtBranchId) {
+        throw new BadRequestException('ไม่พบสาขาของพนักงาน กรุณาติดต่อผู้ดูแลระบบ');
+      }
       dto.branchId = jwtBranchId;
     }
     return this.poService.receiveGoods(id, dto, actorId, tenantId);

@@ -185,8 +185,9 @@ function MovementHistory({ productId }: { productId: string }) {
 // ── Compact product card (browse list) ────────────────────────────────────────
 
 function ProductMiniCard({ product, onTap }: { product: Product; onTap: () => void }) {
-  const isOut = product.stock <= 0
-  const isLow = !isOut && product.stock <= product.minStock
+  const qty   = product.branchQuantity ?? product.stock
+  const isOut = qty <= 0
+  const isLow = !isOut && qty <= product.minStock
 
   return (
     <button
@@ -214,7 +215,7 @@ function ProductMiniCard({ product, onTap }: { product: Product; onTap: () => vo
 
       <div className="text-right shrink-0 ml-1">
         <p className={cn('text-xl font-bold', isOut ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-slate-800')}>
-          {product.stock}
+          {qty}
         </p>
         <p className="text-xs text-slate-400">{formatThaiMoney(Number(product.price))}</p>
       </div>
@@ -227,8 +228,9 @@ function ProductMiniCard({ product, onTap }: { product: Product; onTap: () => vo
 // ── Product detail info card ──────────────────────────────────────────────────
 
 function ProductDetailCard({ product }: { product: Product }) {
-  const isOut = product.stock <= 0
-  const isLow = !isOut && product.stock <= product.minStock
+  const qty   = product.branchQuantity ?? product.stock
+  const isOut = qty <= 0
+  const isLow = !isOut && qty <= product.minStock
 
   return (
     <div className="space-y-3">
@@ -285,7 +287,7 @@ function ProductDetailCard({ product }: { product: Product }) {
           'text-5xl font-bold',
           isOut ? 'text-red-600' : isLow ? 'text-amber-600' : 'text-green-700',
         )}>
-          {product.stock}
+          {qty}
         </p>
       </div>
 
@@ -322,8 +324,9 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
     defaultValues: { qty: 1 },
   })
 
-  const qty      = Number(watch('qty')) || 0
-  const newStock = mode === 'IN' ? product.stock + qty : Math.max(0, product.stock - qty)
+  const qty        = Number(watch('qty')) || 0
+  const currentQty = product.branchQuantity ?? product.stock
+  const newStock   = mode === 'IN' ? currentQty + qty : Math.max(0, currentQty - qty)
 
   const mutation = useMutation({
     mutationFn: (data: AdjustData) =>
@@ -336,7 +339,7 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
     onSuccess: async () => {
       toast.success(mode === 'IN' ? 'รับสต็อกเข้าสำเร็จ' : 'ตัดสต็อกออกสำเร็จ')
       queryClient.invalidateQueries({ queryKey: ['products'] })
-      queryClient.invalidateQueries({ queryKey: ['stock-low'] })
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] })
       queryClient.invalidateQueries({ queryKey: ['stock-movements', product.id] })
       try {
         const res = await api.get(`/products/${product.id}`)
@@ -365,7 +368,7 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
           </div>
           <div className="text-right shrink-0">
             <p className="text-xs text-slate-400">สต็อกปัจจุบัน</p>
-            <p className="text-3xl font-bold text-slate-800">{product.stock}</p>
+            <p className="text-3xl font-bold text-slate-800">{currentQty}</p>
           </div>
         </div>
 
@@ -408,7 +411,7 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
               mode === 'IN' ? 'bg-green-50' : 'bg-red-50',
             )}>
               <p className="text-sm text-slate-500">
-                {product.stock}
+                {currentQty}
                 <span className={cn('mx-2 font-bold text-base', mode === 'IN' ? 'text-green-600' : 'text-red-500')}>
                   {mode === 'IN' ? `+${qty}` : `−${qty}`}
                 </span>
@@ -523,7 +526,7 @@ function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: Pro
     onSuccess: (res) => {
       toast.success(isEditing ? 'แก้ไขสินค้าสำเร็จ' : 'สร้างสินค้าสำเร็จ')
       queryClient.invalidateQueries({ queryKey: ['products'] })
-      queryClient.invalidateQueries({ queryKey: ['stock-low'] })
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] })
       if (isEditing) queryClient.invalidateQueries({ queryKey: ['product', product!.id] })
       onSuccess(res.data as Product)
     },
@@ -756,7 +759,7 @@ function BrowseScreen({ onSelectProduct, onNewProduct }: BrowseScreenProps) {
 
 function LowStockSection({ onSelect }: { onSelect: (p: Product) => void }) {
   const { data: list = [], isLoading } = useQuery<BranchLowStockItem[]>({
-    queryKey: ['stock-low'],
+    queryKey: ['low-stock'],
     queryFn:  async () => (await api.get('/stock/low-stock')).data,
     staleTime: 60_000,
   })
