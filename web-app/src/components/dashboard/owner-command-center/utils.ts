@@ -126,7 +126,7 @@ export function computePriorities(
     items.push({ id: 'overdue', level: 'critical', text: `งานซ่อมเกินกำหนด ${alerts.overdueRepairs} ชิ้น`, link: '/repairs', linkLabel: 'ดูงาน' })
   }
   if (alerts.outOfStock > 0) {
-    items.push({ id: 'out_of_stock', level: 'critical', text: `สินค้าหมดสต็อก ${alerts.outOfStock} รายการ`, link: '/stock', linkLabel: 'ดูสต็อก' })
+    items.push({ id: 'out_of_stock', level: 'critical', text: `สินค้าหมดสต็อก ${alerts.outOfStock} รายการ`, link: '/products', linkLabel: 'ดูสต็อก' })
   }
   if (repairOps.waitingApproval > 0) {
     items.push({ id: 'approval', level: 'warning', text: `รออนุมัติ ${repairOps.waitingApproval} งาน`, link: '/repairs?status=WAITING_APPROVAL', linkLabel: 'อนุมัติ' })
@@ -138,7 +138,7 @@ export function computePriorities(
     items.push({ id: 'pickup', level: 'warning', text: `รอรับงาน ${repairOps.completedNotDelivered} ชิ้น — แจ้งลูกค้า`, link: '/repairs?status=READY_PICKUP', linkLabel: 'แจ้งลูกค้า' })
   }
   if (alerts.lowStock > 0) {
-    items.push({ id: 'low_stock', level: 'info', text: `สต็อกใกล้หมด ${alerts.lowStock} รายการ`, link: '/stock', linkLabel: 'สั่งซื้อ' })
+    items.push({ id: 'low_stock', level: 'info', text: `สต็อกใกล้หมด ${alerts.lowStock} รายการ`, link: '/products', linkLabel: 'สั่งซื้อ' })
   }
   if (alerts.expiringWarranties > 0) {
     items.push({ id: 'warranty', level: 'info', text: `ประกันใกล้หมดอายุ ${alerts.expiringWarranties} รายการ`, link: '/repairs', linkLabel: 'ดู' })
