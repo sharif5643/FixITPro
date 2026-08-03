@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -92,9 +93,33 @@ export default function PurchaseOrdersPage() {
   const user = useAuthStore((s) => s.user)
   const { branchId: contextBranchId, branchName: contextBranchName, isOwner } = useBranchContext()
 
+  const searchParams = useSearchParams()
+
   // ── filters ──
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') ?? '')
+
+  // sync statusFilter when URL param changes (e.g. navigating from dashboard alert)
+  useEffect(() => {
+    const s = searchParams.get('status')
+    if (s && ALL_STATUSES.includes(s)) setStatusFilter(s)
+  }, [searchParams])
+
+  // auto-open create form when coming from low-stock products page
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return
+    const pid   = searchParams.get('productId')   ?? ''
+    const pname = searchParams.get('productName') ?? ''
+    const psku  = searchParams.get('productSku')  ?? ''
+    const pcost = parseFloat(searchParams.get('productCost') ?? '0')
+    setSupplierId('')
+    setCreateBranchId(contextBranchId ?? '')
+    setExpectedDate(''); setVatPercent(0); setOrderDiscount(0); setNote('')
+    setProductSearch('')
+    setItems(pid ? [{ productId: pid, productName: pname, sku: psku, quantity: 1, unitCost: pcost, discount: 0 }] : [])
+    setFormOpen(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── dialog open states ──
   const [formOpen, setFormOpen] = useState(false)

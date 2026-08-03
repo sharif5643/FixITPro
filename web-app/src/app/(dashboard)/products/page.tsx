@@ -5,8 +5,9 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { toast } from 'sonner'
 import {
   Plus, Pencil, Trash2, Package, AlertTriangle, Loader2, Barcode,
-  ChevronDown, ChevronUp, PackagePlus, ArrowRightLeft, Layers, Wallet,
+  ChevronDown, ChevronUp, PackagePlus, ArrowRightLeft, Layers, Wallet, ShoppingCart,
 } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -549,6 +550,19 @@ export default function ProductsPage() {
                           >
                             <ArrowRightLeft className="h-3.5 w-3.5" />
                           </Button>
+                        )}
+                        {isOwner && (isLow || isOut) && (
+                          <Link
+                            href={`/purchase-orders?new=1&productId=${p.id}&productName=${encodeURIComponent(p.name)}&productSku=${encodeURIComponent(p.sku)}&productCost=${p.costPrice}`}
+                            title="สร้าง PO สั่งซื้อสินค้านี้"
+                          >
+                            <Button
+                              size="icon" variant="ghost"
+                              className="h-7 w-7 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400"
+                            >
+                              <ShoppingCart className="h-3.5 w-3.5" />
+                            </Button>
+                          </Link>
                         )}
                         <Button
                           size="icon" variant="ghost"
