@@ -19,8 +19,7 @@ import { RequireModule } from '../common/decorators/require-module.decorator';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-// P1-1 FIX: require inventory module + permission guards on all stock endpoints.
-@RequireModule('inventory')
+@RequireModule('stock')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
 @Controller('stock')
 export class StockController {

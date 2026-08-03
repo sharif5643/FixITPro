@@ -130,9 +130,12 @@ export function AddStockDialog({
         note:      note.trim() || undefined,
       })
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['products'] })
-      qc.invalidateQueries({ queryKey: ['low-stock'] })
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['products'] }),
+        qc.invalidateQueries({ queryKey: ['low-stock'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+      ])
       toast.success(`เพิ่มสต็อก "${activeProduct?.name}" เข้า${effectiveBranchName || 'สาขา'} เรียบร้อย`)
       onOpenChange(false)
       reset()
