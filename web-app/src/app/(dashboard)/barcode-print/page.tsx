@@ -148,18 +148,37 @@ export default function BarcodePrintPage() {
 
   return (
     <>
-      {/* Print-only style injected globally */}
+      {/* Print-only style — @page size matches selected label so Niimbot gets one label per page */}
       <style jsx global>{`
         @media print {
-          .no-print { display: none !important; }
-          .print-area {
-            display: flex !important;
-            flex-wrap: wrap;
-            gap: 4px;
-            padding: 4mm;
+          @page {
+            margin: 0;
+            size: ${LABEL_SIZE_CONFIG[labelSize].widthMm}mm ${LABEL_SIZE_CONFIG[labelSize].heightMm}mm;
           }
-          .label-item { border: 1px solid #999 !important; }
-          body { background: white !important; }
+          .no-print { display: none !important; }
+          body {
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .print-area {
+            display: block !important;
+            margin: 0;
+            padding: 0;
+          }
+          .label-item {
+            width: ${LABEL_SIZE_CONFIG[labelSize].widthMm}mm !important;
+            height: ${LABEL_SIZE_CONFIG[labelSize].heightMm}mm !important;
+            border: none !important;
+            page-break-after: always;
+            break-after: page;
+            margin: 0;
+            box-sizing: border-box;
+          }
+          .label-item:last-child {
+            page-break-after: avoid;
+            break-after: avoid;
+          }
         }
         @media screen {
           .print-area { display: none; }
