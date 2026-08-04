@@ -544,15 +544,36 @@ model Customer {
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
-  sales         Sale[]
-  repairs       Repair[]
-  claims        Claim[]
-  packageSales  PackageSale[]
-  saleRefunds   SaleRefund[]
-  customerNotes CustomerNote[]
-  warranties    Warranty[]
+  sales              Sale[]
+  repairs            Repair[]
+  claims             Claim[]
+  packageSales       PackageSale[]
+  saleRefunds        SaleRefund[]
+  customerNotes      CustomerNote[]
+  warranties         Warranty[]
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model LoyaltyTransaction {
+  id          String   @id @default(cuid())
+  points      Int
+  type        String
+  sourceType  String?
+  sourceId    String?
+  note        String?
+  actorUserId String
+  actorName   String?
+  createdAt   DateTime @default(now())
+
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  tenantId    String?
+
+  @@index([customerId, createdAt])
   @@index([tenantId])
 }
 

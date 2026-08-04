@@ -1,327 +1,370 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
-import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Users, Pencil, ChevronRight, Crown, Star, Sparkles,
+  ArrowLeft, Gift, Plus, Minus, RefreshCw, Wrench, ShoppingBag,
+  Phone, Mail, MapPin, Tag, FileText, Clock,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
-import { PageHeader } from '@/components/ui/page-header'
-import { FilterBar } from '@/components/ui/filter-bar'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { SectionCard } from '@/components/ui/section-card'
-import { EmptyState } from '@/components/ui/empty-state'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
-  DataTableRow, DataTableCell, DataTableLoadingRows,
+  DataTableRow, DataTableCell, DataTableEmptyRow,
 } from '@/components/ui/data-table'
-import { CustomerFormDialog } from '@/components/customers/customer-form-dialog'
-import { formatThaiMoney } from '@/lib/utils'
-import { useAuthStore } from '@/store/auth.store'
-import { ModuleGate } from '@/components/auth/module-gate'
 import api from '@/lib/api'
+import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import type { Customer } from '@/types'
 
-interface CustomerWithStats extends Customer {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface LoyaltyTx {
+  id:          string
+  points:      number
+  type:        string
+  note?:       string
+  actorName?:  string
+  createdAt:   string
+}
+
+interface LoyaltyData extends Customer {
+  transactions: LoyaltyTx[]
+}
+
+interface CustomerDetail extends Customer {
   _count: { sales: number; repairs: number }
-  sales: { total: string | number }[]
 }
 
-type Tier = 'VIP' | 'REGULAR' | 'NEW'
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getTier(salesCount: number, totalSpending: number): Tier {
-  if (totalSpending >= 10000) return 'VIP'
-  if (salesCount >= 3) return 'REGULAR'
-  return 'NEW'
+const TX_TYPE_LABEL: Record<string, string> = {
+  EARN_MANUAL:  'เพิ่มด้วยตนเอง',
+  EARN_REPAIR:  'ซ่อมครบ',
+  EARN_SALE:    'ซื้อสินค้า',
+  REDEEM:       'แลกรางวัล',
+  ADJUST:       'ปรับยอด',
+  EXPIRE:       'หมดอายุ',
 }
 
-const TIER_CONFIG: Record<Tier, { label: string; Icon: React.ElementType; cls: string }> = {
-  VIP:     { label: 'VIP',    Icon: Crown,    cls: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-800/60' },
-  REGULAR: { label: 'ประจำ', Icon: Star,     cls: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/60' },
-  NEW:     { label: 'ใหม่',  Icon: Sparkles, cls: 'bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/60' },
+function PointsBadge({ points }: { points: number }) {
+  if (points > 0)
+    return <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+{points} pts</span>
+  return <span className="text-red-500 dark:text-red-400 font-semibold">{points} pts</span>
 }
 
-function TierBadge({ salesCount, totalSpending }: { salesCount: number; totalSpending: number }) {
-  const tier = getTier(salesCount, totalSpending)
-  const { label, Icon, cls } = TIER_CONFIG[tier]
+// ─── Adjust Points Dialog ─────────────────────────────────────────────────────
+
+function AdjustPointsDialog({
+  customerId,
+  currentPoints,
+  open,
+  onClose,
+}: {
+  customerId: string
+  currentPoints: number
+  open: boolean
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const [mode, setMode]     = useState<'earn' | 'redeem'>('earn')
+  const [amount, setAmount] = useState('')
+  const [note, setNote]     = useState('')
+
+  const pts = parseInt(amount) || 0
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.post(`/customers/${customerId}/loyalty/adjust`, {
+        points: mode === 'earn' ? pts : -pts,
+        type:   mode === 'earn' ? 'EARN_MANUAL' : 'REDEEM',
+        note:   note || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customer-loyalty', customerId] })
+      qc.invalidateQueries({ queryKey: ['customer', customerId] })
+      onClose()
+      setAmount(''); setNote('')
+    },
+    onError: (e) => alert(apiErrorMessage(e)),
+  })
+
+  const insufficient = mode === 'redeem' && pts > currentPoints
+
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}`}>
-      <Icon className="h-3 w-3" />
-      {label}
-    </span>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Gift className="h-5 w-5 text-amber-500" /> จัดการแต้มสะสม
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          {/* Mode toggle */}
+          <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            {(['earn', 'redeem'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`flex-1 py-2 text-sm font-medium transition-colors
+                  ${mode === m
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+              >
+                {m === 'earn' ? '+ เพิ่มแต้ม' : '- แลกแต้ม'}
+              </button>
+            ))}
+          </div>
+
+          {/* Current balance */}
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 p-3 flex justify-between items-center">
+            <span className="text-sm text-amber-700 dark:text-amber-400">แต้มปัจจุบัน</span>
+            <span className="text-lg font-bold text-amber-700 dark:text-amber-300">{currentPoints.toLocaleString()} pts</span>
+          </div>
+
+          {/* Amount input */}
+          <div className="space-y-1.5">
+            <Label>จำนวนแต้ม</Label>
+            <Input
+              type="number"
+              min="1"
+              placeholder="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="h-11 text-lg"
+              autoFocus
+            />
+            {insufficient && (
+              <p className="text-xs text-red-500">แต้มไม่พอ (มี {currentPoints} pts)</p>
+            )}
+          </div>
+
+          {/* Note */}
+          <div className="space-y-1.5">
+            <Label>หมายเหตุ <span className="text-slate-400">(ไม่บังคับ)</span></Label>
+            <Input
+              placeholder="เช่น แลกส่วนลด 50 บาท"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+
+          {/* Preview */}
+          {pts > 0 && (
+            <div className="text-sm text-slate-500 text-center">
+              คงเหลือหลัง:{' '}
+              <strong className={insufficient ? 'text-red-500' : 'text-slate-800 dark:text-slate-200'}>
+                {mode === 'earn' ? currentPoints + pts : currentPoints - pts} pts
+              </strong>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
+          <Button
+            disabled={!pts || insufficient || mutation.isPending}
+            onClick={() => mutation.mutate()}
+            className={mode === 'redeem' ? 'bg-rose-600 hover:bg-rose-700' : ''}
+          >
+            {mutation.isPending ? 'กำลังบันทึก…' : mode === 'earn' ? 'เพิ่มแต้ม' : 'แลกแต้ม'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-export default function CustomersPage() {
-  const router = useRouter()
-  const queryClient = useQueryClient()
-  const hasModule = useAuthStore((s) => s.hasModule)
-  const [search, setSearch] = useState('')
-  const [createOpen, setCreateOpen] = useState(false)
-  const [editCustomer, setEditCustomer] = useState<Customer | null>(null)
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-  const { data: customers = [], isLoading } = useQuery<CustomerWithStats[]>({
-    queryKey: ['customers'],
-    queryFn: async () => (await api.get('/customers')).data,
-    placeholderData: keepPreviousData,
+export default function CustomerDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const [adjustOpen, setAdjustOpen] = useState(false)
+
+  const { data: customer, isLoading: loadingCustomer } = useQuery<CustomerDetail>({
+    queryKey: ['customer', id],
+    queryFn:  async () => (await api.get(`/customers/${id}`)).data,
+    staleTime: 60_000,
   })
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return customers
-    const q = search.toLowerCase()
-    return customers.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.phone?.toLowerCase().includes(q) ?? false) ||
-        (c.email?.toLowerCase().includes(q) ?? false),
+  const { data: loyalty, isLoading: loadingLoyalty } = useQuery<LoyaltyData>({
+    queryKey: ['customer-loyalty', id],
+    queryFn:  async () => (await api.get(`/customers/${id}/loyalty`)).data,
+    staleTime: 30_000,
+  })
+
+  if (loadingCustomer) {
+    return (
+      <div className="space-y-4">
+        <div className="h-8 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+        <div className="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+      </div>
     )
-  }, [customers, search])
+  }
 
-  const crmStats = useMemo(() => {
-    if (!customers.length) return null
-    let vip = 0, regular = 0, totalSpend = 0
-    for (const c of customers) {
-      const spending = c.sales.reduce((sum, s) => sum + Number(s.total), 0)
-      totalSpend += spending
-      if (spending >= 10000) vip++
-      else if (c._count.sales >= 3) regular++
-    }
-    return { total: customers.length, vip, regular, newCount: customers.length - vip - regular, totalSpend }
-  }, [customers])
-
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['customers'] })
-
-  if (!hasModule('crm')) return <ModuleGate module="crm">{null}</ModuleGate>
+  if (!customer) {
+    return (
+      <div className="text-center py-16 text-slate-400">
+        <p>ไม่พบข้อมูลลูกค้า</p>
+        <Button variant="outline" className="mt-4" onClick={() => router.push('/customers')}>
+          กลับไปรายการ
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="ลูกค้า"
-        icon={Users}
-        subtitle={isLoading ? '' : `${customers.length} ราย`}
-        primaryAction={
-          <Button onClick={() => setCreateOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">เพิ่มลูกค้า</span>
-            <span className="sm:hidden">เพิ่ม</span>
-          </Button>
-        }
-      />
+      {/* Back button */}
+      <button
+        onClick={() => router.push('/customers')}
+        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> กลับไปรายการลูกค้า
+      </button>
 
-      {/* ── CRM Stats Bar ── */}
-      {crmStats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
-            <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide flex items-center gap-1">
-              <Users className="h-3 w-3" /> ลูกค้าทั้งหมด
-            </p>
-            <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1 tabular-nums">{crmStats.total}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{formatThaiMoney(crmStats.totalSpend)} ยอดรวม</p>
-          </div>
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl border border-yellow-200 dark:border-yellow-800/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
-            <p className="text-[11px] font-bold text-yellow-600 dark:text-yellow-400 uppercase tracking-wide flex items-center gap-1">
-              <Crown className="h-3 w-3" /> VIP
-            </p>
-            <p className="text-2xl font-extrabold text-yellow-800 dark:text-yellow-300 mt-1 tabular-nums">{crmStats.vip}</p>
-            <p className="text-xs text-yellow-600 dark:text-yellow-500 mt-0.5">ยอดซื้อ ≥ ฿10,000</p>
-          </div>
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-200 dark:border-blue-800/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
-            <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide flex items-center gap-1">
-              <Star className="h-3 w-3" /> ประจำ
-            </p>
-            <p className="text-2xl font-extrabold text-blue-800 dark:text-blue-300 mt-1 tabular-nums">{crmStats.regular}</p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">ซื้อ ≥ 3 ครั้ง</p>
-          </div>
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4">
-            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
-              <Sparkles className="h-3 w-3" /> ใหม่
-            </p>
-            <p className="text-2xl font-extrabold text-slate-700 dark:text-slate-200 mt-1 tabular-nums">{crmStats.newCount}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">ยังไม่มีประวัติซ้ำ</p>
+      {/* Customer info */}
+      <SectionCard title={customer.name}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6 text-sm">
+          {customer.phone && (
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+              <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              {customer.phone}
+            </div>
+          )}
+          {customer.email && (
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+              <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              {customer.email}
+            </div>
+          )}
+          {customer.address && (
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 sm:col-span-2">
+              <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              {customer.address}
+            </div>
+          )}
+          {customer.tags?.length > 0 && (
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 sm:col-span-2">
+              <Tag className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <div className="flex flex-wrap gap-1">
+                {customer.tags.map((t) => (
+                  <Badge key={t} variant="outline" className="text-xs">{t}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {customer.note && (
+            <div className="flex items-start gap-2 text-slate-500 sm:col-span-2">
+              <FileText className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+              {customer.note}
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-slate-400 text-xs sm:col-span-2">
+            <Clock className="h-3 w-3" />
+            ลูกค้าตั้งแต่ {format(new Date(customer.createdAt), 'd MMM yyyy', { locale: th })}
           </div>
         </div>
-      )}
 
-      <FilterBar
-        searchValue={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="ค้นหาชื่อ, เบอร์โทร, อีเมล..."
-      />
-
-      {/* ── Desktop table (md+) ── */}
-      <SectionCard noPadding className="hidden md:block overflow-x-auto">
-        <DataTable>
-          <DataTableHead>
-            <DataTableHeadCell>ลูกค้า</DataTableHeadCell>
-            <DataTableHeadCell>เบอร์ / อีเมล</DataTableHeadCell>
-            <DataTableHeadCell className="text-center">ซื้อแล้ว</DataTableHeadCell>
-            <DataTableHeadCell className="text-center" hidden>ซ่อมแล้ว</DataTableHeadCell>
-            <DataTableHeadCell right>ยอดรวม</DataTableHeadCell>
-            <DataTableHeadCell className="text-center">สถานะ</DataTableHeadCell>
-            <DataTableHeadCell className="text-center" hidden>คะแนน</DataTableHeadCell>
-            <DataTableHeadCell hidden>วันสมัคร</DataTableHeadCell>
-            <DataTableHeadCell className="w-16" />
-          </DataTableHead>
-          <DataTableBody>
-            {isLoading ? (
-              <DataTableLoadingRows rows={7} cols={9} />
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="py-0">
-                  <EmptyState preset={search ? 'search' : 'customers'} size="md" />
-                </td>
-              </tr>
-            ) : (
-              filtered.map((c) => {
-                const totalSpending = c.sales.reduce((sum, s) => sum + Number(s.total), 0)
-                const salesCount   = c._count.sales
-                const repairsCount = c._count.repairs
-                return (
-                  <DataTableRow key={c.id} onClick={() => router.push(`/customers/${c.id}`)}>
-                    <DataTableCell>
-                      <p className="font-semibold text-slate-900">{c.name}</p>
-                    </DataTableCell>
-                    <DataTableCell>
-                      <p className="text-slate-700">{c.phone ?? '—'}</p>
-                      {c.email && <p className="text-xs text-slate-400">{c.email}</p>}
-                    </DataTableCell>
-                    <DataTableCell className="text-center">
-                      <span className="font-semibold">{salesCount}</span>
-                      <span className="text-xs text-slate-400 ml-0.5">ครั้ง</span>
-                    </DataTableCell>
-                    <DataTableCell className="text-center" hidden>
-                      <span className="font-semibold">{repairsCount}</span>
-                      <span className="text-xs text-slate-400 ml-0.5">งาน</span>
-                    </DataTableCell>
-                    <DataTableCell right>
-                      <span className="font-semibold tabular-nums text-slate-900">
-                        {formatThaiMoney(totalSpending)}
-                      </span>
-                    </DataTableCell>
-                    <DataTableCell className="text-center">
-                      <TierBadge salesCount={salesCount} totalSpending={totalSpending} />
-                    </DataTableCell>
-                    <DataTableCell className="text-center" hidden>
-                      <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
-                        {c.points}
-                      </span>
-                    </DataTableCell>
-                    <DataTableCell hidden muted>
-                      <span className="text-xs whitespace-nowrap">
-                        {format(new Date(c.createdAt), 'dd MMM yyyy', { locale: th })}
-                      </span>
-                    </DataTableCell>
-                    <DataTableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          size="icon" variant="ghost"
-                          className="h-7 w-7 text-slate-400 hover:text-slate-900"
-                          onClick={(e) => { e.stopPropagation(); setEditCustomer(c) }}
-                          title="แก้ไข"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          size="icon" variant="ghost"
-                          className="h-7 w-7 text-slate-400 hover:text-slate-900"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/customers/${c.id}`) }}
-                          title="ดูโปรไฟล์"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </DataTableCell>
-                  </DataTableRow>
-                )
-              })
-            )}
-          </DataTableBody>
-        </DataTable>
+        {/* Stats */}
+        <div className="flex gap-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/60">
+          <div className="flex items-center gap-1.5 text-sm text-slate-500">
+            <ShoppingBag className="h-4 w-4" />
+            <span>{customer._count?.sales ?? 0} ออเดอร์</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-sm text-slate-500">
+            <Wrench className="h-4 w-4" />
+            <span>{customer._count?.repairs ?? 0} งานซ่อม</span>
+          </div>
+        </div>
       </SectionCard>
 
-      {/* ── Mobile cards (< md) ── */}
-      <div className="md:hidden space-y-3">
-        {isLoading ? (
-          <SectionCard>
-            <div className="h-40 flex items-center justify-center">
-              <div className="h-5 w-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
-            </div>
-          </SectionCard>
-        ) : filtered.length === 0 ? (
-          <SectionCard noPadding>
-            <EmptyState preset={search ? 'search' : 'customers'} size="md" />
-          </SectionCard>
+      {/* Loyalty Points */}
+      <SectionCard
+        title="แต้มสะสม"
+        icon={Gift}
+        headerAction={
+          <Button size="sm" className="gap-1.5 h-8" onClick={() => setAdjustOpen(true)}>
+            <Plus className="h-3.5 w-3.5" /> จัดการแต้ม
+          </Button>
+        }
+      >
+        {/* Balance */}
+        <div className="flex items-center gap-4 mb-5">
+          <div className="flex flex-col items-center justify-center rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 w-32 h-20">
+            <p className="text-2xl font-extrabold text-amber-700 dark:text-amber-300 tabular-nums">
+              {(loyalty?.points ?? customer.points).toLocaleString()}
+            </p>
+            <p className="text-xs text-amber-600 dark:text-amber-500">แต้มสะสม</p>
+          </div>
+          <div className="text-sm text-slate-500 space-y-1">
+            <p>ทุก 100 แต้ม = ส่วนลด 10 บาท</p>
+            <p>แต้มไม่หมดอายุ</p>
+          </div>
+        </div>
+
+        {/* Transaction history */}
+        <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">ประวัติแต้ม</p>
+        {loadingLoyalty ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-10 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+            ))}
+          </div>
         ) : (
-          filtered.map((c) => {
-            const totalSpending = c.sales.reduce((sum, s) => sum + Number(s.total), 0)
-            const salesCount   = c._count.sales
-            const repairsCount = c._count.repairs
-            return (
-              <div
-                key={c.id}
-                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 space-y-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 dark:text-slate-50 truncate">{c.name}</p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{c.phone ?? c.email ?? '—'}</p>
-                  </div>
-                  <TierBadge salesCount={salesCount} totalSpending={totalSpending} />
-                </div>
-
-                <div className="grid grid-cols-4 gap-2 text-center">
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 py-2">
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">ซื้อ</p>
-                    <p className="font-bold text-sm dark:text-slate-200">{salesCount}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 py-2">
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">ซ่อม</p>
-                    <p className="font-bold text-sm dark:text-slate-200">{repairsCount}</p>
-                  </div>
-                  <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 py-2 col-span-2">
-                    <p className="text-[10px] text-blue-600 dark:text-blue-400">ยอดรวม</p>
-                    <p className="font-bold text-sm text-blue-700 dark:text-blue-300 tabular-nums">
-                      {formatThaiMoney(totalSpending)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline" size="sm"
-                    className="flex-1 h-8 text-xs gap-1"
-                    onClick={() => setEditCustomer(c)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />แก้ไข
-                  </Button>
-                  <Button
-                    variant="outline" size="sm"
-                    className="flex-1 h-8 text-xs gap-1"
-                    onClick={() => router.push(`/customers/${c.id}`)}
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />โปรไฟล์
-                  </Button>
-                </div>
-              </div>
-            )
-          })
+          <DataTable>
+            <DataTableHead>
+              <DataTableHeadCell>วันที่</DataTableHeadCell>
+              <DataTableHeadCell>ประเภท</DataTableHeadCell>
+              <DataTableHeadCell>หมายเหตุ</DataTableHeadCell>
+              <DataTableHeadCell>โดย</DataTableHeadCell>
+              <DataTableHeadCell className="text-right">แต้ม</DataTableHeadCell>
+            </DataTableHead>
+            <DataTableBody>
+              {!loyalty?.transactions?.length ? (
+                <DataTableEmptyRow message="ยังไม่มีประวัติแต้ม" colSpan={5} />
+              ) : (
+                loyalty.transactions.map((tx) => (
+                  <DataTableRow key={tx.id}>
+                    <DataTableCell className="text-xs text-slate-500 whitespace-nowrap">
+                      {format(new Date(tx.createdAt), 'd MMM yy HH:mm', { locale: th })}
+                    </DataTableCell>
+                    <DataTableCell className="text-sm">
+                      {TX_TYPE_LABEL[tx.type] ?? tx.type}
+                    </DataTableCell>
+                    <DataTableCell className="text-sm text-slate-500">
+                      {tx.note ?? '—'}
+                    </DataTableCell>
+                    <DataTableCell className="text-sm text-slate-500">
+                      {tx.actorName ?? '—'}
+                    </DataTableCell>
+                    <DataTableCell className="text-right">
+                      <PointsBadge points={tx.points} />
+                    </DataTableCell>
+                  </DataTableRow>
+                ))
+              )}
+            </DataTableBody>
+          </DataTable>
         )}
-      </div>
+      </SectionCard>
 
-      <CustomerFormDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onSuccess={() => { setCreateOpen(false); invalidate() }}
-      />
-
-      <CustomerFormDialog
-        open={!!editCustomer}
-        onOpenChange={(v) => { if (!v) setEditCustomer(null) }}
-        initialData={editCustomer ?? undefined}
-        onSuccess={() => { setEditCustomer(null); invalidate() }}
-      />
+      {/* Adjust dialog */}
+      {adjustOpen && (
+        <AdjustPointsDialog
+          customerId={id}
+          currentPoints={loyalty?.points ?? customer.points}
+          open={adjustOpen}
+          onClose={() => setAdjustOpen(false)}
+        />
+      )}
     </div>
   )
 }

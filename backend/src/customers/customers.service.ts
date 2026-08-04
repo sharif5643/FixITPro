@@ -292,4 +292,64 @@ export class CustomersService {
       (a, b) => b.totalDebt - a.totalDebt,
     );
   }
+
+  // ─── Loyalty Points ──────────────────────────────────────────────────────────
+
+  async getLoyalty(customerId: string, tenantId?: string | null) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, ...this.tenantSvc.scope(tenantId) },
+      select: { id: true, name: true, points: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const transactions = await this.prisma.loyaltyTransaction.findMany({
+      where:   { customerId },
+      orderBy: { createdAt: 'desc' },
+      take:    50,
+    });
+
+    return { ...customer, transactions };
+  }
+
+  async adjustPoints(
+    customerId:  string,
+    points:      number,
+    type:        string,
+    note:        string | undefined,
+    actorId:     string,
+    actorName:   string | undefined,
+    tenantId?:   string | null,
+    sourceType?: string,
+    sourceId?:   string,
+  ) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, ...this.tenantSvc.scope(tenantId) },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const newBalance = customer.points + points;
+    if (newBalance < 0) throw new Error('Insufficient points');
+
+    const [tx] = await this.prisma.$transaction([
+      this.prisma.loyaltyTransaction.create({
+        data: {
+          customerId,
+          points,
+          type,
+          sourceType,
+          sourceId,
+          note,
+          actorUserId: actorId,
+          actorName,
+          tenantId:    tenantId ?? null,
+        },
+      }),
+      this.prisma.customer.update({
+        where: { id: customerId },
+        data:  { points: newBalance },
+      }),
+    ]);
+
+    return tx;
+  }
 }

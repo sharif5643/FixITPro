@@ -8,7 +8,23 @@ import {
   Param,
   Query,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
+import { IsNumber, IsOptional, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class AdjustPointsDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-100000)
+  @Max(100000)
+  points: number;
+
+  type: string;
+
+  @IsOptional()
+  note?: string;
+}
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateTagsDto } from './dto/update-tags.dto';
@@ -93,6 +109,33 @@ export class CustomersController {
     @CurrentUser('tenantId') tenantId: string,
   ) {
     return this.customersService.getNotes(id, tenantId);
+  }
+
+  @Get(':id/loyalty')
+  getLoyalty(
+    @Param('id')             id: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.customersService.getLoyalty(id, tenantId);
+  }
+
+  @RequirePermission('sales.create')
+  @Post(':id/loyalty/adjust')
+  async adjustPoints(
+    @Param('id')             id: string,
+    @Body()                  dto: AdjustPointsDto,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    try {
+      return await this.customersService.adjustPoints(
+        id, dto.points, dto.type, dto.note,
+        actorId, actorName, tenantId,
+      );
+    } catch (e: any) {
+      throw new BadRequestException(e.message);
+    }
   }
 
   @Post(':id/notes')

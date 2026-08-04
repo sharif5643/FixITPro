@@ -160,7 +160,7 @@ export default function CustomersPage() {
             <DataTableHeadCell className="text-center" hidden>ซ่อมแล้ว</DataTableHeadCell>
             <DataTableHeadCell right>ยอดรวม</DataTableHeadCell>
             <DataTableHeadCell className="text-center">สถานะ</DataTableHeadCell>
-            <DataTableHeadCell className="text-center" hidden>คะแนน</DataTableHeadCell>
+            <DataTableHeadCell className="text-center">แต้ม</DataTableHeadCell>
             <DataTableHeadCell hidden>วันสมัคร</DataTableHeadCell>
             <DataTableHeadCell className="w-16" />
           </DataTableHead>
@@ -203,10 +203,14 @@ export default function CustomersPage() {
                     <DataTableCell className="text-center">
                       <TierBadge salesCount={salesCount} totalSpending={totalSpending} />
                     </DataTableCell>
-                    <DataTableCell className="text-center" hidden>
-                      <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
-                        {c.points}
-                      </span>
+                    <DataTableCell className="text-center">
+                      {c.points > 0 ? (
+                        <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                          {c.points.toLocaleString()} pts
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
+                      )}
                     </DataTableCell>
                     <DataTableCell hidden muted>
                       <span className="text-xs whitespace-nowrap">
