@@ -9,7 +9,7 @@ import {
   Clock, Smartphone, Tag, Barcode, Settings, CreditCard, Building2,
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
-  BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays,
+  BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Scale,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
@@ -84,6 +84,7 @@ const OWNER_SECONDARY: NavSection[] = [
     label: 'การเงิน',
     items: [
       { href: '/expenses',         icon: Receipt,         label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance' },
+      { href: '/reconciliation',   icon: Scale,           label: 'กระทบยอดเงินสด',  ownerOnly: true,               module: 'finance' },
       { href: '/suppliers',        icon: Building2,       label: 'ซัพพลายเออร์',    permission: 'purchase.create', module: 'finance' },
       { href: '/purchase-orders',  icon: ClipboardList,   label: 'ใบสั่งซื้อ (PO)', permission: 'purchase.create', module: 'finance' },
       { href: '/reports/payables', icon: FileSpreadsheet, label: 'รายงานเจ้าหนี้',  permission: 'reports.view',    module: 'finance' },
