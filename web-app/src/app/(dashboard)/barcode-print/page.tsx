@@ -37,12 +37,15 @@ interface LabelItem {
   quantity: number
 }
 
-type LabelSize = '40x20' | '58x30' | '80x50'
+type LabelSize = '40x20' | '40x30' | '50x30' | '58x30' | '60x40' | '80x50'
 
 const LABEL_SIZE_CONFIG: Record<LabelSize, { label: string; widthPx: number; heightPx: number; widthMm: number; heightMm: number }> = {
-  '40x20': { label: '40×20 มม. (เล็ก)',  widthPx: 151, heightPx: 76,  widthMm: 40, heightMm: 20 },
-  '58x30': { label: '58×30 มม. (กลาง)', widthPx: 219, heightPx: 113, widthMm: 58, heightMm: 30 },
-  '80x50': { label: '80×50 มม. (ใหญ่)', widthPx: 302, heightPx: 189, widthMm: 80, heightMm: 50 },
+  '40x20': { label: '40×20 มม.',  widthPx: 151, heightPx: 76,  widthMm: 40, heightMm: 20 },
+  '40x30': { label: '40×30 มม. (Niimbot B1)', widthPx: 151, heightPx: 113, widthMm: 40, heightMm: 30 },
+  '50x30': { label: '50×30 มม. (Niimbot B1)', widthPx: 189, heightPx: 113, widthMm: 50, heightMm: 30 },
+  '58x30': { label: '58×30 มม.',  widthPx: 219, heightPx: 113, widthMm: 58, heightMm: 30 },
+  '60x40': { label: '60×40 มม. (Niimbot B1)', widthPx: 227, heightPx: 151, widthMm: 60, heightMm: 40 },
+  '80x50': { label: '80×50 มม.',  widthPx: 302, heightPx: 189, widthMm: 80, heightMm: 50 },
 }
 
 function ProductLabel({ product, size }: { product: Product; size: LabelSize }) {
@@ -50,7 +53,7 @@ function ProductLabel({ product, size }: { product: Product; size: LabelSize }) 
   const barcodeValue = product.barcode || product.sku
 
   const isSmall  = size === '40x20'
-  const isMedium = size === '58x30'
+  const isMedium = size === '40x30' || size === '50x30' || size === '58x30'
 
   return (
     <div
@@ -91,7 +94,7 @@ export default function BarcodePrintPage() {
   const [search, setSearch]     = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [items, setItems]       = useState<LabelItem[]>([])
-  const [labelSize, setLabelSize] = useState<LabelSize>('58x30')
+  const [labelSize, setLabelSize] = useState<LabelSize>('40x30')
   const searchRef               = useRef<HTMLDivElement>(null)
   const debouncedSearch         = useDebounce(search, 300)
 
@@ -250,6 +253,9 @@ export default function BarcodePrintPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                ⚠️ เลือกขนาดให้ตรงกับ roll ใน Niimbot แล้วกด พิมพ์ → เลือก <strong>NIIMBOT B1</strong>
+              </p>
             </div>
 
             {/* Item list */}
