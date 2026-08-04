@@ -146,7 +146,38 @@ export default function BarcodePrintPage() {
   )
 
   function handlePrint() {
-    window.print()
+    const cfg = LABEL_SIZE_CONFIG[labelSize]
+    const printArea = document.querySelector('.print-area')
+    if (!printArea) return
+
+    // Open isolated popup — no app CSS conflicts, @page size works cleanly with Niimbot driver
+    const w = window.open('', '_blank', 'width=300,height=200,menubar=no,toolbar=no,scrollbars=no')
+    if (!w) { window.print(); return }  // popup blocked → fallback
+
+    const pad = cfg.widthMm <= 40 ? 2 : 4
+
+    w.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  @page { size: ${cfg.widthMm}mm ${cfg.heightMm}mm; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: white; }
+  .label-item {
+    width: ${cfg.widthMm}mm !important;
+    height: ${cfg.heightMm}mm !important;
+    page-break-after: always; break-after: page;
+    display: flex !important; flex-direction: column;
+    align-items: center; justify-content: center;
+    overflow: hidden; background: white;
+    padding: ${pad}px;
+    border: none !important;
+  }
+  .label-item:last-child { page-break-after: avoid; break-after: avoid; }
+  p { font-family: Arial, sans-serif; text-align: center;
+      font-weight: bold; width: 100%; overflow: hidden; }
+</style></head>
+<body>${printArea.innerHTML}</body></html>`)
+    w.document.close()
+    setTimeout(() => { w.focus(); w.print(); setTimeout(() => w.close(), 500) }, 600)
   }
 
   return (
