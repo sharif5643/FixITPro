@@ -151,13 +151,13 @@ export default function BarcodePrintPage() {
 
   return (
     <>
-      {/* Print-only style — @page size matches selected label so Niimbot gets one label per page */}
+      {/* Print-only style
+          ไม่ใส่ @page size เพราะ Niimbot B1 driver ใน Windows มีขนาดกระดาษตั้งเองอยู่แล้ว
+          ถ้าใส่ size CSS จะขัดกับ driver ทำให้ label ขึ้นเล็กมุมหน้า
+          ให้ label ยืดเต็มหน้า (100%) ตาม paper ที่ driver กำหนดแทน             */}
       <style jsx global>{`
         @media print {
-          @page {
-            margin: 0;
-            size: ${LABEL_SIZE_CONFIG[labelSize].widthMm}mm ${LABEL_SIZE_CONFIG[labelSize].heightMm}mm;
-          }
+          @page { margin: 0; }
           .no-print { display: none !important; }
           body {
             background: white !important;
@@ -170,13 +170,17 @@ export default function BarcodePrintPage() {
             padding: 0;
           }
           .label-item {
-            width: ${LABEL_SIZE_CONFIG[labelSize].widthMm}mm !important;
-            height: ${LABEL_SIZE_CONFIG[labelSize].heightMm}mm !important;
+            width: 100% !important;
+            height: 100vh !important;
             border: none !important;
             page-break-after: always;
             break-after: page;
             margin: 0;
             box-sizing: border-box;
+            display: flex !important;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
           }
           .label-item:last-child {
             page-break-after: avoid;
