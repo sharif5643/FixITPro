@@ -95,6 +95,7 @@ export default function BarcodePrintPage() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [items, setItems]       = useState<LabelItem[]>([])
   const [labelSize, setLabelSize] = useState<LabelSize>('40x30')
+  const [printMode, setPrintMode] = useState<'label' | 'sheet'>('label')
   const searchRef               = useRef<HTMLDivElement>(null)
   const debouncedSearch         = useDebounce(search, 300)
 
@@ -150,34 +151,56 @@ export default function BarcodePrintPage() {
     const printArea = document.querySelector('.print-area')
     if (!printArea) return
 
-    // Open isolated popup — no app CSS conflicts, @page size works cleanly with Niimbot driver
-    const w = window.open('', '_blank', 'width=300,height=200,menubar=no,toolbar=no,scrollbars=no')
-    if (!w) { window.print(); return }  // popup blocked → fallback
-
     const pad = cfg.widthMm <= 40 ? 2 : 4
 
-    w.document.write(`<!DOCTYPE html>
+    if (printMode === 'label') {
+      // ── Label printer (Niimbot, thermal) ──────────────────────────────────────
+      // Isolated popup: @page size = label size, one label per page
+      const w = window.open('', '_blank', 'width=300,height=200,menubar=no,toolbar=no,scrollbars=no')
+      if (!w) { window.print(); return }
+      w.document.write(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
   @page { size: ${cfg.widthMm}mm ${cfg.heightMm}mm; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: white; }
   .label-item {
-    width: ${cfg.widthMm}mm !important;
-    height: ${cfg.heightMm}mm !important;
+    width: ${cfg.widthMm}mm !important; height: ${cfg.heightMm}mm !important;
     page-break-after: always; break-after: page;
     display: flex !important; flex-direction: column;
     align-items: center; justify-content: center;
-    overflow: hidden; background: white;
-    padding: ${pad}px;
-    border: none !important;
+    overflow: hidden; background: white; padding: ${pad}px; border: none !important;
   }
   .label-item:last-child { page-break-after: avoid; break-after: avoid; }
-  p { font-family: Arial, sans-serif; text-align: center;
-      font-weight: bold; width: 100%; overflow: hidden; }
-</style></head>
-<body>${printArea.innerHTML}</body></html>`)
-    w.document.close()
-    setTimeout(() => { w.focus(); w.print(); setTimeout(() => w.close(), 500) }, 600)
+  p { font-family: Arial, sans-serif; text-align: center; font-weight: bold; width: 100%; overflow: hidden; }
+</style></head><body>${printArea.innerHTML}</body></html>`)
+      w.document.close()
+      setTimeout(() => { w.focus(); w.print(); setTimeout(() => w.close(), 500) }, 600)
+
+    } else {
+      // ── A4 / sticker sheet ────────────────────────────────────────────────────
+      // Isolated popup: A4 page, labels tiled in a flex-wrap grid
+      const w = window.open('', '_blank', 'width=800,height=600,menubar=no,toolbar=no,scrollbars=no')
+      if (!w) { window.print(); return }
+      w.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  @page { size: A4 portrait; margin: 6mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: white; }
+  .print-area {
+    display: flex; flex-wrap: wrap; gap: 3mm; align-content: flex-start;
+  }
+  .label-item {
+    width: ${cfg.widthMm}mm !important; height: ${cfg.heightMm}mm !important;
+    display: flex !important; flex-direction: column;
+    align-items: center; justify-content: center;
+    overflow: hidden; background: white; padding: ${pad}px;
+    border: 0.5px dashed #999;
+  }
+  p { font-family: Arial, sans-serif; text-align: center; font-weight: bold; width: 100%; overflow: hidden; }
+</style></head><body><div class="print-area">${printArea.innerHTML}</div></body></html>`)
+      w.document.close()
+      setTimeout(() => { w.focus(); w.print(); setTimeout(() => w.close(), 500) }, 600)
+    }
   }
 
   return (
@@ -288,9 +311,42 @@ export default function BarcodePrintPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                ⚠️ เลือกขนาดให้ตรงกับ roll ใน Niimbot แล้วกด พิมพ์ → เลือก <strong>NIIMBOT B1</strong>
-              </p>
+              {printMode === 'label' && (
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ เลือกขนาดให้ตรงกับ roll ใน Niimbot แล้วกด พิมพ์ → เลือก <strong>NIIMBOT B1</strong>
+                </p>
+              )}
+            </div>
+
+            {/* Print mode */}
+            <div className="space-y-1.5">
+              <Label>โหมดพิมพ์</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPrintMode('label')}
+                  className={`rounded-lg border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
+                    printMode === 'label'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                      : 'border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <div className="font-semibold">🏷️ Label Printer</div>
+                  <div className="text-xs mt-0.5 opacity-75">Niimbot, Dymo, Brother QL</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintMode('sheet')}
+                  className={`rounded-lg border px-3 py-2.5 text-sm font-medium text-left transition-colors ${
+                    printMode === 'sheet'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                      : 'border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <div className="font-semibold">📄 กระดาษ A4</div>
+                  <div className="text-xs mt-0.5 opacity-75">สติ๊กเกอร์แผ่น, กระดาษทั่วไป</div>
+                </button>
+              </div>
             </div>
 
             {/* Item list */}
