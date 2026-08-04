@@ -195,6 +195,21 @@ export class RepairsService {
       });
     }
 
+    // Record deposit in cash drawer ledger (only when deposit > 0 and paid in cash)
+    if ((dto.deposit ?? 0) > 0) {
+      await this.accounting.record({
+        sourceType:    ACCOUNTING_SOURCE.REPAIR_DEPOSIT,
+        sourceId:      repair.id,
+        paymentMethod: (dto.depositPaymentMethod ?? 'CASH') as any,
+        amount:        dto.deposit!,
+        direction:     'IN',
+        branchId:      effectiveBranchId,
+        tenantId:      tenantId ?? null,
+        actorUserId:   actorId ?? '',
+        note:          repair.ticketNumber,
+      });
+    }
+
     // LINE notify: "รับงานใหม่" — fire-and-forget, never block create
     const createTenantId = (repair as any).branch?.tenantId ?? tenantId ?? null;
     this.lineMsg.notifyRepairStatus(repair.id, 'RECEIVED', createTenantId).catch(() => {});

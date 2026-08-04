@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, Max, Min, IsDateString, MaxLength, IsArray } from 'class-validator';
+import { IsString, IsNumber, IsOptional, Max, Min, IsDateString, MaxLength, IsArray, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateRepairDto {
@@ -102,6 +102,11 @@ export class CreateRepairDto {
   @Min(0)
   @Max(10_000_000)
   deposit?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['CASH', 'TRANSFER', 'CARD', 'QR', 'BANK', 'CREDIT'])
+  depositPaymentMethod?: string;
 
   @IsOptional()
   @IsString()

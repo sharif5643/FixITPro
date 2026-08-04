@@ -19,6 +19,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import { formatThaiMoney, cn } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
@@ -92,7 +95,8 @@ const repairSchema = z.object({
   deviceImei:    z.string().optional(),
   issue:         z.string().min(1, 'กรุณากรอกอาการเสีย'),
   note:          z.string().optional(),
-  deposit:       z.coerce.number().min(0).optional(),
+  deposit:               z.coerce.number().min(0).optional(),
+  depositPaymentMethod:  z.string().optional(),
   estimateCost:  z.coerce.number().min(0).optional(),
   discount:      z.coerce.number().min(0).optional(),
   dueDate:       z.string().optional(),
@@ -128,7 +132,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
     formState: { errors },
   } = useForm<RepairFormData>({
     resolver: zodResolver(repairSchema),
-    defaultValues: { deposit: 0, estimateCost: 0, discount: 0 },
+    defaultValues: { deposit: 0, estimateCost: 0, discount: 0, depositPaymentMethod: 'CASH' },
   })
 
   const deposit      = Number(watch('deposit'))      || 0
@@ -240,7 +244,8 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
         issueTags:         issueTags.length > 0 ? issueTags : undefined,
         issue:             data.issue.trim(),
         note:              data.note?.trim() || undefined,
-        deposit:           data.deposit || 0,
+        deposit:                data.deposit || 0,
+        depositPaymentMethod:   data.deposit ? (data.depositPaymentMethod ?? 'CASH') : undefined,
         estimateCost:      data.estimateCost || undefined,
         discount:          data.discount || undefined,
         dueDate:           data.dueDate || undefined,
@@ -554,6 +559,26 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                     />
                   </div>
                 </div>
+                {/* Deposit payment method — shown only when deposit > 0 */}
+                {deposit > 0 && (
+                  <div className="space-y-1.5">
+                    <Label>วิธีชำระมัดจำ</Label>
+                    <Select
+                      value={watch('depositPaymentMethod') ?? 'CASH'}
+                      onValueChange={(v) => setValue('depositPaymentMethod', v)}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CASH">💵 เงินสด</SelectItem>
+                        <SelectItem value="TRANSFER">🏦 โอนเงิน</SelectItem>
+                        <SelectItem value="QR">📱 QR / พร้อมเพย์</SelectItem>
+                        <SelectItem value="CARD">💳 บัตรเครดิต</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 {/* Deposit > estimate warning */}
                 {deposit > 0 && estimateCost > 0 && deposit > estimateCost && (
                   <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
