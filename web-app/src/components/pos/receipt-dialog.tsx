@@ -12,6 +12,7 @@ import { Platform } from '@/lib/platform'
 import { buildReceiptHtml, buildReceiptPreviewData } from '@/lib/printer'
 import { SerialPrintButton } from '@/components/printer/serial-print-button'
 import { openCashDrawer } from '@/lib/cash-drawer'
+import { isInWebViewApp, bridgePrintReceipt } from '@/lib/webview-bridge'
 import { SaleReceiptPreviewDialog } from '@/components/receipt/receipt-preview-dialog'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import { useAuthStore } from '@/store/auth.store'
@@ -79,8 +80,13 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
   // ── Print handler ────────────────────────────────────────────────────────────
 
   const handlePrint = () => {
+    if (isInWebViewApp()) {
+      // WebView APK → send to native Bluetooth bridge
+      bridgePrintReceipt(receiptOpts)
+      return
+    }
     if (Platform.isNative()) {
-      // APK → open PrinterFlowSheet (thermal printer)
+      // Capacitor APK → open PrinterFlowSheet (thermal printer)
       setFlowOpen(true)
     } else {
       // Web → open print popup directly (one click → browser print dialog)

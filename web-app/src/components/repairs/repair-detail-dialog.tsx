@@ -34,6 +34,7 @@ import { formatThaiMoney, getAssetUrl, apiErrorMessage } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
 import { SerialPrintButton } from '@/components/printer/serial-print-button'
+import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
 import type { Repair, RepairStatus, Product, ShopSettings } from '@/types'
@@ -1216,7 +1217,39 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 พิมพ์ใบรับงานซ่อม
               </DialogTitle>
             </DialogHeader>
-            {Platform.isNative() ? (
+            {isInWebViewApp() && repair ? (
+              /* WebView APK → Bluetooth bridge */
+              <button
+                type="button"
+                onClick={() => {
+                  bridgePrintRepairIntake({
+                    shopName:       settings?.shopName   ?? 'FixITPro',
+                    shopPhone:      settings?.shopPhone  ?? undefined,
+                    ticketNumber:   repair.ticketNumber,
+                    date:           format(new Date(repair.receivedAt), 'dd MMM yyyy HH:mm', { locale: th }),
+                    customerName:   repair.customer?.name ?? '—',
+                    customerPhone:  repair.customer?.phone ?? undefined,
+                    deviceBrand:    repair.deviceBrand,
+                    deviceModel:    repair.deviceModel,
+                    deviceColor:    repair.deviceColor ?? undefined,
+                    deviceImei:     repair.deviceImei  ?? undefined,
+                    issue:          repair.issue,
+                    conditionIssues: repair.deviceConditions ?? [],
+                    accessories:    repair.accessories ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean) : [],
+                    deposit:        Number(repair.deposit),
+                    estimateCost:   repair.estimateCost ? Number(repair.estimateCost) : undefined,
+                    dueDate:        repair.dueDate ? format(new Date(repair.dueDate), 'dd MMM yyyy', { locale: th }) : undefined,
+                    technicianName: repair.technician?.name ?? undefined,
+                    footer:         settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
+                  })
+                  setPrintOpen(false)
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-blue-600 bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+              >
+                <Printer className="h-5 w-5" />
+                พิมพ์ผ่าน Bluetooth
+              </button>
+            ) : Platform.isNative() ? (
               <p className="text-sm text-muted-foreground text-center py-4">ไม่รองรับการพิมพ์บนแอป</p>
             ) : (
               <div className="space-y-3">
