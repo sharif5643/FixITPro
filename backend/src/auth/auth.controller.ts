@@ -64,8 +64,9 @@ export class AuthController {
 
     this.setAuthCookies(res, result.accessToken, result.refreshToken, result.user.role, result.user.tenantExpiryDate);
 
-    const { accessToken: _a, refreshToken: _r, ...body } = result;
-    return body;
+    const { accessToken, refreshToken: _r, ...body } = result;
+    // Include access_token in body for mobile clients (web uses cookie)
+    return { ...body, access_token: accessToken };
   }
 
   @UseGuards(ThrottlerGuard)
