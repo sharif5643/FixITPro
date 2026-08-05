@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import { buildReceiptHtml, buildReceiptPreviewData } from '@/lib/printer'
+import { SerialPrintButton } from '@/components/printer/serial-print-button'
 import { openCashDrawer } from '@/lib/cash-drawer'
 import { SaleReceiptPreviewDialog } from '@/components/receipt/receipt-preview-dialog'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
@@ -216,16 +217,19 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
                 )}
                 พิมพ์ใบเสร็จ
               </Button>
-              {/* Web only: preview option */}
+              {/* Web only: serial print + preview option */}
               {!Platform.isNative() && (
-                <button
-                  type="button"
-                  onClick={() => setPreviewOpen(true)}
-                  className="flex items-center justify-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                >
-                  <Eye className="h-3 w-3" />
-                  ดูตัวอย่างก่อนพิมพ์
-                </button>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <SerialPrintButton mode="receipt" opts={receiptOpts} />
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOpen(true)}
+                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  >
+                    <Eye className="h-3 w-3" />
+                    ดูตัวอย่าง
+                  </button>
+                </div>
               )}
             </div>
             <Button onClick={onClose} className="flex-1 font-semibold">
