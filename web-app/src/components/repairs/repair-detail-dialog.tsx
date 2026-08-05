@@ -33,9 +33,10 @@ import {
 import { formatThaiMoney, getAssetUrl, apiErrorMessage } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
+import { SerialPrintButton } from '@/components/printer/serial-print-button'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
-import type { Repair, RepairStatus, Product } from '@/types'
+import type { Repair, RepairStatus, Product, ShopSettings } from '@/types'
 
 const STATUS_LABEL: Record<RepairStatus, string> = {
   RECEIVED:         'รับงาน',
@@ -124,6 +125,12 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
     queryKey: ['shifts', 'current'],
     queryFn: async () => (await api.get('/shifts/current')).data,
     staleTime: 30_000,
+  })
+
+  const { data: settings } = useQuery<ShopSettings>({
+    queryKey: ['settings'],
+    queryFn: async () => (await api.get('/settings')).data,
+    staleTime: 60_000,
   })
 
   const [localStatus, setLocalStatus] = useState<RepairStatus>('RECEIVED')
@@ -1236,6 +1243,33 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     <FileText className="h-5 w-5" />A4<br />(เอกสาร)
                   </button>
                 </div>
+                {repair && (
+                  <div className="flex items-center justify-center pt-1">
+                    <SerialPrintButton
+                      mode="repair"
+                      opts={{
+                        shopName:      settings?.shopName   ?? 'FixITPro',
+                        shopPhone:     settings?.shopPhone  ?? undefined,
+                        ticketNumber:  repair.ticketNumber,
+                        date:          format(new Date(repair.receivedAt), 'dd MMM yyyy HH:mm', { locale: th }),
+                        customerName:  repair.customer?.name ?? '—',
+                        customerPhone: repair.customer?.phone ?? undefined,
+                        deviceBrand:   repair.deviceBrand,
+                        deviceModel:   repair.deviceModel,
+                        deviceColor:   repair.deviceColor ?? undefined,
+                        deviceImei:    repair.deviceImei  ?? undefined,
+                        issue:         repair.issue,
+                        conditionIssues: repair.deviceConditions ?? [],
+                        accessories:   repair.accessories ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean) : [],
+                        deposit:       Number(repair.deposit),
+                        estimateCost:  repair.estimateCost ? Number(repair.estimateCost) : undefined,
+                        dueDate:       repair.dueDate ? format(new Date(repair.dueDate), 'dd MMM yyyy', { locale: th }) : undefined,
+                        technicianName: repair.technician?.name ?? undefined,
+                        footer:        settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
             <Button variant="outline" onClick={() => setPrintOpen(false)} className="w-full">ปิด</Button>
