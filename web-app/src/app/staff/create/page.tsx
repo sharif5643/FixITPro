@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
+import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
 
 /* ─── Constants ──────────────────────────────────────────────────────── */
 const DEVICE_TYPES = [
@@ -80,6 +81,7 @@ export default function CreateRepairPage() {
   const [model,       setModel]       = useState('')
   const [imei,        setImei]        = useState('')
   const [serial,      setSerial]      = useState('')
+  const [scanOpen,    setScanOpen]    = useState(false)
   const [colorLabel,  setColorLabel]  = useState('')
 
   // ── Symptoms + Condition ──
@@ -222,7 +224,7 @@ export default function CreateRepairPage() {
         </button>
         <h1 className="flex-1 text-[17px] font-bold text-[#111]">รับงานซ่อมใหม่</h1>
         <button
-          onClick={() => toast.info('สแกน IMEI: เล็งที่บาร์โค้ด/IMEI')}
+          onClick={() => setScanOpen(true)}
           className="flex h-8 items-center gap-1.5 rounded-xl bg-[#FFF8E7] px-3 text-[11px] font-bold text-[#F59E0B]"
         >
           <ScanLine className="h-3.5 w-3.5"/> สแกน IMEI
@@ -582,6 +584,15 @@ export default function CreateRepairPage() {
         </Card>
 
       </div>
+
+      <QrScannerDialog
+        open={scanOpen}
+        onOpenChange={setScanOpen}
+        onScan={(text) => {
+          setImei(text)
+          toast.success(`IMEI: ${text}`)
+        }}
+      />
 
       {/* ── Sticky bottom bar ── */}
       <div className="fixed bottom-0 left-0 right-0 flex gap-3 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
