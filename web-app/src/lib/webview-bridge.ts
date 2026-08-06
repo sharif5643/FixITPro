@@ -21,7 +21,7 @@ export function bridgePrintReceipt(opts: PrintReceiptOptions): void {
 }
 
 export function bridgePrintRepairIntake(opts: PrintRepairIntakeOptions): void {
-  postToNative({ type: 'PRINT_RECEIPT', opts })
+  postToNative({ type: 'PRINT_REPAIR', opts })
 }
 
 export function bridgeSelectPrinter(): void {

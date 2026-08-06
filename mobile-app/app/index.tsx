@@ -5,8 +5,9 @@ import {
 } from 'react-native';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
 import {
-  getPairedDevices, getSavedPrinterAddress,
-  savePrinterAddress, printText, formatReceiptText,
+  getPairedDevices, getSavedPrinterAddress, savePrinterAddress,
+  printText, formatReceiptText, formatRepairIntakeText,
+  requestBluetoothPermissions,
 } from '@/lib/bluetooth-print';
 
 const STAFF_URL = 'https://fixitpro.in.th/staff';
@@ -14,12 +15,11 @@ const STAFF_URL = 'https://fixitpro.in.th/staff';
 export default function App() {
   const webRef      = useRef<WebView>(null);
   const loadTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [loading,      setLoading]      = useState(true);
-  const [offline,      setOffline]      = useState(false);
-  const [printing,     setPrinting]     = useState(false);
-  const [printerName,  setPrinterName]  = useState<string | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [offline,     setOffline]     = useState(false);
+  const [printing,    setPrinting]    = useState(false);
+  const [printerName, setPrinterName] = useState<string | null>(null);
 
-  // Clear loading with a safety timeout so it never stays stuck
   const stopLoading = useCallback(() => {
     if (loadTimer.current) clearTimeout(loadTimer.current);
     setLoading(false);
@@ -27,12 +27,16 @@ export default function App() {
 
   const startLoading = useCallback(() => {
     setLoading(true);
-    // Fallback: force-hide spinner after 12s regardless of load events
     if (loadTimer.current) clearTimeout(loadTimer.current);
     loadTimer.current = setTimeout(() => setLoading(false), 12000);
   }, []);
 
   useEffect(() => () => { if (loadTimer.current) clearTimeout(loadTimer.current); }, []);
+
+  // Request Bluetooth permissions on startup (required Android 12+)
+  useEffect(() => {
+    requestBluetoothPermissions().catch(() => {});
+  }, []);
 
   // Load saved printer name on start
   useEffect(() => {
@@ -50,13 +54,15 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
-  // Handle messages from the web page
+  // ── Message handler ───────────────────────────────────────────────────────────
+
   async function onMessage(e: WebViewMessageEvent) {
     try {
       const msg = JSON.parse(e.nativeEvent.data);
-
       if (msg.type === 'PRINT_RECEIPT') {
-        await handlePrint(msg);
+        await handlePrintReceipt(msg);
+      } else if (msg.type === 'PRINT_REPAIR') {
+        await handlePrintRepair(msg);
       } else if (msg.type === 'SELECT_PRINTER') {
         await handleSelectPrinter();
       }
@@ -65,15 +71,21 @@ export default function App() {
     }
   }
 
-  async function handlePrint(msg: any) {
-    const address = await getSavedPrinterAddress();
-    if (!address) {
-      const ok = await askSelectPrinter();
-      if (!ok) return;
-    }
-    const addr = await getSavedPrinterAddress();
-    if (!addr) return;
+  // ── Shared print helper: get/select printer ───────────────────────────────────
 
+  async function getOrSelectPrinter(): Promise<string | null> {
+    const saved = await getSavedPrinterAddress();
+    if (saved) return saved;
+    const ok = await askSelectPrinter();
+    if (!ok) return null;
+    return getSavedPrinterAddress();
+  }
+
+  // ── Receipt print (sale / POS) ────────────────────────────────────────────────
+
+  async function handlePrintReceipt(msg: any) {
+    const addr = await getOrSelectPrinter();
+    if (!addr) return;
     setPrinting(true);
     try {
       const text = msg.text ?? formatReceiptText(msg.opts);
@@ -85,6 +97,24 @@ export default function App() {
     }
   }
 
+  // ── Repair intake print ───────────────────────────────────────────────────────
+
+  async function handlePrintRepair(msg: any) {
+    const addr = await getOrSelectPrinter();
+    if (!addr) return;
+    setPrinting(true);
+    try {
+      const text = msg.text ?? formatRepairIntakeText(msg.opts);
+      await printText(addr, text);
+    } catch (err: any) {
+      Alert.alert('พิมพ์ไม่สำเร็จ', err?.message ?? 'กรุณาตรวจสอบเครื่องพิมพ์');
+    } finally {
+      setPrinting(false);
+    }
+  }
+
+  // ── Printer selection dialog ──────────────────────────────────────────────────
+
   async function handleSelectPrinter() {
     await askSelectPrinter();
   }
@@ -93,7 +123,10 @@ export default function App() {
     try {
       const devices = await getPairedDevices();
       if (!devices.length) {
-        Alert.alert('ไม่พบเครื่องพิมพ์', 'กรุณา pair เครื่องพิมพ์ Bluetooth ในการตั้งค่า Android ก่อน');
+        Alert.alert(
+          'ไม่พบเครื่องพิมพ์',
+          'กรุณา pair เครื่องพิมพ์ Bluetooth ในการตั้งค่า Android ก่อน แล้วกลับมาลองใหม่',
+        );
         return false;
       }
       return new Promise((resolve) => {
@@ -106,9 +139,8 @@ export default function App() {
               onPress: async () => {
                 await savePrinterAddress(d.address);
                 setPrinterName(d.name);
-                // Notify web page printer is connected
                 webRef.current?.injectJavaScript(
-                  `window.dispatchEvent(new CustomEvent('fixitpro-printer', { detail: { name: ${JSON.stringify(d.name)} } })); true;`
+                  `window.dispatchEvent(new CustomEvent('fixitpro-printer', { detail: { name: ${JSON.stringify(d.name)} } })); true;`,
                 );
                 resolve(true);
               },
@@ -118,22 +150,29 @@ export default function App() {
         );
       });
     } catch {
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถดึงรายการอุปกรณ์ได้');
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถดึงรายการอุปกรณ์ได้ กรุณาตรวจสอบสิทธิ์ Bluetooth');
       return false;
     }
   }
+
+  // ── Offline screen ────────────────────────────────────────────────────────────
 
   if (offline) {
     return (
       <View style={s.center}>
         <Text style={s.offlineTitle}>ไม่มีการเชื่อมต่อ</Text>
         <Text style={s.offlineSub}>กรุณาตรวจสอบ WiFi หรือเน็ต</Text>
-        <TouchableOpacity style={s.retryBtn} onPress={() => { setOffline(false); webRef.current?.reload(); }}>
+        <TouchableOpacity
+          style={s.retryBtn}
+          onPress={() => { setOffline(false); webRef.current?.reload(); }}
+        >
           <Text style={s.retryText}>ลองใหม่</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  // ── Main render ───────────────────────────────────────────────────────────────
 
   return (
     <View style={{ flex: 1 }}>
@@ -150,14 +189,12 @@ export default function App() {
           stopLoading();
           if (e.nativeEvent.statusCode >= 500) setOffline(true);
         }}
-        // window.open() → load in same WebView (handles print popups)
         onOpenWindow={(e) => {
           const url = e.nativeEvent.targetUrl;
           webRef.current?.injectJavaScript(
-            `window.location.href = ${JSON.stringify(url)}; true;`
+            `window.location.href = ${JSON.stringify(url)}; true;`,
           );
         }}
-        // External links: tel/mailto/line → open in system app; https external → system browser
         onShouldStartLoadWithRequest={(req) => {
           const url = req.url;
           if (url.startsWith('tel:') || url.startsWith('mailto:') || url.startsWith('line:')) {
@@ -170,7 +207,6 @@ export default function App() {
           }
           return true;
         }}
-        // Camera permission for barcode scanner
         onPermissionRequest={(e) => e.nativeEvent.grant(e.nativeEvent.resources)}
         allowsInlineMediaPlayback
         mediaCapturePermissionGrantType="grant"
@@ -179,7 +215,6 @@ export default function App() {
         allowFileAccess
         allowFileAccessFromFileURLs
         allowUniversalAccessFromFileURLs
-        // Inject helper so web can detect it's inside native app
         injectedJavaScriptBeforeContentLoaded={`
           window.__FIXITPRO_NATIVE__ = true;
           window.__FIXITPRO_PRINTER__ = ${JSON.stringify(printerName ?? '')};
@@ -187,14 +222,12 @@ export default function App() {
         `}
       />
 
-      {/* Loading overlay */}
       {loading && (
         <View style={[StyleSheet.absoluteFill, s.loadingOverlay]}>
           <ActivityIndicator size="large" color="#1D4ED8" />
         </View>
       )}
 
-      {/* Printing overlay */}
       {printing && (
         <View style={[StyleSheet.absoluteFill, s.printingOverlay]}>
           <ActivityIndicator size="large" color="#fff" />
@@ -206,11 +239,11 @@ export default function App() {
 }
 
 const s = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FB', gap: 8 },
-  offlineTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
-  offlineSub:   { fontSize: 13, color: '#94A3B8' },
-  retryBtn:     { marginTop: 12, backgroundColor: '#1D4ED8', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12 },
-  retryText:    { color: '#fff', fontWeight: '700', fontSize: 14 },
+  center:          { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FB', gap: 8 },
+  offlineTitle:    { fontSize: 18, fontWeight: '700', color: '#111' },
+  offlineSub:      { fontSize: 13, color: '#94A3B8' },
+  retryBtn:        { marginTop: 12, backgroundColor: '#1D4ED8', paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12 },
+  retryText:       { color: '#fff', fontWeight: '700', fontSize: 14 },
   loadingOverlay:  { backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   printingOverlay: { backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', gap: 12 },
   printingText:    { color: '#fff', fontSize: 15, fontWeight: '600' },
