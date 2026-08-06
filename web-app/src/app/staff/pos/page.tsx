@@ -3,8 +3,14 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Search, Scan, Plus, Minus, Loader2, ShoppingCart } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import api from '@/lib/api'
 import { toast } from 'sonner'
+
+const QrScannerDialog = dynamic(
+  () => import('@/components/repairs/qr-scanner-dialog').then(m => ({ default: m.QrScannerDialog })),
+  { ssr: false }
+)
 
 interface Product { id:string; name:string; salePrice:number; stockQuantity:number; sku?:string; category?:{name:string}; type?:string }
 interface CartItem extends Product { qty:number }
@@ -17,6 +23,7 @@ export default function PosPage() {
   const [cat,      setCat]      = useState('ทั้งหมด')
   const [loading,  setLoading]  = useState(true)
   const [paying,   setPaying]   = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
 
   useEffect(() => {
     api.get('/products?limit=100').then(r => {
@@ -73,7 +80,7 @@ export default function PosPage() {
             <ChevronLeft className="h-5 w-5 text-slate-600" />
           </button>
           <h1 className="flex-1 text-lg font-bold text-brand-black">POS ขายสินค้า</h1>
-          <button className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F8F9FB]">
+          <button onClick={() => setScanOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F8F9FB]">
             <Scan className="h-5 w-5 text-slate-600" />
           </button>
         </div>
@@ -166,6 +173,12 @@ export default function PosPage() {
           </div>
         </div>
       )}
+
+      <QrScannerDialog
+        open={scanOpen}
+        onOpenChange={setScanOpen}
+        onScan={(val) => { setSearch(val); setScanOpen(false) }}
+      />
     </div>
   )
 }

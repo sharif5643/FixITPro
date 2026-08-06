@@ -1,3 +1,5 @@
+import { isInWebViewApp } from './webview-bridge'
+
 export type PaperWidth = '58mm' | '80mm'
 export type PrinterType = 'browser' | 'sunmi'
 
@@ -9,6 +11,11 @@ export interface PrintOptions {
 // ─── Browser print (opens a popup print page) ─────────────────────────────
 
 function openPrintPopup(url: string, paperWidth: PaperWidth) {
+  if (isInWebViewApp()) {
+    // WebView: load print page in same window (onOpenWindow in native handles it)
+    window.open(url, '_blank')
+    return null
+  }
   const width = paperWidth === '58mm' ? 340 : 440
   const win = window.open(
     url,

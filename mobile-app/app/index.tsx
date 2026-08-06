@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, Alert,
-  BackHandler, StyleSheet, ActivityIndicator,
+  BackHandler, StyleSheet, ActivityIndicator, Linking,
 } from 'react-native';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
 import {
@@ -150,14 +150,32 @@ export default function App() {
           stopLoading();
           if (e.nativeEvent.statusCode >= 500) setOffline(true);
         }}
-        // Allow camera for barcode scanning
+        // window.open() → load in same WebView (handles print popups)
+        onOpenWindow={(e) => {
+          const url = e.nativeEvent.targetUrl;
+          webRef.current?.injectJavaScript(
+            `window.location.href = ${JSON.stringify(url)}; true;`
+          );
+        }}
+        // External links: tel/mailto/line → open in system app; https external → system browser
+        onShouldStartLoadWithRequest={(req) => {
+          const url = req.url;
+          if (url.startsWith('tel:') || url.startsWith('mailto:') || url.startsWith('line:')) {
+            Linking.openURL(url).catch(() => {});
+            return false;
+          }
+          if (url.startsWith('https://') && !url.includes('fixitpro.in.th')) {
+            Linking.openURL(url).catch(() => {});
+            return false;
+          }
+          return true;
+        }}
+        // Camera permission for barcode scanner
         onPermissionRequest={(e) => e.nativeEvent.grant(e.nativeEvent.resources)}
-        // File upload from camera
         allowsInlineMediaPlayback
         mediaCapturePermissionGrantType="grant"
         javaScriptEnabled
         domStorageEnabled
-        // Allow file chooser (photo upload)
         allowFileAccess
         allowFileAccessFromFileURLs
         allowUniversalAccessFromFileURLs
