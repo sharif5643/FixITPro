@@ -6,6 +6,7 @@ import { CheckCircle2, Printer, Send, Home, Loader2, Smartphone, User } from 'lu
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { printRepairReceipt } from '@/lib/print'
+import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 
 interface RepairDetail {
   id: string; ticketNumber: string; createdAt: string; status: string
@@ -96,7 +97,27 @@ function SuccessContent() {
 
   function handlePrint() {
     if (!repair) return
-    printRepairReceipt(repair.id, { paperWidth: '80mm' })
+    if (isInWebViewApp()) {
+      bridgePrintRepairIntake({
+        shopName:      'FixITPro',
+        ticketNumber:  repair.ticketNumber,
+        date:          fmtDate(repair.createdAt),
+        customerName:  repair.customer?.name ?? '—',
+        customerPhone: repair.customer?.phone ?? undefined,
+        deviceBrand:   repair.deviceBrand,
+        deviceModel:   repair.deviceModel,
+        deviceColor:   repair.deviceColor   ?? undefined,
+        deviceImei:    repair.deviceImei    ?? undefined,
+        issue:         repair.issue         ?? '',
+        accessories:   repair.accessories ? repair.accessories.split(',').map(s => s.trim()).filter(Boolean) : [],
+        deposit:       Number(repair.deposit ?? 0),
+        estimateCost:  repair.estimateCost  ? Number(repair.estimateCost) : undefined,
+        technicianName: repair.technician?.name ?? undefined,
+        footer:        'ขอบคุณที่ใช้บริการ',
+      })
+    } else {
+      printRepairReceipt(repair.id, { paperWidth: '80mm' })
+    }
   }
   function handleQueue() {
     toast.success('ส่งเข้าคิวช่างแล้ว')

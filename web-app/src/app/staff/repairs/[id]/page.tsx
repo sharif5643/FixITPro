@@ -13,6 +13,8 @@ import { th } from 'date-fns/locale'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { printRepairReceipt } from '@/lib/print'
+import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
+import type { ShopSettings } from '@/types'
 
 // ── Status config (matches backend exactly) ───────────────────────────────────
 
@@ -124,6 +126,12 @@ export default function RepairDetailPage() {
     queryKey: ['staff-repair', id],
     queryFn:  async () => (await api.get(`/repairs/${id}`)).data,
     enabled:  !!id,
+  })
+
+  const { data: settings } = useQuery<ShopSettings>({
+    queryKey: ['settings'],
+    queryFn:  async () => (await api.get('/settings')).data,
+    staleTime: 60_000,
   })
 
   useEffect(() => {
@@ -459,7 +467,30 @@ export default function RepairDetailPage() {
       {/* ── Bottom actions ────────────────────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         <button
-          onClick={() => printRepairReceipt(repair.id, { paperWidth: '80mm' })}
+          onClick={() => {
+            if (isInWebViewApp()) {
+              bridgePrintRepairIntake({
+                shopName:       settings?.shopName    ?? 'FixITPro',
+                shopPhone:      settings?.shopPhone   ?? undefined,
+                ticketNumber:   repair.ticketNumber,
+                date:           fmtDate(repair.receivedAt) ?? repair.receivedAt,
+                customerName:   repair.customer?.name ?? '—',
+                customerPhone:  repair.customer?.phone ?? undefined,
+                deviceBrand:    repair.deviceBrand,
+                deviceModel:    repair.deviceModel,
+                deviceColor:    repair.deviceColor   ?? undefined,
+                deviceImei:     repair.deviceImei    ?? undefined,
+                issue:          repair.issue,
+                accessories:    repair.accessories ? repair.accessories.split(',').map(s => s.trim()).filter(Boolean) : [],
+                deposit:        Number(repair.deposit ?? 0),
+                estimateCost:   repair.estimateCost  ? Number(repair.estimateCost) : undefined,
+                technicianName: repair.technician?.name ?? undefined,
+                footer:         settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
+              })
+            } else {
+              printRepairReceipt(repair.id, { paperWidth: '80mm' })
+            }
+          }}
           className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC107] text-base font-bold text-[#111] shadow-[0_4px_20px_rgba(255,193,7,0.4)] active:scale-[0.98] transition-transform"
         >
           <Printer className="h-5 w-5" />
