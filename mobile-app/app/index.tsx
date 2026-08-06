@@ -60,7 +60,12 @@ export default function App() {
     try {
       const msg = JSON.parse(e.nativeEvent.data);
       if (msg.type === 'PRINT_RECEIPT') {
-        await handlePrintReceipt(msg);
+        // Detect repair intake by presence of ticketNumber field
+        if (msg.opts?.ticketNumber) {
+          await handlePrintRepair(msg);
+        } else {
+          await handlePrintReceipt(msg);
+        }
       } else if (msg.type === 'PRINT_REPAIR') {
         await handlePrintRepair(msg);
       } else if (msg.type === 'SELECT_PRINTER') {
