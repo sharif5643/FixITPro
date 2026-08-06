@@ -44,9 +44,10 @@ const WINDOW_OPEN_INTERCEPT = `
 
 export default function App() {
   const webRef         = useRef<WebView>(null);
-  const hiddenWebRef   = useRef<View>(null);
-  const loadTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingPrint   = useRef<{ addr: string; copies: number } | null>(null);
+  const hiddenWebRef    = useRef<View>(null);
+  const loadTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPrint    = useRef<{ addr: string; copies: number } | null>(null);
+  const captureStarted  = useRef(false);
 
   const [loading,     setLoading]     = useState(true);
   const [offline,     setOffline]     = useState(false);
@@ -115,24 +116,18 @@ export default function App() {
     setPrintHtml(msg.html);
   }
 
-  // Called once the hidden WebView has finished loading the receipt HTML.
-  // Waits for render, screenshots it, converts to ESC/POS bitmap, prints.
-  async function onHiddenWebViewLoad() {
+  // Shared capture-and-print logic — called either when all images signal ready
+  // (via __PRINT_READY__ message) or after a generous fallback timeout.
+  async function doCaptureAndPrint() {
     const pending = pendingPrint.current;
-    if (!pending || !hiddenWebRef.current) return;
     pendingPrint.current = null;
-
-    // Give the browser engine time to paint (CSS, inline SVG QR codes, etc.)
-    await new Promise<void>((r) => setTimeout(r, 900));
+    if (!pending || !hiddenWebRef.current) { setPrintHtml(null); return; }
 
     setPrinting(true);
     try {
       const base64 = await captureRef(hiddenWebRef, {
-        format: 'png',
-        quality: 1,
-        result: 'base64',
+        format: 'png', quality: 1, result: 'base64',
       }) as string;
-
       const job = pngBase64ToEscPosJob(base64, pending.copies);
       await printBuffer(pending.addr, job);
     } catch (err: any) {
@@ -140,6 +135,28 @@ export default function App() {
     } finally {
       setPrinting(false);
       setPrintHtml(null);
+      captureStarted.current = false;
+    }
+  }
+
+  // Triggered by injectedJavaScript inside the hidden WebView once all <img> finish.
+  async function onHiddenWebViewMessage(e: WebViewMessageEvent) {
+    try {
+      const msg = JSON.parse(e.nativeEvent.data);
+      if (msg.type === '__PRINT_READY__' && !captureStarted.current) {
+        captureStarted.current = true;
+        await doCaptureAndPrint();
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Fallback: if the __PRINT_READY__ message never arrives (e.g. network timeout),
+  // capture after 4 s from onLoadEnd so we still print (QR may be missing but rest is ok).
+  async function onHiddenWebViewLoad() {
+    await new Promise<void>((r) => setTimeout(r, 4000));
+    if (!captureStarted.current && pendingPrint.current) {
+      captureStarted.current = true;
+      await doCaptureAndPrint();
     }
   }
 
@@ -295,8 +312,10 @@ export default function App() {
         `}
       />
 
-      {/* Off-screen WebView for rendering receipt HTML as a bitmap for thermal printing.
-          androidLayerType="software" is required for react-native-view-shot to capture it. */}
+      {/* Off-screen WebView renders the receipt HTML as a bitmap for Bluetooth printing.
+          androidLayerType="software" lets react-native-view-shot capture it.
+          injectedJavaScript waits for all <img> to load before sending __PRINT_READY__
+          so the QR code (fetched from api.qrserver.com) is fully rendered before screenshot. */}
       {printHtml !== null && (
         <View
           ref={hiddenWebRef}
@@ -308,8 +327,35 @@ export default function App() {
             style={{ width: 384, height: 2000, backgroundColor: '#fff' }}
             androidLayerType="software"
             scrollEnabled={false}
-            javaScriptEnabled={false}
+            javaScriptEnabled
+            onMessage={onHiddenWebViewMessage}
             onLoadEnd={onHiddenWebViewLoad}
+            injectedJavaScript={`
+              (function() {
+                var imgs = document.querySelectorAll('img');
+                var remaining = imgs.length;
+                function done() {
+                  if (--remaining <= 0) {
+                    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+                      JSON.stringify({ type: '__PRINT_READY__' })
+                    );
+                  }
+                }
+                if (remaining === 0) {
+                  window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+                    JSON.stringify({ type: '__PRINT_READY__' })
+                  );
+                } else {
+                  imgs.forEach(function(img) {
+                    if (img.complete) { done(); } else {
+                      img.addEventListener('load', done);
+                      img.addEventListener('error', done);
+                    }
+                  });
+                }
+              })();
+              true;
+            `}
           />
         </View>
       )}
