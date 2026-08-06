@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, Alert,
   BackHandler, StyleSheet, ActivityIndicator,
@@ -12,11 +12,27 @@ import {
 const STAFF_URL = 'https://fixitpro.in.th/staff';
 
 export default function App() {
-  const webRef  = useRef<WebView>(null);
+  const webRef      = useRef<WebView>(null);
+  const loadTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading,      setLoading]      = useState(true);
   const [offline,      setOffline]      = useState(false);
   const [printing,     setPrinting]     = useState(false);
   const [printerName,  setPrinterName]  = useState<string | null>(null);
+
+  // Clear loading with a safety timeout so it never stays stuck
+  const stopLoading = useCallback(() => {
+    if (loadTimer.current) clearTimeout(loadTimer.current);
+    setLoading(false);
+  }, []);
+
+  const startLoading = useCallback(() => {
+    setLoading(true);
+    // Fallback: force-hide spinner after 12s regardless of load events
+    if (loadTimer.current) clearTimeout(loadTimer.current);
+    loadTimer.current = setTimeout(() => setLoading(false), 12000);
+  }, []);
+
+  useEffect(() => () => { if (loadTimer.current) clearTimeout(loadTimer.current); }, []);
 
   // Load saved printer name on start
   useEffect(() => {
@@ -126,10 +142,12 @@ export default function App() {
         source={{ uri: STAFF_URL }}
         style={{ flex: 1 }}
         onMessage={onMessage}
-        onLoadStart={() => setLoading(true)}
-        onLoadEnd={() => setLoading(false)}
-        onError={() => setOffline(true)}
+        onLoadStart={startLoading}
+        onLoadEnd={stopLoading}
+        onNavigationStateChange={(state) => { if (!state.loading) stopLoading(); }}
+        onError={() => { stopLoading(); setOffline(true); }}
         onHttpError={(e) => {
+          stopLoading();
           if (e.nativeEvent.statusCode >= 500) setOffline(true);
         }}
         // Allow camera for barcode scanning
