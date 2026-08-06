@@ -11,6 +11,7 @@ import {
   requestBluetoothPermissions,
 } from '@/lib/bluetooth-print';
 import { pngBase64ToEscPosJob } from '@/lib/png-to-escpos';
+import { buildRepairIntakeHtml } from '@/lib/receipt-html';
 
 const STAFF_URL = 'https://fixitpro.in.th/staff';
 
@@ -186,19 +187,28 @@ export default function App() {
     }
   }
 
-  // ── Repair intake print ───────────────────────────────────────────────────────
+  // ── Repair intake print (bitmap — same quality as first print) ───────────────
 
   async function handlePrintRepair(msg: any) {
     const addr = await getOrSelectPrinter();
     if (!addr) return;
-    setPrinting(true);
-    try {
-      const text = msg.text ?? formatRepairIntakeText(msg.opts);
-      await printText(addr, text);
-    } catch (err: any) {
-      Alert.alert('พิมพ์ไม่สำเร็จ', err?.message ?? 'กรุณาตรวจสอบเครื่องพิมพ์');
-    } finally {
-      setPrinting(false);
+
+    if (msg.opts) {
+      // Build the same HTML as the web app does → identical bitmap output
+      const html = buildRepairIntakeHtml(msg.opts);
+      captureStarted.current = false;
+      pendingPrint.current = { addr, copies: 2 }; // always 2 copies: customer + shop
+      setPrintHtml(html);
+    } else if (msg.text) {
+      // Fallback: raw text (used only if opts not present)
+      setPrinting(true);
+      try {
+        await printText(addr, msg.text);
+      } catch (err: any) {
+        Alert.alert('พิมพ์ไม่สำเร็จ', err?.message ?? 'กรุณาตรวจสอบเครื่องพิมพ์');
+      } finally {
+        setPrinting(false);
+      }
     }
   }
 
