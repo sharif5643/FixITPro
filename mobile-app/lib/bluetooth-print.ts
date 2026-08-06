@@ -83,6 +83,16 @@ export async function printText(address: string, text: string): Promise<void> {
   }
 }
 
+// Send a raw Buffer (e.g. ESC/POS bitmap job) directly to the printer.
+export async function printBuffer(address: string, data: Buffer): Promise<void> {
+  const device = await RNBluetoothClassic.connectToDevice(address);
+  try {
+    await device.write(data as any);
+  } finally {
+    await device.disconnect().catch(() => {});
+  }
+}
+
 // ── Receipt formatters (plain text, 32-column) ────────────────────────────────
 
 function row(left: string, right: string, w = 32): string {

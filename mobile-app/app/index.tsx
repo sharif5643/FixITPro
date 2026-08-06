@@ -4,21 +4,55 @@ import {
   BackHandler, StyleSheet, ActivityIndicator, Linking,
 } from 'react-native';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
+import { captureRef } from 'react-native-view-shot';
 import {
   getPairedDevices, getSavedPrinterAddress, savePrinterAddress,
-  printText, formatReceiptText, formatRepairIntakeText,
+  printText, printBuffer, formatReceiptText, formatRepairIntakeText,
   requestBluetoothPermissions,
 } from '@/lib/bluetooth-print';
+import { pngBase64ToEscPosJob } from '@/lib/png-to-escpos';
 
 const STAFF_URL = 'https://fixitpro.in.th/staff';
 
+// Intercept window.open so the web receipt preview (PrinterFlowSheet) routes through
+// React Native Bluetooth instead of opening a browser popup that can't reach the printer.
+const WINDOW_OPEN_INTERCEPT = `
+(function() {
+  var _orig = window.open.bind(window);
+  window.open = function(url, target, features) {
+    if (window.__FIXITPRO_NATIVE__ && (!url || url === '' || url === 'about:blank')) {
+      var html = '';
+      return {
+        document: {
+          write: function(s) { html += s; },
+          close: function() {
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+              JSON.stringify({ type: 'PRINT_HTML', html: html })
+            );
+          }
+        },
+        focus: function() {},
+        print: function() {},
+        close: function() {},
+        location: { href: 'about:blank' }
+      };
+    }
+    return _orig(url, target, features);
+  };
+})();
+`;
+
 export default function App() {
-  const webRef      = useRef<WebView>(null);
-  const loadTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const webRef         = useRef<WebView>(null);
+  const hiddenWebRef   = useRef<View>(null);
+  const loadTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPrint   = useRef<{ addr: string; copies: number } | null>(null);
+
   const [loading,     setLoading]     = useState(true);
   const [offline,     setOffline]     = useState(false);
   const [printing,    setPrinting]    = useState(false);
   const [printerName, setPrinterName] = useState<string | null>(null);
+  const [printHtml,   setPrintHtml]   = useState<string | null>(null);
 
   const stopLoading = useCallback(() => {
     if (loadTimer.current) clearTimeout(loadTimer.current);
@@ -33,19 +67,12 @@ export default function App() {
 
   useEffect(() => () => { if (loadTimer.current) clearTimeout(loadTimer.current); }, []);
 
-  // Request Bluetooth permissions on startup (required Android 12+)
+  useEffect(() => { requestBluetoothPermissions().catch(() => {}); }, []);
+
   useEffect(() => {
-    requestBluetoothPermissions().catch(() => {});
+    getSavedPrinterAddress().then((addr) => { if (addr) setPrinterName(addr); });
   }, []);
 
-  // Load saved printer name on start
-  useEffect(() => {
-    getSavedPrinterAddress().then((addr) => {
-      if (addr) setPrinterName(addr);
-    });
-  }, []);
-
-  // Android hardware back button → navigate back in WebView
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       webRef.current?.goBack();
@@ -59,8 +86,9 @@ export default function App() {
   async function onMessage(e: WebViewMessageEvent) {
     try {
       const msg = JSON.parse(e.nativeEvent.data);
-      if (msg.type === 'PRINT_RECEIPT') {
-        // Detect repair intake by presence of ticketNumber field
+      if (msg.type === 'PRINT_HTML') {
+        await handlePrintHtml(msg);
+      } else if (msg.type === 'PRINT_RECEIPT') {
         if (msg.opts?.ticketNumber) {
           await handlePrintRepair(msg);
         } else {
@@ -76,7 +104,46 @@ export default function App() {
     }
   }
 
-  // ── Shared print helper: get/select printer ───────────────────────────────────
+  // ── HTML → bitmap → Bluetooth (mirrors the web receipt 1:1) ─────────────────
+
+  async function handlePrintHtml(msg: { html: string }) {
+    const addr = await getOrSelectPrinter();
+    if (!addr) return;
+    // 2 copies for repair intakes (customer copy + shop copy)
+    const copies = msg.html.includes('ใบรับซ่อม') ? 2 : 1;
+    pendingPrint.current = { addr, copies };
+    setPrintHtml(msg.html);
+  }
+
+  // Called once the hidden WebView has finished loading the receipt HTML.
+  // Waits for render, screenshots it, converts to ESC/POS bitmap, prints.
+  async function onHiddenWebViewLoad() {
+    const pending = pendingPrint.current;
+    if (!pending || !hiddenWebRef.current) return;
+    pendingPrint.current = null;
+
+    // Give the browser engine time to paint (CSS, inline SVG QR codes, etc.)
+    await new Promise<void>((r) => setTimeout(r, 900));
+
+    setPrinting(true);
+    try {
+      const base64 = await captureRef(hiddenWebRef, {
+        format: 'png',
+        quality: 1,
+        result: 'base64',
+      }) as string;
+
+      const job = pngBase64ToEscPosJob(base64, pending.copies);
+      await printBuffer(pending.addr, job);
+    } catch (err: any) {
+      Alert.alert('พิมพ์ไม่สำเร็จ', err?.message ?? 'กรุณาตรวจสอบเครื่องพิมพ์');
+    } finally {
+      setPrinting(false);
+      setPrintHtml(null);
+    }
+  }
+
+  // ── Shared helper: get/select printer ────────────────────────────────────────
 
   async function getOrSelectPrinter(): Promise<string | null> {
     const saved = await getSavedPrinterAddress();
@@ -223,9 +290,29 @@ export default function App() {
         injectedJavaScriptBeforeContentLoaded={`
           window.__FIXITPRO_NATIVE__ = true;
           window.__FIXITPRO_PRINTER__ = ${JSON.stringify(printerName ?? '')};
+          ${WINDOW_OPEN_INTERCEPT}
           true;
         `}
       />
+
+      {/* Off-screen WebView for rendering receipt HTML as a bitmap for thermal printing.
+          androidLayerType="software" is required for react-native-view-shot to capture it. */}
+      {printHtml !== null && (
+        <View
+          ref={hiddenWebRef}
+          collapsable={false}
+          style={s.hiddenPrint}
+        >
+          <WebView
+            source={{ html: printHtml }}
+            style={{ width: 384, height: 2000, backgroundColor: '#fff' }}
+            androidLayerType="software"
+            scrollEnabled={false}
+            javaScriptEnabled={false}
+            onLoadEnd={onHiddenWebViewLoad}
+          />
+        </View>
+      )}
 
       {loading && (
         <View style={[StyleSheet.absoluteFill, s.loadingOverlay]}>
@@ -252,4 +339,5 @@ const s = StyleSheet.create({
   loadingOverlay:  { backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   printingOverlay: { backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', gap: 12 },
   printingText:    { color: '#fff', fontSize: 15, fontWeight: '600' },
+  hiddenPrint:     { position: 'absolute', left: -800, top: 0, width: 384, height: 2000 },
 });
