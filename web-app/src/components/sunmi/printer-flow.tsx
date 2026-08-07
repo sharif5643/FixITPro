@@ -382,7 +382,7 @@ function PrinterPickerStep({ onSelect, onClose }: PrinterPickerProps) {
       )}
 
       {/* Proceed button */}
-      <div className="px-4 pb-6 pt-2 shrink-0">
+      <div className="px-4 pt-2 shrink-0" style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}>
         <button
           disabled={!canProceed}
           onClick={() => selected && onSelect(selected, saveDefault)}
@@ -490,7 +490,7 @@ function PreviewStep({
       </div>
 
       {/* Action buttons */}
-      <div className="px-4 pb-8 pt-3 shrink-0 space-y-2.5">
+      <div className="px-4 pt-3 shrink-0 space-y-2.5" style={{ paddingBottom: 'calc(32px + env(safe-area-inset-bottom))' }}>
         {/* Main print button */}
         <PrintButton onPrint={handlePrint} onSuccess={onSuccess} onError={onError}
           label={printer ? `พิมพ์ไปยัง ${printer.name}` : 'พิมพ์ (เว็บเบราว์เซอร์)'}
