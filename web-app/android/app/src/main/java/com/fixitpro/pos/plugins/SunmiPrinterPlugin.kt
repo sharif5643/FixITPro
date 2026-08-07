@@ -636,21 +636,26 @@ class SunmiPrinterPlugin : Plugin() {
         })
     }
 
-    // ── Legacy stubs (keep for API backward compat) ───────────────────────────
+    // ── Cash drawer ───────────────────────────────────────────────────────────
 
-    @PluginMethod fun printReceipt(call: PluginCall) {
-        call.resolve(JSObject().apply { put("success", false); put("error", "Use printHtml") })
-    }
-    @PluginMethod fun printLines(call: PluginCall) {
-        call.resolve(JSObject().apply { put("success", false); put("error", "Use printHtml") })
-    }
-    @PluginMethod fun feedPaper(call: PluginCall) {
-        call.resolve(JSObject().apply { put("success", false) })
-    }
-    @PluginMethod fun cutPaper(call: PluginCall) {
-        call.resolve(JSObject().apply { put("success", false) })
-    }
     @PluginMethod fun openCashDrawer(call: PluginCall) {
-        call.resolve(JSObject().apply { put("success", false) })
+        val svc = woyouService
+        if (svc == null) {
+            call.resolve(JSObject().apply {
+                put("success", false)
+                put("error", "SUNMI InnerPrinter ไม่พร้อม — ใช้ได้เฉพาะบนเครื่อง SUNMI")
+            })
+            return
+        }
+        try {
+            // ESC/POS cash drawer pulse: ESC p pin t1 t2  (Pin 2, standard)
+            svc.sendRAWData(byteArrayOf(0x1B, 0x70, 0x00, 0x19.toByte(), 0xFA.toByte()), null)
+            call.resolve(JSObject().apply { put("success", true) })
+        } catch (e: Exception) {
+            call.resolve(JSObject().apply {
+                put("success", false)
+                put("error", e.message ?: "เปิดลิ้นชักไม่สำเร็จ")
+            })
+        }
     }
 }

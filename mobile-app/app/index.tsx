@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, Alert,
+  View, Text, TouchableOpacity, Alert, Modal, ScrollView,
   BackHandler, StyleSheet, ActivityIndicator, Linking,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
 import { captureRef } from 'react-native-view-shot';
 import {
   getPairedDevices, getSavedPrinterAddress, savePrinterAddress,
-  printText, printBuffer, formatReceiptText, formatRepairIntakeText,
+  printText, printBuffer, formatReceiptText,
   requestBluetoothPermissions,
 } from '@/lib/bluetooth-print';
 import { pngBase64ToEscPosJob } from '@/lib/png-to-escpos';
@@ -35,6 +36,8 @@ const WINDOW_OPEN_INTERCEPT = `
         focus: function() {},
         print: function() {},
         close: function() {},
+        addEventListener: function() {},
+        removeEventListener: function() {},
         location: { href: 'about:blank' }
       };
     }
@@ -43,18 +46,27 @@ const WINDOW_OPEN_INTERCEPT = `
 })();
 `;
 
-export default function App() {
-  const webRef         = useRef<WebView>(null);
-  const hiddenWebRef    = useRef<View>(null);
-  const loadTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingPrint    = useRef<{ addr: string; copies: number } | null>(null);
-  const captureStarted  = useRef(false);
+type Device = { name: string; address: string };
+type PrintJob = { html: string; ticketNumber?: string };
 
-  const [loading,     setLoading]     = useState(true);
-  const [offline,     setOffline]     = useState(false);
-  const [printing,    setPrinting]    = useState(false);
-  const [printerName, setPrinterName] = useState<string | null>(null);
-  const [printHtml,   setPrintHtml]   = useState<string | null>(null);
+export default function App() {
+  const insets        = useSafeAreaInsets();
+  const webRef        = useRef<WebView>(null);
+  const hiddenWebRef  = useRef<View>(null);
+  const loadTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPrint  = useRef<{ addr: string; copies: number } | null>(null);
+  const captureStarted = useRef(false);
+  const pendingJob    = useRef<PrintJob | null>(null);
+  const selectedCopies = useRef(2);
+
+  const [loading,          setLoading]          = useState(true);
+  const [offline,          setOffline]          = useState(false);
+  const [printing,         setPrinting]         = useState(false);
+  const [printerName,      setPrinterName]      = useState<string | null>(null);
+  const [printHtml,        setPrintHtml]        = useState<string | null>(null);
+  const [showPrintSheet,   setShowPrintSheet]   = useState(false);
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
+  const [deviceList,       setDeviceList]       = useState<Device[]>([]);
 
   const stopLoading = useCallback(() => {
     if (loadTimer.current) clearTimeout(loadTimer.current);
@@ -68,57 +80,120 @@ export default function App() {
   }, []);
 
   useEffect(() => () => { if (loadTimer.current) clearTimeout(loadTimer.current); }, []);
-
   useEffect(() => { requestBluetoothPermissions().catch(() => {}); }, []);
-
   useEffect(() => {
     getSavedPrinterAddress().then((addr) => { if (addr) setPrinterName(addr); });
   }, []);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (showPrinterModal) { setShowPrinterModal(false); return true; }
+      if (showPrintSheet)   { setShowPrintSheet(false);   return true; }
       webRef.current?.goBack();
       return true;
     });
     return () => sub.remove();
-  }, []);
+  }, [showPrinterModal, showPrintSheet]);
 
-  // ── Message handler ───────────────────────────────────────────────────────────
+  // ── WebView message handler ───────────────────────────────────────────────────
 
   async function onMessage(e: WebViewMessageEvent) {
     try {
       const msg = JSON.parse(e.nativeEvent.data);
       if (msg.type === 'PRINT_HTML') {
-        await handlePrintHtml(msg);
+        // Web's PrinterFlowSheet already showed print options — print received HTML directly
+        pendingJob.current = { html: msg.html };
+        selectedCopies.current = 1;
+        const addr = await getSavedPrinterAddress();
+        if (!addr) { await openPrinterModal(); return; }
+        startBitmapPrint(addr, 1);
       } else if (msg.type === 'PRINT_RECEIPT') {
         if (msg.opts?.ticketNumber) {
-          await handlePrintRepair(msg);
+          const html = buildRepairIntakeHtml(msg.opts);
+          showPrintOptions(html, msg.opts.ticketNumber);
         } else {
           await handlePrintReceipt(msg);
         }
       } else if (msg.type === 'PRINT_REPAIR') {
-        await handlePrintRepair(msg);
+        if (msg.opts) {
+          const html = buildRepairIntakeHtml(msg.opts);
+          showPrintOptions(html, msg.opts.ticketNumber);
+        } else if (msg.text) {
+          await printTextDirect(msg.text);
+        }
       } else if (msg.type === 'SELECT_PRINTER') {
-        await handleSelectPrinter();
+        await openPrinterModal();
       }
     } catch (err) {
       console.warn('[WebView Bridge]', err);
     }
   }
 
-  // ── HTML → bitmap → Bluetooth (mirrors the web receipt 1:1) ─────────────────
+  // ── Print options sheet ───────────────────────────────────────────────────────
 
-  async function handlePrintHtml(msg: { html: string }) {
-    const addr = await getOrSelectPrinter();
-    if (!addr) return;
-    // 2 copies for repair intakes (customer copy + shop copy)
-    const copies = msg.html.includes('ใบรับซ่อม') ? 2 : 1;
-    pendingPrint.current = { addr, copies };
-    setPrintHtml(msg.html);
+  function showPrintOptions(html: string, ticketNumber?: string) {
+    if (!ticketNumber) {
+      // Try to extract from HTML title
+      const m = html.match(/ใบรับซ่อม\s+([\w-]+)/)
+        || html.match(/#(REP-[\w-]+)/)
+      if (m) ticketNumber = m[1];
+    }
+    pendingJob.current = { html, ticketNumber };
+    setShowPrintSheet(true);
   }
 
-  // Shared capture-and-print logic — called either when all images signal ready
-  // (via __PRINT_READY__ message) or after a generous fallback timeout.
+  async function executePrint(copies: number) {
+    setShowPrintSheet(false);
+    selectedCopies.current = copies;
+    const addr = await getSavedPrinterAddress();
+    if (!addr) { await openPrinterModal(); return; }
+    startBitmapPrint(addr, copies);
+  }
+
+  function startBitmapPrint(addr: string, copies: number) {
+    const job = pendingJob.current;
+    if (!job) return;
+    captureStarted.current = false;
+    pendingPrint.current   = { addr, copies };
+    setPrintHtml(job.html);
+  }
+
+  async function handleA4Print() {
+    setShowPrintSheet(false);
+    const ticket = pendingJob.current?.ticketNumber;
+    if (ticket) {
+      Linking.openURL(`https://fixitpro.in.th/print/repair/${ticket}`);
+    } else {
+      Alert.alert('A4', 'ไม่พบหมายเลขใบงาน กรุณาพิมพ์จากเว็บโดยตรง');
+    }
+  }
+
+  // ── Printer selection modal ───────────────────────────────────────────────────
+
+  async function openPrinterModal() {
+    try {
+      const devices = await getPairedDevices();
+      setDeviceList(devices);
+      setShowPrinterModal(true);
+    } catch {
+      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถดึงรายการอุปกรณ์ได้ กรุณาตรวจสอบสิทธิ์ Bluetooth');
+    }
+  }
+
+  async function onPrinterSelected(address: string, name: string) {
+    await savePrinterAddress(address);
+    setPrinterName(name);
+    webRef.current?.injectJavaScript(
+      `window.dispatchEvent(new CustomEvent('fixitpro-printer', { detail: { name: ${JSON.stringify(name)} } })); true;`,
+    );
+    setShowPrinterModal(false);
+    if (pendingJob.current) {
+      startBitmapPrint(address, selectedCopies.current);
+    }
+  }
+
+  // ── Bitmap capture → Bluetooth pipeline ──────────────────────────────────────
+
   async function doCaptureAndPrint() {
     const pending = pendingPrint.current;
     pendingPrint.current = null;
@@ -140,7 +215,6 @@ export default function App() {
     }
   }
 
-  // Triggered by injectedJavaScript inside the hidden WebView once all <img> finish.
   async function onHiddenWebViewMessage(e: WebViewMessageEvent) {
     try {
       const msg = JSON.parse(e.nativeEvent.data);
@@ -151,8 +225,6 @@ export default function App() {
     } catch { /* ignore */ }
   }
 
-  // Fallback: if the __PRINT_READY__ message never arrives (e.g. network timeout),
-  // capture after 4 s from onLoadEnd so we still print (QR may be missing but rest is ok).
   async function onHiddenWebViewLoad() {
     await new Promise<void>((r) => setTimeout(r, 4000));
     if (!captureStarted.current && pendingPrint.current) {
@@ -161,97 +233,21 @@ export default function App() {
     }
   }
 
-  // ── Shared helper: get/select printer ────────────────────────────────────────
-
-  async function getOrSelectPrinter(): Promise<string | null> {
-    const saved = await getSavedPrinterAddress();
-    if (saved) return saved;
-    const ok = await askSelectPrinter();
-    if (!ok) return null;
-    return getSavedPrinterAddress();
-  }
-
-  // ── Receipt print (sale / POS) ────────────────────────────────────────────────
+  // ── Sale receipt (POS / text) print ──────────────────────────────────────────
 
   async function handlePrintReceipt(msg: any) {
-    const addr = await getOrSelectPrinter();
-    if (!addr) return;
+    const addr = await getSavedPrinterAddress();
+    if (!addr) { await openPrinterModal(); return; }
+    await printTextDirect(msg.text ?? formatReceiptText(msg.opts));
+  }
+
+  async function printTextDirect(text: string) {
+    const addr = await getSavedPrinterAddress();
+    if (!addr) { await openPrinterModal(); return; }
     setPrinting(true);
-    try {
-      const text = msg.text ?? formatReceiptText(msg.opts);
-      await printText(addr, text);
-    } catch (err: any) {
-      Alert.alert('พิมพ์ไม่สำเร็จ', err?.message ?? 'กรุณาตรวจสอบเครื่องพิมพ์');
-    } finally {
-      setPrinting(false);
-    }
-  }
-
-  // ── Repair intake print (bitmap — same quality as first print) ───────────────
-
-  async function handlePrintRepair(msg: any) {
-    const addr = await getOrSelectPrinter();
-    if (!addr) return;
-
-    if (msg.opts) {
-      // Build the same HTML as the web app does → identical bitmap output
-      const html = buildRepairIntakeHtml(msg.opts);
-      captureStarted.current = false;
-      pendingPrint.current = { addr, copies: 2 }; // always 2 copies: customer + shop
-      setPrintHtml(html);
-    } else if (msg.text) {
-      // Fallback: raw text (used only if opts not present)
-      setPrinting(true);
-      try {
-        await printText(addr, msg.text);
-      } catch (err: any) {
-        Alert.alert('พิมพ์ไม่สำเร็จ', err?.message ?? 'กรุณาตรวจสอบเครื่องพิมพ์');
-      } finally {
-        setPrinting(false);
-      }
-    }
-  }
-
-  // ── Printer selection dialog ──────────────────────────────────────────────────
-
-  async function handleSelectPrinter() {
-    await askSelectPrinter();
-  }
-
-  async function askSelectPrinter(): Promise<boolean> {
-    try {
-      const devices = await getPairedDevices();
-      if (!devices.length) {
-        Alert.alert(
-          'ไม่พบเครื่องพิมพ์',
-          'กรุณา pair เครื่องพิมพ์ Bluetooth ในการตั้งค่า Android ก่อน แล้วกลับมาลองใหม่',
-        );
-        return false;
-      }
-      return new Promise((resolve) => {
-        Alert.alert(
-          'เลือกเครื่องพิมพ์',
-          'เลือกเครื่องพิมพ์ Bluetooth ที่ต้องการใช้',
-          [
-            ...devices.map((d) => ({
-              text: d.name,
-              onPress: async () => {
-                await savePrinterAddress(d.address);
-                setPrinterName(d.name);
-                webRef.current?.injectJavaScript(
-                  `window.dispatchEvent(new CustomEvent('fixitpro-printer', { detail: { name: ${JSON.stringify(d.name)} } })); true;`,
-                );
-                resolve(true);
-              },
-            })),
-            { text: 'ยกเลิก', style: 'cancel', onPress: () => resolve(false) },
-          ],
-        );
-      });
-    } catch {
-      Alert.alert('ข้อผิดพลาด', 'ไม่สามารถดึงรายการอุปกรณ์ได้ กรุณาตรวจสอบสิทธิ์ Bluetooth');
-      return false;
-    }
+    try { await printText(addr, text); }
+    catch (err: any) { Alert.alert('พิมพ์ไม่สำเร็จ', err?.message ?? 'กรุณาตรวจสอบเครื่องพิมพ์'); }
+    finally { setPrinting(false); }
   }
 
   // ── Offline screen ────────────────────────────────────────────────────────────
@@ -274,7 +270,9 @@ export default function App() {
   // ── Main render ───────────────────────────────────────────────────────────────
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, paddingBottom: insets.bottom }}>
+
+      {/* ── Main WebView ─────────────────────────────────────────────────────── */}
       <WebView
         ref={webRef}
         source={{ uri: STAFF_URL }}
@@ -290,9 +288,12 @@ export default function App() {
         }}
         onOpenWindow={(e) => {
           const url = e.nativeEvent.targetUrl;
-          webRef.current?.injectJavaScript(
-            `window.location.href = ${JSON.stringify(url)}; true;`,
-          );
+          // Only navigate for real URLs; blank popups are handled by WINDOW_OPEN_INTERCEPT
+          if (url && url !== '' && url !== 'about:blank') {
+            webRef.current?.injectJavaScript(
+              `window.location.href = ${JSON.stringify(url)}; true;`,
+            );
+          }
         }}
         onShouldStartLoadWithRequest={(req) => {
           const url = req.url;
@@ -322,16 +323,9 @@ export default function App() {
         `}
       />
 
-      {/* Off-screen WebView renders the receipt HTML as a bitmap for Bluetooth printing.
-          androidLayerType="software" lets react-native-view-shot capture it.
-          injectedJavaScript waits for all <img> to load before sending __PRINT_READY__
-          so the QR code (fetched from api.qrserver.com) is fully rendered before screenshot. */}
+      {/* ── Hidden WebView: renders receipt HTML for bitmap capture ──────────── */}
       {printHtml !== null && (
-        <View
-          ref={hiddenWebRef}
-          collapsable={false}
-          style={s.hiddenPrint}
-        >
+        <View ref={hiddenWebRef} collapsable={false} style={s.hiddenPrint}>
           <WebView
             source={{ html: printHtml }}
             style={{ width: 384, height: 2000, backgroundColor: '#fff' }}
@@ -370,23 +364,117 @@ export default function App() {
         </View>
       )}
 
+      {/* ── Loading overlay ──────────────────────────────────────────────────── */}
       {loading && (
         <View style={[StyleSheet.absoluteFill, s.loadingOverlay]}>
           <ActivityIndicator size="large" color="#1D4ED8" />
         </View>
       )}
 
+      {/* ── Printing overlay ─────────────────────────────────────────────────── */}
       {printing && (
         <View style={[StyleSheet.absoluteFill, s.printingOverlay]}>
           <ActivityIndicator size="large" color="#fff" />
           <Text style={s.printingText}>กำลังพิมพ์…</Text>
         </View>
       )}
+
+      {/* ── Native Print Options Sheet ────────────────────────────────────────── */}
+      <Modal
+        visible={showPrintSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowPrintSheet(false)}
+      >
+        <View style={s.sheetOverlay}>
+          <View style={s.sheet}>
+            <Text style={s.sheetTitle}>พิมพ์ใบรับงานซ่อม</Text>
+
+            {/* ใบร้าน | ใบลูกค้า */}
+            <View style={s.row2}>
+              <TouchableOpacity style={s.outlineBtn} onPress={() => executePrint(1)}>
+                <Text style={s.outlineBtnIcon}>🖨</Text>
+                <Text style={s.outlineBtnText}>ใบร้าน</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.outlineBtn} onPress={() => executePrint(1)}>
+                <Text style={s.outlineBtnIcon}>🖨</Text>
+                <Text style={s.outlineBtnText}>ใบลูกค้า</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Main: 2 copies */}
+            <TouchableOpacity style={s.primaryBtn} onPress={() => executePrint(2)}>
+              <Text style={s.primaryBtnText}>🖨  พิมพ์ 2 ฉบับ (ร้าน + ลูกค้า)  ✂</Text>
+            </TouchableOpacity>
+
+            {/* A4 */}
+            <TouchableOpacity style={s.a4Btn} onPress={handleA4Print}>
+              <Text style={s.a4BtnText}>📄  A4 (เอกสาร)</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={s.closeSheetBtn} onPress={() => setShowPrintSheet(false)}>
+              <Text style={s.closeSheetBtnText}>ปิด</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Printer Selection Modal ───────────────────────────────────────────── */}
+      <Modal
+        visible={showPrinterModal}
+        animationType="slide"
+        onRequestClose={() => setShowPrinterModal(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8F9FB' }}>
+          <View style={s.printerHeader}>
+            <Text style={s.printerHeaderTitle}>Connect Printer</Text>
+            <TouchableOpacity onPress={() => setShowPrinterModal(false)} style={s.closeXBtn}>
+              <Text style={s.closeX}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ flex: 1 }}>
+            {deviceList.length === 0 ? (
+              <View style={s.noDevices}>
+                <Text style={s.noDevicesText}>ไม่พบอุปกรณ์ Bluetooth</Text>
+                <Text style={s.noDevicesSub}>
+                  กรุณา pair เครื่องพิมพ์ในการตั้งค่า Android ก่อน แล้วกดรีเฟรช
+                </Text>
+              </View>
+            ) : deviceList.map((d) => (
+              <TouchableOpacity
+                key={d.address}
+                style={s.deviceRow}
+                onPress={() => onPrinterSelected(d.address, d.name)}
+              >
+                <View style={s.btIconBg}>
+                  <Text style={s.btIconText}>⚡</Text>
+                </View>
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={s.deviceName}>{d.name}</Text>
+                  <Text style={s.deviceAddr}>{d.address}</Text>
+                </View>
+                <View style={s.pairedBadge}>
+                  <Text style={s.pairedText}>Paired</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <View style={s.printerFooter}>
+            <TouchableOpacity style={s.refreshBtn} onPress={openPrinterModal}>
+              <Text style={s.refreshBtnText}>⚙  รีเฟรชรายการ</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
     </View>
   );
 }
 
 const s = StyleSheet.create({
+  // ── App base ─────────────────────────────────────────────────────────────────
   center:          { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FB', gap: 8 },
   offlineTitle:    { fontSize: 18, fontWeight: '700', color: '#111' },
   offlineSub:      { fontSize: 13, color: '#94A3B8' },
@@ -396,4 +484,38 @@ const s = StyleSheet.create({
   printingOverlay: { backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', gap: 12 },
   printingText:    { color: '#fff', fontSize: 15, fontWeight: '600' },
   hiddenPrint:     { position: 'absolute', left: -800, top: 0, width: 384, height: 2000 },
+
+  // ── Print sheet ───────────────────────────────────────────────────────────────
+  sheetOverlay:       { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet:              { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44, gap: 10 },
+  sheetTitle:         { fontSize: 18, fontWeight: '700', color: '#111', textAlign: 'center', marginBottom: 6 },
+  row2:               { flexDirection: 'row', gap: 10 },
+  outlineBtn:         { flex: 1, borderWidth: 1.5, borderColor: '#1D4ED8', borderRadius: 12, paddingVertical: 16, alignItems: 'center', gap: 4 },
+  outlineBtnIcon:     { fontSize: 20 },
+  outlineBtnText:     { color: '#1D4ED8', fontWeight: '600', fontSize: 15 },
+  primaryBtn:         { backgroundColor: '#1D4ED8', borderRadius: 12, paddingVertical: 18, alignItems: 'center' },
+  primaryBtnText:     { color: '#fff', fontWeight: '700', fontSize: 16 },
+  a4Btn:              { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  a4BtnText:          { color: '#64748B', fontSize: 15 },
+  closeSheetBtn:      { paddingVertical: 12, alignItems: 'center', marginTop: 2 },
+  closeSheetBtnText:  { color: '#94A3B8', fontSize: 15 },
+
+  // ── Printer modal ─────────────────────────────────────────────────────────────
+  printerHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  printerHeaderTitle: { fontSize: 20, fontWeight: '700', color: '#111' },
+  closeXBtn:          { padding: 8 },
+  closeX:             { fontSize: 22, color: '#64748B' },
+  deviceRow:          { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  btIconBg:           { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
+  btIconText:         { fontSize: 20 },
+  deviceName:         { fontSize: 16, fontWeight: '600', color: '#111' },
+  deviceAddr:         { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  pairedBadge:        { backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  pairedText:         { color: '#16A34A', fontSize: 12, fontWeight: '600' },
+  noDevices:          { padding: 48, alignItems: 'center', gap: 10 },
+  noDevicesText:      { fontSize: 16, fontWeight: '600', color: '#374151' },
+  noDevicesSub:       { fontSize: 14, color: '#94A3B8', textAlign: 'center', lineHeight: 20 },
+  printerFooter:      { padding: 16, borderTopWidth: 1, borderTopColor: '#E2E8F0', backgroundColor: '#fff' },
+  refreshBtn:         { borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  refreshBtnText:     { color: '#64748B', fontSize: 15 },
 });

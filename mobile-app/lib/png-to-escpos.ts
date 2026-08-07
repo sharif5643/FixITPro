@@ -1,23 +1,14 @@
-import { decode } from 'fast-png'
+import { PNG } from 'pngjs/browser'
 
 const PRINT_W = 384     // 58 mm at 203 dpi
 const BPL     = PRINT_W >> 3  // bytes per raster line = 48
 
-/**
- * Convert a base64 PNG screenshot to a complete ESC/POS bitmap print job.
- * Uses GS v 0 raster mode — compatible with any ESC/POS thermal printer.
- * Trailing all-white rows are trimmed automatically to avoid wasting paper.
- *
- * @param base64  Raw base64 (no "data:..." prefix) from react-native-view-shot
- * @param copies  Number of copies to print back-to-back (default 1)
- */
 export function pngBase64ToEscPosJob(base64: string, copies = 1): Buffer {
   const buf = Buffer.from(base64, 'base64')
-  const png = decode(buf as unknown as Uint8Array)
+  const png = PNG.sync.read(buf)
 
-  const { width, height } = png
-  const channels = (png as any).channels ?? 4
-  const src = png.data as Uint8Array
+  const { width, height, data: src } = png
+  const channels = 4  // pngjs always outputs RGBA
 
   let lastInkRow = 20       // keep at least 20 rows even if all white
   const rows: Buffer[] = []

@@ -119,12 +119,8 @@ export interface SunmiPrinterPlugin {
   /** Request Bluetooth runtime permissions on Android 12+ */
   requestPermissions(): Promise<{ bluetoothConnect: PermissionState; bluetoothScan: PermissionState }>
 
-  // Legacy stubs — return success=false
-  openCashDrawer(): Promise<{ success: boolean }>
-  printReceipt(options: PrintReceiptOptions): Promise<{ success: boolean; error?: string }>
-  printLines(options: { lines: { text: string }[] }): Promise<{ success: boolean; error?: string }>
-  feedPaper(options: { lines: number }): Promise<{ success: boolean }>
-  cutPaper(): Promise<{ success: boolean }>
+  /** Opens the cash drawer via SUNMI InnerPrinter AIDL (ESC/POS pulse). No-op on non-SUNMI. */
+  openCashDrawer(): Promise<{ success: boolean; error?: string }>
 }
 
 // ── Register with Capacitor ───────────────────────────────────────────────────
@@ -145,9 +141,5 @@ export const SunmiPrinter = registerPlugin<SunmiPrinterPlugin>('SunmiPrinter', {
     checkPermissions:  async () => ({ bluetoothConnect: 'granted' as PermissionState, bluetoothScan: 'granted' as PermissionState }),
     requestPermissions: async () => ({ bluetoothConnect: 'granted' as PermissionState, bluetoothScan: 'granted' as PermissionState }),
     openCashDrawer: async () => ({ success: false }),
-    printReceipt:   async () => ({ success: false, error: 'Use printHtml' }),
-    printLines:     async () => ({ success: false, error: 'Use printHtml' }),
-    feedPaper:      async () => ({ success: false }),
-    cutPaper:       async () => ({ success: false }),
   },
 })
