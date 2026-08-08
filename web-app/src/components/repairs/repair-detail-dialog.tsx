@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/select'
 import { formatThaiMoney, getAssetUrl, apiErrorMessage } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
+import { RepairDeliveryPrintFlow } from '@/components/sunmi/repair-delivery-print'
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
 import { SerialPrintButton } from '@/components/printer/serial-print-button'
 import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
@@ -164,7 +165,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [approvalNote, setApprovalNote] = useState('')
 
   // Payment dialog state
-  const [payOpen, setPayOpen] = useState(false)
+  const [payOpen, setPayOpen]                 = useState(false)
+  const [showDeliveryPrint, setShowDeliveryPrint] = useState(false)
   const [payMethod, setPayMethod] = useState<'CASH' | 'TRANSFER' | 'CARD'>('CASH')
   const [payAmount, setPayAmount] = useState('')
   // Reverse payment dialog
@@ -1017,6 +1019,23 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     <DollarSign className="h-3.5 w-3.5" />
                     รับชำระเพิ่มเติม
                   </Button>
+
+                  {/* Print delivery receipt */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full mt-1 gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                    onClick={() => {
+                      if (Platform.isNative()) {
+                        setShowDeliveryPrint(true)
+                      } else {
+                        window.open(`/print/delivery/${repairId}?paper=A4&copies=2`, '_blank')
+                      }
+                    }}
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    พิมพ์ใบเสร็จรับเงิน
+                  </Button>
                 </div>
               )}
 
@@ -1462,6 +1481,14 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Delivery Receipt Print Flow (APK) ─── */}
+      {showDeliveryPrint && repairId && (
+        <RepairDeliveryPrintFlow
+          repairId={repairId}
+          onClose={() => setShowDeliveryPrint(false)}
+        />
+      )}
     </>
   )
 }

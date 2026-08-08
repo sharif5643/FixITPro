@@ -998,6 +998,146 @@ ${opts.note ? `<p class="xs" style="margin-top:4px">${opts.note}</p>` : ''}
 </body></html>`
 }
 
+// ── Delivery receipt thermal HTML (for RepairDeliveryPrintFlow in Capacitor APK) ─
+// Supports shop / customer / both copies with tear line.
+
+export function buildRepairDeliveryReceiptThermalHtml(
+  repair: {
+    ticketNumber: string
+    paidAt?: string | null
+    deliveredAt?: string | null
+    customer?: { name?: string | null; phone?: string | null } | null
+    deviceBrand: string
+    deviceModel: string
+    issue: string
+    finalCost?: number | null
+    estimatedTotal?: number | null
+    estimateCost?: number | null
+    deposit?: number | null
+    paidAmount?: number | null
+    paymentMethod?: string | null
+    warrantyExpiresAt?: string | null
+    warrantyNote?: string | null
+    parts?: Array<{
+      product?: { name: string } | null
+      productName?: string | null
+      quantity: number
+      sellPrice?: number | null
+      chargeToCustomer: boolean
+      isVoided?: boolean
+    }> | null
+  },
+  settings: {
+    shopName?: string | null
+    shopPhone?: string | null
+    logoUrl?: string | null
+    receiptFooter?: string | null
+    showLogo?: boolean
+  } | null | undefined,
+  opts: { copyType: 'shop' | 'customer' | 'both' },
+): string {
+  const e = escHtml
+  const PM_D: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
+
+  const shopName  = e(settings?.shopName  ?? 'FixITPro')
+  const shopPhone = settings?.shopPhone ? e(settings.shopPhone) : ''
+  const footer    = e(settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ')
+  const logoUrl   = settings?.logoUrl ?? ''
+  const showLogo  = settings?.showLogo !== false && !!logoUrl
+
+  const ticketNum     = e(repair.ticketNumber)
+  const customerName  = e(repair.customer?.name  ?? 'ลูกค้าทั่วไป')
+  const customerPhone = repair.customer?.phone ? e(repair.customer.phone) : ''
+  const deviceInfo    = e(`${repair.deviceBrand} ${repair.deviceModel}`)
+
+  const finalCost  = Number(repair.finalCost ?? repair.estimatedTotal ?? repair.estimateCost ?? 0)
+  const deposit    = Number(repair.deposit ?? 0)
+  const remaining  = Math.max(0, finalCost - deposit)
+  const paidAmount = Number(repair.paidAmount ?? 0)
+  const change     = Math.max(0, paidAmount - remaining)
+  const payMethod  = PM_D[repair.paymentMethod ?? ''] ?? (repair.paymentMethod ?? '')
+
+  const dateStr = (iso: string | null | undefined) => {
+    if (!iso) return ''
+    try {
+      return new Intl.DateTimeFormat('th-TH', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      }).format(new Date(iso))
+    } catch { return iso }
+  }
+  const paidDateStr = e(dateStr(repair.paidAt ?? repair.deliveredAt ?? new Date().toISOString()))
+
+  const chargedParts = (repair.parts ?? []).filter(p => !p.isVoided && p.chargeToCustomer)
+  const partsBlock = chargedParts.length > 0
+    ? `<div class="hr"></div>
+<p class="xs b">อะไหล่ที่คิดเงิน:</p>
+${chargedParts.map(p => {
+  const name  = e(p.product?.name ?? p.productName ?? 'อะไหล่')
+  const total = Number(p.sellPrice ?? 0) * p.quantity
+  return `<div class="row"><span class="xs">${name} ×${p.quantity}</span><span class="v xs">฿${fmtI(total)}</span></div>`
+}).join('\n')}`
+    : ''
+
+  const warrantyBlock = repair.warrantyExpiresAt
+    ? `<div class="hr"></div>
+<p class="c xs b">การรับประกัน</p>
+<p class="c xs">หมดอายุ: ${e(dateStr(repair.warrantyExpiresAt))}</p>
+${repair.warrantyNote ? `<p class="c xs">${e(repair.warrantyNote)}</p>` : ''}`
+    : ''
+
+  const logoBlock = showLogo
+    ? `<div class="c" style="margin-bottom:6px"><img src="${logoUrl}" alt="logo" style="max-width:80px;max-height:60px;object-fit:contain" onerror="this.style.display='none'"/></div>`
+    : ''
+
+  function buildCopy(isShop: boolean): string {
+    const copyLabel = isShop ? '[ฉบับร้าน]' : '[ฉบับลูกค้า]'
+    return `${logoBlock}
+<p class="c xl">${shopName}</p>
+${shopPhone ? `<p class="c xs">โทร: ${shopPhone}</p>` : ''}
+<div class="hr"></div>
+<p class="c lg">ใบเสร็จรับเงิน</p>
+<p class="c sm b">${copyLabel}</p>
+<p class="c sm">#${ticketNum}</p>
+<p class="c xs">${paidDateStr}</p>
+<div class="hr"></div>
+<div class="row"><span>ลูกค้า</span><span class="v b">${customerName}</span></div>
+${customerPhone ? `<div class="row"><span class="xs">โทร</span><span class="v xs">${customerPhone}</span></div>` : ''}
+<div class="row"><span class="xs">อุปกรณ์</span><span class="v xs">${deviceInfo}</span></div>
+${partsBlock}
+<div class="hr"></div>
+<div class="row"><span>ค่าซ่อมรวม</span><span class="v">฿${fmtI(finalCost)}</span></div>
+${deposit > 0 ? `<div class="row"><span class="xs">มัดจำชำระแล้ว</span><span class="v xs">-฿${fmtI(deposit)}</span></div>` : ''}
+<div class="total"><span>ยอดชำระ</span><span class="v">฿${fmtI(remaining)}</span></div>
+<div class="hr"></div>
+<div class="row"><span>${payMethod}</span><span class="v">฿${fmtI(paidAmount)}</span></div>
+${change > 0 ? `<div class="row"><span class="xs">เงินทอน</span><span class="v xs">฿${fmtI(change)}</span></div>` : ''}
+${warrantyBlock}
+<div class="hr"></div>
+<p class="c xs">${footer}</p>`.trim()
+  }
+
+  const shopBody     = buildCopy(true)
+  const customerBody = buildCopy(false)
+
+  let body: string
+  if (opts.copyType === 'shop')         body = shopBody
+  else if (opts.copyType === 'customer') body = customerBody
+  else body = `${shopBody}\n<div class="cut">✂ ──── ตัดที่นี่ ──── ✂</div>\n${customerBody}`
+
+  const cutCss = opts.copyType === 'both'
+    ? `.cut{border-top:3px dashed #000;margin:12px 0;text-align:center;font-size:16px;letter-spacing:2px}`
+    : ''
+
+  return `<!DOCTYPE html><html lang="th"><head>
+<meta charset="utf-8">
+<title>ใบเสร็จซ่อม ${ticketNum}</title>
+<style>${THERMAL_CSS}${cutCss}</style>
+</head><body>
+${body}
+</body></html>`
+}
+
 export function buildExpenseSlipPreviewData(opts: PrintExpenseSlipOptions): ThermalPreviewData {
   const PM: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
   const lines: ThermalLine[] = [
