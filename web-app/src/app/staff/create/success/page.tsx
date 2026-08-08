@@ -283,7 +283,7 @@ function SuccessContent() {
         </div>
 
         {/* ── Bottom actions ── */}
-        <div className="fixed bottom-0 left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+        <div className="fixed left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))' }}>
           <button
             onClick={handlePrint}
             className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC107] text-[15px] font-bold text-[#111] shadow-[0_4px_20px_rgba(255,193,7,0.4)] active:scale-[0.98] transition-transform"

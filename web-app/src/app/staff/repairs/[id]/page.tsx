@@ -472,7 +472,7 @@ export default function RepairDetailPage() {
       </div>
 
       {/* ── Bottom actions ────────────────────────────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 pt-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}>
+      <div className="fixed left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 pt-4 pb-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))' }}>
 
         {/* Print delivery receipt — shown when repair is paid */}
         {repair.paymentStatus === 'PAID' && (

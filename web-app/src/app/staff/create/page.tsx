@@ -595,7 +595,7 @@ export default function CreateRepairPage() {
       />
 
       {/* ── Sticky bottom bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 flex gap-3 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+      <div className="fixed left-0 right-0 flex gap-3 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))' }}>
         <button
           onClick={handleSubmit}
           disabled={loading}
