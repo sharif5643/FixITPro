@@ -37,6 +37,21 @@ export function RepairReceiptPrintFlow({
 
   useEffect(() => pushBackHandler(onClose), [onClose])
 
+  // Auto-load saved default printer — skip picker if available
+  useEffect(() => {
+    let cancelled = false
+    import('@/lib/sunmi-printer').then(async ({ SunmiPrinter }) => {
+      try {
+        const { printerId, printerName } = await SunmiPrinter.getDefaultPrinter()
+        if (cancelled || !printerId || !printerName) return
+        const { printers } = await SunmiPrinter.getAvailablePrinters()
+        const found = printers.find((p) => p.id === printerId && p.available)
+        if (found && !cancelled) { setPrinter(found); setState('preview') }
+      } catch { /* stay on picker */ }
+    })
+    return () => { cancelled = true }
+  }, [])
+
   // Reuse the parent page's cached data (same query key as staff/repairs/[id]/page.tsx)
   const { data: repair, isLoading } = useQuery<Repair>({
     queryKey: ['staff-repair', repairId],
