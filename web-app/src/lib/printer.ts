@@ -121,11 +121,13 @@ function fmtI(n: number) {
 const THERMAL_CSS = `
   @page { margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: fit-content; }
   body {
     font-family: 'Courier New', Courier, monospace;
     font-size: 24px;
     line-height: 1.4;
     width: 384px;
+    height: fit-content;
     padding: 8px 12px 16px 12px;
     color: #000;
     background: #fff;
@@ -503,33 +505,31 @@ export function buildRepairReceiptThermalHtml(
     receiptFooter?: string | null
     showLogo?: boolean
   } | null | undefined,
-  opts: { copyType: 'shop' | 'customer'; trackingOrigin?: string },
+  opts: { copyType: 'shop' | 'customer' | 'both'; trackingOrigin?: string },
 ): string {
   const e = escHtml
   const { copyType, trackingOrigin } = opts
-  const isCustomer = copyType === 'customer'
 
-  const shopName  = e(settings?.shopName  ?? 'FixITPro')
-  const shopPhone = settings?.shopPhone ? e(settings.shopPhone) : ''
-  const logoUrl   = settings?.logoUrl   ?? ''
-  const footer    = e(settings?.receiptFooter ?? 'กรุณาเก็บใบรับงานไว้\nเพื่อใช้รับคืนอุปกรณ์')
-  const showLogo  = settings?.showLogo !== false && !!logoUrl
+  const shopName   = e(settings?.shopName  ?? 'FixITPro')
+  const shopPhone  = settings?.shopPhone ? e(settings.shopPhone) : ''
+  const logoUrl    = settings?.logoUrl   ?? ''
+  const footer     = e(settings?.receiptFooter ?? 'กรุณาเก็บใบรับงานไว้\nเพื่อใช้รับคืนอุปกรณ์')
+  const showLogo   = settings?.showLogo !== false && !!logoUrl
 
-  const ticketNum    = e(repair.ticketNumber)
-  const customerName = e(repair.customer?.name  ?? 'ลูกค้าทั่วไป')
+  const ticketNum     = e(repair.ticketNumber)
+  const customerName  = e(repair.customer?.name  ?? 'ลูกค้าทั่วไป')
   const customerPhone = repair.customer?.phone ? e(repair.customer.phone) : ''
-  const deviceBrand  = e(repair.deviceBrand)
-  const deviceModel  = e(repair.deviceModel)
-  const deviceImei   = repair.deviceImei ? e(repair.deviceImei) : ''
-  const issue        = e(repair.issue)
-  const branchName   = repair.branch?.name ? e(repair.branch.name) : ''
-  const accessories  = repair.accessories
+  const deviceBrand   = e(repair.deviceBrand)
+  const deviceModel   = e(repair.deviceModel)
+  const deviceImei    = repair.deviceImei ? e(repair.deviceImei) : ''
+  const issue         = e(repair.issue)
+  const branchName    = repair.branch?.name ? e(repair.branch.name) : ''
+  const accessories   = repair.accessories
     ? repair.accessories.split(',').map(s => e(s.trim())).filter(Boolean)
     : []
-  const estimateCost = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
-  const deposit      = Number(repair.deposit ?? 0)
+  const estimateCost  = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
+  const deposit       = Number(repair.deposit ?? 0)
 
-  // Format received date (Thai locale without Buddhist era for brevity)
   let receivedDateStr = repair.receivedAt
   try {
     receivedDateStr = new Intl.DateTimeFormat('th-TH', {
@@ -538,15 +538,22 @@ export function buildRepairReceiptThermalHtml(
     }).format(new Date(repair.receivedAt))
   } catch { /* keep ISO fallback */ }
 
-  // QR tracking block — only on customer copy, requires trackingOrigin
-  let qrBlock = ''
-  if (isCustomer && trackingOrigin) {
-    const phone   = repair.customer?.phone
-    const rawUrl  = phone
+  const logoBlock = showLogo
+    ? `<div class="c" style="margin-bottom:6px"><img src="${logoUrl}" alt="logo" style="max-width:80px;max-height:60px;object-fit:contain" onerror="this.style.display='none'"/></div>`
+    : ''
+
+  const accessoriesBlock = accessories.length > 0
+    ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${accessories.join(', ')}</p>`
+    : ''
+
+  function makeQrBlock(isCustomer: boolean) {
+    if (!isCustomer || !trackingOrigin) return ''
+    const phone  = repair.customer?.phone
+    const rawUrl = phone
       ? `${trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}?phone=${encodeURIComponent(phone)}`
       : `${trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}`
     const encoded = encodeURIComponent(rawUrl)
-    qrBlock = `
+    return `
 <div class="hr"></div>
 <p class="c xs b">ติดตามสถานะซ่อมออนไลน์</p>
 <p class="c xs">สแกน QR Code เพื่อดูสถานะ</p>
@@ -557,15 +564,8 @@ export function buildRepairReceiptThermalHtml(
 </div>`
   }
 
-  const logoBlock = showLogo
-    ? `<div class="c" style="margin-bottom:6px"><img src="${logoUrl}" alt="logo" style="max-width:80px;max-height:60px;object-fit:contain" onerror="this.style.display='none'"/></div>`
-    : ''
-
-  const accessoriesBlock = accessories.length > 0
-    ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${accessories.join(', ')}</p>`
-    : ''
-
-  const body = `
+  function makeBody(isCustomer: boolean) {
+    return `
 ${logoBlock}
 <p class="c xl">${shopName}</p>
 ${shopPhone  ? `<p class="c xs">โทร: ${shopPhone}</p>` : ''}
@@ -595,18 +595,30 @@ ${accessoriesBlock}
   <div style="text-align:center">ลายเซ็นลูกค้า<br><br>___________</div>
   <div style="text-align:center">ลายเซ็นร้าน<br><br>___________</div>
 </div>
-${qrBlock}
+${makeQrBlock(isCustomer)}
 <div class="hr"></div>
 <p class="c xs" style="white-space:pre-wrap">${footer}</p>
 `.trim()
+  }
 
-  return `<!DOCTYPE html><html lang="th"><head>
+  const cutCss = `.cut{border-top:3px dashed #000;margin:12px 0;text-align:center;font-size:16px;letter-spacing:2px}`
+
+  const html = (css: string, body: string) =>
+    `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
 <title>ใบรับงานซ่อม ${ticketNum}</title>
-<style>${THERMAL_CSS}</style>
+<style>${css}</style>
 </head><body>
 ${body}
 </body></html>`
+
+  if (copyType === 'customer') return html(THERMAL_CSS, makeBody(true))
+  if (copyType === 'shop')     return html(THERMAL_CSS, makeBody(false))
+  // 'both': single print job with cut line — avoids double paper feed
+  return html(
+    THERMAL_CSS + cutCss,
+    `${makeBody(false)}<div class="cut">✂ ──── ตัดที่นี่ ──── ✂</div>${makeBody(true)}`,
+  )
 }
 
 // ── Web Share API (text → LINE / WhatsApp / email) ────────────────────────────

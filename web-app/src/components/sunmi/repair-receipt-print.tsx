@@ -84,22 +84,23 @@ export function RepairReceiptPrintFlow({
         import('@/lib/printer'),
       ])
 
-      if (selectedCopy === 'shop' || selectedCopy === 'both') {
-        const html = buildRepairReceiptThermalHtml(repair, settings, { copyType: 'shop' })
-        const r = await SunmiPrinter.printHtml({
-          html, printerId: printer.id, jobName: `ใบรับซ่อม (ใบร้าน)`,
-        })
-        if (!r.success) throw new Error(r.error ?? 'พิมพ์ใบร้านไม่สำเร็จ')
-      }
-
-      if (selectedCopy === 'customer' || selectedCopy === 'both') {
+      if (selectedCopy === 'both') {
+        // Single print job with both copies + cut line — avoids double paper feed
         const html = buildRepairReceiptThermalHtml(repair, settings, {
-          copyType: 'customer', trackingOrigin: origin,
+          copyType: 'both', trackingOrigin: origin,
         })
         const r = await SunmiPrinter.printHtml({
-          html, printerId: printer.id, jobName: `ใบรับซ่อม (ใบลูกค้า)`,
+          html, printerId: printer.id, jobName: `ใบรับซ่อม (2 ฉบับ)`,
         })
-        if (!r.success) throw new Error(r.error ?? 'พิมพ์ใบลูกค้าไม่สำเร็จ')
+        if (!r.success) throw new Error(r.error ?? 'พิมพ์ไม่สำเร็จ')
+      } else {
+        const html = buildRepairReceiptThermalHtml(repair, settings, {
+          copyType: selectedCopy, trackingOrigin: origin,
+        })
+        const r = await SunmiPrinter.printHtml({
+          html, printerId: printer.id, jobName: `ใบรับซ่อม (${selectedCopy === 'shop' ? 'ใบร้าน' : 'ใบลูกค้า'})`,
+        })
+        if (!r.success) throw new Error(r.error ?? 'พิมพ์ไม่สำเร็จ')
       }
 
       setState('success')
