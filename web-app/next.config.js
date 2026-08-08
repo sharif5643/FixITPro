@@ -27,14 +27,17 @@ const nextConfig = {
       {
         source: '/(.*)',
         headers: [
-          // Prevent the page from being embedded in iframes (clickjacking).
           { key: 'X-Frame-Options',       value: 'DENY' },
-          // Prevent MIME-type sniffing.
           { key: 'X-Content-Type-Options', value: 'nosniff' },
-          // Limit referrer information sent to third-party origins.
           { key: 'Referrer-Policy',        value: 'strict-origin-when-cross-origin' },
-          // Disable browser features not used by this app.
           { key: 'Permissions-Policy',     value: 'camera=(), microphone=(), geolocation=(), payment=()' },
+        ],
+      },
+      {
+        // Allow /print/* to be embedded in same-origin iframe (APK WebView receipt preview)
+        source: '/print/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
         ],
       },
     ];
