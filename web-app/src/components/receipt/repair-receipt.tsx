@@ -45,8 +45,11 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
     </div>
   )
 
-  const estimateCost = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
-  const deposit      = Number(repair.deposit ?? 0)
+  const estimateCost  = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
+  const deposit       = Number(repair.deposit ?? 0)
+  const accessoryList = repair.accessories
+    ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean)
+    : []
 
   return (
     <div id="repair-receipt" className={`${widthClass} font-mono text-[11px] leading-relaxed mx-auto bg-white text-gray-900`}>
@@ -97,6 +100,15 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
         <p className="font-bold">อาการเสีย</p>
         <p className="whitespace-pre-wrap">{repair.issue}</p>
       </div>
+      {accessoryList.length > 0 && (
+        <>
+          <Divider />
+          <div className="space-y-0.5 pb-1">
+            <p className="font-bold">อุปกรณ์ที่รับมา</p>
+            <p>{accessoryList.join(', ')}</p>
+          </div>
+        </>
+      )}
       <Divider />
 
       {/* Cost */}
@@ -160,8 +172,11 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
   const logoUrl       = settings?.logoUrl       || ''
   const receiptFooter = settings?.receiptFooter || ''
 
-  const estimateCost = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
-  const deposit      = Number(repair.deposit ?? 0)
+  const estimateCost  = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
+  const deposit       = Number(repair.deposit ?? 0)
+  const accessoryList = repair.accessories
+    ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean)
+    : []
 
   const trackingUrl = buildTrackingUrl(trackingBaseUrl, repair.ticketNumber, repair.customer?.phone)
 
@@ -226,10 +241,16 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
         </div>
       </div>
 
-      {/* Issue */}
+      {/* Issue + Accessories */}
       <div className="rounded-lg border border-gray-200 p-4 mb-6">
         <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">อาการเสีย</p>
         <p className="text-sm whitespace-pre-wrap min-h-[40px]">{repair.issue}</p>
+        {accessoryList.length > 0 && (
+          <>
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mt-3 mb-1">อุปกรณ์ที่รับมา</p>
+            <p className="text-sm">{accessoryList.join(', ')}</p>
+          </>
+        )}
       </div>
 
       {/* Cost */}

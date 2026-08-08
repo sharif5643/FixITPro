@@ -16,6 +16,8 @@ export default function RepairPrintPage() {
   const paperWidth = (searchParams.get('paper') as PW) || '80mm'
   const dual       = searchParams.get('copies') === '2'
   const isApkMode  = searchParams.get('mode') === 'apk'
+  const copyType   = searchParams.get('copy') as 'customer' | 'shop' | null  // null = default (customer)
+  const isShopCopy = copyType === 'shop'
   const [printed, setPrinted] = useState(false)
   const [origin, setOrigin]   = useState('')
 
@@ -45,12 +47,12 @@ export default function RepairPrintPage() {
     return () => document.getElementById('print-page-size')?.remove()
   }, [paperWidth])
 
-  // Signal APK iframe that receipt data is ready
+  // Signal APK iframe that receipt data AND settings are ready (H-3: wait for both)
   useEffect(() => {
-    if (data && isApkMode) {
+    if (data && settings !== undefined && isApkMode) {
       document.documentElement.setAttribute('data-receipt-ready', '1')
     }
-  }, [data, isApkMode])
+  }, [data, settings, isApkMode])
 
   // Auto-print after data loads (browser only — suppressed in APK iframe mode)
   useEffect(() => {
@@ -101,7 +103,7 @@ export default function RepairPrintPage() {
               <>
                 {/* ใบร้าน */}
                 <div className="relative">
-                  <span className="absolute top-0 right-0 text-[8px] text-slate-400 font-medium">ใบร้าน</span>
+                  <span className="no-print absolute top-0 right-0 text-[8px] text-slate-400 font-medium">ใบร้าน</span>
                   <RepairReceipt repair={data} paperWidth={paperWidth} settings={settings} />
                 </div>
 
@@ -114,12 +116,17 @@ export default function RepairPrintPage() {
 
                 {/* ใบลูกค้า */}
                 <div className="relative">
-                  <span className="absolute top-0 right-0 text-[8px] text-slate-400 font-medium">ใบลูกค้า</span>
+                  <span className="no-print absolute top-0 right-0 text-[8px] text-slate-400 font-medium">ใบลูกค้า</span>
                   <RepairReceipt repair={data} paperWidth={paperWidth} settings={settings} trackingBaseUrl={origin} />
                 </div>
               </>
             ) : (
-              <RepairReceipt repair={data} paperWidth={paperWidth} settings={settings} trackingBaseUrl={origin} />
+              <RepairReceipt
+                repair={data}
+                paperWidth={paperWidth}
+                settings={settings}
+                trackingBaseUrl={isShopCopy ? undefined : origin}
+              />
             )}
           </div>
         ) : null}

@@ -54,7 +54,7 @@ export interface PrinterFlowSheetProps {
 
 // ── State machine ─────────────────────────────────────────────────────────────
 
-type FlowState = 'pick-printer' | 'pick-copy' | 'preview' | 'auto-printing' | 'printing' | 'success' | 'error'
+type FlowState = 'pick-printer' | 'pick-copy' | 'preview' | 'auto-printing' | 'success' | 'error'
 
 // ── Thermal receipt preview ───────────────────────────────────────────────────
 // Full-width paper strip — same font sizes and spacing as the printed HTML so the
@@ -426,10 +426,12 @@ function PreviewStep({
     const doc = iframeRef.current.contentDocument
     if (!doc) return receiptHtml
     // Wait up to 15 s for the React page to finish fetching + rendering
+    let ready = false
     for (let i = 0; i < 30; i++) {
-      if (doc.documentElement.getAttribute('data-receipt-ready') === '1') break
+      if (doc.documentElement.getAttribute('data-receipt-ready') === '1') { ready = true; break }
       await new Promise((r) => setTimeout(r, 500))
     }
+    if (!ready) throw new Error('ใบเสร็จโหลดไม่เสร็จ กรุณาลองใหม่')
     let html = doc.documentElement.outerHTML
     // Resolve relative Next.js asset URLs in SUNMI's WebView
     if (!html.includes('<base ')) {
@@ -775,7 +777,7 @@ export function PrinterFlowSheet({
         const found = printers.find((p) => p.id === printerId && p.available)
         if (!found || cancelled) return
         setPrinter(found)
-        if (autoPrint && !autoPrintFiredRef.current) {
+        if (autoPrint && !hasVariants && !autoPrintFiredRef.current) {
           // One-tap: skip preview and print immediately
           autoPrintFiredRef.current = true
           setState('auto-printing')
@@ -822,13 +824,13 @@ export function PrinterFlowSheet({
         {/* Drag handle + close */}
         <div className="flex items-center justify-between px-4 pt-3 pb-2 shrink-0">
           <div className="flex-1">
-            {state === 'preview' && isNative && (
+            {(state === 'preview' || state === 'pick-copy') && isNative && (
               <button
-                onClick={() => setState(hasVariants ? 'pick-copy' : 'pick-printer')}
+                onClick={() => setState(state === 'pick-copy' ? 'pick-printer' : hasVariants ? 'pick-copy' : 'pick-printer')}
                 className="flex items-center gap-1 text-slate-400 active:text-slate-700 text-sm"
               >
                 <ArrowLeft className="h-4 w-4" />
-                {hasVariants ? 'รูปแบบ' : 'เครื่องพิมพ์'}
+                {state === 'pick-copy' ? 'เครื่องพิมพ์' : hasVariants ? 'รูปแบบ' : 'เครื่องพิมพ์'}
               </button>
             )}
           </div>
@@ -836,7 +838,7 @@ export function PrinterFlowSheet({
           <div className="flex-1 flex justify-end">
             <button
               onClick={onClose}
-              disabled={state === 'printing'}
+              disabled={state === 'auto-printing'}
               className="h-9 w-9 flex items-center justify-center text-slate-400 active:text-slate-700 disabled:opacity-30"
             >
               <span className="text-xl leading-none">×</span>
@@ -878,7 +880,7 @@ export function PrinterFlowSheet({
         )}
 
         {/* Step: Preview + print */}
-        {(state === 'preview' || state === 'printing') && (
+        {state === 'preview' && (
           <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
             <PreviewStep
               previewData={previewData}

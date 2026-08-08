@@ -471,7 +471,7 @@ export default function RepairDetailPage() {
       </div>
 
       {/* ── Bottom actions ────────────────────────────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+      <div className="fixed bottom-0 left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 pt-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}>
         <button
           onClick={() => {
             const opts: PrintRepairIntakeOptions = {
@@ -524,8 +524,8 @@ export default function RepairDetailPage() {
           jobName={`ใบรับซ่อม ${printOpts.ticketNumber}`}
           previewData={buildRepairIntakePreviewData(printOpts)}
           urlVariants={{
-            customer: `/print/repair/${id}?paper=58mm&mode=apk`,
-            shop:     `/print/repair/${id}?paper=58mm&mode=apk`,
+            customer: `/print/repair/${id}?paper=58mm&copy=customer&mode=apk`,
+            shop:     `/print/repair/${id}?paper=58mm&copy=shop&mode=apk`,
             both:     `/print/repair/${id}?paper=58mm&copies=2&mode=apk`,
             a4:       `/print/repair/${id}?paper=A4&mode=apk`,
           }}

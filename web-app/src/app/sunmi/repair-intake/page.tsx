@@ -745,7 +745,8 @@ export default function RepairIntakePage() {
   const router  = useRouter()
   const user    = useAuthStore((s) => s.user)
   const [step, setStep]       = useState(0)
-  const [preview, setPreview] = useState<PrintRepairIntakeOptions | null>(null)
+  const [preview, setPreview]   = useState<PrintRepairIntakeOptions | null>(null)
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [photos, setPhotos]   = useState<PhotoItem[]>([])
 
   function handleAddPhoto(files: FileList) {
@@ -902,6 +903,7 @@ export default function RepairIntakePage() {
       reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [] } as any)
       setStep(0)
       setPreview(opts)
+      setPreviewId(String(repair.id))
     },
 
     onError: (err: any) => {
@@ -988,7 +990,13 @@ export default function RepairIntakePage() {
           jobName={`ใบรับซ่อม #${preview.ticketNumber}`}
           previewData={buildRepairIntakePreviewData(preview)}
           onShare={async () => shareRepairIntake(preview)}
-          onClose={() => setPreview(null)}
+          onClose={() => { setPreview(null); setPreviewId(null) }}
+          urlVariants={previewId ? {
+            customer: `/print/repair/${previewId}?paper=58mm&copy=customer&mode=apk`,
+            shop:     `/print/repair/${previewId}?paper=58mm&copy=shop&mode=apk`,
+            both:     `/print/repair/${previewId}?paper=58mm&copies=2&mode=apk`,
+            a4:       `/print/repair/${previewId}?paper=A4&mode=apk`,
+          } : undefined}
           successNavItems={[
             { label: 'ดูรายการซ่อมทั้งหมด', href: '/sunmi/repairs' },
             { label: 'รับงานใหม่',           href: '/sunmi/repair-intake' },

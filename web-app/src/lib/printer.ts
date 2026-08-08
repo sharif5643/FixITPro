@@ -201,39 +201,49 @@ function shopHeaderHtml(opts: {
   ].filter(Boolean).join('\n')
 }
 
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 function qrHtml(url: string, method: string): string {
   if (!url || method !== 'TRANSFER') return ''
+  const encoded = encodeURIComponent(url)
+  const escaped = escHtml(url)
   return `<div class="hr"></div>
 <p class="c xs b">สแกนเพื่อชำระเงิน</p>
-<div class="c" style="margin:6px 0"><img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(url)}&size=150x150&format=png" alt="QR" style="width:150px;height:150px"/></div>`
+<div class="c" style="margin:6px 0">
+  <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encoded}&size=150x150&format=png" alt="QR" style="width:150px;height:150px" onerror="this.style.display='none';document.getElementById('qr-url-fb').style.display='block'"/>
+  <p id="qr-url-fb" class="xs" style="display:none;word-break:break-all;margin-top:4px">${escaped}</p>
+</div>`
 }
 
 // ── Internal: single 58mm repair receipt block (with label + signature lines) ─
 
 function repairIntake58Block(opts: PrintRepairIntakeOptions, label: string): string {
+  const e = escHtml
   return `
 ${shopHeaderHtml(opts)}
 <div class="hr"></div>
 <p class="c lg">ใบรับซ่อม</p>
-${label ? `<p class="c sm b">${label}</p>` : ''}
-<p class="c sm">#${opts.ticketNumber}</p>
-<p class="c xs">${opts.date}</p>
+${label ? `<p class="c sm b">${e(label)}</p>` : ''}
+<p class="c sm">#${e(opts.ticketNumber)}</p>
+<p class="c xs">${e(opts.date)}</p>
 <div class="hr"></div>
 <table class="t">
-<tr><td class="l">ลูกค้า</td><td class="b">${opts.customerName}</td></tr>
-${opts.customerPhone ? `<tr><td class="l">โทร</td><td>${opts.customerPhone}</td></tr>` : ''}
+<tr><td class="l">ลูกค้า</td><td class="b">${e(opts.customerName)}</td></tr>
+${opts.customerPhone ? `<tr><td class="l">โทร</td><td>${e(opts.customerPhone)}</td></tr>` : ''}
 </table>
 <div class="hr"></div>
 <table class="t">
-<tr><td class="l">อุปกรณ์</td><td class="b">${opts.deviceBrand} ${opts.deviceModel}</td></tr>
-${opts.deviceColor ? `<tr><td class="l">สี</td><td>${opts.deviceColor}</td></tr>` : ''}
-${opts.deviceImei ? `<tr><td class="l">IMEI</td><td class="sm">${opts.deviceImei}</td></tr>` : ''}
+<tr><td class="l">อุปกรณ์</td><td class="b">${e(opts.deviceBrand)} ${e(opts.deviceModel)}</td></tr>
+${opts.deviceColor ? `<tr><td class="l">สี</td><td>${e(opts.deviceColor)}</td></tr>` : ''}
+${opts.deviceImei ? `<tr><td class="l">IMEI</td><td class="sm">${e(opts.deviceImei)}</td></tr>` : ''}
 </table>
 <div class="hr"></div>
 <p class="xs b">อาการเสีย:</p>
-<p>${opts.issue}</p>
-${opts.conditionIssues?.length ? `<div class="hr"></div><p class="xs b">สภาพที่มีปัญหา:</p><p class="xs">${opts.conditionIssues.join(', ')}</p>` : ''}
-${opts.accessories?.length ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${opts.accessories.join(', ')}</p>` : ''}
+<p>${e(opts.issue)}</p>
+${opts.conditionIssues?.length ? `<div class="hr"></div><p class="xs b">สภาพที่มีปัญหา:</p><p class="xs">${opts.conditionIssues.map(e).join(', ')}</p>` : ''}
+${opts.accessories?.length ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${opts.accessories.map(e).join(', ')}</p>` : ''}
 <div class="hr"></div>
 ${opts.dueDate ? `<div class="row"><span class="xs">กำหนดเสร็จ</span><span class="v xs">${opts.dueDate}</span></div>` : ''}
 ${opts.estimateCost ? `<div class="row"><span>ประมาณการ</span><span class="v">฿${fmtI(opts.estimateCost)}</span></div>` : ''}
@@ -453,7 +463,7 @@ function popupPrint(html: string, filename: string): void {
   const win = window.open('', '_blank', 'width=320,height=600,toolbar=0,menubar=0')
   if (win) {
     win.document.write(html); win.document.close(); win.focus()
-    setTimeout(() => { win.print(); setTimeout(() => win.close(), 800) }, 300)
+    win.onload = () => { win.print(); setTimeout(() => win.close(), 800) }
   } else {
     const blob = new Blob([html], { type: 'text/html' })
     const url  = URL.createObjectURL(blob)
@@ -596,6 +606,9 @@ export function buildRepairIntakePreviewData(opts: PrintRepairIntakeOptions): Th
 export function buildRepairDeliveryPreviewData(opts: PrintRepairDeliveryOptions): ThermalPreviewData {
   const lines: ThermalLine[] = [
     { type: 'row', label: 'ลูกค้า', value: opts.customerName, bold: true },
+    ...(opts.customerPhone
+      ? [{ type: 'row' as const, label: 'โทร', value: opts.customerPhone }]
+      : []),
     { type: 'row', label: 'อุปกรณ์', value: `${opts.deviceBrand} ${opts.deviceModel}` },
     { type: 'separator' },
     { type: 'row', label: 'ค่าซ่อม', value: `฿${fmtI(opts.finalCost)}` },

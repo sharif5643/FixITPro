@@ -29,57 +29,25 @@ function openPrintPopup(url: string, paperWidth: PaperWidth) {
 }
 
 export function printSaleReceipt(saleId: string, opts: PrintOptions = {}) {
-  const { paperWidth = '80mm', printer = 'browser' } = opts
-
-  if (printer === 'sunmi') {
-    sunmiPrintService.printReceipt({ type: 'sale', id: saleId, paperWidth })
-    return
-  }
-
+  const { paperWidth = '80mm' } = opts
   openPrintPopup(`/print/sale/${saleId}?paper=${paperWidth}`, paperWidth)
 }
 
 export function printRepairReceipt(repairId: string, opts: PrintOptions = {}) {
-  const { paperWidth = '80mm', printer = 'browser' } = opts
-
-  if (printer === 'sunmi') {
-    sunmiPrintService.printReceipt({ type: 'repair', id: repairId, paperWidth })
-    return
-  }
-
+  const { paperWidth = '80mm' } = opts
   openPrintPopup(`/print/repair/${repairId}?paper=${paperWidth}`, paperWidth)
 }
 
-// ─── SUNMI printer abstraction ────────────────────────────────────────────
-// Implement this section when SUNMI SDK / JS bridge is available.
-// Each method logs a warning in the console until integrated.
+// ─── SUNMI printer abstraction (replaced by PrinterFlowSheet + sunmi-printer.ts) ──
+// These stubs are intentionally dead — real SUNMI printing goes through the
+// Capacitor plugin in @/lib/sunmi-printer.ts + PrinterFlowSheet component.
+// Kept as type stubs so old call-sites produce a build error rather than silently no-op.
 
+/** @deprecated Use PrinterFlowSheet + SunmiPrinter.printHtml() instead */
 export const sunmiPrintService = {
-  /** Whether SUNMI printer is connected and ready */
   isConnected: false,
-
-  /** Connect to the SUNMI printer SDK */
-  connect: async (): Promise<boolean> => {
-    console.warn('[SUNMI] connect() not yet implemented — stub only')
-    return false
-  },
-
-  /** Print a raw text string */
-  printText: (_text: string): void => {
-    console.warn('[SUNMI] printText() not yet implemented')
-  },
-
-  /** Print a structured receipt. Replace body with SUNMI SDK calls. */
-  printReceipt: (_data: {
-    type: 'sale' | 'repair'
-    id: string
-    paperWidth?: PaperWidth
-  }): void => {
-    console.warn('[SUNMI] printReceipt() not yet implemented', _data)
-  },
-
-  /** Send paper cut command */
-  cutPaper: (): void => {
-    console.warn('[SUNMI] cutPaper() not yet implemented')
-  },
+  connect:      (): never => { throw new Error('[SUNMI] Use PrinterFlowSheet instead of sunmiPrintService') },
+  printText:    (): never => { throw new Error('[SUNMI] Use PrinterFlowSheet instead of sunmiPrintService') },
+  printReceipt: (): never => { throw new Error('[SUNMI] Use PrinterFlowSheet instead of sunmiPrintService') },
+  cutPaper:     (): never => { throw new Error('[SUNMI] Use PrinterFlowSheet instead of sunmiPrintService') },
 }
