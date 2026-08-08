@@ -30,7 +30,7 @@ export interface ThermalPreviewData {
   lines:      ThermalLine[]
 }
 
-interface PrinterInfo {
+export interface PrinterInfo {
   id:        string
   name:      string
   type:      'inner' | 'bluetooth'
@@ -180,7 +180,7 @@ interface PrinterPickerProps {
   onClose:    () => void
 }
 
-function PrinterPickerStep({ onSelect, onClose }: PrinterPickerProps) {
+export function PrinterPickerStep({ onSelect, onClose }: PrinterPickerProps) {
   const [printers, setPrinters]           = useState<PrinterInfo[]>([])
   const [loading, setLoading]             = useState(true)
   const [selected, setSelected]           = useState<PrinterInfo | null>(null)

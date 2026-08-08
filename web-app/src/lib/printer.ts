@@ -477,6 +477,138 @@ export async function printReceipt(opts: PrintReceiptOptions): Promise<void> {
   popupPrint(buildReceiptHtml(opts), `receipt-${opts.receiptNumber}.html`)
 }
 
+// ── Repair receipt HTML for the detail page (full receipt with QR tracking) ────
+// Used by RepairReceiptPrintFlow in the Capacitor APK.
+// Produces a self-contained 384px-wide thermal HTML — no external CSS needed.
+
+export function buildRepairReceiptThermalHtml(
+  repair: {
+    ticketNumber: string
+    receivedAt: string
+    customer?: { name?: string; phone?: string } | null
+    deviceBrand: string
+    deviceModel: string
+    deviceImei?: string | null
+    issue: string
+    accessories?: string | null
+    estimateCost?: number | null
+    estimatedTotal?: number | null
+    deposit?: number | null
+    branch?: { name: string } | null
+  },
+  settings: {
+    shopName?: string | null
+    shopPhone?: string | null
+    logoUrl?: string | null
+    receiptFooter?: string | null
+    showLogo?: boolean
+  } | null | undefined,
+  opts: { copyType: 'shop' | 'customer'; trackingOrigin?: string },
+): string {
+  const e = escHtml
+  const { copyType, trackingOrigin } = opts
+  const isCustomer = copyType === 'customer'
+
+  const shopName  = e(settings?.shopName  ?? 'FixITPro')
+  const shopPhone = settings?.shopPhone ? e(settings.shopPhone) : ''
+  const logoUrl   = settings?.logoUrl   ?? ''
+  const footer    = e(settings?.receiptFooter ?? 'กรุณาเก็บใบรับงานไว้\nเพื่อใช้รับคืนอุปกรณ์')
+  const showLogo  = settings?.showLogo !== false && !!logoUrl
+
+  const ticketNum    = e(repair.ticketNumber)
+  const customerName = e(repair.customer?.name  ?? 'ลูกค้าทั่วไป')
+  const customerPhone = repair.customer?.phone ? e(repair.customer.phone) : ''
+  const deviceBrand  = e(repair.deviceBrand)
+  const deviceModel  = e(repair.deviceModel)
+  const deviceImei   = repair.deviceImei ? e(repair.deviceImei) : ''
+  const issue        = e(repair.issue)
+  const branchName   = repair.branch?.name ? e(repair.branch.name) : ''
+  const accessories  = repair.accessories
+    ? repair.accessories.split(',').map(s => e(s.trim())).filter(Boolean)
+    : []
+  const estimateCost = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
+  const deposit      = Number(repair.deposit ?? 0)
+
+  // Format received date (Thai locale without Buddhist era for brevity)
+  let receivedDateStr = repair.receivedAt
+  try {
+    receivedDateStr = new Intl.DateTimeFormat('th-TH', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    }).format(new Date(repair.receivedAt))
+  } catch { /* keep ISO fallback */ }
+
+  // QR tracking block — only on customer copy, requires trackingOrigin
+  let qrBlock = ''
+  if (isCustomer && trackingOrigin) {
+    const phone   = repair.customer?.phone
+    const rawUrl  = phone
+      ? `${trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}?phone=${encodeURIComponent(phone)}`
+      : `${trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}`
+    const encoded = encodeURIComponent(rawUrl)
+    qrBlock = `
+<div class="hr"></div>
+<p class="c xs b">ติดตามสถานะซ่อมออนไลน์</p>
+<p class="c xs">สแกน QR Code เพื่อดูสถานะ</p>
+<div class="c" style="margin:8px 0">
+  <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encoded}&size=150x150&format=png"
+       alt="QR" style="width:150px;height:150px" onerror="this.style.display='none'"/>
+  <p class="xs" style="word-break:break-all;margin-top:4px;color:#666">${e(rawUrl)}</p>
+</div>`
+  }
+
+  const logoBlock = showLogo
+    ? `<div class="c" style="margin-bottom:6px"><img src="${logoUrl}" alt="logo" style="max-width:80px;max-height:60px;object-fit:contain" onerror="this.style.display='none'"/></div>`
+    : ''
+
+  const accessoriesBlock = accessories.length > 0
+    ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${accessories.join(', ')}</p>`
+    : ''
+
+  const body = `
+${logoBlock}
+<p class="c xl">${shopName}</p>
+${shopPhone  ? `<p class="c xs">โทร: ${shopPhone}</p>` : ''}
+${branchName ? `<p class="c xs">สาขา: ${branchName}</p>` : ''}
+<div class="hr"></div>
+<p class="c lg">ใบรับงานซ่อม</p>
+<p class="c sm b">${isCustomer ? '[ฉบับลูกค้า]' : '[ฉบับร้าน]'}</p>
+<p class="c sm">#${ticketNum}</p>
+<p class="c xs">วันที่รับ: ${e(receivedDateStr)}</p>
+<div class="hr"></div>
+<p class="b">ลูกค้า</p>
+<p>${customerName}</p>
+${customerPhone ? `<p class="sm">โทร: ${customerPhone}</p>` : ''}
+<div class="hr"></div>
+<p class="b">อุปกรณ์</p>
+<p>${deviceBrand} ${deviceModel}</p>
+${deviceImei ? `<p class="sm">IMEI: ${deviceImei}</p>` : '<p class="sm">IMEI: _______________</p>'}
+<div class="hr"></div>
+<p class="xs b">อาการเสีย:</p>
+<p>${issue}</p>
+${accessoriesBlock}
+<div class="hr"></div>
+<div class="row"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
+<div class="total"><span>ค่ามัดจำ</span><span class="v">${deposit > 0 ? `฿${fmtI(deposit)}` : '-'}</span></div>
+<div class="hr"></div>
+<div style="display:flex;justify-content:space-between;margin-top:24px;font-size:18px;padding-bottom:8px">
+  <div style="text-align:center">ลายเซ็นลูกค้า<br><br>___________</div>
+  <div style="text-align:center">ลายเซ็นร้าน<br><br>___________</div>
+</div>
+${qrBlock}
+<div class="hr"></div>
+<p class="c xs" style="white-space:pre-wrap">${footer}</p>
+`.trim()
+
+  return `<!DOCTYPE html><html lang="th"><head>
+<meta charset="utf-8">
+<title>ใบรับงานซ่อม ${ticketNum}</title>
+<style>${THERMAL_CSS}</style>
+</head><body>
+${body}
+</body></html>`
+}
+
 // ── Web Share API (text → LINE / WhatsApp / email) ────────────────────────────
 
 async function nativeShare(title: string, text: string): Promise<void> {

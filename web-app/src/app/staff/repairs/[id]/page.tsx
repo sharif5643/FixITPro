@@ -15,9 +15,8 @@ import api from '@/lib/api'
 import { printRepairReceipt } from '@/lib/print'
 import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 import { Platform } from '@/lib/platform'
-import { buildRepairIntakeHtml, buildRepairIntakePreviewData, shareRepairIntake } from '@/lib/printer'
 import type { PrintRepairIntakeOptions } from '@/lib/printer'
-import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
+import { RepairReceiptPrintFlow } from '@/components/sunmi/repair-receipt-print'
 import type { ShopSettings } from '@/types'
 
 // ── Status config (matches backend exactly) ───────────────────────────────────
@@ -125,7 +124,7 @@ export default function RepairDetailPage() {
   const { id }      = useParams<{ id: string }>()
   const queryClient = useQueryClient()
   const [selectedStatus, setSelectedStatus] = useState('')
-  const [printOpts, setPrintOpts] = useState<PrintRepairIntakeOptions | null>(null)
+  const [showPrintFlow, setShowPrintFlow]   = useState(false)
 
   const { data: repair, isLoading } = useQuery<Repair>({
     queryKey: ['staff-repair', id],
@@ -474,27 +473,27 @@ export default function RepairDetailPage() {
       <div className="fixed bottom-0 left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 pt-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}>
         <button
           onClick={() => {
-            const opts: PrintRepairIntakeOptions = {
-              shopName:       settings?.shopName    ?? 'FixITPro',
-              shopPhone:      settings?.shopPhone   ?? undefined,
-              ticketNumber:   repair.ticketNumber,
-              date:           fmtDate(repair.receivedAt) ?? repair.receivedAt,
-              customerName:   repair.customer?.name ?? '—',
-              customerPhone:  repair.customer?.phone ?? undefined,
-              deviceBrand:    repair.deviceBrand,
-              deviceModel:    repair.deviceModel,
-              deviceColor:    repair.deviceColor   ?? undefined,
-              deviceImei:     repair.deviceImei    ?? undefined,
-              issue:          repair.issue,
-              accessories:    repair.accessories ? repair.accessories.split(',').map(s => s.trim()).filter(Boolean) : [],
-              deposit:        Number(repair.deposit ?? 0),
-              estimateCost:   repair.estimateCost  ? Number(repair.estimateCost) : undefined,
-              technicianName: repair.technician?.name ?? undefined,
-              footer:         settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
-            }
             if (Platform.isNative()) {
-              setPrintOpts(opts)
+              setShowPrintFlow(true)
             } else if (isInWebViewApp()) {
+              const opts: PrintRepairIntakeOptions = {
+                shopName:       settings?.shopName    ?? 'FixITPro',
+                shopPhone:      settings?.shopPhone   ?? undefined,
+                ticketNumber:   repair.ticketNumber,
+                date:           fmtDate(repair.receivedAt) ?? repair.receivedAt,
+                customerName:   repair.customer?.name ?? '—',
+                customerPhone:  repair.customer?.phone ?? undefined,
+                deviceBrand:    repair.deviceBrand,
+                deviceModel:    repair.deviceModel,
+                deviceColor:    repair.deviceColor   ?? undefined,
+                deviceImei:     repair.deviceImei    ?? undefined,
+                issue:          repair.issue,
+                accessories:    repair.accessories ? repair.accessories.split(',').map(s => s.trim()).filter(Boolean) : [],
+                deposit:        Number(repair.deposit ?? 0),
+                estimateCost:   repair.estimateCost  ? Number(repair.estimateCost) : undefined,
+                technicianName: repair.technician?.name ?? undefined,
+                footer:         settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
+              }
               bridgePrintRepairIntake(opts)
             } else {
               printRepairReceipt(repair.id, { paperWidth: '80mm' })
@@ -518,19 +517,10 @@ export default function RepairDetailPage() {
 
     </div>
 
-      {printOpts && (
-        <PrinterFlowSheet
-          receiptHtml={buildRepairIntakeHtml(printOpts, 'customer')}
-          jobName={`ใบรับซ่อม ${printOpts.ticketNumber}`}
-          previewData={buildRepairIntakePreviewData(printOpts)}
-          urlVariants={{
-            customer: `/print/repair/${id}?paper=58mm&copy=customer&mode=apk`,
-            shop:     `/print/repair/${id}?paper=58mm&copy=shop&mode=apk`,
-            both:     `/print/repair/${id}?paper=58mm&copies=2&mode=apk`,
-            a4:       `/print/repair/${id}?paper=A4&mode=apk`,
-          }}
-          onShare={async () => shareRepairIntake(printOpts)}
-          onClose={() => setPrintOpts(null)}
+      {showPrintFlow && (
+        <RepairReceiptPrintFlow
+          repairId={id}
+          onClose={() => setShowPrintFlow(false)}
         />
       )}
     </>
