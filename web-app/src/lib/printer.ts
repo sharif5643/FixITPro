@@ -483,33 +483,34 @@ export async function printReceipt(opts: PrintReceiptOptions): Promise<void> {
 // Used by RepairReceiptPrintFlow in the Capacitor APK.
 // Produces a self-contained 384px-wide thermal HTML — no external CSS needed.
 
-// Inline CSS that matches the ThermalReceipt React component (font-mono, 11px scale)
+// Inline CSS for SUNMI thermal printer (WebView renders at 384px wide for 58mm paper)
+// Font sizes are scaled ×1.92 from the browser ThermalReceipt component (200px → 384px)
 const RECEIPT_THERMAL_CSS = `
   @page { margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { height: fit-content; }
   body {
     font-family: 'Courier New', Courier, monospace;
-    font-size: 11px;
-    line-height: 1.6;
-    width: 200px;
+    font-size: 22px;
+    line-height: 1.5;
+    width: 384px;
     height: fit-content;
-    padding: 6px 8px 10px 8px;
+    padding: 10px 14px 18px 14px;
     color: #111;
     background: #fff;
   }
   .c  { text-align: center; }
   .b  { font-weight: bold; }
-  .sm { font-size: 9px; color: #555; }
-  .hr { border: none; border-top: 1px dashed #888; margin: 5px 0; }
-  .row { display: flex; justify-content: space-between; gap: 4px; }
+  .sm { font-size: 18px; color: #555; }
+  .hr { border: none; border-top: 2px dashed #888; margin: 8px 0; }
+  .row { display: flex; justify-content: space-between; gap: 6px; }
   .row .v { white-space: nowrap; text-align: right; }
-  .sig { display: flex; justify-content: space-between; margin: 6px 0 4px; }
-  .sig-box { text-align: center; font-size: 9px; }
-  .sig-line { width: 60px; border-bottom: 1px solid #888; margin-bottom: 2px; height: 18px; }
-  .cut { border-top: 2px dashed #000; margin: 8px 0; text-align: center; font-size: 9px; letter-spacing: 1px; }
-  .qr-url { word-break: break-all; font-size: 8px; color: #666; margin-top: 3px; }
-  .qr-svg svg { width: 90px; height: 90px; }
+  .sig { display: flex; justify-content: space-between; margin: 10px 0 6px; }
+  .sig-box { text-align: center; font-size: 18px; }
+  .sig-line { width: 110px; border-bottom: 1px solid #888; margin-bottom: 4px; height: 32px; }
+  .cut { border-top: 3px dashed #000; margin: 14px 0; text-align: center; font-size: 18px; letter-spacing: 2px; }
+  .qr-url { word-break: break-all; font-size: 16px; color: #666; margin-top: 6px; }
+  .qr-svg svg { width: 160px; height: 160px; }
 `
 
 export function buildRepairReceiptThermalHtml(
@@ -570,7 +571,7 @@ export function buildRepairReceiptThermalHtml(
   } catch { /* keep ISO fallback */ }
 
   const logoBlock = showLogo
-    ? `<div class="c" style="margin-bottom:4px"><img src="${logoUrl}" alt="logo" style="max-width:60px;max-height:40px;object-fit:contain" onerror="this.style.display='none'"/></div>`
+    ? `<div class="c" style="margin-bottom:6px"><img src="${logoUrl}" alt="logo" style="max-width:110px;max-height:80px;object-fit:contain" onerror="this.style.display='none'"/></div>`
     : ''
 
   const accessoriesBlock = accessories.length > 0 ? `
@@ -596,7 +597,7 @@ export function buildRepairReceiptThermalHtml(
     return `
 ${logoBlock}
 <div class="c" style="margin-bottom:2px">
-  <p class="b" style="font-size:13px">${shopName}</p>
+  <p class="b" style="font-size:26px">${shopName}</p>
   ${shopPhone  ? `<p class="sm">โทร: ${shopPhone}</p>` : ''}
   ${branchName ? `<p class="sm">สาขา: ${branchName}</p>` : ''}
 </div>

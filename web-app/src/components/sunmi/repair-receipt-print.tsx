@@ -92,7 +92,7 @@ export function RepairReceiptPrintFlow({
         const url    = phone
           ? `${origin}/track/${encodeURIComponent(repair.ticketNumber)}?phone=${encodeURIComponent(phone)}`
           : `${origin}/track/${encodeURIComponent(repair.ticketNumber)}`
-        try { qrSvg = await QRCode.default.toString(url, { type: 'svg', width: 90, margin: 1 }) }
+        try { qrSvg = await QRCode.default.toString(url, { type: 'svg', width: 160, margin: 1 }) }
         catch { /* QR optional */ }
       }
 
