@@ -79,27 +79,34 @@ export function RepairReceiptPrintFlow({
     if (!printer || !repair) return
     setPrinting(true)
     try {
-      const [{ SunmiPrinter }, { buildRepairReceiptThermalHtml }] = await Promise.all([
+      const [{ SunmiPrinter }, { buildRepairReceiptThermalHtml }, QRCode] = await Promise.all([
         import('@/lib/sunmi-printer'),
         import('@/lib/printer'),
+        import('qrcode'),
       ])
 
+      // Pre-generate QR code SVG (inline — no external URL needed in printer WebView)
+      let qrSvg: string | undefined
+      if (origin && (selectedCopy === 'customer' || selectedCopy === 'both')) {
+        const phone  = repair.customer?.phone
+        const url    = phone
+          ? `${origin}/track/${encodeURIComponent(repair.ticketNumber)}?phone=${encodeURIComponent(phone)}`
+          : `${origin}/track/${encodeURIComponent(repair.ticketNumber)}`
+        try { qrSvg = await QRCode.default.toString(url, { type: 'svg', width: 90, margin: 1 }) }
+        catch { /* QR optional */ }
+      }
+
       if (selectedCopy === 'both') {
-        // Single print job with both copies + cut line — avoids double paper feed
         const html = buildRepairReceiptThermalHtml(repair, settings, {
-          copyType: 'both', trackingOrigin: origin,
+          copyType: 'both', trackingOrigin: origin, qrSvg,
         })
-        const r = await SunmiPrinter.printHtml({
-          html, printerId: printer.id, jobName: `ใบรับซ่อม (2 ฉบับ)`,
-        })
+        const r = await SunmiPrinter.printHtml({ html, printerId: printer.id, jobName: `ใบรับซ่อม (2 ฉบับ)` })
         if (!r.success) throw new Error(r.error ?? 'พิมพ์ไม่สำเร็จ')
       } else {
         const html = buildRepairReceiptThermalHtml(repair, settings, {
-          copyType: selectedCopy, trackingOrigin: origin,
+          copyType: selectedCopy, trackingOrigin: origin, qrSvg,
         })
-        const r = await SunmiPrinter.printHtml({
-          html, printerId: printer.id, jobName: `ใบรับซ่อม (${selectedCopy === 'shop' ? 'ใบร้าน' : 'ใบลูกค้า'})`,
-        })
+        const r = await SunmiPrinter.printHtml({ html, printerId: printer.id, jobName: `ใบรับซ่อม (${selectedCopy === 'shop' ? 'ใบร้าน' : 'ใบลูกค้า'})` })
         if (!r.success) throw new Error(r.error ?? 'พิมพ์ไม่สำเร็จ')
       }
 

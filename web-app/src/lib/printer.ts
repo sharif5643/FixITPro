@@ -483,6 +483,35 @@ export async function printReceipt(opts: PrintReceiptOptions): Promise<void> {
 // Used by RepairReceiptPrintFlow in the Capacitor APK.
 // Produces a self-contained 384px-wide thermal HTML — no external CSS needed.
 
+// Inline CSS that matches the ThermalReceipt React component (font-mono, 11px scale)
+const RECEIPT_THERMAL_CSS = `
+  @page { margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: fit-content; }
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    width: 200px;
+    height: fit-content;
+    padding: 6px 8px 10px 8px;
+    color: #111;
+    background: #fff;
+  }
+  .c  { text-align: center; }
+  .b  { font-weight: bold; }
+  .sm { font-size: 9px; color: #555; }
+  .hr { border: none; border-top: 1px dashed #888; margin: 5px 0; }
+  .row { display: flex; justify-content: space-between; gap: 4px; }
+  .row .v { white-space: nowrap; text-align: right; }
+  .sig { display: flex; justify-content: space-between; margin: 6px 0 4px; }
+  .sig-box { text-align: center; font-size: 9px; }
+  .sig-line { width: 60px; border-bottom: 1px solid #888; margin-bottom: 2px; height: 18px; }
+  .cut { border-top: 2px dashed #000; margin: 8px 0; text-align: center; font-size: 9px; letter-spacing: 1px; }
+  .qr-url { word-break: break-all; font-size: 8px; color: #666; margin-top: 3px; }
+  .qr-svg svg { width: 90px; height: 90px; }
+`
+
 export function buildRepairReceiptThermalHtml(
   repair: {
     ticketNumber: string
@@ -505,15 +534,17 @@ export function buildRepairReceiptThermalHtml(
     receiptFooter?: string | null
     showLogo?: boolean
   } | null | undefined,
-  opts: { copyType: 'shop' | 'customer' | 'both'; trackingOrigin?: string },
+  opts: { copyType: 'shop' | 'customer' | 'both'; trackingOrigin?: string; qrSvg?: string },
 ): string {
   const e = escHtml
-  const { copyType, trackingOrigin } = opts
+  const { copyType, trackingOrigin, qrSvg } = opts
 
   const shopName   = e(settings?.shopName  ?? 'FixITPro')
   const shopPhone  = settings?.shopPhone ? e(settings.shopPhone) : ''
   const logoUrl    = settings?.logoUrl   ?? ''
-  const footer     = e(settings?.receiptFooter ?? 'กรุณาเก็บใบรับงานไว้\nเพื่อใช้รับคืนอุปกรณ์')
+  const footer     = settings?.receiptFooter
+    ? e(settings.receiptFooter)
+    : '*** กรุณาเก็บใบรับงานไว้ ***\nเพื่อใช้รับคืนอุปกรณ์'
   const showLogo   = settings?.showLogo !== false && !!logoUrl
 
   const ticketNum     = e(repair.ticketNumber)
@@ -539,12 +570,13 @@ export function buildRepairReceiptThermalHtml(
   } catch { /* keep ISO fallback */ }
 
   const logoBlock = showLogo
-    ? `<div class="c" style="margin-bottom:6px"><img src="${logoUrl}" alt="logo" style="max-width:80px;max-height:60px;object-fit:contain" onerror="this.style.display='none'"/></div>`
+    ? `<div class="c" style="margin-bottom:4px"><img src="${logoUrl}" alt="logo" style="max-width:60px;max-height:40px;object-fit:contain" onerror="this.style.display='none'"/></div>`
     : ''
 
-  const accessoriesBlock = accessories.length > 0
-    ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${accessories.join(', ')}</p>`
-    : ''
+  const accessoriesBlock = accessories.length > 0 ? `
+<div class="hr"></div>
+<p class="b">อุปกรณ์ที่รับมา</p>
+<p>${accessories.join(', ')}</p>` : ''
 
   function makeQrBlock(isCustomer: boolean) {
     if (!isCustomer || !trackingOrigin) return ''
@@ -552,56 +584,53 @@ export function buildRepairReceiptThermalHtml(
     const rawUrl = phone
       ? `${trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}?phone=${encodeURIComponent(phone)}`
       : `${trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}`
-    const encoded = encodeURIComponent(rawUrl)
     return `
 <div class="hr"></div>
-<p class="c xs b">ติดตามสถานะซ่อมออนไลน์</p>
-<p class="c xs">สแกน QR Code เพื่อดูสถานะ</p>
-<div class="c" style="margin:8px 0">
-  <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encoded}&size=150x150&format=png"
-       alt="QR" style="width:150px;height:150px" onerror="this.style.display='none'"/>
-  <p class="xs" style="word-break:break-all;margin-top:4px;color:#666">${e(rawUrl)}</p>
-</div>`
+<p class="c b" style="font-size:10px">ติดตามสถานะซ่อมออนไลน์</p>
+<p class="c sm">สแกน QR Code เพื่อดูสถานะ</p>
+<div class="c qr-svg" style="margin:4px 0">${qrSvg ?? ''}</div>
+<p class="c qr-url">${e(rawUrl)}</p>`
   }
 
   function makeBody(isCustomer: boolean) {
     return `
 ${logoBlock}
-<p class="c xl">${shopName}</p>
-${shopPhone  ? `<p class="c xs">โทร: ${shopPhone}</p>` : ''}
-${branchName ? `<p class="c xs">สาขา: ${branchName}</p>` : ''}
+<div class="c" style="margin-bottom:2px">
+  <p class="b" style="font-size:13px">${shopName}</p>
+  ${shopPhone  ? `<p class="sm">โทร: ${shopPhone}</p>` : ''}
+  ${branchName ? `<p class="sm">สาขา: ${branchName}</p>` : ''}
+</div>
 <div class="hr"></div>
-<p class="c lg">ใบรับงานซ่อม</p>
-<p class="c sm b">${isCustomer ? '[ฉบับลูกค้า]' : '[ฉบับร้าน]'}</p>
-<p class="c sm">#${ticketNum}</p>
-<p class="c xs">วันที่รับ: ${e(receivedDateStr)}</p>
+<div class="c" style="margin-bottom:2px">
+  <p class="b">ใบรับงานซ่อม</p>
+  <p>เลขงาน: ${ticketNum}</p>
+  <p class="sm">วันที่รับ: ${e(receivedDateStr)}</p>
+</div>
 <div class="hr"></div>
 <p class="b">ลูกค้า</p>
 <p>${customerName}</p>
-${customerPhone ? `<p class="sm">โทร: ${customerPhone}</p>` : ''}
+${customerPhone ? `<p>โทร: ${customerPhone}</p>` : ''}
 <div class="hr"></div>
 <p class="b">อุปกรณ์</p>
 <p>${deviceBrand} ${deviceModel}</p>
-${deviceImei ? `<p class="sm">IMEI: ${deviceImei}</p>` : '<p class="sm">IMEI: _______________</p>'}
+${deviceImei ? `<p>IMEI: ${deviceImei}</p>` : '<p>IMEI: _______________</p>'}
 <div class="hr"></div>
-<p class="xs b">อาการเสีย:</p>
-<p>${issue}</p>
+<p class="b">อาการเสีย</p>
+<p style="white-space:pre-wrap">${issue}</p>
 ${accessoriesBlock}
 <div class="hr"></div>
 <div class="row"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
-<div class="total"><span>ค่ามัดจำ</span><span class="v">${deposit > 0 ? `฿${fmtI(deposit)}` : '-'}</span></div>
+<div class="row b"><span>ค่ามัดจำ</span><span class="v">${deposit > 0 ? `฿${fmtI(deposit)}` : '-'}</span></div>
 <div class="hr"></div>
-<div style="display:flex;justify-content:space-between;margin-top:24px;font-size:18px;padding-bottom:8px">
-  <div style="text-align:center">ลายเซ็นลูกค้า<br><br>___________</div>
-  <div style="text-align:center">ลายเซ็นร้าน<br><br>___________</div>
+<div class="sig">
+  <div class="sig-box"><div class="sig-line"></div><p>ลายเซ็นลูกค้า</p></div>
+  <div class="sig-box"><div class="sig-line"></div><p>ลายเซ็นร้าน</p></div>
 </div>
 ${makeQrBlock(isCustomer)}
 <div class="hr"></div>
-<p class="c xs" style="white-space:pre-wrap">${footer}</p>
+<p class="c sm" style="white-space:pre-wrap">${footer}</p>
 `.trim()
   }
-
-  const cutCss = `.cut{border-top:3px dashed #000;margin:12px 0;text-align:center;font-size:16px;letter-spacing:2px}`
 
   const html = (css: string, body: string) =>
     `<!DOCTYPE html><html lang="th"><head>
@@ -612,11 +641,10 @@ ${makeQrBlock(isCustomer)}
 ${body}
 </body></html>`
 
-  if (copyType === 'customer') return html(THERMAL_CSS, makeBody(true))
-  if (copyType === 'shop')     return html(THERMAL_CSS, makeBody(false))
-  // 'both': single print job with cut line — avoids double paper feed
+  if (copyType === 'customer') return html(RECEIPT_THERMAL_CSS, makeBody(true))
+  if (copyType === 'shop')     return html(RECEIPT_THERMAL_CSS, makeBody(false))
   return html(
-    THERMAL_CSS + cutCss,
+    RECEIPT_THERMAL_CSS,
     `${makeBody(false)}<div class="cut">✂ ──── ตัดที่นี่ ──── ✂</div>${makeBody(true)}`,
   )
 }
