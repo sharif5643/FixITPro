@@ -484,37 +484,43 @@ export async function printReceipt(opts: PrintReceiptOptions): Promise<void> {
 // Produces a self-contained 384px-wide thermal HTML — no external CSS needed.
 
 // Generate inline CSS for SUNMI thermal printer WebView.
-// px = rendered pixel width: 384 for 58mm paper, 576 for 80mm paper.
-// All sizes scale proportionally from the 58mm baseline.
+// Scales from the web RepairReceipt component's 200px baseline (58mm @ 96dpi).
+// px = thermal render width: 384 for 58mm, 576 for 80mm.
 function makeReceiptThermalCss(px: number): string {
-  const s = px / 384
-  const r = (n: number) => Math.round(n * s)
+  // r(n): scale web component's CSS pixel value to thermal pixel width
+  const r = (webPx: number) => Math.round(webPx * px / 200)
   return `
   @page { margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { height: fit-content; }
   body {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: ${r(22)}px;
-    line-height: 1.5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: ${r(11)}px;
+    line-height: 1.625;
     width: ${px}px;
     height: fit-content;
-    padding: ${r(10)}px ${r(14)}px ${r(18)}px ${r(14)}px;
-    color: #111;
+    padding: ${r(4)}px ${r(6)}px ${r(16)}px ${r(6)}px;
+    color: #111827;
     background: #fff;
   }
-  .c  { text-align: center; }
-  .b  { font-weight: bold; }
-  .sm { font-size: ${r(18)}px; color: #555; }
-  .hr { border: none; border-top: 2px dashed #888; margin: ${r(8)}px 0; }
-  .row { display: flex; justify-content: space-between; gap: ${r(6)}px; }
-  .row .v { white-space: nowrap; text-align: right; }
-  .sig { display: flex; justify-content: space-between; margin: ${r(10)}px 0 ${r(6)}px; }
-  .sig-box { text-align: center; font-size: ${r(18)}px; }
-  .sig-line { width: ${r(110)}px; border-bottom: 1px solid #888; margin-bottom: ${r(4)}px; height: ${r(32)}px; }
-  .cut { border-top: 3px dashed #000; margin: ${r(14)}px 0; text-align: center; font-size: ${r(18)}px; letter-spacing: 2px; }
-  .qr-url { word-break: break-all; font-size: ${r(16)}px; color: #666; margin-top: ${r(6)}px; }
-  .qr-svg svg { width: ${r(160)}px !important; height: ${r(160)}px !important; }
+  .c    { text-align: center; }
+  .b    { font-weight: 700; }
+  .gray { color: #4B5563; }
+  .gray2{ color: #9CA3AF; }
+  .shop-name { font-size: ${r(14)}px; font-weight: 700; letter-spacing: 0.1em; }
+  .hr   { border: none; border-top: 1px dashed #9CA3AF; margin: ${r(8)}px 0; }
+  .sec  { padding-bottom: ${r(4)}px; }
+  .row  { display: flex; justify-content: space-between; gap: ${r(4)}px; }
+  .row .v { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
+  .sig  { display: flex; justify-content: space-between; margin: ${r(12)}px 0 ${r(8)}px; }
+  .sig-box  { text-align: center; font-size: ${r(10)}px; }
+  .sig-line { width: ${r(80)}px; border-bottom: 1px dashed #9CA3AF; margin-bottom: ${r(4)}px; height: ${r(28)}px; }
+  .cut  { border-top: 2px dashed #374151; margin: ${r(10)}px 0; text-align: center; font-size: ${r(10)}px; color: #6B7280; letter-spacing: 2px; }
+  .qr-t   { font-size: ${r(10)}px; font-weight: 700; }
+  .qr-s   { font-size: ${r(9)}px; color: #6B7280; }
+  .qr-url { word-break: break-all; font-size: ${r(8)}px; color: #9CA3AF; line-height: 1.3; margin-top: ${r(2)}px; }
+  .qr-svg svg { width: ${r(90)}px !important; height: ${r(90)}px !important; }
+  p + p { margin-top: ${r(2)}px; }
 `
 }
 
@@ -546,15 +552,17 @@ export function buildRepairReceiptThermalHtml(
   const { copyType, trackingOrigin, qrSvg, paperWidth = '58mm' } = opts
   const px  = paperWidth === '80mm' ? 576 : 384
   const css = makeReceiptThermalCss(px)
-  const s   = px / 384  // scale factor for inline sizes
+  // r(n): scale from web component's 200px baseline to thermal px width
+  const r   = (webPx: number) => Math.round(webPx * px / 200)
 
   const shopName   = e(settings?.shopName  ?? 'FixITPro')
   const shopPhone  = settings?.shopPhone ? e(settings.shopPhone) : ''
   const logoUrl    = settings?.logoUrl   ?? ''
-  const footer     = settings?.receiptFooter
-    ? e(settings.receiptFooter)
-    : '*** กรุณาเก็บใบรับงานไว้ ***\nเพื่อใช้รับคืนอุปกรณ์'
   const showLogo   = settings?.showLogo !== false && !!logoUrl
+  // Footer: match React component's two-element default
+  const footerHtml = settings?.receiptFooter
+    ? `<p class="c gray" style="white-space:pre-wrap">${e(settings.receiptFooter)}</p>`
+    : `<p class="c">*** กรุณาเก็บใบรับงานไว้ ***</p><p class="c gray">เพื่อใช้รับคืนอุปกรณ์</p>`
 
   const ticketNum     = e(repair.ticketNumber)
   const customerName  = e(repair.customer?.name  ?? 'ลูกค้าทั่วไป')
@@ -565,7 +573,7 @@ export function buildRepairReceiptThermalHtml(
   const issue         = e(repair.issue)
   const branchName    = repair.branch?.name ? e(repair.branch.name) : ''
   const accessories   = repair.accessories
-    ? repair.accessories.split(',').map(s => e(s.trim())).filter(Boolean)
+    ? repair.accessories.split(',').map(a => e(a.trim())).filter(Boolean)
     : []
   const estimateCost  = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
   const deposit       = Number(repair.deposit ?? 0)
@@ -578,14 +586,17 @@ export function buildRepairReceiptThermalHtml(
     }).format(new Date(repair.receivedAt))
   } catch { /* keep ISO fallback */ }
 
+  // Logo: h-10 = 40px in web component
   const logoBlock = showLogo
-    ? `<div class="c" style="margin-bottom:${Math.round(6*s)}px"><img src="${logoUrl}" alt="logo" style="max-width:${Math.round(110*s)}px;max-height:${Math.round(80*s)}px;object-fit:contain" onerror="this.style.display='none'"/></div>`
+    ? `<div class="c" style="margin-bottom:${r(4)}px"><img src="${logoUrl}" alt="logo" style="height:${r(40)}px;width:auto;object-fit:contain" onerror="this.style.display='none'"/></div>`
     : ''
 
   const accessoriesBlock = accessories.length > 0 ? `
 <div class="hr"></div>
+<div class="sec">
 <p class="b">อุปกรณ์ที่รับมา</p>
-<p>${accessories.join(', ')}</p>` : ''
+<p>${accessories.join(', ')}</p>
+</div>` : ''
 
   function makeQrBlock(isCustomer: boolean) {
     if (!isCustomer || !trackingOrigin) return ''
@@ -595,41 +606,51 @@ export function buildRepairReceiptThermalHtml(
       : `${trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}`
     return `
 <div class="hr"></div>
-<p class="c b" style="font-size:10px">ติดตามสถานะซ่อมออนไลน์</p>
-<p class="c sm">สแกน QR Code เพื่อดูสถานะ</p>
-<div class="c qr-svg" style="margin:4px 0">${qrSvg ?? ''}</div>
-<p class="c qr-url">${e(rawUrl)}</p>`
+<div class="c sec">
+<p class="c qr-t">ติดตามสถานะซ่อมออนไลน์</p>
+<p class="c qr-s">สแกน QR Code เพื่อดูสถานะ</p>
+<div class="c qr-svg" style="margin:${r(4)}px 0">${qrSvg ?? ''}</div>
+<p class="c qr-url">${e(rawUrl)}</p>
+</div>`
   }
 
   function makeBody(isCustomer: boolean) {
     return `
 ${logoBlock}
-<div class="c" style="margin-bottom:2px">
-  <p class="b" style="font-size:${Math.round(26*s)}px">${shopName}</p>
-  ${shopPhone  ? `<p class="sm">โทร: ${shopPhone}</p>` : ''}
-  ${branchName ? `<p class="sm">สาขา: ${branchName}</p>` : ''}
+<div class="c sec">
+  <p class="shop-name">${shopName}</p>
+  ${shopPhone  ? `<p>โทร: ${shopPhone}</p>` : ''}
+  ${branchName ? `<p>สาขา: ${branchName}</p>` : ''}
 </div>
 <div class="hr"></div>
-<div class="c" style="margin-bottom:2px">
+<div class="c sec">
   <p class="b">ใบรับงานซ่อม</p>
   <p>เลขงาน: ${ticketNum}</p>
-  <p class="sm">วันที่รับ: ${e(receivedDateStr)}</p>
+  <p class="gray">วันที่รับ: ${e(receivedDateStr)}</p>
 </div>
 <div class="hr"></div>
-<p class="b">ลูกค้า</p>
-<p>${customerName}</p>
-${customerPhone ? `<p>โทร: ${customerPhone}</p>` : ''}
+<div class="sec">
+  <p class="b">ลูกค้า</p>
+  <p>${customerName}</p>
+  ${customerPhone ? `<p>โทร: ${customerPhone}</p>` : ''}
+</div>
 <div class="hr"></div>
-<p class="b">อุปกรณ์</p>
-<p>${deviceBrand} ${deviceModel}</p>
-${deviceImei ? `<p>IMEI: ${deviceImei}</p>` : '<p>IMEI: _______________</p>'}
+<div class="sec">
+  <p class="b">อุปกรณ์</p>
+  <p>${deviceBrand} ${deviceModel}</p>
+  ${deviceImei ? `<p>IMEI: ${deviceImei}</p>` : '<p>IMEI: _______________</p>'}
+</div>
 <div class="hr"></div>
-<p class="b">อาการเสีย</p>
-<p style="white-space:pre-wrap">${issue}</p>
+<div class="sec">
+  <p class="b">อาการเสีย</p>
+  <p style="white-space:pre-wrap">${issue}</p>
+</div>
 ${accessoriesBlock}
 <div class="hr"></div>
-<div class="row"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
-<div class="row b"><span>ค่ามัดจำ</span><span class="v">${deposit > 0 ? `฿${fmtI(deposit)}` : '-'}</span></div>
+<div class="sec">
+  <div class="row"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
+  <div class="row b"><span>ค่ามัดจำ</span><span class="v">${deposit > 0 ? `฿${fmtI(deposit)}` : '-'}</span></div>
+</div>
 <div class="hr"></div>
 <div class="sig">
   <div class="sig-box"><div class="sig-line"></div><p>ลายเซ็นลูกค้า</p></div>
@@ -637,7 +658,9 @@ ${accessoriesBlock}
 </div>
 ${makeQrBlock(isCustomer)}
 <div class="hr"></div>
-<p class="c sm" style="white-space:pre-wrap">${footer}</p>
+<div class="sec">
+${footerHtml}
+</div>
 `.trim()
   }
 
