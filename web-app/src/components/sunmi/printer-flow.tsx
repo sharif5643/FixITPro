@@ -412,26 +412,39 @@ interface PreviewStepProps {
   onShare?:         () => Promise<void>
   onSuccess:        () => void
   onError:          (msg: string) => void
+  selectedCopy?:    RepairCopyType | null
+  urlVariants?:     Record<RepairCopyType, string>
 }
 
 function PreviewStep({
   previewData, receiptHtml, previewUrl, jobName, printer,
   onChangePrinter, onShare, onSuccess, onError,
+  selectedCopy, urlVariants,
 }: PreviewStepProps) {
   const [sharing, setSharing] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  async function getHtmlForPrinting(): Promise<string> {
-    if (!previewUrl || !iframeRef.current) return receiptHtml
-    const doc = iframeRef.current.contentDocument
-    if (!doc) return receiptHtml
+  async function getHtmlForPrinting(urlOverride?: string): Promise<string> {
+    const targetUrl = urlOverride ?? previewUrl
+    if (!targetUrl || !iframeRef.current) return receiptHtml
+    const iframe = iframeRef.current
+
+    // Navigate to a different URL if needed (e.g. sequential "both" printing)
+    if (urlOverride && urlOverride !== previewUrl) {
+      iframe.src = urlOverride
+      await new Promise((r) => setTimeout(r, 400)) // allow navigation to start
+    }
+
     // Wait up to 15 s for the React page to finish fetching + rendering
     let ready = false
     for (let i = 0; i < 30; i++) {
-      if (doc.documentElement.getAttribute('data-receipt-ready') === '1') { ready = true; break }
+      const doc = iframeRef.current?.contentDocument
+      if (doc?.documentElement.getAttribute('data-receipt-ready') === '1') { ready = true; break }
       await new Promise((r) => setTimeout(r, 500))
     }
     if (!ready) throw new Error('ใบเสร็จโหลดไม่เสร็จ กรุณาลองใหม่')
+    const doc = iframeRef.current?.contentDocument
+    if (!doc) return receiptHtml
     let html = doc.documentElement.outerHTML
     // Resolve relative Next.js asset URLs in SUNMI's WebView
     if (!html.includes('<base ')) {
@@ -441,10 +454,23 @@ function PreviewStep({
   }
 
   async function handlePrint() {
-    const htmlToPrint = await getHtmlForPrinting()
     if (printer) {
-      // Native: send to printer via plugin
       const { SunmiPrinter } = await import('@/lib/sunmi-printer')
+
+      if (selectedCopy === 'both' && urlVariants) {
+        // Sequential print: shop copy then customer copy — avoids SUNMI WebView texture size limit
+        // that causes the second copy to be cut off when both are in one HTML document.
+        const shopHtml = await getHtmlForPrinting(urlVariants.shop)
+        const r1 = await SunmiPrinter.printHtml({ html: shopHtml, printerId: printer.id, jobName: jobName + ' (ใบร้าน)' })
+        if (!r1.success) throw new Error(r1.error ?? 'พิมพ์ใบร้านไม่สำเร็จ')
+        const customerHtml = await getHtmlForPrinting(urlVariants.customer)
+        const r2 = await SunmiPrinter.printHtml({ html: customerHtml, printerId: printer.id, jobName: jobName + ' (ใบลูกค้า)' })
+        if (!r2.success) throw new Error(r2.error ?? 'พิมพ์ใบลูกค้าไม่สำเร็จ')
+        return
+      }
+
+      // Single-job path
+      const htmlToPrint = await getHtmlForPrinting()
       const res = await SunmiPrinter.printHtml({
         html:      htmlToPrint,
         printerId: printer.id,
@@ -468,6 +494,7 @@ function PreviewStep({
       if (!res.success) throw new Error(res.error ?? 'Print failed')
     } else {
       // Web: popup window.print()
+      const htmlToPrint = await getHtmlForPrinting()
       const win = window.open('', '_blank', 'width=320,height=600,toolbar=0,menubar=0')
       if (win) {
         win.document.write(htmlToPrint)
@@ -754,12 +781,13 @@ export function PrinterFlowSheet({
   const hasVariants = !!(htmlVariants || urlVariants)
 
   // On web: skip printer picker and go straight to preview with null printer
-  const [state,      setState]      = useState<FlowState>(isNative ? 'pick-printer' : 'preview')
-  const [printer,    setPrinter]    = useState<PrinterInfo | null>(null)
-  const [errorMsg,   setErrorMsg]   = useState('')
-  const [activeHtml, setActiveHtml] = useState(receiptHtml)
-  const [activeUrl,  setActiveUrl]  = useState<string | undefined>(undefined)
-  const autoPrintFiredRef           = useRef(false)
+  const [state,        setState]        = useState<FlowState>(isNative ? 'pick-printer' : 'preview')
+  const [printer,      setPrinter]      = useState<PrinterInfo | null>(null)
+  const [errorMsg,     setErrorMsg]     = useState('')
+  const [activeHtml,   setActiveHtml]   = useState(receiptHtml)
+  const [activeUrl,    setActiveUrl]    = useState<string | undefined>(undefined)
+  const [selectedCopy, setSelectedCopy] = useState<RepairCopyType | null>(null)
+  const autoPrintFiredRef               = useRef(false)
 
   // Android back button
   useEffect(() => pushBackHandler(onClose), [onClose])
@@ -861,8 +889,10 @@ export function PrinterFlowSheet({
           <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
             <CopyTypeStep
               onSelect={(type) => {
+                setSelectedCopy(type)
                 if (urlVariants) {
-                  setActiveUrl(urlVariants[type])
+                  // For 'both': preview shows customer copy (has QR); print fires two sequential jobs
+                  setActiveUrl(urlVariants[type === 'both' ? 'customer' : type])
                 } else if (htmlVariants) {
                   setActiveHtml(htmlVariants[type])
                 }
@@ -892,6 +922,8 @@ export function PrinterFlowSheet({
               onShare={onShare}
               onSuccess={() => setState('success')}
               onError={(msg) => { setErrorMsg(msg); setState('error') }}
+              selectedCopy={selectedCopy}
+              urlVariants={urlVariants}
             />
           </div>
         )}
