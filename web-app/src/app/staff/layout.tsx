@@ -109,7 +109,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-brand-light">
-      <main>{children}</main>
+      <main className="pb-[calc(70px+env(safe-area-inset-bottom))]">{children}</main>
       <StaffBottomNav />
     </div>
   )

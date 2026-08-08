@@ -34,7 +34,7 @@ export function StaffBottomNav() {
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl border-t border-slate-100 bg-white shadow-[0_-4px_24px_rgba(0,0,0,0.08)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 rounded-t-3xl border-t border-slate-100 bg-white shadow-[0_-4px_24px_rgba(0,0,0,0.08)]" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="flex h-[70px] items-end">
         {/* Left tabs */}
         {LEFT_TABS.map((t) => <Tab key={t.href} {...t}/>)}
