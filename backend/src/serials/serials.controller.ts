@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -75,5 +76,14 @@ export class SerialsController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.service.update(id, dto, tenantId);
+  }
+
+  @RequirePermission('serials.manage')
+  @Delete(':id')
+  remove(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.remove(id, tenantId);
   }
 }

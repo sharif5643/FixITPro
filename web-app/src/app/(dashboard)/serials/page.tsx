@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   RotateCcw,
   PackageX,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -75,6 +77,8 @@ export default function SerialsPage() {
   const [addOpen,      setAddOpen]      = useState(false)
   const [bulkOpen,     setBulkOpen]     = useState(false)
   const [detailSerial, setDetailSerial] = useState<SerialNumber | null>(null)
+  const [editSerial,   setEditSerial]   = useState<SerialNumber | null>(null)
+  const [deleteSerial, setDeleteSerial] = useState<SerialNumber | null>(null)
 
   // Build query params
   const params: Record<string, string> = { limit: '100' }
@@ -191,6 +195,7 @@ export default function SerialsPage() {
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">สถานะ</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">หมดประกัน</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground">ใบเสร็จ</th>
+                    <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -231,6 +236,28 @@ export default function SerialsPage() {
                         </td>
                         <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
                           {s.saleItem?.sale.receiptNumber ?? '—'}
+                        </td>
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-1 justify-end">
+                            {!s.saleItemId && (
+                              <>
+                                <button
+                                  onClick={() => setEditSerial(s)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                                  title="แก้ไข"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteSerial(s)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                                  title="ลบ"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
@@ -276,6 +303,33 @@ export default function SerialsPage() {
           onUpdated={(s) => {
             setDetailSerial(s)
             queryClient.invalidateQueries({ queryKey: ['serials'] })
+          }}
+        />
+      )}
+
+      {/* Edit dialog */}
+      {editSerial && (
+        <EditSerialDialog
+          serial={editSerial}
+          products={products}
+          onClose={() => setEditSerial(null)}
+          onSuccess={() => {
+            setEditSerial(null)
+            queryClient.invalidateQueries({ queryKey: ['serials'] })
+            toast.success('แก้ไข Serial เรียบร้อย')
+          }}
+        />
+      )}
+
+      {/* Delete confirm dialog */}
+      {deleteSerial && (
+        <DeleteSerialDialog
+          serial={deleteSerial}
+          onClose={() => setDeleteSerial(null)}
+          onSuccess={() => {
+            setDeleteSerial(null)
+            queryClient.invalidateQueries({ queryKey: ['serials'] })
+            toast.success('ลบ Serial เรียบร้อย')
           }}
         />
       )}
@@ -555,6 +609,145 @@ function SerialDetailDialog({
               บันทึก
             </Button>
           )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Edit Serial Dialog ───────────────────────────────────────────────────────
+
+function EditSerialDialog({
+  serial,
+  products,
+  onClose,
+  onSuccess,
+}: {
+  serial: SerialNumber
+  products: Product[]
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [serialStr, setSerialStr] = useState(serial.serial)
+  const [productId, setProductId] = useState(serial.productId ?? '')
+  const [note,      setNote]      = useState(serial.note ?? '')
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.patch(`/serials/${serial.id}`, {
+        serial:    serialStr.trim() !== serial.serial ? serialStr.trim() : undefined,
+        productId: productId !== (serial.productId ?? '') ? productId : undefined,
+        note:      note.trim(),
+      }),
+    onSuccess,
+    onError: (err: any) => {
+      const msg = err.response?.data?.message ?? 'เกิดข้อผิดพลาด'
+      toast.error(Array.isArray(msg) ? msg[0] : msg)
+    },
+  })
+
+  const hasChanges =
+    serialStr.trim() !== serial.serial ||
+    productId !== (serial.productId ?? '') ||
+    note.trim() !== (serial.note ?? '')
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>แก้ไข Serial</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <Label>Serial / IMEI <span className="text-red-500">*</span></Label>
+            <Input
+              value={serialStr}
+              onChange={(e) => setSerialStr(e.target.value)}
+              className="font-mono"
+              placeholder="กรอก Serial หรือ IMEI"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>สินค้า <span className="text-red-500">*</span></Label>
+            <Select value={productId} onValueChange={setProductId}>
+              <SelectTrigger><SelectValue placeholder="เลือกสินค้า" /></SelectTrigger>
+              <SelectContent>
+                {products.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>หมายเหตุ</Label>
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="ไม่บังคับ"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>ยกเลิก</Button>
+          <Button
+            disabled={!serialStr.trim() || !productId || !hasChanges || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            บันทึก
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Delete Confirm Dialog ────────────────────────────────────────────────────
+
+function DeleteSerialDialog({
+  serial,
+  onClose,
+  onSuccess,
+}: {
+  serial: SerialNumber
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const mutation = useMutation({
+    mutationFn: () => api.delete(`/serials/${serial.id}`),
+    onSuccess,
+    onError: (err: any) => {
+      const msg = err.response?.data?.message ?? 'เกิดข้อผิดพลาด'
+      toast.error(Array.isArray(msg) ? msg[0] : msg)
+    },
+  })
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-red-600">ลบ Serial?</DialogTitle>
+        </DialogHeader>
+        <div className="py-2 space-y-2 text-sm">
+          <p>
+            คุณแน่ใจว่าต้องการลบ{' '}
+            <span className="font-mono font-semibold">{serial.serial}</span> ใช่หรือไม่?
+          </p>
+          <p className="text-muted-foreground text-xs">
+            สินค้า: {serial.product?.name ?? '—'}
+          </p>
+          <p className="text-red-500 text-xs font-medium">การกระทำนี้ไม่สามารถย้อนกลับได้</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>ยกเลิก</Button>
+          <Button
+            variant="destructive"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            ลบ Serial
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

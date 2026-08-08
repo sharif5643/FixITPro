@@ -8,4 +8,12 @@ export class UpdateSerialDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  serial?: string;
+
+  @IsOptional()
+  @IsString()
+  productId?: string;
 }

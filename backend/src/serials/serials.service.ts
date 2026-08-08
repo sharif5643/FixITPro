@@ -140,11 +140,42 @@ export class SerialsService {
   }
 
   async update(id: string, dto: UpdateSerialDto, tenantId?: string | null) {
-    await this.findOne(id, tenantId);
+    const existing = await this.findOne(id, tenantId);
+
+    // If editing serial string, check uniqueness
+    if (dto.serial && dto.serial !== existing.serial) {
+      const conflict = await this.prisma.serialNumber.findFirst({
+        where: { serial: dto.serial, product: { tenantId: tenantId ?? undefined } },
+      });
+      if (conflict) throw new ConflictException(`Serial "${dto.serial}" มีในระบบแล้ว`);
+    }
+
+    // If changing product, verify it belongs to same tenant
+    if (dto.productId && dto.productId !== existing.productId) {
+      const productWhere: any = { id: dto.productId };
+      if (tenantId) productWhere.tenantId = tenantId;
+      const product = await this.prisma.product.findFirst({ where: productWhere });
+      if (!product) throw new NotFoundException('Product not found');
+    }
+
     return this.prisma.serialNumber.update({
       where: { id },
-      data: { status: dto.status as any, note: dto.note },
+      data: {
+        ...(dto.status    ? { status: dto.status as any } : {}),
+        ...(dto.note      !== undefined ? { note: dto.note } : {}),
+        ...(dto.serial    ? { serial: dto.serial } : {}),
+        ...(dto.productId ? { productId: dto.productId } : {}),
+      },
       include: SERIAL_INCLUDE,
     });
+  }
+
+  async remove(id: string, tenantId?: string | null) {
+    const serial = await this.findOne(id, tenantId);
+    if (serial.saleItemId) {
+      throw new BadRequestException('ไม่สามารถลบ Serial ที่ขายแล้วได้');
+    }
+    await this.prisma.serialNumber.delete({ where: { id } });
+    return { success: true };
   }
 }
