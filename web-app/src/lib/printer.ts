@@ -489,36 +489,37 @@ export async function printReceipt(opts: PrintReceiptOptions): Promise<void> {
 function makeReceiptThermalCss(px: number): string {
   // r(n): scale web component's CSS pixel value to thermal pixel width
   const r = (webPx: number) => Math.round(webPx * px / 200)
+  // Thermal printer luminance threshold: lum(color) < 128 = black dot.
+  // #9CA3AF (gray-400) has lum≈162 → invisible on thermal → use #777 (lum≈118) instead.
   return `
   @page { margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { height: fit-content; }
   body {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-family: 'Courier New', Courier, monospace;
     font-size: ${r(11)}px;
-    line-height: 1.625;
+    line-height: 1.5;
     width: ${px}px;
     height: fit-content;
-    padding: ${r(4)}px ${r(6)}px ${r(16)}px ${r(6)}px;
-    color: #111827;
+    padding: ${r(4)}px ${r(8)}px ${r(16)}px ${r(8)}px;
+    color: #111;
     background: #fff;
   }
   .c    { text-align: center; }
   .b    { font-weight: 700; }
-  .gray { color: #4B5563; }
-  .gray2{ color: #9CA3AF; }
-  .shop-name { font-size: ${r(14)}px; font-weight: 700; letter-spacing: 0.1em; }
-  .hr   { border: none; border-top: 1px dashed #9CA3AF; margin: ${r(8)}px 0; }
-  .sec  { padding-bottom: ${r(4)}px; }
+  .gray { color: #555; }
+  .shop-name { font-size: ${r(14)}px; font-weight: 700; letter-spacing: 0.08em; }
+  .hr   { border: none; border-top: 1px dashed #777; margin: ${r(6)}px 0; }
+  .sec  { padding-bottom: ${r(3)}px; }
   .row  { display: flex; justify-content: space-between; gap: ${r(4)}px; }
-  .row .v { white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }
-  .sig  { display: flex; justify-content: space-between; margin: ${r(12)}px 0 ${r(8)}px; }
+  .row .v { white-space: nowrap; text-align: right; }
+  .sig  { display: flex; justify-content: space-between; margin: ${r(10)}px 0 ${r(6)}px; }
   .sig-box  { text-align: center; font-size: ${r(10)}px; }
-  .sig-line { width: ${r(80)}px; border-bottom: 1px dashed #9CA3AF; margin-bottom: ${r(4)}px; height: ${r(28)}px; }
-  .cut  { border-top: 2px dashed #374151; margin: ${r(10)}px 0; text-align: center; font-size: ${r(10)}px; color: #6B7280; letter-spacing: 2px; }
+  .sig-line { width: ${r(80)}px; border-bottom: 1px solid #777; margin-bottom: ${r(4)}px; height: ${r(28)}px; }
+  .cut  { border-top: 2px dashed #333; margin: ${r(10)}px 0; text-align: center; font-size: ${r(10)}px; color: #555; letter-spacing: 2px; }
   .qr-t   { font-size: ${r(10)}px; font-weight: 700; }
-  .qr-s   { font-size: ${r(9)}px; color: #6B7280; }
-  .qr-url { word-break: break-all; font-size: ${r(8)}px; color: #9CA3AF; line-height: 1.3; margin-top: ${r(2)}px; }
+  .qr-s   { font-size: ${r(9)}px; color: #555; }
+  .qr-url { word-break: break-all; font-size: ${r(8)}px; color: #666; line-height: 1.3; margin-top: ${r(2)}px; }
   .qr-svg svg { width: ${r(90)}px !important; height: ${r(90)}px !important; }
   p + p { margin-top: ${r(2)}px; }
 `
