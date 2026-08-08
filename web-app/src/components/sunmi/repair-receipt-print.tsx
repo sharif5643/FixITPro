@@ -30,6 +30,7 @@ export function RepairReceiptPrintFlow({
   const [state, setState]           = useState<FlowState>('pick-printer')
   const [printer, setPrinter]       = useState<PrinterInfo | null>(null)
   const [selectedCopy, setSelectedCopy] = useState<CopyType>('both')
+  const [paperWidth, setPaperWidth] = useState<'58mm' | '80mm'>('58mm')
   const [printing, setPrinting]     = useState(false)
   const [errorMsg, setErrorMsg]     = useState('')
 
@@ -92,19 +93,19 @@ export function RepairReceiptPrintFlow({
         const url    = phone
           ? `${origin}/track/${encodeURIComponent(repair.ticketNumber)}?phone=${encodeURIComponent(phone)}`
           : `${origin}/track/${encodeURIComponent(repair.ticketNumber)}`
-        try { qrSvg = await QRCode.default.toString(url, { type: 'svg', width: 160, margin: 1 }) }
+        try { qrSvg = await QRCode.default.toString(url, { type: 'svg', width: paperWidth === '80mm' ? 240 : 160, margin: 1 }) }
         catch { /* QR optional */ }
       }
 
       if (selectedCopy === 'both') {
         const html = buildRepairReceiptThermalHtml(repair, settings, {
-          copyType: 'both', trackingOrigin: origin, qrSvg,
+          copyType: 'both', trackingOrigin: origin, qrSvg, paperWidth,
         })
         const r = await SunmiPrinter.printHtml({ html, printerId: printer.id, jobName: `ใบรับซ่อม (2 ฉบับ)` })
         if (!r.success) throw new Error(r.error ?? 'พิมพ์ไม่สำเร็จ')
       } else {
         const html = buildRepairReceiptThermalHtml(repair, settings, {
-          copyType: selectedCopy, trackingOrigin: origin, qrSvg,
+          copyType: selectedCopy, trackingOrigin: origin, qrSvg, paperWidth,
         })
         const r = await SunmiPrinter.printHtml({ html, printerId: printer.id, jobName: `ใบรับซ่อม (${selectedCopy === 'shop' ? 'ใบร้าน' : 'ใบลูกค้า'})` })
         if (!r.success) throw new Error(r.error ?? 'พิมพ์ไม่สำเร็จ')
@@ -242,7 +243,7 @@ export function RepairReceiptPrintFlow({
     <div className="fixed inset-0 z-50 bg-white flex flex-col">
       <Header onBack={() => setState('pick-printer')} />
 
-      {/* Copy type buttons */}
+      {/* Copy type + paper size buttons */}
       <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 shrink-0 space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <button
@@ -276,6 +277,26 @@ export function RepairReceiptPrintFlow({
         >
           <span>✨</span> พิมพ์ 2 ฉบับ (ร้าน + ลูกค้า)
         </button>
+
+        {/* Paper width selector */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500 shrink-0">กระดาษ:</span>
+          <div className="flex gap-1 flex-1">
+            {(['58mm', '80mm'] as const).map((w) => (
+              <button
+                key={w}
+                onClick={() => setPaperWidth(w)}
+                className={`flex-1 h-8 rounded-xl text-xs font-semibold transition-colors ${
+                  paperWidth === w
+                    ? 'bg-slate-700 text-white'
+                    : 'bg-white border border-slate-200 text-slate-600'
+                }`}
+              >
+                {w}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Receipt preview — native RepairReceipt component */}
@@ -291,7 +312,7 @@ export function RepairReceiptPrintFlow({
               <div className="px-2 pt-2">
                 <RepairReceipt
                   repair={repair}
-                  paperWidth="58mm"
+                  paperWidth={paperWidth}
                   settings={settings}
                 />
               </div>
@@ -311,7 +332,7 @@ export function RepairReceiptPrintFlow({
               <div className="px-2 pb-2">
                 <RepairReceipt
                   repair={repair}
-                  paperWidth="58mm"
+                  paperWidth={paperWidth}
                   settings={settings}
                   trackingBaseUrl={origin}
                 />
