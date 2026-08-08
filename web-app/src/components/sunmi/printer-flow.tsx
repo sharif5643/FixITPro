@@ -450,6 +450,20 @@ function PreviewStep({
     if (!html.includes('<base ')) {
       html = html.replace('<head>', '<head><base href="https://fixitpro.in.th/">')
     }
+    // Thermal print CSS: remove screen-only chrome and scale receipt to fill paper width.
+    // RepairReceipt uses w-[200px] for screen display; SUNMI renders at ~384px (58mm paper),
+    // so without this the receipt appears narrow with gray margins on both sides.
+    const isA4 = (urlOverride ?? previewUrl ?? '').includes('paper=A4')
+    if (!isA4) {
+      const thermalPrintCss =
+        'html,body{background:#fff!important;margin:0!important;padding:0!important}' +
+        '.bg-gray-100,.min-h-screen{background:#fff!important;min-height:0!important}' +
+        '.flex.justify-center{display:block!important;padding:0!important}' +
+        '.shadow-md{box-shadow:none!important;padding:2px!important}' +
+        '#repair-receipt{width:100%!important;max-width:none!important;margin:0!important;zoom:1.92}' +
+        '.no-print{display:none!important}'
+      html = html.replace('</head>', `<style>${thermalPrintCss}</style></head>`)
+    }
     return html
   }
 
