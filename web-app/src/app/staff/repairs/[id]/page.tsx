@@ -16,7 +16,7 @@ import { printRepairReceipt } from '@/lib/print'
 import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 import { Platform } from '@/lib/platform'
 import { buildRepairIntakeHtml, buildRepairIntakePreviewData, shareRepairIntake } from '@/lib/printer'
-import type { PrintRepairIntakeOptions, RepairCopyType } from '@/lib/printer'
+import type { PrintRepairIntakeOptions } from '@/lib/printer'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import type { ShopSettings } from '@/types'
 
@@ -523,12 +523,12 @@ export default function RepairDetailPage() {
           receiptHtml={buildRepairIntakeHtml(printOpts, 'customer')}
           jobName={`ใบรับซ่อม ${printOpts.ticketNumber}`}
           previewData={buildRepairIntakePreviewData(printOpts)}
-          htmlVariants={
-            (['customer', 'shop', 'both', 'a4'] as RepairCopyType[]).reduce(
-              (acc, t) => ({ ...acc, [t]: buildRepairIntakeHtml(printOpts, t) }),
-              {} as Record<RepairCopyType, string>,
-            )
-          }
+          urlVariants={{
+            customer: `/print/repair/${id}?paper=58mm&mode=apk`,
+            shop:     `/print/repair/${id}?paper=58mm&mode=apk`,
+            both:     `/print/repair/${id}?paper=58mm&copies=2&mode=apk`,
+            a4:       `/print/repair/${id}?paper=A4&mode=apk`,
+          }}
           onShare={async () => shareRepairIntake(printOpts)}
           onClose={() => setPrintOpts(null)}
         />

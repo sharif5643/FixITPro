@@ -39,14 +39,16 @@ interface PrinterInfo {
 }
 
 export interface PrinterFlowSheetProps {
-  receiptHtml:      string            // default HTML (fallback / used when no variants)
+  receiptHtml:      string            // fallback HTML (used when urlVariants/htmlVariants unavailable)
   jobName:          string
   previewData:      ThermalPreviewData
   onShare?:         () => Promise<void>
   onClose:          () => void
   successNavItems?: { label: string; href: string }[]
   autoPrint?:       boolean
-  /** When provided, shows a copy-type selection step before preview */
+  /** When provided, shows a copy-type selection step and renders actual web receipt in iframe */
+  urlVariants?:  Record<RepairCopyType, string>
+  /** When provided (and urlVariants absent), shows copy-type step with standalone HTML */
   htmlVariants?: Record<RepairCopyType, string>
 }
 
@@ -403,6 +405,7 @@ function PrinterPickerStep({ onSelect, onClose }: PrinterPickerProps) {
 interface PreviewStepProps {
   previewData:      ThermalPreviewData
   receiptHtml:      string
+  previewUrl?:      string   // when set, iframe loads this URL and HTML is extracted at print time
   jobName:          string
   printer:          PrinterInfo | null   // null = web fallback (window.print)
   onChangePrinter?: () => void
@@ -412,17 +415,36 @@ interface PreviewStepProps {
 }
 
 function PreviewStep({
-  previewData, receiptHtml, jobName, printer,
+  previewData, receiptHtml, previewUrl, jobName, printer,
   onChangePrinter, onShare, onSuccess, onError,
 }: PreviewStepProps) {
   const [sharing, setSharing] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  async function getHtmlForPrinting(): Promise<string> {
+    if (!previewUrl || !iframeRef.current) return receiptHtml
+    const doc = iframeRef.current.contentDocument
+    if (!doc) return receiptHtml
+    // Wait up to 15 s for the React page to finish fetching + rendering
+    for (let i = 0; i < 30; i++) {
+      if (doc.documentElement.getAttribute('data-receipt-ready') === '1') break
+      await new Promise((r) => setTimeout(r, 500))
+    }
+    let html = doc.documentElement.outerHTML
+    // Resolve relative Next.js asset URLs in SUNMI's WebView
+    if (!html.includes('<base ')) {
+      html = html.replace('<head>', '<head><base href="https://fixitpro.in.th/">')
+    }
+    return html
+  }
 
   async function handlePrint() {
+    const htmlToPrint = await getHtmlForPrinting()
     if (printer) {
       // Native: send to printer via plugin
       const { SunmiPrinter } = await import('@/lib/sunmi-printer')
       const res = await SunmiPrinter.printHtml({
-        html:      receiptHtml,
+        html:      htmlToPrint,
         printerId: printer.id,
         jobName,
       })
@@ -446,7 +468,7 @@ function PreviewStep({
       // Web: popup window.print()
       const win = window.open('', '_blank', 'width=320,height=600,toolbar=0,menubar=0')
       if (win) {
-        win.document.write(receiptHtml)
+        win.document.write(htmlToPrint)
         win.document.close()
         win.focus()
         setTimeout(() => { win.print(); setTimeout(() => win.close(), 800) }, 300)
@@ -486,8 +508,8 @@ function PreviewStep({
         )}
       </div>
 
-      {/* Receipt preview — actual HTML rendered in iframe */}
-      <HtmlPreview html={receiptHtml} />
+      {/* Receipt preview — web URL iframe (exact match) or standalone HTML fallback */}
+      <HtmlPreview html={previewUrl ? undefined : receiptHtml} url={previewUrl} iframeRef={iframeRef} />
 
       {/* Action buttons */}
       <div className="px-4 pt-3 shrink-0 space-y-2.5" style={{ paddingBottom: 'calc(32px + env(safe-area-inset-bottom))' }}>
@@ -702,12 +724,18 @@ function CopyTypeStep({ onSelect }: {
 
 // ── HTML receipt preview (iframe) ─────────────────────────────────────────────
 
-function HtmlPreview({ html }: { html: string }) {
+function HtmlPreview({ html, url, iframeRef }: {
+  html?:      string
+  url?:       string
+  iframeRef?: React.RefObject<HTMLIFrameElement>
+}) {
   return (
     <div className="flex-1 bg-slate-100 overflow-auto">
       <iframe
+        ref={iframeRef}
         title="receipt preview"
-        srcDoc={html}
+        srcDoc={url ? undefined : (html ?? '')}
+        src={url}
         style={{ width: '100%', minHeight: '520px', border: 'none', display: 'block' }}
       />
     </div>
@@ -718,16 +746,18 @@ function HtmlPreview({ html }: { html: string }) {
 
 export function PrinterFlowSheet({
   receiptHtml, jobName, previewData,
-  onShare, onClose, successNavItems, autoPrint, htmlVariants,
+  onShare, onClose, successNavItems, autoPrint, htmlVariants, urlVariants,
 }: PrinterFlowSheetProps) {
   const isNative = Platform.isNative()
+  const hasVariants = !!(htmlVariants || urlVariants)
 
   // On web: skip printer picker and go straight to preview with null printer
-  const [state,      setState]     = useState<FlowState>(isNative ? 'pick-printer' : 'preview')
-  const [printer,    setPrinter]   = useState<PrinterInfo | null>(null)
-  const [errorMsg,   setErrorMsg]  = useState('')
+  const [state,      setState]      = useState<FlowState>(isNative ? 'pick-printer' : 'preview')
+  const [printer,    setPrinter]    = useState<PrinterInfo | null>(null)
+  const [errorMsg,   setErrorMsg]   = useState('')
   const [activeHtml, setActiveHtml] = useState(receiptHtml)
-  const autoPrintFiredRef          = useRef(false)
+  const [activeUrl,  setActiveUrl]  = useState<string | undefined>(undefined)
+  const autoPrintFiredRef           = useRef(false)
 
   // Android back button
   useEffect(() => pushBackHandler(onClose), [onClose])
@@ -780,8 +810,8 @@ export function PrinterFlowSheet({
         await SunmiPrinter.setDefaultPrinter({ printerId: p.id, printerName: p.name })
       } catch { /* non-critical */ }
     }
-    setState(htmlVariants ? 'pick-copy' : 'preview')
-  }, [htmlVariants])
+    setState(hasVariants ? 'pick-copy' : 'preview')
+  }, [hasVariants])
 
   return (
     // Full-screen bottom sheet overlay
@@ -794,11 +824,11 @@ export function PrinterFlowSheet({
           <div className="flex-1">
             {state === 'preview' && isNative && (
               <button
-                onClick={() => setState(htmlVariants ? 'pick-copy' : 'pick-printer')}
+                onClick={() => setState(hasVariants ? 'pick-copy' : 'pick-printer')}
                 className="flex items-center gap-1 text-slate-400 active:text-slate-700 text-sm"
               >
                 <ArrowLeft className="h-4 w-4" />
-                {htmlVariants ? 'รูปแบบ' : 'เครื่องพิมพ์'}
+                {hasVariants ? 'รูปแบบ' : 'เครื่องพิมพ์'}
               </button>
             )}
           </div>
@@ -825,11 +855,15 @@ export function PrinterFlowSheet({
         )}
 
         {/* Step: Copy type picker */}
-        {state === 'pick-copy' && htmlVariants && (
+        {state === 'pick-copy' && hasVariants && (
           <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
             <CopyTypeStep
               onSelect={(type) => {
-                setActiveHtml(htmlVariants[type])
+                if (urlVariants) {
+                  setActiveUrl(urlVariants[type])
+                } else if (htmlVariants) {
+                  setActiveHtml(htmlVariants[type])
+                }
                 setState('preview')
               }}
             />
@@ -849,9 +883,10 @@ export function PrinterFlowSheet({
             <PreviewStep
               previewData={previewData}
               receiptHtml={activeHtml}
+              previewUrl={activeUrl}
               jobName={jobName}
               printer={printer}
-              onChangePrinter={isNative ? () => setState(htmlVariants ? 'pick-copy' : 'pick-printer') : undefined}
+              onChangePrinter={isNative ? () => setState(hasVariants ? 'pick-copy' : 'pick-printer') : undefined}
               onShare={onShare}
               onSuccess={() => setState('success')}
               onError={(msg) => { setErrorMsg(msg); setState('error') }}

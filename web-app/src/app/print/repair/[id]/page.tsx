@@ -15,6 +15,7 @@ export default function RepairPrintPage() {
   const searchParams = useSearchParams()
   const paperWidth = (searchParams.get('paper') as PW) || '80mm'
   const dual       = searchParams.get('copies') === '2'
+  const isApkMode  = searchParams.get('mode') === 'apk'
   const [printed, setPrinted] = useState(false)
   const [origin, setOrigin]   = useState('')
 
@@ -44,19 +45,26 @@ export default function RepairPrintPage() {
     return () => document.getElementById('print-page-size')?.remove()
   }, [paperWidth])
 
-  // Auto-print after data loads (once only)
+  // Signal APK iframe that receipt data is ready
   useEffect(() => {
-    if (data && !printed) {
+    if (data && isApkMode) {
+      document.documentElement.setAttribute('data-receipt-ready', '1')
+    }
+  }, [data, isApkMode])
+
+  // Auto-print after data loads (browser only — suppressed in APK iframe mode)
+  useEffect(() => {
+    if (data && !printed && !isApkMode) {
       setPrinted(true)
       const t = setTimeout(() => window.print(), 600)
       return () => clearTimeout(t)
     }
-  }, [data, printed])
+  }, [data, printed, isApkMode])
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Print controls — hidden when printing */}
-      <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-2 bg-white border-b px-4 py-2 shadow-sm">
+      {/* Print controls — hidden when printing or in APK iframe mode */}
+      <div className={`no-print sticky top-0 z-10 flex items-center justify-between gap-2 bg-white border-b px-4 py-2 shadow-sm${isApkMode ? ' hidden' : ''}`}>
         <span className="text-sm font-semibold text-gray-700">
           ใบรับงานซ่อม — {paperWidth === 'A4' ? 'A4' : paperWidth}{dual ? ' (2 ฉบับ)' : ''}
         </span>
