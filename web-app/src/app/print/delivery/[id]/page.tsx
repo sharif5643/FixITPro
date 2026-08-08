@@ -8,14 +8,16 @@ import { RepairDeliveryReceipt } from '@/components/receipt/repair-delivery-rece
 import api from '@/lib/api'
 import type { Repair, ShopSettings } from '@/types'
 
-type PW = '58mm' | '80mm' | 'A4'
+type PW = '58mm' | '80mm'
 
 export default function DeliveryPrintPage() {
   const { id }       = useParams<{ id: string }>()
   const searchParams = useSearchParams()
-  const paperWidth   = (searchParams.get('paper') as PW) || '80mm'
+  const initWidth    = (searchParams.get('paper') as PW) === '58mm' ? '58mm' : '80mm'
   const dual         = searchParams.get('copies') === '2'
-  const [printed, setPrinted] = useState(false)
+
+  const [paperWidth, setPaperWidth] = useState<PW>(initWidth)
+  const [printed, setPrinted]       = useState(false)
 
   const { data, isLoading, isError } = useQuery<Repair>({
     queryKey: ['repairs', id],
@@ -29,19 +31,19 @@ export default function DeliveryPrintPage() {
     staleTime: 60_000,
   })
 
-  // Inject @page CSS for paper size
+  // Inject @page CSS whenever paper width changes
   useEffect(() => {
     const style = document.createElement('style')
     style.id = 'print-page-size'
     style.textContent = `
-      @page { size: ${paperWidth === 'A4' ? 'A4 portrait' : `${paperWidth} auto`}; margin: ${paperWidth === 'A4' ? '10mm' : '3mm'}; }
+      @page { size: ${paperWidth} auto; margin: 3mm; }
       @media print { .no-print { display: none !important; } }
     `
     document.head.appendChild(style)
     return () => document.getElementById('print-page-size')?.remove()
   }, [paperWidth])
 
-  // Auto-print after data loads
+  // Auto-print once after data loads
   useEffect(() => {
     if (data && !printed) {
       setPrinted(true)
@@ -52,11 +54,30 @@ export default function DeliveryPrintPage() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-2 bg-white border-b px-4 py-2 shadow-sm">
-        <span className="text-sm font-semibold text-gray-700">
-          ใบเสร็จรับเงิน — {paperWidth === 'A4' ? 'A4' : paperWidth}{dual ? ' (2 ฉบับ)' : ''}
+      {/* Toolbar */}
+      <div className="no-print sticky top-0 z-10 flex items-center gap-3 bg-white border-b px-4 py-2 shadow-sm">
+        <span className="text-sm font-semibold text-gray-700 shrink-0">
+          ใบเสร็จรับเงิน{dual ? ' (2 ฉบับ)' : ''}
         </span>
-        <div className="flex gap-2">
+
+        {/* Paper width toggle */}
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-semibold">
+          {(['80mm', '58mm'] as PW[]).map((w) => (
+            <button
+              key={w}
+              onClick={() => setPaperWidth(w)}
+              className={`px-3 py-1.5 transition-colors ${
+                paperWidth === w
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {w}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2 ml-auto">
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
