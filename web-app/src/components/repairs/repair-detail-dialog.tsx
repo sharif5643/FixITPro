@@ -1020,22 +1020,18 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     รับชำระเพิ่มเติม
                   </Button>
 
-                  {/* Print delivery receipt */}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full mt-1 gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                    onClick={() => {
-                      if (Platform.isNative()) {
-                        setShowDeliveryPrint(true)
-                      } else {
-                        window.open(`/print/delivery/${repairId}?paper=A4&copies=2`, '_blank')
-                      }
-                    }}
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    พิมพ์ใบเสร็จรับเงิน
-                  </Button>
+                  {/* Print delivery receipt — thermal only, shown in APK */}
+                  {Platform.isNative() && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-1 gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                      onClick={() => setShowDeliveryPrint(true)}
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      พิมพ์ใบเสร็จรับเงิน
+                    </Button>
+                  )}
                 </div>
               )}
 

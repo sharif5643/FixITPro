@@ -98,10 +98,6 @@ export function RepairDeliveryPrintFlow({ repairId, onClose, successNavItems }: 
     }
   }
 
-  function handlePrintA4() {
-    window.open(`/print/delivery/${repairId}?paper=A4`, '_blank')
-  }
-
   // ── Header ───────────────────────────────────────────────────────────────────
 
   function Header({ onBack }: { onBack?: () => void }) {
@@ -288,22 +284,15 @@ export function RepairDeliveryPrintFlow({ repairId, onClose, successNavItems }: 
         )}
       </div>
 
-      {/* Action buttons */}
+      {/* Action button */}
       <div
-        className="px-4 pt-3 shrink-0 grid grid-cols-2 gap-2"
+        className="px-4 pt-3 shrink-0"
         style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}
       >
         <button
-          onClick={handlePrintA4}
-          className="h-14 rounded-2xl border border-slate-200 bg-white font-semibold text-sm text-slate-700 flex items-center justify-center gap-2 active:bg-slate-50"
-        >
-          <Printer className="h-4 w-4" />
-          พิมพ์ A4
-        </button>
-        <button
           onClick={handlePrint}
           disabled={printing || isLoading}
-          className="h-14 rounded-2xl bg-emerald-600 text-white font-bold text-base flex items-center justify-center gap-2 active:bg-emerald-700 disabled:opacity-60"
+          className="w-full h-14 rounded-2xl bg-emerald-600 text-white font-bold text-base flex items-center justify-center gap-2 active:bg-emerald-700 disabled:opacity-60"
         >
           {printing ? (
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
