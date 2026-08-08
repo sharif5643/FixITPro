@@ -474,10 +474,16 @@ export default function RepairDetailPage() {
       {/* ── Bottom actions ────────────────────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 pt-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}>
 
-        {/* Print delivery receipt — shown when repair is paid, native only */}
-        {repair.paymentStatus === 'PAID' && Platform.isNative() && (
+        {/* Print delivery receipt — shown when repair is paid */}
+        {repair.paymentStatus === 'PAID' && (
           <button
-            onClick={() => setShowDeliveryPrint(true)}
+            onClick={() => {
+              if (Platform.isNative()) {
+                setShowDeliveryPrint(true)
+              } else {
+                window.open(`/print/delivery/${id}?paper=80mm&copies=2`, '_blank')
+              }
+            }}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-sm font-bold text-white shadow-[0_4px_16px_rgba(5,150,105,0.3)] active:scale-[0.98] transition-transform"
           >
             <Printer className="h-4 w-4" />
