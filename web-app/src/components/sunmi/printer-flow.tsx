@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { Platform } from '@/lib/platform'
 import { pushBackHandler } from '@/lib/back-stack'
+import type { RepairCopyType } from '@/lib/printer'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,19 +39,20 @@ interface PrinterInfo {
 }
 
 export interface PrinterFlowSheetProps {
-  receiptHtml:      string            // actual HTML to send to printer
+  receiptHtml:      string            // default HTML (fallback / used when no variants)
   jobName:          string
   previewData:      ThermalPreviewData
-  onShare?:         () => Promise<void>  // optional share button (LINE/WhatsApp)
+  onShare?:         () => Promise<void>
   onClose:          () => void
   successNavItems?: { label: string; href: string }[]
-  /** When true + default printer is saved, skip preview and print immediately (one-tap) */
   autoPrint?:       boolean
+  /** When provided, shows a copy-type selection step before preview */
+  htmlVariants?: Record<RepairCopyType, string>
 }
 
 // ── State machine ─────────────────────────────────────────────────────────────
 
-type FlowState = 'pick-printer' | 'preview' | 'auto-printing' | 'printing' | 'success' | 'error'
+type FlowState = 'pick-printer' | 'pick-copy' | 'preview' | 'auto-printing' | 'printing' | 'success' | 'error'
 
 // ── Thermal receipt preview ───────────────────────────────────────────────────
 // Full-width paper strip — same font sizes and spacing as the printed HTML so the
@@ -484,10 +486,8 @@ function PreviewStep({
         )}
       </div>
 
-      {/* Receipt preview (scrollable) — full-width paper strip on gray tray */}
-      <div className="flex-1 overflow-y-auto bg-slate-200">
-        <ThermalReceiptCard data={previewData} />
-      </div>
+      {/* Receipt preview — actual HTML rendered in iframe */}
+      <HtmlPreview html={receiptHtml} />
 
       {/* Action buttons */}
       <div className="px-4 pt-3 shrink-0 space-y-2.5" style={{ paddingBottom: 'calc(32px + env(safe-area-inset-bottom))' }}>
@@ -662,19 +662,72 @@ function PrintingStep({ printerName }: { printerName: string }) {
   )
 }
 
+// ── Copy type picker step ─────────────────────────────────────────────────────
+
+const COPY_OPTIONS: { type: RepairCopyType; label: string; desc: string; icon: string }[] = [
+  { type: 'customer', label: '58mm — ฉบับลูกค้า',   desc: '1 ใบ มอบให้ลูกค้า',            icon: '👤' },
+  { type: 'shop',     label: '58mm — สำเนาร้าน',    desc: '1 ใบ เก็บที่ร้าน',              icon: '🏪' },
+  { type: 'both',     label: '58mm — 2 ฉบับ',       desc: 'ลูกค้า + ร้าน พิมพ์ครั้งเดียว', icon: '📄' },
+  { type: 'a4',       label: 'A4 — กระดาษทั่วไป',   desc: 'เครื่องพิมพ์เลเซอร์/อิงค์เจ็ต', icon: '📋' },
+]
+
+function CopyTypeStep({ onSelect }: {
+  onSelect: (type: RepairCopyType) => void
+}) {
+  return (
+    <div className="flex flex-col h-full">
+      <div className="px-4 pb-3 shrink-0">
+        <p className="font-bold text-lg text-slate-900">เลือกรูปแบบการพิมพ์</p>
+        <p className="text-xs text-slate-400 mt-0.5">เลือกจำนวนสำเนาและขนาดกระดาษ</p>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 space-y-2 pb-4">
+        {COPY_OPTIONS.map(({ type, label, desc, icon }) => (
+          <button
+            key={type}
+            onClick={() => onSelect(type)}
+            className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-slate-200 bg-white active:bg-blue-50 active:border-blue-400 text-left"
+          >
+            <span className="text-2xl shrink-0">{icon}</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-900 text-sm">{label}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── HTML receipt preview (iframe) ─────────────────────────────────────────────
+
+function HtmlPreview({ html }: { html: string }) {
+  return (
+    <div className="flex-1 bg-slate-100 overflow-auto">
+      <iframe
+        title="receipt preview"
+        srcDoc={html}
+        style={{ width: '100%', minHeight: '520px', border: 'none', display: 'block' }}
+      />
+    </div>
+  )
+}
+
 // ── Main PrinterFlowSheet ─────────────────────────────────────────────────────
 
 export function PrinterFlowSheet({
   receiptHtml, jobName, previewData,
-  onShare, onClose, successNavItems, autoPrint,
+  onShare, onClose, successNavItems, autoPrint, htmlVariants,
 }: PrinterFlowSheetProps) {
   const isNative = Platform.isNative()
 
   // On web: skip printer picker and go straight to preview with null printer
-  const [state,    setState]   = useState<FlowState>(isNative ? 'pick-printer' : 'preview')
-  const [printer,  setPrinter] = useState<PrinterInfo | null>(null)
-  const [errorMsg, setErrorMsg] = useState('')
-  const autoPrintFiredRef      = useRef(false)
+  const [state,      setState]     = useState<FlowState>(isNative ? 'pick-printer' : 'preview')
+  const [printer,    setPrinter]   = useState<PrinterInfo | null>(null)
+  const [errorMsg,   setErrorMsg]  = useState('')
+  const [activeHtml, setActiveHtml] = useState(receiptHtml)
+  const autoPrintFiredRef          = useRef(false)
 
   // Android back button
   useEffect(() => pushBackHandler(onClose), [onClose])
@@ -727,8 +780,8 @@ export function PrinterFlowSheet({
         await SunmiPrinter.setDefaultPrinter({ printerId: p.id, printerName: p.name })
       } catch { /* non-critical */ }
     }
-    setState('preview')
-  }, [])
+    setState(htmlVariants ? 'pick-copy' : 'preview')
+  }, [htmlVariants])
 
   return (
     // Full-screen bottom sheet overlay
@@ -741,11 +794,11 @@ export function PrinterFlowSheet({
           <div className="flex-1">
             {state === 'preview' && isNative && (
               <button
-                onClick={() => setState('pick-printer')}
+                onClick={() => setState(htmlVariants ? 'pick-copy' : 'pick-printer')}
                 className="flex items-center gap-1 text-slate-400 active:text-slate-700 text-sm"
               >
                 <ArrowLeft className="h-4 w-4" />
-                เครื่องพิมพ์
+                {htmlVariants ? 'รูปแบบ' : 'เครื่องพิมพ์'}
               </button>
             )}
           </div>
@@ -771,6 +824,18 @@ export function PrinterFlowSheet({
           </div>
         )}
 
+        {/* Step: Copy type picker */}
+        {state === 'pick-copy' && htmlVariants && (
+          <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
+            <CopyTypeStep
+              onSelect={(type) => {
+                setActiveHtml(htmlVariants[type])
+                setState('preview')
+              }}
+            />
+          </div>
+        )}
+
         {/* Step: Auto-printing (one-tap, skip preview) */}
         {state === 'auto-printing' && (
           <div className="flex-1 flex flex-col min-h-0">
@@ -783,10 +848,10 @@ export function PrinterFlowSheet({
           <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
             <PreviewStep
               previewData={previewData}
-              receiptHtml={receiptHtml}
+              receiptHtml={activeHtml}
               jobName={jobName}
               printer={printer}
-              onChangePrinter={isNative ? () => setState('pick-printer') : undefined}
+              onChangePrinter={isNative ? () => setState(htmlVariants ? 'pick-copy' : 'pick-printer') : undefined}
               onShare={onShare}
               onSuccess={() => setState('success')}
               onError={(msg) => { setErrorMsg(msg); setState('error') }}

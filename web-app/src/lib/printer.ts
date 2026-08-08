@@ -30,6 +30,8 @@ export interface PrintRepairIntakeOptions {
   logoUrl?:      string
 }
 
+export type RepairCopyType = 'customer' | 'shop' | 'both' | 'a4'
+
 export interface PrintRepairDeliveryOptions {
   shopName: string
   shopPhone?: string
@@ -156,6 +158,32 @@ const THERMAL_CSS = `
 `
 
 
+// ── A4 CSS (for laser/inkjet printing) ───────────────────────────────────────
+
+const A4_CSS = `
+  @page { size: A4; margin: 15mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Sarabun', 'TH Sarabun New', Arial, sans-serif;
+    font-size: 13pt; line-height: 1.6; color: #000; background: #fff;
+  }
+  .c { text-align: center; } .r { text-align: right; } .b { font-weight: bold; }
+  .xl { font-size: 18pt; font-weight: bold; }
+  .lg { font-size: 15pt; font-weight: bold; }
+  .sm { font-size: 12pt; } .xs { font-size: 10pt; }
+  .hr { border: none; border-top: 1px solid #555; margin: 6pt 0; }
+  .t { width: 100%; border-collapse: collapse; }
+  .t td { vertical-align: top; padding: 3pt 0; }
+  .t .l { white-space: nowrap; padding-right: 20pt; width: 90pt; }
+  .row { display: flex; justify-content: space-between; margin-bottom: 4pt; }
+  .row .v { white-space: nowrap; text-align: right; }
+  .total { display: flex; justify-content: space-between; font-size: 15pt; font-weight: bold; margin: 4pt 0; }
+  .total .v { white-space: nowrap; text-align: right; }
+  .sig-row { display: flex; justify-content: space-around; margin-top: 35pt; }
+  .sig-box { text-align: center; width: 40%; }
+  .sig-line { border-top: 1px solid #000; margin-top: 30pt; padding-top: 4pt; font-size: 10pt; }
+`
+
 // ── Shared header helper ──────────────────────────────────────────────────────
 
 function shopHeaderHtml(opts: {
@@ -178,6 +206,47 @@ function qrHtml(url: string, method: string): string {
   return `<div class="hr"></div>
 <p class="c xs b">สแกนเพื่อชำระเงิน</p>
 <div class="c" style="margin:6px 0"><img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(url)}&size=150x150&format=png" alt="QR" style="width:150px;height:150px"/></div>`
+}
+
+// ── Internal: single 58mm repair receipt block (with label + signature lines) ─
+
+function repairIntake58Block(opts: PrintRepairIntakeOptions, label: string): string {
+  return `
+${shopHeaderHtml(opts)}
+<div class="hr"></div>
+<p class="c lg">ใบรับซ่อม</p>
+${label ? `<p class="c sm b">${label}</p>` : ''}
+<p class="c sm">#${opts.ticketNumber}</p>
+<p class="c xs">${opts.date}</p>
+<div class="hr"></div>
+<table class="t">
+<tr><td class="l">ลูกค้า</td><td class="b">${opts.customerName}</td></tr>
+${opts.customerPhone ? `<tr><td class="l">โทร</td><td>${opts.customerPhone}</td></tr>` : ''}
+</table>
+<div class="hr"></div>
+<table class="t">
+<tr><td class="l">อุปกรณ์</td><td class="b">${opts.deviceBrand} ${opts.deviceModel}</td></tr>
+${opts.deviceColor ? `<tr><td class="l">สี</td><td>${opts.deviceColor}</td></tr>` : ''}
+${opts.deviceImei ? `<tr><td class="l">IMEI</td><td class="sm">${opts.deviceImei}</td></tr>` : ''}
+</table>
+<div class="hr"></div>
+<p class="xs b">อาการเสีย:</p>
+<p>${opts.issue}</p>
+${opts.conditionIssues?.length ? `<div class="hr"></div><p class="xs b">สภาพที่มีปัญหา:</p><p class="xs">${opts.conditionIssues.join(', ')}</p>` : ''}
+${opts.accessories?.length ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${opts.accessories.join(', ')}</p>` : ''}
+<div class="hr"></div>
+${opts.dueDate ? `<div class="row"><span class="xs">กำหนดเสร็จ</span><span class="v xs">${opts.dueDate}</span></div>` : ''}
+${opts.estimateCost ? `<div class="row"><span>ประมาณการ</span><span class="v">฿${fmtI(opts.estimateCost)}</span></div>` : ''}
+<div class="total"><span>มัดจำ</span><span class="v">฿${fmtI(opts.deposit)}</span></div>
+<div class="hr"></div>
+${opts.technicianName ? `<p class="xs">ช่าง: ${opts.technicianName}</p>` : ''}
+<div style="display:flex;justify-content:space-between;margin-top:24px;font-size:18px;padding-bottom:8px">
+  <div style="text-align:center">ลายเซ็นลูกค้า<br><br>___________</div>
+  <div style="text-align:center">ลายเซ็นร้าน<br><br>___________</div>
+</div>
+<div class="hr"></div>
+<p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>
+`.trim()
 }
 
 // ── HTML builders ─────────────────────────────────────────────────────────────
@@ -213,12 +282,12 @@ ${opts.customerName ? `<div class="hr"></div><p class="xs">ลูกค้า: $
 </body></html>`
 }
 
-export function buildRepairIntakeHtml(opts: PrintRepairIntakeOptions): string {
-  return `<!DOCTYPE html><html lang="th"><head>
-<meta charset="utf-8">
-<title>ใบรับซ่อม ${opts.ticketNumber}</title>
-<style>${THERMAL_CSS}</style>
-</head><body>
+export function buildRepairIntakeHtml(opts: PrintRepairIntakeOptions, copyType: RepairCopyType = 'customer'): string {
+  const wrap = (css: string, body: string) =>
+    `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>ใบรับซ่อม ${opts.ticketNumber}</title><style>${css}</style></head><body>${body}</body></html>`
+
+  if (copyType === 'a4') {
+    const body = `
 ${shopHeaderHtml(opts)}
 <div class="hr"></div>
 <p class="c lg">ใบรับซ่อม</p>
@@ -233,11 +302,10 @@ ${opts.customerPhone ? `<tr><td class="l">โทร</td><td>${opts.customerPhone
 <table class="t">
 <tr><td class="l">อุปกรณ์</td><td class="b">${opts.deviceBrand} ${opts.deviceModel}</td></tr>
 ${opts.deviceColor ? `<tr><td class="l">สี</td><td>${opts.deviceColor}</td></tr>` : ''}
-${opts.deviceImei ? `<tr><td class="l">IMEI</td><td class="sm">${opts.deviceImei}</td></tr>` : ''}
+${opts.deviceImei ? `<tr><td class="l">IMEI</td><td>${opts.deviceImei}</td></tr>` : ''}
 </table>
 <div class="hr"></div>
-<p class="xs b">อาการเสีย:</p>
-<p>${opts.issue}</p>
+<p class="xs b">อาการเสีย:</p><p>${opts.issue}</p>
 ${opts.conditionIssues?.length ? `<div class="hr"></div><p class="xs b">สภาพที่มีปัญหา:</p><p class="xs">${opts.conditionIssues.join(', ')}</p>` : ''}
 ${opts.accessories?.length ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${opts.accessories.join(', ')}</p>` : ''}
 <div class="hr"></div>
@@ -246,8 +314,25 @@ ${opts.estimateCost ? `<div class="row"><span>ประมาณการ</span>
 <div class="total"><span>มัดจำ</span><span class="v">฿${fmtI(opts.deposit)}</span></div>
 <div class="hr"></div>
 ${opts.technicianName ? `<p class="xs">ช่าง: ${opts.technicianName}</p>` : ''}
-<p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>
-</body></html>`
+<div class="sig-row">
+  <div class="sig-box"><div class="sig-line">ลายเซ็นลูกค้า</div></div>
+  <div class="sig-box"><div class="sig-line">ลายเซ็นร้าน</div></div>
+</div>
+<div class="hr" style="margin-top:16pt"></div>
+<p class="c xs">${opts.footer ?? 'ขอบคุณที่ใช้บริการ'}</p>`
+    return wrap(A4_CSS, body)
+  }
+
+  const customerBlock = repairIntake58Block(opts, 'ฉบับลูกค้า')
+  const shopBlock     = repairIntake58Block(opts, 'สำเนาร้าน')
+
+  if (copyType === 'customer') return wrap(THERMAL_CSS, customerBlock)
+  if (copyType === 'shop')     return wrap(THERMAL_CSS, shopBlock)
+  // 'both': 2 copies in one print job
+  return wrap(
+    THERMAL_CSS + `.cut{border-top:3px dashed #000;margin:12px 0;text-align:center;font-size:16px;letter-spacing:2px}`,
+    `${customerBlock}<div class="cut">✂ ──── ตัดที่นี่ ──── ✂</div>${shopBlock}`,
+  )
 }
 
 export function buildRepairDeliveryHtml(opts: PrintRepairDeliveryOptions): string {
