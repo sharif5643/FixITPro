@@ -153,6 +153,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [addingPart, setAddingPart] = useState<Product | null>(null)
   const [partQty, setPartQty] = useState(1)
   const [partPrice, setPartPrice] = useState('')
+  const [chargeCustomer, setChargeCustomer] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const debouncedSearch = useDebounce(partSearch, 300)
@@ -224,20 +225,24 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
     staleTime: 30_000,
   })
 
+  // COGS: sum of costPrice — used for profit calculation
   const computedPartsCost = Array.isArray(repair?.parts)
-    ? repair.parts.reduce(
-        (sum, p) => sum + Number(p.price) * p.quantity,
-        0
-      )
+    ? repair.parts.filter(p => !p.isVoided).reduce((sum, p) => sum + Number(p.price) * p.quantity, 0)
     : 0
-  const computedTotal = (Number(laborCost) || 0) + computedPartsCost
+  // Customer charge: sum of sellPrice for chargeToCustomer parts — used in estimate sent to customer
+  const computedCustomerPartsCost = Array.isArray(repair?.parts)
+    ? repair.parts.filter(p => !p.isVoided && p.chargeToCustomer)
+        .reduce((sum, p) => sum + Number(p.sellPrice ?? 0) * p.quantity, 0)
+    : 0
+  const computedTotal = (Number(laborCost) || 0) + computedCustomerPartsCost
 
   // Locks: cannot modify parts when COMPLETED or DELIVERED
   const isLocked = repair?.status === 'COMPLETED' || repair?.status === 'DELIVERED'
 
   const addPartMutation = useMutation({
-    mutationFn: ({ productId, quantity, price }: { productId: string; quantity: number; price?: number }) =>
-      api.post(`/repairs/${repairId}/parts`, { productId, quantity, price }),
+    mutationFn: ({ productId, quantity, price, chargeToCustomer }: {
+      productId: string; quantity: number; price?: number; chargeToCustomer?: boolean
+    }) => api.post(`/repairs/${repairId}/parts`, { productId, quantity, price, chargeToCustomer }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
       queryClient.invalidateQueries({ queryKey: ['repairs'] })
@@ -245,6 +250,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       setPartSearch('')
       setPartQty(1)
       setPartPrice('')
+      setChargeCustomer(false)
       toast.success('เพิ่มอะไหล่แล้ว')
     },
     onError: (err: any) => {
@@ -340,7 +346,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const handleSendEstimate = () => {
     updateMutation.mutate({
       estimatedLaborCost: Number(laborCost) || 0,
-      estimatedPartsCost: computedPartsCost,
+      estimatedPartsCost: computedCustomerPartsCost,
       estimatedTotal: computedTotal,
       status: 'WAITING_APPROVAL',
     }, {
@@ -360,9 +366,10 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const handleAddPart = () => {
     if (!addingPart) return
     addPartMutation.mutate({
-      productId: addingPart.id,
-      quantity: partQty,
-      price: partPrice ? Number(partPrice) : undefined,
+      productId:        addingPart.id,
+      quantity:         partQty,
+      chargeToCustomer: chargeCustomer || undefined,
+      price:            partPrice ? Number(partPrice) : undefined,
     })
   }
 
@@ -611,15 +618,20 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         <div key={part.id} className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-transparent dark:border-slate-700/40 px-3 py-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{part.product.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              ×{part.quantity} · {formatThaiMoney(Number(part.price))} / ชิ้น
-                              {deducted && (
-                                <span className="ml-1.5 text-green-600 font-medium">ตัดสต็อกแล้ว</span>
-                              )}
+                            <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-1.5">
+                              <span>×{part.quantity}</span>
+                              {canViewCost && <span>· ต้นทุน {formatThaiMoney(Number(part.price))}/ชิ้น</span>}
+                              {part.chargeToCustomer
+                                ? <span className="text-blue-600 font-medium">· คิดลูกค้า {formatThaiMoney(Number(part.sellPrice ?? 0))}/ชิ้น</span>
+                                : <span className="text-slate-400">· ไม่คิดลูกค้า</span>
+                              }
+                              {deducted && <span className="text-green-600 font-medium">· ตัดสต็อกแล้ว</span>}
                             </p>
                           </div>
                           <span className="text-sm font-semibold tabular-nums shrink-0">
-                            {formatThaiMoney(Number(part.price) * part.quantity)}
+                            {part.chargeToCustomer
+                              ? formatThaiMoney(Number(part.sellPrice ?? 0) * part.quantity)
+                              : formatThaiMoney(Number(part.price) * part.quantity)}
                           </span>
                           {!isLocked && (
                             <button
@@ -634,9 +646,15 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                       )
                     })}
                     <div className="flex justify-between text-sm font-semibold border-t border-slate-100 dark:border-slate-700/60 pt-2">
-                      <span>รวมค่าอะไหล่</span>
-                      <span className="tabular-nums text-blue-700">{formatThaiMoney(computedPartsCost)}</span>
+                      <span>รวมค่าอะไหล่ (ลูกค้า)</span>
+                      <span className="tabular-nums text-blue-700">{formatThaiMoney(computedCustomerPartsCost)}</span>
                     </div>
+                    {canViewCost && computedPartsCost > 0 && (
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>ต้นทุนอะไหล่รวม</span>
+                        <span className="tabular-nums">{formatThaiMoney(computedPartsCost)}</span>
+                      </div>
+                    )}
                     {repair.finalCost != null && Number(repair.finalCost) > 0 && (
                       <div className="flex justify-between text-sm border-t border-slate-100 dark:border-slate-700/60 pt-2 mt-1">
                         <span className="text-muted-foreground">กำไรประมาณ</span>
@@ -654,13 +672,32 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     <div className="rounded-lg border border-blue-200 dark:border-blue-700/60 bg-blue-50/40 dark:bg-blue-900/10 p-3 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-slate-900 dark:text-white truncate flex-1">{addingPart.name}</p>
-                        <button onClick={() => setAddingPart(null)} className="text-muted-foreground hover:text-foreground ml-2">
+                        <button
+                          onClick={() => { setAddingPart(null); setChargeCustomer(false); setPartPrice('') }}
+                          className="text-muted-foreground hover:text-foreground ml-2"
+                        >
                           <X className="h-4 w-4" />
                         </button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        SKU: {addingPart.sku} · สต็อก: {addingPart.branchQuantity ?? addingPart.stock} ชิ้น{canViewCost && ` · ราคาทุน: ${formatThaiMoney(Number(addingPart.costPrice))}`}
+                        SKU: {addingPart.sku} · สต็อก: {addingPart.branchQuantity ?? addingPart.stock} ชิ้น
+                        {canViewCost && ` · ราคาทุน: ${formatThaiMoney(Number(addingPart.costPrice))}`}
                       </p>
+
+                      {/* คิดเงินลูกค้า toggle */}
+                      <div className="flex items-center justify-between py-0.5">
+                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                          คิดเงินลูกค้าเพิ่ม
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => { setChargeCustomer(v => !v); setPartPrice('') }}
+                          className={`relative w-10 h-5 rounded-full transition-colors ${chargeCustomer ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'}`}
+                        >
+                          <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${chargeCustomer ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+
                       <div className="flex gap-2">
                         <div className="space-y-1 flex-1">
                           <label className="text-xs text-muted-foreground">จำนวน</label>
@@ -674,17 +711,31 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                           />
                         </div>
                         <div className="space-y-1 flex-1">
-                          <label className="text-xs text-muted-foreground">ราคา/ชิ้น{canViewCost && ' (ปล่อยว่าง=ราคาทุน)'}</label>
+                          <label className="text-xs text-muted-foreground">
+                            {chargeCustomer
+                              ? 'ราคาคิดลูกค้า/ชิ้น'
+                              : `ราคา/ชิ้น${canViewCost ? ' (ปล่อยว่าง=ราคาทุน)' : ''}`}
+                          </label>
                           <Input
                             type="number"
                             min={0}
-                            placeholder={canViewCost ? String(addingPart.costPrice) : '0'}
+                            placeholder={chargeCustomer
+                              ? String(addingPart.price)
+                              : (canViewCost ? String(addingPart.costPrice) : '0')}
                             value={partPrice}
                             onChange={(e) => setPartPrice(e.target.value)}
-                            className="h-8 text-sm"
+                            className={`h-8 text-sm ${chargeCustomer ? 'border-blue-400 focus-visible:ring-blue-500' : ''}`}
                           />
                         </div>
                       </div>
+
+                      {chargeCustomer && (
+                        <p className="text-xs text-blue-600 dark:text-blue-400">
+                          ราคานี้จะบวกเพิ่มในบิลลูกค้า
+                          {canViewCost && ` · กำไร/ชิ้น: ${formatThaiMoney((partPrice ? Number(partPrice) : addingPart.price) - addingPart.costPrice)}`}
+                        </p>
+                      )}
+
                       <Button
                         size="sm"
                         className="w-full gap-1.5"
@@ -692,7 +743,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         disabled={partQty < 1 || partQty > (addingPart.branchQuantity ?? addingPart.stock) || addPartMutation.isPending}
                       >
                         {addPartMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                        เพิ่มอะไหล่
+                        เพิ่มอะไหล่{chargeCustomer ? ' (คิดลูกค้า)' : ''}
                       </Button>
                     </div>
                   ) : (
