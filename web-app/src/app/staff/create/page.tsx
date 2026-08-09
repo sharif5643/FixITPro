@@ -252,7 +252,6 @@ export default function CreateRepairPage() {
         ...(dueDate            && { dueDate }),
         ...(note.trim()        && { note: note.trim() }),
         ...(techId             && { technicianId: techId }),
-        ...(status             && { status }),
         ...(user?.branchId     && { branchId: user.branchId }),
       }
 
