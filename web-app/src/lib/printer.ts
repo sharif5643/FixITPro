@@ -633,7 +633,7 @@ ${logoBlock}
 <div class="sec">
   <p class="b">ลูกค้า</p>
   <p>${customerName}</p>
-  ${customerPhone ? `<p>โทร: ${customerPhone}</p>` : ''}
+  ${customerPhone ? `<p class="b">${customerPhone}</p>` : ''}
 </div>
 <div class="hr"></div>
 <div class="sec">
@@ -649,7 +649,7 @@ ${logoBlock}
 ${accessoriesBlock}
 <div class="hr"></div>
 <div class="sec">
-  <div class="row"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
+  <div class="row b"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
   <div class="row b"><span>ค่ามัดจำ</span><span class="v">${deposit > 0 ? `฿${fmtI(deposit)}` : '-'}</span></div>
 </div>
 <div class="hr"></div>
