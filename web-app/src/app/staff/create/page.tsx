@@ -5,44 +5,91 @@ import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, Search, UserPlus, Smartphone, Tablet, Laptop,
   Monitor, MoreHorizontal, Camera, X, Loader2, Mic, ScanLine,
-  ChevronDown,
+  ChevronDown, Banknote, CreditCard, CalendarDays, FileText,
+  Tag,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
+import { useAuthStore } from '@/store/auth.store'
 
-/* ─── Constants ──────────────────────────────────────────────────────── */
+/* ─── Constants ────────────────────────────────────────────────────────────── */
+
 const DEVICE_TYPES = [
-  { value:'mobile',  label:'มือถือ',     icon: Smartphone  },
-  { value:'tablet',  label:'แท็บเล็ต',   icon: Tablet      },
-  { value:'laptop',  label:'โน๊ตบุ๊ค',   icon: Laptop      },
-  { value:'desktop', label:'คอมพิวเตอร์', icon: Monitor     },
-  { value:'other',   label:'อื่นๆ',      icon: MoreHorizontal },
+  { value: 'มือถือ',      label: 'มือถือ',      icon: Smartphone   },
+  { value: 'แท็บเล็ต',   label: 'แท็บเล็ต',   icon: Tablet       },
+  { value: 'แล็ปท็อป',   label: 'โน๊ตบุ๊ค',   icon: Laptop       },
+  { value: 'คอมพิวเตอร์', label: 'คอมพิวเตอร์', icon: Monitor      },
+  { value: 'อื่นๆ',       label: 'อื่นๆ',       icon: MoreHorizontal },
 ]
-const BRANDS = ['Apple','Samsung','OPPO','Xiaomi','Vivo','Realme','Huawei','Nokia','Google','OnePlus','อื่นๆ']
-const APPLE_MODELS = ['iPhone 16 Pro Max','iPhone 16 Pro','iPhone 16','iPhone 15 Pro Max','iPhone 15 Pro','iPhone 15','iPhone 14 Pro Max','iPhone 14 Pro','iPhone 14','iPhone 13 Pro Max','iPhone 13','iPhone 12','iPhone 11','iPhone SE','อื่นๆ']
-const SAMSUNG_MODELS = ['Galaxy S25 Ultra','Galaxy S25+','Galaxy S24 Ultra','Galaxy S24','Galaxy A55','Galaxy A35','Galaxy A15','Galaxy Z Fold 6','Galaxy Z Flip 6','อื่นๆ']
-const SYMPTOMS = ['จอแตก','แบตเสื่อม','ชาร์จไม่เข้า','ตกน้ำ','เปิดไม่ติด','ลำโพงเสีย','กล้องเสีย','สัญญาณไม่เข้า','อื่นๆ']
-const CONDITIONS = ['จอแตก','ฝาหลังร้าว','เครื่องงอ','กล้องแตก','มีรอยตก/กระแทก','อื่นๆ ระบุ']
-const ACCESSORIES = ['เครื่อง','ซิม','กล่อง','สายชาร์จ','เคส','เมมโมรี่การ์ด','อะแดปเตอร์','ฟิล์ม/กระจก','อื่นๆ']
+
+const BRANDS = [
+  'Apple', 'Samsung', 'OPPO', 'Xiaomi', 'Vivo', 'Realme',
+  'Huawei', 'Nokia', 'Google', 'OnePlus', 'อื่นๆ',
+]
+
+const APPLE_MODELS = [
+  'iPhone 16 Pro Max', 'iPhone 16 Pro', 'iPhone 16',
+  'iPhone 15 Pro Max', 'iPhone 15 Pro', 'iPhone 15',
+  'iPhone 14 Pro Max', 'iPhone 14 Pro', 'iPhone 14',
+  'iPhone 13 Pro Max', 'iPhone 13', 'iPhone 12', 'iPhone 11',
+  'iPhone SE', 'iPad Pro', 'iPad Air', 'iPad mini', 'อื่นๆ',
+]
+
+const SAMSUNG_MODELS = [
+  'Galaxy S25 Ultra', 'Galaxy S25+', 'Galaxy S24 Ultra', 'Galaxy S24',
+  'Galaxy A55', 'Galaxy A35', 'Galaxy A15',
+  'Galaxy Z Fold 6', 'Galaxy Z Flip 6', 'อื่นๆ',
+]
+
+// Synced with web's ISSUE_TAG_OPTIONS
+const ISSUE_TAGS = [
+  'หน้าจอ', 'แบตเตอรี่', 'กล้อง', 'ชาร์จไม่เข้า', 'เสียง', 'ปุ่มเสีย',
+  'WiFi', 'Bluetooth', 'ไม่ติด', 'ค้าง/รีสตาร์ท', 'ตก/หล่น', 'น้ำเข้า',
+  'สัมผัสไม่ได้', 'อื่นๆ',
+]
+
+// Synced with web's CONDITION_OPTIONS
+const CONDITIONS = [
+  'หน้าจอแตก', 'ฝาหลังแตก', 'ขอบมีรอย', 'มีรอยขีดข่วน', 'ปกติ', 'เปียกน้ำ',
+]
+
+// Combined list (APK operational items + web items)
+const ACCESSORIES = [
+  'เครื่อง', 'ซิม', 'กล่องเดิม', 'สายชาร์จ', 'หัวชาร์จ', 'เคส',
+  'เมมโมรี่การ์ด', 'หูฟัง', 'ฟิล์ม/กระจก', 'สาย USB', 'ปากกา', 'อื่นๆ',
+]
+
 const COLORS = [
-  { label:'ดำ',   hex:'#111111' },
-  { label:'ขาว',  hex:'#FFFFFF', border:true },
-  { label:'น้ำเงิน', hex:'#2563EB' },
-  { label:'ทอง',  hex:'#D4AF37' },
-  { label:'เขียว', hex:'#16A34A' },
-  { label:'อื่นๆ', hex:'#E5E7EB', border:true },
+  { label: 'ดำ',    hex: '#111111' },
+  { label: 'ขาว',   hex: '#FFFFFF', border: true },
+  { label: 'น้ำเงิน', hex: '#2563EB' },
+  { label: 'ทอง',   hex: '#D4AF37' },
+  { label: 'เขียว',  hex: '#16A34A' },
+  { label: 'แดง',   hex: '#EF4444' },
+  { label: 'เทา',   hex: '#9CA3AF' },
+  { label: 'อื่นๆ',  hex: '#E5E7EB', border: true },
 ]
+
 const STATUSES = [
-  { value:'RECEIVED',    label:'รับเครื่องแล้ว'   },
-  { value:'IN_PROGRESS', label:'กำลังซ่อม'        },
-  { value:'PENDING',     label:'รอตรวจสอบ'        },
+  { value: 'RECEIVED',   label: 'รับเครื่องแล้ว' },
+  { value: 'DIAGNOSING', label: 'ตรวจวินิจฉัย'  },
+  { value: 'IN_PROGRESS',label: 'กำลังซ่อม'     },
 ]
+
+const PAY_METHODS = [
+  { value: 'CASH',     label: 'เงินสด',   icon: Banknote   },
+  { value: 'TRANSFER', label: 'โอนเงิน',  icon: CreditCard },
+  { value: 'CARD',     label: 'บัตร',      icon: CreditCard },
+]
+
+/* ─── Types ─────────────────────────────────────────────────────────────────── */
 
 interface Customer { id: string; name: string; phone: string; totalRepairs?: number }
 interface Employee  { id: string; name: string }
 
-/* ─── Input/Field helpers ────────────────────────────────────────────── */
+/* ─── Shared style ──────────────────────────────────────────────────────────── */
+
 const IC = 'h-12 w-full rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] px-4 text-sm text-[#111] outline-none focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 transition-all'
 
 function SectionHead({ num, title }: { num: number; title: string }) {
@@ -62,37 +109,41 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   )
 }
 
-/* ─── Main Component ─────────────────────────────────────────────────── */
+/* ─── Page ──────────────────────────────────────────────────────────────────── */
+
 export default function CreateRepairPage() {
   const router = useRouter()
+  const { user } = useAuthStore()
 
   // ── Customer ──
-  const [phoneSearch,    setPhoneSearch]    = useState('')
-  const [customers,      setCustomers]      = useState<Customer[]>([])
-  const [searchLoading,  setSearchLoading]  = useState(false)
-  const [selectedCust,   setSelectedCust]   = useState<Customer | null>(null)
-  const [newCustName,    setNewCustName]     = useState('')
-  const [newCustPhone,   setNewCustPhone]    = useState('')
+  const [phoneSearch,   setPhoneSearch]   = useState('')
+  const [customers,     setCustomers]     = useState<Customer[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [selectedCust,  setSelectedCust]  = useState<Customer | null>(null)
+  const [newCustName,   setNewCustName]   = useState('')
+  const [newCustPhone,  setNewCustPhone]  = useState('')
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Device ──
-  const [deviceType,  setDeviceType]  = useState('mobile')
-  const [brand,       setBrand]       = useState('')
-  const [model,       setModel]       = useState('')
-  const [imei,        setImei]        = useState('')
-  const [serial,      setSerial]      = useState('')
-  const [scanOpen,    setScanOpen]    = useState(false)
-  const [colorLabel,  setColorLabel]  = useState('')
+  const [deviceType, setDeviceType] = useState('มือถือ')
+  const [brand,      setBrand]      = useState('')
+  const [model,      setModel]      = useState('')
+  const [imei,       setImei]       = useState('')
+  const [serial,     setSerial]     = useState('')
+  const [scanOpen,   setScanOpen]   = useState(false)
+  const [colorLabel, setColorLabel] = useState('')
 
-  // ── Symptoms + Condition ──
-  const [symptoms,   setSymptoms]   = useState<string[]>([])
+  // ── Issue ──
+  const [issueTags,  setIssueTags]  = useState<string[]>([])
   const [issueDesc,  setIssueDesc]  = useState('')
   const [conditions, setConditions] = useState<string[]>([])
 
   // ── Photos ──
-  const [photos,     setPhotos]     = useState<{ label: string; file: File | null }[]>([
-    { label:'ด้านหน้า', file:null }, { label:'ด้านหลัง', file:null },
-    { label:'จุดเสียหาย', file:null }, { label:'อุปกรณ์ที่ฝาก', file:null },
+  const [photos, setPhotos] = useState<{ label: string; file: File | null }[]>([
+    { label: 'ด้านหน้า',     file: null },
+    { label: 'ด้านหลัง',     file: null },
+    { label: 'จุดเสียหาย',   file: null },
+    { label: 'อุปกรณ์ที่ฝาก', file: null },
   ])
 
   // ── Accessories ──
@@ -102,19 +153,25 @@ export default function CreateRepairPage() {
   const [laborCost,  setLaborCost]  = useState('')
   const [partsCost,  setPartsCost]  = useState('')
   const [deposit,    setDeposit]    = useState('')
+  const [depositPM,  setDepositPM]  = useState('CASH')
+  const [discount,   setDiscount]   = useState('')
+
+  // ── Extra info ──
+  const [dueDate,    setDueDate]    = useState('')
+  const [note,       setNote]       = useState('')
 
   // ── Assignment ──
   const [technicians, setTechnicians] = useState<Employee[]>([])
   const [techId,      setTechId]      = useState('')
-  const [techName,    setTechName]    = useState('')
   const [status,      setStatus]      = useState('RECEIVED')
 
   const [loading, setLoading] = useState(false)
 
-  const total = (parseFloat(laborCost)||0) + (parseFloat(partsCost)||0)
-  const remaining = total - (parseFloat(deposit)||0)
+  const total     = (parseFloat(laborCost) || 0) + (parseFloat(partsCost) || 0)
+  const remaining = total - (parseFloat(deposit) || 0) - (parseFloat(discount) || 0)
 
-  // Customer search with debounce
+  // ── Handlers ──
+
   const searchCustomers = useCallback((q: string) => {
     setPhoneSearch(q)
     if (searchTimer.current) clearTimeout(searchTimer.current)
@@ -123,111 +180,117 @@ export default function CreateRepairPage() {
       setSearchLoading(true)
       try {
         const r = await api.get('/customers', { params: { search: q } })
-        const raw = r.data?.data ?? r.data ?? []
-        const list = (Array.isArray(raw) ? raw : []).map((c: any) => ({
+        const raw  = r.data?.data ?? r.data ?? []
+        const list = (Array.isArray(raw) ? raw : []).map((c: { id: string; name: string; phone?: string; _count?: { repairs?: number } }) => ({
           id:           c.id,
           name:         c.name,
           phone:        c.phone ?? '',
           totalRepairs: c._count?.repairs ?? 0,
         }))
         setCustomers(list)
-      } catch (err: any) {
-        console.error('[customer search]', err?.response?.data ?? err?.message)
-        setCustomers([])
-      }
+      } catch { setCustomers([]) }
       finally { setSearchLoading(false) }
     }, 350)
   }, [])
 
-  // Load technicians on mount
   const loadTechs = useCallback(async () => {
     if (technicians.length) return
     try {
-      const r = await api.get('/employees?role=TECHNICIAN&limit=50')
+      const r = await api.get('/employees', { params: { role: 'TECHNICIAN', limit: 50 } })
       const list = r.data?.data ?? r.data ?? []
       setTechnicians(Array.isArray(list) ? list : [])
     } catch { /* silent */ }
   }, [technicians.length])
 
-  // Models list
   const modelOptions = brand === 'Apple' ? APPLE_MODELS : brand === 'Samsung' ? SAMSUNG_MODELS : []
 
-  function toggleChip(arr: string[], set: (v:string[]) => void, val: string) {
-    set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
+  function toggleChip<T>(arr: T[], set: (v: T[]) => void, val: T) {
+    set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val])
   }
 
   function setPhoto(idx: number, file: File) {
-    setPhotos(prev => prev.map((p,i) => i===idx ? {...p, file} : p))
+    setPhotos((prev) => prev.map((p, i) => (i === idx ? { ...p, file } : p)))
   }
   function removePhoto(idx: number) {
-    setPhotos(prev => prev.map((p,i) => i===idx ? {...p, file:null} : p))
+    setPhotos((prev) => prev.map((p, i) => (i === idx ? { ...p, file: null } : p)))
   }
 
   async function handleSubmit() {
     const custId    = selectedCust?.id
-    const custName  = selectedCust?.name  || newCustName
-    const custPhone = selectedCust?.phone || newCustPhone
+    const custName  = selectedCust?.name  || newCustName.trim()
+    const custPhone = selectedCust?.phone || newCustPhone.trim()
 
     if (!custName || !custPhone) return toast.error('กรุณากรอกข้อมูลลูกค้า')
     if (!brand)                  return toast.error('กรุณาเลือกยี่ห้ออุปกรณ์')
     if (!model)                  return toast.error('กรุณาระบุรุ่นอุปกรณ์')
-    if (!symptoms.length)        return toast.error('กรุณาเลือกอาการเสียอย่างน้อย 1 อาการ')
+    if (!issueTags.length && !issueDesc.trim()) return toast.error('กรุณาเลือกอาการเสียหรือกรอกรายละเอียด')
 
     setLoading(true)
     try {
-      // Backend expects JSON; photos uploaded separately to /repairs/:id/images
-      const issue = [symptoms.join(', '), issueDesc].filter(Boolean).join('\n')
+      const issue = [issueTags.join(', '), issueDesc.trim()].filter(Boolean).join('\n')
+
       const body: Record<string, unknown> = {
-        deviceType:           deviceType || undefined,
-        deviceBrand:          brand,
-        deviceModel:          model,
-        issue,
         ...(custId ? { customerId: custId } : { customerName: custName, customerPhone: custPhone }),
-        ...(imei       && { deviceImei:  imei }),
-        ...(colorLabel && { deviceColor: colorLabel }),
-        ...(conditions.length && { deviceConditions: conditions }),
-        ...(accessories.length && { accessories: accessories.join(', ') }),
+        deviceType:   deviceType || undefined,
+        deviceBrand:  brand,
+        deviceModel:  model,
+        issue,
+        ...(issueTags.length  && { issueTags }),
+        ...(imei               && { deviceImei:        imei        }),
+        ...(serial             && { serial                          }),
+        ...(colorLabel         && { deviceColor:       colorLabel  }),
+        ...(conditions.length  && { deviceConditions:  conditions  }),
+        ...(accessories.length && { accessories:       accessories.join(', ') }),
         ...(parseFloat(laborCost) > 0 && { estimatedLaborCost: parseFloat(laborCost) }),
         ...(parseFloat(partsCost) > 0 && { estimatedPartsCost: parseFloat(partsCost) }),
-        ...(total > 0 && { estimateCost: total }),
-        ...(parseFloat(deposit) > 0 && { deposit: parseFloat(deposit) }),
-        ...(techId && { technicianId: techId }),
+        ...(total > 0          && { estimateCost: total }),
+        ...(parseFloat(deposit) > 0 && {
+          deposit:              parseFloat(deposit),
+          depositPaymentMethod: depositPM,
+        }),
+        ...(parseFloat(discount) > 0 && { discount: parseFloat(discount) }),
+        ...(dueDate            && { dueDate }),
+        ...(note.trim()        && { note: note.trim() }),
+        ...(techId             && { technicianId: techId }),
+        ...(status             && { status }),
+        ...(user?.branchId     && { branchId: user.branchId }),
       }
 
-      const res = await api.post('/repairs', body)
+      const res      = await api.post('/repairs', body)
       const repairId = res.data?.id ?? res.data?.repair?.id
 
-      // Upload photos if any
-      const photoFiles = photos.filter(p => p.file).map(p => p.file!)
+      // Upload photos
+      const photoFiles = photos.filter((p) => p.file).map((p) => p.file!)
       if (repairId && photoFiles.length > 0) {
         const fd = new FormData()
-        photoFiles.forEach(f => fd.append('files', f))
-        await api.post(`/repairs/${repairId}/images`, fd).catch(() => {/* non-fatal */})
+        photoFiles.forEach((f) => fd.append('files', f))
+        await api.post(`/repairs/${repairId}/images`, fd).catch(() => { /* non-fatal */ })
       }
 
       router.replace(`/staff/create/success?id=${repairId}`)
-    } catch (err: any) {
-      const msg = err?.response?.data?.message
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
       toast.error(Array.isArray(msg) ? msg[0] : msg || 'บันทึกไม่สำเร็จ กรุณาลองใหม่')
     } finally {
       setLoading(false)
     }
   }
 
+  /* ── Render ──────────────────────────────────────────────────────────────── */
+
   return (
     <div className="flex min-h-screen flex-col bg-[#F8F9FB] pb-32">
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="sticky top-0 z-20 flex items-center gap-3 bg-white px-5 pb-4 pt-14 shadow-sm">
-        <button onClick={() => router.back()} className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F8F9FB]">
-          <ChevronLeft className="h-5 w-5 text-slate-600"/>
+        <button onClick={() => router.back()}
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F8F9FB]">
+          <ChevronLeft className="h-5 w-5 text-slate-600" />
         </button>
         <h1 className="flex-1 text-[17px] font-bold text-[#111]">รับงานซ่อมใหม่</h1>
-        <button
-          onClick={() => setScanOpen(true)}
-          className="flex h-8 items-center gap-1.5 rounded-xl bg-[#FFF8E7] px-3 text-[11px] font-bold text-[#F59E0B]"
-        >
-          <ScanLine className="h-3.5 w-3.5"/> สแกน IMEI
+        <button onClick={() => setScanOpen(true)}
+          className="flex h-8 items-center gap-1.5 rounded-xl bg-[#FFF8E7] px-3 text-[11px] font-bold text-[#F59E0B]">
+          <ScanLine className="h-3.5 w-3.5" /> สแกน IMEI
         </button>
       </div>
 
@@ -235,83 +298,66 @@ export default function CreateRepairPage() {
 
         {/* ① ข้อมูลลูกค้า */}
         <Card>
-          <SectionHead num={1} title="ข้อมูลลูกค้า"/>
+          <SectionHead num={1} title="ข้อมูลลูกค้า" />
 
-          {/* Search bar */}
           <div className="relative mb-3">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/>
-            <input
-              value={phoneSearch}
-              onChange={e => searchCustomers(e.target.value)}
-              placeholder="ค้นหาเบอร์โทร / ชื่อลูกค้า"
-              inputMode="tel"
-              className="h-11 w-full rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] pl-10 pr-4 text-sm outline-none focus:border-[#FFC107]"
-            />
-            {searchLoading && <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400"/>}
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input value={phoneSearch} onChange={(e) => searchCustomers(e.target.value)}
+              placeholder="ค้นหาเบอร์โทร / ชื่อลูกค้า" inputMode="tel"
+              className="h-11 w-full rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] pl-10 pr-4 text-sm outline-none focus:border-[#FFC107]" />
+            {searchLoading && <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />}
           </div>
 
-          {/* Search results */}
           {customers.length > 0 && !selectedCust && (
             <div className="mb-3 flex flex-col gap-2">
-              {customers.map(c => (
+              {customers.map((c) => (
                 <div key={c.id} className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FFC107] text-sm font-bold text-[#111]">
-                    {c.name.slice(0,1)}
+                    {c.name.slice(0, 1)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-bold text-[#111]">{c.name}</p>
                     <p className="text-[11px] text-slate-400">{c.phone}</p>
-                    {c.totalRepairs ? <p className="text-[10px] text-slate-400">ซ่อมมาแล้ว {c.totalRepairs} ครั้ง</p> : null}
+                    {!!c.totalRepairs && <p className="text-[10px] text-slate-400">ซ่อมมาแล้ว {c.totalRepairs} ครั้ง</p>}
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <button
-                      onClick={() => { setSelectedCust(c); setCustomers([]) }}
-                      className="rounded-xl bg-[#FFC107] px-3 py-1.5 text-[12px] font-bold text-[#111]"
-                    >เลือก</button>
-                    <button onClick={() => router.push(`/staff/customers/${c.id}`)} className="text-[10px] text-[#3B82F6]">ดูประวัติ &rsaquo;</button>
+                    <button onClick={() => { setSelectedCust(c); setCustomers([]) }}
+                      className="rounded-xl bg-[#FFC107] px-3 py-1.5 text-[12px] font-bold text-[#111]">เลือก</button>
+                    <button onClick={() => router.push(`/staff/customers/${c.id}`)}
+                      className="text-[10px] text-blue-500">ดูประวัติ ›</button>
                   </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Selected customer card */}
-          {selectedCust && (
+          {selectedCust ? (
             <div className="mb-3 flex items-center gap-3 rounded-xl border-2 border-[#FFC107] bg-[#FFFBEB] p-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FFC107] text-sm font-bold text-[#111]">
-                {selectedCust.name.slice(0,1)}
+                {selectedCust.name.slice(0, 1)}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-bold text-[#111]">{selectedCust.name}</p>
                 <p className="text-[11px] text-slate-500">{selectedCust.phone}</p>
-                {selectedCust.totalRepairs ? <p className="text-[10px] text-slate-400">ซ่อมมาแล้ว {selectedCust.totalRepairs} ครั้ง</p> : null}
+                {!!selectedCust.totalRepairs && <p className="text-[10px] text-slate-400">ซ่อมมาแล้ว {selectedCust.totalRepairs} ครั้ง</p>}
               </div>
-              <button onClick={() => setSelectedCust(null)} className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm">
-                <X className="h-4 w-4 text-slate-400"/>
+              <button onClick={() => setSelectedCust(null)}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm">
+                <X className="h-4 w-4 text-slate-400" />
               </button>
             </div>
-          )}
-
-          {/* New customer input (if no selected) */}
-          {!selectedCust && (
+          ) : (
             <>
               <div className="my-3 flex items-center gap-3">
-                <div className="h-px flex-1 bg-[#E5E7EB]"/>
-                <span className="text-[11px] text-slate-400">หรือ</span>
-                <div className="h-px flex-1 bg-[#E5E7EB]"/>
+                <div className="h-px flex-1 bg-[#E5E7EB]" />
+                <span className="text-[11px] text-slate-400">หรือเพิ่มลูกค้าใหม่</span>
+                <div className="h-px flex-1 bg-[#E5E7EB]" />
               </div>
-              <button
-                onClick={() => { setNewCustName(''); setNewCustPhone(phoneSearch) }}
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8F9FB] text-sm font-semibold text-slate-500"
-              >
-                <UserPlus className="h-4 w-4"/> ลูกค้าใหม่
-              </button>
-              {(newCustName !== undefined && newCustPhone !== undefined && !selectedCust) && newCustName === '' && (
-                <></>
-              )}
-              <div className="mt-3 flex flex-col gap-2.5">
-                <input value={newCustName} onChange={e=>setNewCustName(e.target.value)} placeholder="ชื่อ - นามสกุล *" className={IC}/>
-                <input value={newCustPhone} onChange={e=>setNewCustPhone(e.target.value)} placeholder="เบอร์โทรศัพท์ *" type="tel" className={IC}/>
+              <div className="flex flex-col gap-2.5">
+                <input value={newCustName} onChange={(e) => setNewCustName(e.target.value)}
+                  placeholder="ชื่อ - นามสกุล *" className={IC} />
+                <input value={newCustPhone} onChange={(e) => setNewCustPhone(e.target.value)}
+                  placeholder="เบอร์โทรศัพท์ *" type="tel" className={IC} />
               </div>
             </>
           )}
@@ -319,18 +365,15 @@ export default function CreateRepairPage() {
 
         {/* ② ข้อมูลอุปกรณ์ */}
         <Card>
-          <SectionHead num={2} title="ข้อมูลอุปกรณ์"/>
+          <SectionHead num={2} title="ข้อมูลอุปกรณ์" />
 
           {/* Device type */}
           <div className="mb-4 flex justify-between">
             {DEVICE_TYPES.map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                onClick={() => setDeviceType(value)}
-                className={`flex flex-col items-center gap-1 rounded-xl p-2.5 transition-all ${deviceType===value ? 'bg-[#FFC107]/15 ring-2 ring-[#FFC107]' : 'bg-[#F8F9FB]'}`}
-              >
-                <Icon className={`h-6 w-6 ${deviceType===value ? 'text-[#F59E0B]' : 'text-slate-400'}`} strokeWidth={1.8}/>
-                <span className={`text-[10px] font-semibold ${deviceType===value ? 'text-[#F59E0B]' : 'text-slate-400'}`}>{label}</span>
+              <button key={value} onClick={() => setDeviceType(value)}
+                className={`flex flex-col items-center gap-1 rounded-xl p-2.5 transition-all ${deviceType === value ? 'bg-[#FFC107]/15 ring-2 ring-[#FFC107]' : 'bg-[#F8F9FB]'}`}>
+                <Icon className={`h-6 w-6 ${deviceType === value ? 'text-[#F59E0B]' : 'text-slate-400'}`} strokeWidth={1.8} />
+                <span className={`text-[10px] font-semibold ${deviceType === value ? 'text-[#F59E0B]' : 'text-slate-400'}`}>{label}</span>
               </button>
             ))}
           </div>
@@ -338,64 +381,51 @@ export default function CreateRepairPage() {
           {/* Brand + Model */}
           <div className="mb-3 grid grid-cols-2 gap-2.5">
             <div className="relative">
-              <select
-                value={brand}
-                onChange={e => { setBrand(e.target.value); setModel('') }}
-                className={`${IC} appearance-none pr-8`}
-              >
+              <select value={brand} onChange={(e) => { setBrand(e.target.value); setModel('') }}
+                className={`${IC} appearance-none pr-8`}>
                 <option value="">ยี่ห้อ *</option>
-                {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             </div>
             <div className="relative">
               {modelOptions.length > 0 ? (
                 <>
-                  <select value={model} onChange={e=>setModel(e.target.value)} className={`${IC} appearance-none pr-8`}>
+                  <select value={model} onChange={(e) => setModel(e.target.value)}
+                    className={`${IC} appearance-none pr-8`}>
                     <option value="">รุ่น *</option>
-                    {modelOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                    {modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 </>
               ) : (
-                <input value={model} onChange={e=>setModel(e.target.value)} placeholder="รุ่น *" className={IC}/>
+                <input value={model} onChange={(e) => setModel(e.target.value)}
+                  placeholder="รุ่น *" className={IC} />
               )}
             </div>
           </div>
 
-          {/* IMEI */}
+          {/* IMEI + Serial */}
           <div className="relative mb-3">
-            <input
-              value={imei}
-              onChange={e => setImei(e.target.value)}
-              placeholder="IMEI"
-              inputMode="numeric"
-              className={`${IC} pr-20`}
-            />
-            <button
-              onClick={() => toast.info('พิมพ์ *#06# บนมือถือ เพื่อดู IMEI')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 rounded-lg bg-[#FFC107]/20 px-2.5 py-1 text-[11px] font-bold text-[#F59E0B]"
-            >
-              <ScanLine className="h-3 w-3"/> สแกน
+            <input value={imei} onChange={(e) => setImei(e.target.value)}
+              placeholder="IMEI" inputMode="numeric" className={`${IC} pr-24`} />
+            <button onClick={() => setScanOpen(true)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 rounded-lg bg-[#FFC107]/20 px-2.5 py-1 text-[11px] font-bold text-[#F59E0B]">
+              <ScanLine className="h-3 w-3" /> สแกน
             </button>
           </div>
-
-          {/* Serial */}
-          <input value={serial} onChange={e=>setSerial(e.target.value)} placeholder="Serial Number (ถ้ามี)" className={`${IC} mb-3`}/>
+          <input value={serial} onChange={(e) => setSerial(e.target.value)}
+            placeholder="Serial Number (ถ้ามี)" className={`${IC} mb-3`} />
 
           {/* Color swatches */}
           <p className="mb-2 text-[11px] font-semibold text-slate-500">สีเครื่อง</p>
           <div className="flex gap-2.5 flex-wrap">
-            {COLORS.map(c => (
-              <button
-                key={c.label}
-                onClick={() => setColorLabel(c.label)}
-                className={`flex flex-col items-center gap-1 ${colorLabel===c.label ? 'scale-110' : ''} transition-transform`}
-              >
+            {COLORS.map((c) => (
+              <button key={c.label} onClick={() => setColorLabel(c.label)}
+                className={`flex flex-col items-center gap-1 ${colorLabel === c.label ? 'scale-110' : ''} transition-transform`}>
                 <div
-                  className={`h-9 w-9 rounded-full transition-all ${colorLabel===c.label ? 'ring-2 ring-offset-2 ring-[#FFC107]' : ''} ${c.border ? 'border border-[#E5E7EB]' : ''}`}
-                  style={{ backgroundColor: c.hex }}
-                />
+                  className={`h-9 w-9 rounded-full transition-all ${colorLabel === c.label ? 'ring-2 ring-offset-2 ring-[#FFC107]' : ''} ${c.border ? 'border border-[#E5E7EB]' : ''}`}
+                  style={{ backgroundColor: c.hex }} />
                 <span className="text-[9px] text-slate-500">{c.label}</span>
               </button>
             ))}
@@ -404,38 +434,28 @@ export default function CreateRepairPage() {
 
         {/* ③ อาการเสีย */}
         <Card>
-          <SectionHead num={3} title="อาการเสีย (เลือกได้หลายรายการ)"/>
+          <SectionHead num={3} title="อาการเสีย (เลือกได้หลายรายการ)" />
           <div className="flex flex-wrap gap-2 mb-3">
-            {SYMPTOMS.map(s => (
-              <button
-                key={s}
-                onClick={() => toggleChip(symptoms, setSymptoms, s)}
-                className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${symptoms.includes(s) ? 'bg-[#FFF8E7] text-[#F59E0B] ring-1 ring-[#FFC107]' : 'bg-[#F8F9FB] text-slate-500'}`}
-              >
-                {symptoms.includes(s) && <span className="text-[10px]">✓</span>}
-                {s}
+            {ISSUE_TAGS.map((tag) => (
+              <button key={tag} onClick={() => toggleChip(issueTags, setIssueTags, tag)}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${issueTags.includes(tag) ? 'bg-[#FFF8E7] text-[#F59E0B] ring-1 ring-[#FFC107]' : 'bg-[#F8F9FB] text-slate-500'}`}>
+                {issueTags.includes(tag) && <span className="text-[10px]">✓</span>}
+                {tag}
               </button>
             ))}
           </div>
-          <textarea
-            value={issueDesc}
-            onChange={e=>setIssueDesc(e.target.value)}
-            rows={3}
+          <textarea value={issueDesc} onChange={(e) => setIssueDesc(e.target.value)} rows={3}
             placeholder="รายละเอียดเพิ่มเติม เช่น ลูกค้าบอกว่า..."
-            className="w-full resize-none rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] p-3 text-sm text-[#111] outline-none focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20"
-          />
+            className="w-full resize-none rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] p-3 text-sm text-[#111] outline-none focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20" />
         </Card>
 
         {/* ④ สภาพเครื่องก่อนซ่อม */}
         <Card>
-          <SectionHead num={4} title="สภาพเครื่องก่อนซ่อม"/>
+          <SectionHead num={4} title="สภาพเครื่องก่อนซ่อม" />
           <div className="flex flex-wrap gap-2">
-            {CONDITIONS.map(c => (
-              <button
-                key={c}
-                onClick={() => toggleChip(conditions, setConditions, c)}
-                className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${conditions.includes(c) ? 'bg-[#FEF3C7] text-[#D97706] ring-1 ring-[#FFC107]' : 'bg-[#F8F9FB] text-slate-500'}`}
-              >
+            {CONDITIONS.map((c) => (
+              <button key={c} onClick={() => toggleChip(conditions, setConditions, c)}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${conditions.includes(c) ? 'bg-[#FEF3C7] text-[#D97706] ring-1 ring-[#FFC107]' : 'bg-[#F8F9FB] text-slate-500'}`}>
                 {conditions.includes(c) && <span className="text-[10px]">✓</span>}
                 {c}
               </button>
@@ -445,34 +465,24 @@ export default function CreateRepairPage() {
 
         {/* ⑤ รูปภาพก่อนซ่อม */}
         <Card>
-          <SectionHead num={5} title="รูปภาพก่อนซ่อม"/>
+          <SectionHead num={5} title="รูปภาพก่อนซ่อม" />
           <div className="grid grid-cols-4 gap-2">
             {photos.map((p, idx) => (
               <label key={idx} className="relative aspect-square cursor-pointer">
                 {p.file ? (
                   <>
-                    <img
-                      src={URL.createObjectURL(p.file)}
-                      className="h-full w-full rounded-xl object-cover"
-                      alt=""
-                    />
-                    <button
-                      type="button"
-                      onClick={e => { e.preventDefault(); removePhoto(idx) }}
-                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 shadow-sm"
-                    >
-                      <X className="h-3 w-3 text-white"/>
+                    <img src={URL.createObjectURL(p.file)} className="h-full w-full rounded-xl object-cover" alt="" />
+                    <button type="button" onClick={(e) => { e.preventDefault(); removePhoto(idx) }}
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 shadow-sm">
+                      <X className="h-3 w-3 text-white" />
                     </button>
                   </>
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8F9FB] gap-1">
-                    <Camera className="h-5 w-5 text-slate-300"/>
+                    <Camera className="h-5 w-5 text-slate-300" />
                     <span className="text-center text-[8px] leading-tight text-slate-400 px-1">{p.label}</span>
-                    <input
-                      type="file" accept="image/*" capture="environment"
-                      className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if(f) setPhoto(idx,f); e.target.value='' }}
-                    />
+                    <input type="file" accept="image/*" capture="environment" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) setPhoto(idx, f); e.target.value = '' }} />
                   </div>
                 )}
               </label>
@@ -482,17 +492,14 @@ export default function CreateRepairPage() {
 
         {/* ⑥ อุปกรณ์ที่ฝาก */}
         <Card>
-          <SectionHead num={6} title="อุปกรณ์ที่ฝาก"/>
+          <SectionHead num={6} title="อุปกรณ์ที่ฝาก" />
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
-            {ACCESSORIES.map(a => (
-              <label key={a} className="flex items-center gap-2 cursor-pointer">
-                <div
-                  onClick={() => toggleChip(accessories, setAccessories, a)}
-                  className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all ${accessories.includes(a) ? 'border-[#FFC107] bg-[#FFC107]' : 'border-[#E5E7EB] bg-white'}`}
-                >
+            {ACCESSORIES.map((a) => (
+              <label key={a} className="flex items-center gap-2 cursor-pointer" onClick={() => toggleChip(accessories, setAccessories, a)}>
+                <div className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all shrink-0 ${accessories.includes(a) ? 'border-[#FFC107] bg-[#FFC107]' : 'border-[#E5E7EB] bg-white'}`}>
                   {accessories.includes(a) && (
                     <svg viewBox="0 0 10 8" width="10" height="8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M1 4L3.5 6.5L9 1.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
                 </div>
@@ -504,80 +511,126 @@ export default function CreateRepairPage() {
 
         {/* ⑦ ประเมินราคา */}
         <Card>
-          <SectionHead num={7} title="ประเมินราคา"/>
+          <SectionHead num={7} title="ประเมินราคา (ไม่บังคับ)" />
           <div className="flex items-center gap-3">
             <div className="flex-1">
-              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">ค่าแรง</p>
-              <input value={laborCost} onChange={e=>setLaborCost(e.target.value)} type="number" inputMode="decimal" placeholder="0" className={IC}/>
+              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">ค่าแรง (฿)</p>
+              <input value={laborCost} onChange={(e) => setLaborCost(e.target.value)}
+                type="number" inputMode="decimal" placeholder="0" className={IC} />
             </div>
             <span className="mt-5 text-lg font-bold text-slate-300">+</span>
             <div className="flex-1">
-              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">ค่าอะไหล่</p>
-              <input value={partsCost} onChange={e=>setPartsCost(e.target.value)} type="number" inputMode="decimal" placeholder="0" className={IC}/>
+              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">ค่าอะไหล่ (฿)</p>
+              <input value={partsCost} onChange={(e) => setPartsCost(e.target.value)}
+                type="number" inputMode="decimal" placeholder="0" className={IC} />
             </div>
             <span className="mt-5 text-lg font-bold text-slate-300">=</span>
             <div className="flex-1">
               <p className="mb-1.5 text-[11px] font-semibold text-slate-400">รวม</p>
               <div className="flex h-12 items-center rounded-xl bg-[#F0FDF4] px-4">
-                <p className="text-[15px] font-extrabold text-emerald-600">{total.toLocaleString()}</p>
+                <p className="text-[15px] font-extrabold text-emerald-600">{total.toLocaleString('th-TH')}</p>
               </div>
             </div>
           </div>
-          <p className="mt-2 text-right text-[11px] text-slate-400">บาท</p>
         </Card>
 
         {/* ⑧ รับมัดจำ */}
         <Card>
-          <SectionHead num={8} title="รับมัดจำ"/>
-          <div className="flex items-center gap-3">
+          <SectionHead num={8} title="รับมัดจำ (ไม่บังคับ)" />
+          <div className="flex items-center gap-3 mb-3">
             <div className="flex-1">
-              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">จำนวนเงิน (บาท)</p>
-              <input value={deposit} onChange={e=>setDeposit(e.target.value)} type="number" inputMode="decimal" placeholder="0" className={IC}/>
+              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">จำนวนเงิน (฿)</p>
+              <input value={deposit} onChange={(e) => setDeposit(e.target.value)}
+                type="number" inputMode="decimal" placeholder="0" className={IC} />
             </div>
             {total > 0 && (
               <div className="flex-1">
                 <p className="mb-1.5 text-[11px] font-semibold text-slate-400">คงเหลือ</p>
                 <div className="flex h-12 items-center rounded-xl bg-[#F8F9FB] px-4">
-                  <p className={`text-[15px] font-extrabold ${remaining > 0 ? 'text-[#111]' : 'text-emerald-600'}`}>{remaining.toLocaleString()}</p>
+                  <p className={`text-[15px] font-extrabold ${remaining > 0 ? 'text-[#111]' : 'text-emerald-600'}`}>
+                    {remaining.toLocaleString('th-TH')}
+                  </p>
                 </div>
               </div>
             )}
           </div>
+
+          {/* ช่องทางรับมัดจำ — แสดงเมื่อกรอกมัดจำ */}
+          {parseFloat(deposit) > 0 && (
+            <div>
+              <p className="mb-2 text-[11px] font-semibold text-slate-400">ช่องทางรับมัดจำ</p>
+              <div className="grid grid-cols-3 gap-2">
+                {PAY_METHODS.map(({ value, label, icon: Icon }) => (
+                  <button key={value} onClick={() => setDepositPM(value)}
+                    className={`h-11 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-colors ${depositPM === value ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8F9FB] text-slate-500'}`}>
+                    <Icon className="h-3.5 w-3.5" /> {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
 
-        {/* ⑨ เลือกช่าง  ⑩ สถานะ */}
+        {/* ⑨ ข้อมูลเพิ่มเติม */}
+        <Card>
+          <SectionHead num={9} title="ข้อมูลเพิ่มเติม" />
+          <div className="flex flex-col gap-3">
+
+            {/* วันนัดรับ */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+                <p className="text-[11px] font-semibold text-slate-400">วันนัดรับเครื่อง</p>
+              </div>
+              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={IC} />
+            </div>
+
+            {/* ส่วนลด */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Tag className="h-3.5 w-3.5 text-slate-400" />
+                <p className="text-[11px] font-semibold text-slate-400">ส่วนลด (฿)</p>
+              </div>
+              <input type="number" inputMode="decimal" min={0}
+                value={discount} onChange={(e) => setDiscount(e.target.value)}
+                placeholder="0" className={IC} />
+            </div>
+
+            {/* หมายเหตุ */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <FileText className="h-3.5 w-3.5 text-slate-400" />
+                <p className="text-[11px] font-semibold text-slate-400">หมายเหตุ</p>
+              </div>
+              <input value={note} onChange={(e) => setNote(e.target.value)}
+                placeholder="บันทึกเพิ่มเติม..." className={IC} />
+            </div>
+          </div>
+        </Card>
+
+        {/* ⑩ เลือกช่าง + สถานะ */}
         <Card>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <SectionHead num={9} title="เลือกช่าง"/>
+              <SectionHead num={10} title="เลือกช่าง" />
               <div className="relative">
-                <select
-                  value={techId}
-                  onClick={loadTechs}
-                  onChange={e => {
-                    setTechId(e.target.value)
-                    const found = technicians.find(t=>t.id===e.target.value)
-                    setTechName(found?.name ?? '')
-                  }}
-                  className={`${IC} appearance-none pr-8 text-[13px]`}
-                >
-                  <option value="">-- เลือกช่าง --</option>
-                  {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                <select value={techId} onClick={loadTechs}
+                  onChange={(e) => setTechId(e.target.value)}
+                  className={`${IC} appearance-none pr-8 text-[13px]`}>
+                  <option value="">-- ไม่ระบุ --</option>
+                  {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               </div>
             </div>
             <div>
-              <SectionHead num={10} title="สถานะเริ่มต้น"/>
+              <SectionHead num={11} title="สถานะเริ่มต้น" />
               <div className="relative">
-                <select
-                  value={status}
-                  onChange={e => setStatus(e.target.value)}
-                  className={`${IC} appearance-none pr-8 text-[13px]`}
-                >
-                  {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                <select value={status} onChange={(e) => setStatus(e.target.value)}
+                  className={`${IC} appearance-none pr-8 text-[13px]`}>
+                  {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               </div>
             </div>
           </div>
@@ -590,21 +643,22 @@ export default function CreateRepairPage() {
         onOpenChange={setScanOpen}
         onScan={(text) => {
           setImei(text)
+          setScanOpen(false)
           toast.success(`IMEI: ${text}`)
         }}
       />
 
-      {/* ── Sticky bottom bar ── */}
-      <div className="fixed left-0 right-0 flex gap-3 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))' }}>
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#FFC107] text-[16px] font-bold text-[#111] shadow-[0_4px_20px_rgba(255,193,7,0.45)] disabled:opacity-60 active:scale-[0.98] transition-transform"
-        >
-          {loading ? <Loader2 className="h-5 w-5 animate-spin"/> : 'บันทึกงานซ่อม'}
+      {/* Sticky bottom bar */}
+      <div
+        className="fixed left-0 right-0 flex gap-3 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
+        style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))' }}
+      >
+        <button onClick={handleSubmit} disabled={loading}
+          className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#FFC107] text-[16px] font-bold text-[#111] shadow-[0_4px_20px_rgba(255,193,7,0.45)] disabled:opacity-60 active:scale-[0.98] transition-transform">
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'บันทึกงานซ่อม'}
         </button>
         <button className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#111] active:scale-95 transition-transform">
-          <Mic className="h-6 w-6 text-white"/>
+          <Mic className="h-6 w-6 text-white" />
         </button>
       </div>
     </div>
