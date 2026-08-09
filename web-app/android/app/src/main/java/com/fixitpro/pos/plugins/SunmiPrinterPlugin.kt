@@ -305,8 +305,10 @@ class SunmiPrinterPlugin : Plugin() {
                 wv.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
 
                 val root = act.window.decorView.rootView as? android.view.ViewGroup
+                // Fixed large height so WebView has a definite layout before we measure content.
+                // WRAP_CONTENT can default to screen height on old SUNMI firmware.
                 root?.addView(wv, android.view.ViewGroup.LayoutParams(
-                    renderW, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+                    renderW, (5000f * density).toInt()))
                 printWebView = wv
 
                 wv.webViewClient = object : WebViewClient() {
@@ -317,8 +319,11 @@ class SunmiPrinterPlugin : Plugin() {
                                 val viewScale = view.scale
                                 // evaluateJavascript gives accurate content height;
                                 // view.contentHeight on older SUNMI firmware returns viewport height (blank space bug).
+                                // getBoundingClientRect().bottom gives viewport-relative position,
+                                // which equals the element's Y position from document top (no scrolling).
+                                // This is reliable on old Android WebViews unlike scrollHeight.
                                 view.evaluateJavascript(
-                                    "(function(){return Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);})()"
+                                    "(function(){var max=0;var els=document.body.getElementsByTagName('*');for(var i=0;i<els.length;i++){var b=els[i].getBoundingClientRect().bottom;if(b>max)max=b;}return Math.round(max)||document.body.offsetHeight;})()"
                                 ) { jsResult ->
                                 try {
                                 val jsCssH   = jsResult?.trim()?.trim('"')?.toIntOrNull() ?: 0
