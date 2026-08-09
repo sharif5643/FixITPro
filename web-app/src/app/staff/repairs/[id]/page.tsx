@@ -150,7 +150,7 @@ export default function RepairDetailPage() {
   const [transferPart, setTransferPart]             = useState<Product | null>(null)
 
   // Estimate
-  const [laborCost, setLaborCost]                   = useState('')
+  const [estimatePrice, setEstimatePrice]           = useState('')
   const [approvalNote, setApprovalNote]             = useState('')
 
   // Payment
@@ -226,7 +226,7 @@ export default function RepairDetailPage() {
     if (repair) {
       setSelectedStatus(repair.status)
       setImeiValue(repair.deviceImei ?? '')
-      setLaborCost(repair.estimatedLaborCost != null ? String(repair.estimatedLaborCost) : '')
+      setEstimatePrice(repair.estimatedTotal != null ? String(Number(repair.estimatedTotal)) : '')
       setApprovalNote(repair.approvalNote ?? '')
     }
   }, [repair])
@@ -336,14 +336,16 @@ export default function RepairDetailPage() {
 
   function handleSendEstimate() {
     if (!repair) return
+    const price = Number(estimatePrice)
+    if (!price) { toast.error('กรุณาระบุราคาค่าซ่อม'); return }
+    // Only move to WAITING_APPROVAL if not already in approval/approved flow
+    const shouldChangeStatus = !['WAITING_APPROVAL', 'APPROVED', 'COMPLETED', 'DELIVERED', 'CANCELLED'].includes(repair.status)
     updateMutation.mutate(
       {
-        estimatedLaborCost: Number(laborCost) || 0,
-        estimatedPartsCost: computedCustomerPartsCost,
-        estimatedTotal:     computedTotal,
-        status:             'WAITING_APPROVAL',
+        estimatedTotal: price,
+        ...(shouldChangeStatus ? { status: 'WAITING_APPROVAL' } : {}),
       },
-      { onSuccess: () => toast.success('ส่งใบประเมินแล้ว') },
+      { onSuccess: () => toast.success(shouldChangeStatus ? 'ส่งใบประเมินแล้ว' : 'อัปเดตราคาแล้ว') },
     )
   }
 
@@ -356,12 +358,11 @@ export default function RepairDetailPage() {
 
   function handleSyncEstimate() {
     updateMutation.mutate(
-      {
-        estimatedLaborCost: Number(laborCost) || 0,
-        estimatedPartsCost: computedCustomerPartsCost,
-        estimatedTotal:     computedTotal,
-      },
-      { onSuccess: () => toast.success('อัปเดตราคาประมาณแล้ว') },
+      { estimatedTotal: computedCustomerPartsCost },
+      { onSuccess: () => {
+        setEstimatePrice(String(computedCustomerPartsCost))
+        toast.success('อัปเดตราคาแล้ว')
+      }},
     )
   }
 
@@ -411,9 +412,8 @@ export default function RepairDetailPage() {
   const computedCustomerPartsCost = activeParts
     .filter((p) => p.chargeToCustomer)
     .reduce((s, p) => s + Number(p.sellPrice ?? 0) * p.quantity, 0)
-  const computedTotal = (Number(laborCost) || 0) + computedCustomerPartsCost
 
-  const canEstimate = !isLocked && !['CANCELLED', 'APPROVED', 'WAITING_APPROVAL'].includes(repair.status)
+  const canEstimate = !isLocked && repair.status !== 'CANCELLED'
 
   function handlePrintIntake() {
     if (!repair) return
@@ -900,70 +900,56 @@ export default function RepairDetailPage() {
               )}
             </div>
 
-            {/* Sync estimate banner — shown when actual total differs from saved estimate */}
-            {!isLocked && repair.estimatedTotal != null &&
-              Math.abs(computedTotal - Number(repair.estimatedTotal)) > 0.01 && (
-              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-amber-800">ราคาประมาณไม่ตรงกับอะไหล่จริง</p>
-                    <p className="text-xs text-amber-700 mt-0.5">
-                      คำนวณได้ <span className="font-bold">{computedTotal.toLocaleString('th-TH')} ฿</span>
-                      {' '}· ในใบประมาณ <span className="font-bold">{Number(repair.estimatedTotal).toLocaleString('th-TH')} ฿</span>
-                    </p>
-                  </div>
-                </div>
-                <button onClick={handleSyncEstimate} disabled={updateMutation.isPending}
-                  className="mt-3 w-full h-10 rounded-xl bg-amber-500 text-white text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-60">
-                  {updateMutation.isPending
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <>อัปเดตราคาประมาณเป็น {computedTotal.toLocaleString('th-TH')} ฿</>}
-                </button>
-              </div>
-            )}
-
-            {/* Estimate */}
-            {!isLocked && (
+            {/* Estimate — flat price input, usable at any point */}
+            {canEstimate && (
               <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-blue-50">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                  <DollarSign className="h-3.5 w-3.5" /> ประมาณราคาซ่อม
+                  <DollarSign className="h-3.5 w-3.5" /> ราคาค่าซ่อม
                 </p>
-                <div className="space-y-2.5">
-                  <div className="flex items-center gap-3">
-                    <label className="text-sm text-slate-600 w-28 shrink-0">ค่าแรง (฿)</label>
-                    <input type="number" min={0} placeholder="0" value={laborCost}
-                      onChange={(e) => setLaborCost(e.target.value)}
-                      className="flex-1 h-10 rounded-xl bg-[#F8F9FB] px-3 text-sm outline-none" />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-slate-600 w-28 shrink-0">ค่าอะไหล่ (ลูกค้า)</span>
-                    <span className="text-sm font-medium tabular-nums text-[#111]">
-                      {fmtMoney(computedCustomerPartsCost) ?? '0 ฿'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 border-t border-[#F8F9FB] pt-2">
-                    <span className="text-sm font-bold text-[#111] w-28 shrink-0">รวมประมาณ</span>
-                    <span className="text-base font-bold text-[#FFC107] tabular-nums">{computedTotal.toLocaleString('th-TH')} ฿</span>
-                  </div>
-                </div>
 
-                {repair.estimatedTotal != null && (
-                  <div className="mt-3 text-xs text-slate-400 bg-[#F8F9FB] rounded-xl px-3 py-2 space-y-0.5">
-                    <p>ประมาณล่าสุด: <span className="font-semibold text-[#111]">{fmtMoney(Number(repair.estimatedTotal))}</span></p>
-                    {repair.approvedAt && <p className="text-green-600">อนุมัติเมื่อ {fmtDate(repair.approvedAt)}</p>}
+                {/* Main price input */}
+                <input
+                  type="number" min={0} placeholder="0"
+                  value={estimatePrice}
+                  onChange={(e) => setEstimatePrice(e.target.value)}
+                  className="w-full h-14 rounded-xl bg-[#F8F9FB] px-4 text-2xl font-bold text-[#111] outline-none mb-3 tabular-nums"
+                />
+
+                {/* Hint: parts charged to customer */}
+                {computedCustomerPartsCost > 0 && (
+                  <div className="flex items-center justify-between rounded-xl bg-blue-50 border border-blue-100 px-3 py-2 mb-3">
+                    <span className="text-xs text-blue-700">อะไหล่คิดลูกค้า</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-blue-700 tabular-nums">{fmtMoney(computedCustomerPartsCost)}</span>
+                      <button
+                        onClick={() => setEstimatePrice(String(computedCustomerPartsCost))}
+                        className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-lg">
+                        ใช้ตัวนี้
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Previous estimate info */}
+                {repair.estimatedTotal != null && Number(repair.estimatedTotal) > 0 && (
+                  <div className="text-xs text-slate-400 bg-[#F8F9FB] rounded-xl px-3 py-2 mb-3 space-y-0.5">
+                    <p>ราคาที่ส่งล่าสุด: <span className="font-semibold text-[#111]">{fmtMoney(Number(repair.estimatedTotal))}</span>
+                      {repair.status === 'WAITING_APPROVAL' && <span className="ml-1 text-amber-600">· รอลูกค้าอนุมัติ</span>}
+                      {repair.approvedAt && <span className="ml-1 text-green-600">· อนุมัติแล้ว</span>}
+                    </p>
                     {repair.approvalNote && <p>หมายเหตุ: {repair.approvalNote}</p>}
                   </div>
                 )}
 
-                {canEstimate && (
-                  <button onClick={handleSendEstimate} disabled={updateMutation.isPending}
-                    className="mt-3 w-full h-12 rounded-2xl bg-amber-500 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                    {updateMutation.isPending
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                <button onClick={handleSendEstimate}
+                  disabled={!Number(estimatePrice) || updateMutation.isPending}
+                  className="w-full h-12 rounded-2xl bg-amber-500 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+                  {updateMutation.isPending
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : repair.status === 'WAITING_APPROVAL'
+                      ? <><Clock className="h-4 w-4" /> อัปเดตราคา (รออนุมัติ)</>
                       : <><Clock className="h-4 w-4" /> ส่งใบประเมิน (รอลูกค้าอนุมัติ)</>}
-                  </button>
-                )}
+                </button>
               </div>
             )}
 
@@ -972,15 +958,10 @@ export default function RepairDetailPage() {
               <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-amber-100">
                 <div className="flex items-center gap-2 mb-2">
                   <Info className="h-4 w-4 text-amber-500" />
-                  <p className="text-sm font-bold text-amber-700">รอลูกค้าอนุมัติราคา</p>
+                  <p className="text-sm font-bold text-amber-700">รอลูกค้าอนุมัติ</p>
                 </div>
                 <p className="text-sm text-amber-800 mb-3">
-                  ประมาณการ: <span className="font-bold">{fmtMoney(Number(repair.estimatedTotal))}</span>
-                  {repair.estimatedLaborCost != null && (
-                    <span className="text-xs ml-1 opacity-70">
-                      (ค่าแรง {fmtMoney(Number(repair.estimatedLaborCost))} + อะไหล่ {fmtMoney(Number(repair.estimatedPartsCost))})
-                    </span>
-                  )}
+                  ราคา: <span className="font-bold text-lg">{fmtMoney(Number(repair.estimatedTotal))}</span>
                 </p>
                 <div className="space-y-3">
                   <input value={approvalNote} onChange={(e) => setApprovalNote(e.target.value)}

@@ -161,7 +161,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [transferPart, setTransferPart] = useState<Product | null>(null)
 
   // Estimate
-  const [laborCost, setLaborCost] = useState('')
+  const [estimatePrice, setEstimatePrice] = useState('')
   const [approvalNote, setApprovalNote] = useState('')
 
   // Payment dialog state
@@ -186,7 +186,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   useEffect(() => {
     if (repair) {
       setLocalStatus(repair.status)
-      setLaborCost(repair.estimatedLaborCost != null ? String(repair.estimatedLaborCost) : '')
+      setEstimatePrice(repair.estimatedTotal != null ? String(Number(repair.estimatedTotal)) : '')
       setApprovalNote(repair.approvalNote ?? '')
     }
   }, [repair])
@@ -231,15 +231,15 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const computedPartsCost = Array.isArray(repair?.parts)
     ? repair.parts.filter(p => !p.isVoided).reduce((sum, p) => sum + Number(p.price) * p.quantity, 0)
     : 0
-  // Customer charge: sum of sellPrice for chargeToCustomer parts — used in estimate sent to customer
+  // Customer charge: sum of sellPrice for chargeToCustomer parts — hint for estimate field
   const computedCustomerPartsCost = Array.isArray(repair?.parts)
     ? repair.parts.filter(p => !p.isVoided && p.chargeToCustomer)
         .reduce((sum, p) => sum + Number(p.sellPrice ?? 0) * p.quantity, 0)
     : 0
-  const computedTotal = (Number(laborCost) || 0) + computedCustomerPartsCost
 
   // Locks: cannot modify parts when COMPLETED or DELIVERED
   const isLocked = repair?.status === 'COMPLETED' || repair?.status === 'DELIVERED'
+  const canEstimate = !isLocked && repair?.status !== 'CANCELLED'
 
   const addPartMutation = useMutation({
     mutationFn: ({ productId, quantity, price, chargeToCustomer }: {
@@ -346,13 +346,14 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   }
 
   const handleSendEstimate = () => {
+    const price = Number(estimatePrice)
+    if (!price) { toast.error('กรุณาระบุราคาค่าซ่อม'); return }
+    const shouldChangeStatus = !['WAITING_APPROVAL', 'APPROVED', 'COMPLETED', 'DELIVERED', 'CANCELLED'].includes(repair?.status ?? '')
     updateMutation.mutate({
-      estimatedLaborCost: Number(laborCost) || 0,
-      estimatedPartsCost: computedCustomerPartsCost,
-      estimatedTotal: computedTotal,
-      status: 'WAITING_APPROVAL',
+      estimatedTotal: price,
+      ...(shouldChangeStatus ? { status: 'WAITING_APPROVAL' } : {}),
     }, {
-      onSuccess: () => toast.success('ส่งประมาณราคาให้ลูกค้าแล้ว'),
+      onSuccess: () => toast.success(shouldChangeStatus ? 'ส่งใบประเมินแล้ว' : 'อัปเดตราคาแล้ว'),
     })
   }
 
@@ -831,63 +832,63 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               </div>
 
               {/* ─── Estimate Section ─── */}
-              {!isLocked && (
+              {canEstimate && (
                 <div className="rounded-xl border border-blue-100 dark:border-blue-700/40 bg-blue-50/30 dark:bg-blue-900/10 p-4 space-y-3">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     <DollarSign className="h-3.5 w-3.5" />
-                    ประมาณราคาซ่อม
+                    ราคาค่าซ่อม
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm text-slate-700 dark:text-slate-300 w-32 shrink-0">ค่าแรง (บาท)</label>
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="0"
-                        value={laborCost}
-                        onChange={(e) => setLaborCost(e.target.value)}
-                        className="h-8 text-sm flex-1"
-                      />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm text-slate-700 dark:text-slate-300 w-32 shrink-0">ค่าอะไหล่</span>
-                      <span className="text-sm font-medium tabular-nums">{formatThaiMoney(computedPartsCost)}</span>
-                    </div>
-                    <div className="flex items-center gap-3 border-t border-slate-100 dark:border-slate-700/60 pt-2">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white w-32 shrink-0">รวมประมาณ</span>
-                      <span className="text-base font-bold text-blue-700 tabular-nums">{formatThaiMoney(computedTotal)}</span>
-                    </div>
-                  </div>
+                  {/* Flat price input */}
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={estimatePrice}
+                    onChange={(e) => setEstimatePrice(e.target.value)}
+                    className="h-12 text-xl font-bold text-center tabular-nums"
+                  />
 
-                  {repair.estimatedTotal != null && (
+                  {/* Hint: parts charged to customer */}
+                  {computedCustomerPartsCost > 0 && (
+                    <div className="flex items-center justify-between rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/40 px-3 py-2">
+                      <span className="text-xs text-blue-700 dark:text-blue-400">อะไหล่คิดลูกค้า</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-400 tabular-nums">{formatThaiMoney(computedCustomerPartsCost)}</span>
+                        <button
+                          onClick={() => setEstimatePrice(String(computedCustomerPartsCost))}
+                          className="text-[10px] font-bold text-blue-600 bg-blue-100 dark:bg-blue-800/40 px-2 py-0.5 rounded"
+                        >
+                          ใช้ตัวนี้
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Previous estimate info */}
+                  {repair.estimatedTotal != null && Number(repair.estimatedTotal) > 0 && (
                     <div className="text-xs text-muted-foreground bg-white dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-700/60 px-3 py-2 space-y-0.5">
-                      <p>ประมาณล่าสุด: <span className="font-semibold text-slate-900 dark:text-white">{formatThaiMoney(Number(repair.estimatedTotal))}</span></p>
-                      {repair.approvedAt && (
-                        <p className="text-green-600">อนุมัติเมื่อ {fmtDate(repair.approvedAt)}</p>
-                      )}
-                      {repair.approvalNote && (
-                        <p>หมายเหตุ: {repair.approvalNote}</p>
-                      )}
+                      <p>ราคาที่ส่งล่าสุด: <span className="font-semibold text-slate-900 dark:text-white">{formatThaiMoney(Number(repair.estimatedTotal))}</span>
+                        {repair.status === 'WAITING_APPROVAL' && <span className="ml-1 text-amber-600"> · รอลูกค้าอนุมัติ</span>}
+                        {repair.approvedAt && <span className="ml-1 text-green-600"> · อนุมัติแล้ว</span>}
+                      </p>
+                      {repair.approvalNote && <p>หมายเหตุ: {repair.approvalNote}</p>}
                     </div>
                   )}
 
-                  {repair.status !== 'APPROVED' && repair.status !== 'WAITING_APPROVAL' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
-                      onClick={handleSendEstimate}
-                      disabled={updateMutation.isPending}
-                    >
-                      {updateMutation.isPending ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Clock className="h-3.5 w-3.5" />
-                      )}
-                      ส่งประมาณราคา (รอลูกค้าอนุมัติ)
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    className="w-full gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
+                    onClick={handleSendEstimate}
+                    disabled={!Number(estimatePrice) || updateMutation.isPending}
+                  >
+                    {updateMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Clock className="h-3.5 w-3.5" />
+                    )}
+                    {repair.status === 'WAITING_APPROVAL' ? 'อัปเดตราคา (รออนุมัติ)' : 'ส่งใบประเมิน (รอลูกค้าอนุมัติ)'}
+                  </Button>
                 </div>
               )}
 
@@ -899,12 +900,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     รอลูกค้าอนุมัติราคา
                   </div>
                   <p className="text-sm text-amber-800">
-                    ประมาณการ: <span className="font-bold">{formatThaiMoney(Number(repair.estimatedTotal))}</span>
-                    {repair.estimatedLaborCost != null && (
-                      <span className="text-xs ml-1 opacity-70">
-                        (ค่าแรง {formatThaiMoney(Number(repair.estimatedLaborCost))} + อะไหล่ {formatThaiMoney(Number(repair.estimatedPartsCost))})
-                      </span>
-                    )}
+                    ราคา: <span className="font-bold text-lg">{formatThaiMoney(Number(repair.estimatedTotal))}</span>
                   </p>
                   <Textarea
                     placeholder="หมายเหตุการอนุมัติ (ไม่บังคับ)"
