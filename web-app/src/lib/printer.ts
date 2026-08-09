@@ -489,8 +489,8 @@ export async function printReceipt(opts: PrintReceiptOptions): Promise<void> {
 function makeReceiptThermalCss(px: number): string {
   // r(n): scale web component's CSS pixel value to thermal pixel width
   const r = (webPx: number) => Math.round(webPx * px / 200)
-  // Thermal printer luminance threshold: lum(color) < 128 = black dot.
-  // #9CA3AF (gray-400) has lum≈162 → invisible on thermal → use #777 (lum≈118) instead.
+  // Thermal luminance threshold: lum < 128 = black dot. Keep all colors below lum 80 for strong print.
+  // lum(#222)=34  lum(#333)=51  lum(#444)=68  lum(#555)=85  lum(#777)=119 (too light)
   return `
   @page { margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -502,24 +502,24 @@ function makeReceiptThermalCss(px: number): string {
     width: ${px}px;
     height: fit-content;
     padding: ${r(4)}px ${r(8)}px ${r(16)}px ${r(8)}px;
-    color: #111;
+    color: #000;
     background: #fff;
   }
   .c    { text-align: center; }
   .b    { font-weight: 700; }
-  .gray { color: #555; }
+  .gray { color: #333; }
   .shop-name { font-size: ${r(14)}px; font-weight: 700; letter-spacing: 0.08em; }
-  .hr   { border: none; border-top: 1px dashed #777; margin: ${r(6)}px 0; }
+  .hr   { border: none; border-top: 1px dashed #333; margin: ${r(6)}px 0; }
   .sec  { padding-bottom: ${r(3)}px; }
   .row  { display: flex; justify-content: space-between; gap: ${r(4)}px; }
   .row .v { white-space: nowrap; text-align: right; }
   .sig  { display: flex; justify-content: space-between; margin: ${r(10)}px 0 ${r(6)}px; }
   .sig-box  { text-align: center; font-size: ${r(10)}px; }
-  .sig-line { width: ${r(80)}px; border-bottom: 1px solid #777; margin-bottom: ${r(4)}px; height: ${r(28)}px; }
-  .cut  { border-top: 2px dashed #333; margin: ${r(10)}px 0; text-align: center; font-size: ${r(10)}px; color: #555; letter-spacing: 2px; }
+  .sig-line { width: ${r(80)}px; border-bottom: 1px solid #333; margin-bottom: ${r(4)}px; height: ${r(28)}px; }
+  .cut  { border-top: 2px dashed #000; margin: ${r(10)}px 0; text-align: center; font-size: ${r(10)}px; color: #333; letter-spacing: 2px; }
   .qr-t   { font-size: ${r(10)}px; font-weight: 700; }
-  .qr-s   { font-size: ${r(9)}px; color: #555; }
-  .qr-url { word-break: break-all; font-size: ${r(8)}px; color: #666; line-height: 1.3; margin-top: ${r(2)}px; }
+  .qr-s   { font-size: ${r(9)}px; color: #333; }
+  .qr-url { word-break: break-all; font-size: ${r(8)}px; color: #333; line-height: 1.3; margin-top: ${r(2)}px; }
   .qr-svg svg { width: ${r(90)}px !important; height: ${r(90)}px !important; }
   p + p { margin-top: ${r(2)}px; }
 `
