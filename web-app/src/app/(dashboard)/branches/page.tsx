@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Building2, Plus, Pencil, X,
   ArrowRightLeft, Check, Package, Users, ShoppingCart,
-  Star, StarOff, AlertCircle, Search, ShieldCheck, ShieldX, Clock,
+  Star, Trash2, AlertCircle, Search, ShieldCheck, ShieldX, Clock,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -195,9 +195,12 @@ export default function BranchesPage() {
     onError: (e: any) => setError(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
   })
 
-  const deactivateMut = useMutation({
+  const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/branches/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['branches'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['branches'] })
+      toast.success('ลบสาขาสำเร็จ')
+    },
     onError: (e: any) => setError(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
   })
 
@@ -346,12 +349,13 @@ export default function BranchesPage() {
                           <AlertCircle className="h-3.5 w-3.5 text-orange-400" />
                         </button>
                       )}
-                      {!branch.isDefault && branch.isActive && (
+                      {!branch.isDefault && (
                         <button
                           onClick={() => setDeactivateDialog({ id: branch.id, name: branch.name })}
                           className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                          title="ลบสาขา"
                         >
-                          <StarOff className="h-3.5 w-3.5 text-red-400" />
+                          <Trash2 className="h-3.5 w-3.5 text-red-400" />
                         </button>
                       )}
                     </div>
@@ -527,13 +531,19 @@ export default function BranchesPage() {
         )
       })()}
 
-      {/* Deactivate confirm dialog */}
+      {/* Delete confirm dialog */}
       {deactivateDialog && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h3 className="font-bold text-slate-900 dark:text-white">ปิดใช้งานสาขา</h3>
+            <h3 className="font-bold text-red-600 flex items-center gap-2">
+              <Trash2 className="h-4 w-4" />
+              ลบสาขา
+            </h3>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              ยืนยันปิดใช้งานสาขา <span className="font-semibold">"{deactivateDialog.name}"</span>?
+              ยืนยันลบสาขา <span className="font-semibold">"{deactivateDialog.name}"</span>?
+            </p>
+            <p className="text-xs text-slate-400">
+              ลบได้เฉพาะสาขาที่ไม่มีพนักงานและไม่มีงานซ่อมค้างอยู่ การลบไม่สามารถยกเลิกได้
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -541,9 +551,9 @@ export default function BranchesPage() {
                 className="px-4 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/40 dark:text-slate-300"
               >ยกเลิก</button>
               <button
-                onClick={() => { deactivateMut.mutate(deactivateDialog.id); setDeactivateDialog(null) }}
+                onClick={() => { deleteMut.mutate(deactivateDialog.id); setDeactivateDialog(null) }}
                 className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700"
-              >ปิดใช้งาน</button>
+              >ลบสาขา</button>
             </div>
           </div>
         </div>

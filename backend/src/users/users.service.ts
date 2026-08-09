@@ -294,4 +294,33 @@ export class UsersService {
       select: { id: true, isActive: true },
     });
   }
+
+  async deleteUser(id: string, requesterId: string, tenantId: string | null, requesterName?: string) {
+    const target = await this.findOne(id);
+    if (target.tenantId !== tenantId) throw new ForbiddenException('Access denied');
+    if (id === requesterId) throw new BadRequestException('ไม่สามารถลบบัญชีของตัวเองได้');
+    if (target.role === 'OWNER') throw new BadRequestException('ไม่สามารถลบบัญชีเจ้าของร้านได้');
+
+    const openRepairs = await this.prisma.repair.count({
+      where: { technicianId: id, status: { notIn: ['CANCELLED', 'COMPLETED', 'DELIVERED'] } },
+    });
+    if (openRepairs > 0) {
+      throw new BadRequestException(
+        `พนักงานนี้ยังมีงานซ่อมค้างอยู่ ${openRepairs} งาน กรุณาโอนงานออกก่อน`,
+      );
+    }
+
+    await this.prisma.user.delete({ where: { id } });
+
+    await this.auditLog.log({
+      actorId:   requesterId,
+      actorName: requesterName,
+      action:    'USER_DELETED',
+      entityType: 'User',
+      entityId:   id,
+      beforeData: { name: target.name, email: target.email, role: target.role },
+    });
+
+    return { success: true };
+  }
 }

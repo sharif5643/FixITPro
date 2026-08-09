@@ -122,7 +122,7 @@ export default function RepairDetailPage() {
   const router      = useRouter()
   const { id }      = useParams<{ id: string }>()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuthStore()
+  const { hasPermission, user: authUser } = useAuthStore()
   const canViewCost = hasPermission('products.view_cost')
 
   // UI state
@@ -163,6 +163,7 @@ export default function RepairDetailPage() {
   const [addPayAmount, setAddPayAmount]             = useState('')
   const [addPayMethod, setAddPayMethod]             = useState<PayMethod>('CASH')
   const [addPayNote, setAddPayNote]                 = useState('')
+  const [confirmDelete, setConfirmDelete]           = useState(false)
 
   // ── Queries
 
@@ -313,6 +314,16 @@ export default function RepairDetailPage() {
       setAddPayOpen(false)
       setAddPayAmount('')
       setAddPayNote('')
+    },
+    onError: (err: unknown) => toast.error(errMsg(err)),
+  })
+
+  const deleteRepairMutation = useMutation({
+    mutationFn: () => api.delete(`/repairs/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staff-repairs'] })
+      toast.success('ลบงานซ่อมสำเร็จ')
+      router.back()
     },
     onError: (err: unknown) => toast.error(errMsg(err)),
   })
@@ -635,9 +646,20 @@ export default function RepairDetailPage() {
             <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
               <p className="mb-4 text-sm font-bold text-[#111]">ความคืบหน้า</p>
               {repair.status === 'CANCELLED' ? (
-                <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2.5">
-                  <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-                  <span className="text-sm font-semibold text-red-600">งานซ่อมถูกยกเลิก</span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2.5">
+                    <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+                    <span className="text-sm font-semibold text-red-600">งานซ่อมถูกยกเลิก</span>
+                  </div>
+                  {authUser?.role === 'OWNER' && (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      ลบงานซ่อมนี้
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-0">
@@ -1283,6 +1305,40 @@ export default function RepairDetailPage() {
       )}
       {showDeliveryPrint && (
         <RepairDeliveryPrintFlow repairId={id} onClose={() => setShowDeliveryPrint(false)} />
+      )}
+
+      {/* ── Delete confirm overlay ─────────────────────────────────────────── */}
+      {confirmDelete && repair && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-4 pb-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 space-y-4">
+            <div className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              <span className="font-bold text-lg">ลบงานซ่อม</span>
+            </div>
+            <p className="text-sm text-slate-600">
+              ยืนยันลบงานซ่อม <span className="font-semibold text-[#111]">{repair.ticketNumber}</span>?
+              การลบนี้ไม่สามารถยกเลิกได้
+            </p>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleteRepairMutation.isPending}
+                className="flex-1 rounded-2xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 active:bg-slate-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => deleteRepairMutation.mutate()}
+                disabled={deleteRepairMutation.isPending}
+                className="flex-1 rounded-2xl bg-red-600 py-3 text-sm font-bold text-white active:bg-red-700 disabled:opacity-50"
+              >
+                {deleteRepairMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                ) : 'ลบงานซ่อม'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )

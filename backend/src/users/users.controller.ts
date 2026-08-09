@@ -4,6 +4,7 @@ import {
   Post,
   Put,
   Patch,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -99,5 +100,14 @@ export class UsersController {
     @CurrentUser() requester: { id: string; tenantId: string | null },
   ) {
     return this.usersService.resetPassword(id, requester.id, requester.tenantId);
+  }
+
+  @Delete(':id')
+  @Roles('OWNER')
+  deleteUser(
+    @Param('id') id: string,
+    @CurrentUser() requester: { id: string; tenantId: string | null; name?: string },
+  ) {
+    return this.usersService.deleteUser(id, requester.id, requester.tenantId, requester.name);
   }
 }

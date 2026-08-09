@@ -1192,4 +1192,27 @@ export class RepairsService {
       update: { rating, comment },
     });
   }
+
+  async deleteRepair(id: string, actorId: string, actorRole: string, actorName: string, tenantId: string | null) {
+    if (actorRole !== 'OWNER') {
+      throw new ForbiddenException('เฉพาะเจ้าของร้านเท่านั้นที่ลบงานซ่อมได้');
+    }
+    const where: any = { id };
+    if (tenantId) where.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({
+      where,
+      select: { id: true, status: true, ticketNumber: true },
+    });
+    if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
+    if (repair.status !== 'CANCELLED') {
+      throw new BadRequestException('ลบได้เฉพาะงานซ่อมที่ยกเลิกแล้ว (สถานะ CANCELLED)');
+    }
+    await this.prisma.repair.delete({ where: { id } });
+    this.auditLog.log({
+      actorId, actorName, action: 'REPAIR_DELETED',
+      entityType: 'Repair', entityId: id,
+      beforeData: { ticketNumber: repair.ticketNumber, status: 'CANCELLED' },
+    });
+    return { success: true };
+  }
 }

@@ -62,15 +62,14 @@ export class BranchesController {
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermission('branches.manage')
-  deactivate(
+  deleteBranch(
     @Param('id') id: string,
     @CurrentUser('id')       actorId: string,
     @CurrentUser('name')     actorName: string,
     @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.svc.deactivate(id, actorId, actorName, tenantId);
+    return this.svc.deleteBranch(id, actorId, actorName, tenantId);
   }
 
   // ── Branch Stock ──────────────────────────────────────────────────────────

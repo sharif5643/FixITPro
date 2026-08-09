@@ -247,6 +247,41 @@ export class BranchesService implements OnModuleInit {
     return updated;
   }
 
+  async deleteBranch(id: string, actorId?: string, actorName?: string, tenantId?: string | null) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id, ...this.tenantSvc.scope(tenantId) },
+      include: { _count: { select: { users: true } } },
+    });
+    if (!branch) throw new NotFoundException('ไม่พบสาขา');
+    if (branch.isDefault) throw new BadRequestException('ไม่สามารถลบสาขาหลักได้');
+
+    const userCount = (branch as any)._count?.users ?? 0;
+    if (userCount > 0) {
+      throw new BadRequestException(
+        `ไม่สามารถลบสาขาที่มีพนักงานอยู่ (${userCount} คน) กรุณาโอนย้ายพนักงานออกก่อน`,
+      );
+    }
+
+    const openRepairs = await this.prisma.repair.count({
+      where: { branchId: id, status: { notIn: ['CANCELLED', 'COMPLETED', 'DELIVERED'] } },
+    });
+    if (openRepairs > 0) {
+      throw new BadRequestException(
+        `ไม่สามารถลบสาขาที่มีงานซ่อมที่ยังไม่เสร็จ (${openRepairs} งาน)`,
+      );
+    }
+
+    await this.prisma.branch.delete({ where: { id } });
+
+    this.auditLog.log({
+      actorId, actorName, action: 'BRANCH_DELETED',
+      entityType: 'Branch', entityId: id,
+      beforeData: { name: branch.name },
+    });
+
+    return { success: true };
+  }
+
   // ── Branch Approval ─────────────────────────────────────────────────────────
 
   async approveBranch(id: string, actorId?: string, actorName?: string) {

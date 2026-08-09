@@ -251,6 +251,19 @@ export class RepairsController {
     return this.repairsService.submitQc(id, dto, userId, userName, tenantId);
   }
 
+  @Delete(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.edit')
+  deleteRepair(
+    @Param('id') id: string,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('role') actorRole: string,
+    @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.deleteRepair(id, actorId, actorRole, actorName, tenantId);
+  }
+
   @Post(':id/review')
   submitReview(
     @Param('id') id: string,

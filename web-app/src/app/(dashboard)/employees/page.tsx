@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import {
   Users, Plus, Pencil, KeyRound, ToggleLeft, ToggleRight, Loader2,
   Clock, Mail, Phone, Copy, Check, Building2, Wand2, ChevronDown, ChevronUp,
+  Trash2, AlertTriangle,
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -496,9 +497,10 @@ export default function EmployeesPage() {
     }
   }, [currentUser, router])
 
-  const [createOpen, setCreateOpen]   = useState(false)
-  const [editTarget, setEditTarget]   = useState<User | null>(null)
-  const [resetTarget, setResetTarget] = useState<User | null>(null)
+  const [createOpen, setCreateOpen]       = useState(false)
+  const [editTarget, setEditTarget]       = useState<User | null>(null)
+  const [resetTarget, setResetTarget]     = useState<User | null>(null)
+  const [deleteTarget, setDeleteTarget]   = useState<User | null>(null)
 
   const { data: rawUsers = [], isLoading } = useQuery<User[]>({
     queryKey: ['users'],
@@ -521,6 +523,20 @@ export default function EmployeesPage() {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       const u = users.find((x) => x.id === id)
       toast.success(u?.isActive ? 'ปิดการใช้งานแล้ว' : 'เปิดการใช้งานแล้ว')
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message ?? err.message
+      toast.error(Array.isArray(msg) ? msg[0] : msg)
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/users/${id}`),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      const u = users.find((x) => x.id === id)
+      toast.success(`ลบ ${u?.name ?? 'พนักงาน'} สำเร็จ`)
+      setDeleteTarget(null)
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message ?? err.message
@@ -651,6 +667,15 @@ export default function EmployeesPage() {
                       {user.isActive ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                     </button>
                   )}
+                  {!isMe && !isOwner && currentUser?.role === 'OWNER' && (
+                    <button
+                      onClick={() => setDeleteTarget(user)}
+                      className="rounded-lg p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                      title="ลบพนักงาน"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             )
@@ -681,6 +706,40 @@ export default function EmployeesPage() {
           open={!!resetTarget}
           onOpenChange={(v) => { if (!v) setResetTarget(null) }}
         />
+      )}
+
+      {/* Delete confirm dialog */}
+      {deleteTarget && (
+        <Dialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <AlertTriangle className="h-5 w-5" />
+                ลบพนักงาน
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              ยืนยันลบ <span className="font-semibold text-slate-900 dark:text-white">{deleteTarget.name}</span>?
+              การลบนี้ไม่สามารถยกเลิกได้
+            </p>
+            <p className="text-xs text-muted-foreground">
+              ลบได้เฉพาะพนักงานที่ไม่มีงานซ่อมค้างอยู่
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleteMutation.isPending}>
+                ยกเลิก
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => deleteMutation.mutate(deleteTarget.id)}
+                disabled={deleteMutation.isPending}
+                className="min-w-[80px]"
+              >
+                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ลบพนักงาน'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

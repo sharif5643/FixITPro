@@ -177,6 +177,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [addPayAmount, setAddPayAmount] = useState('')
   const [addPayMethod, setAddPayMethod] = useState<'CASH' | 'TRANSFER' | 'CARD'>('CASH')
   const [addPayNote, setAddPayNote] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const { hasPermission, user: authUser } = useAuthStore()
   const repairBranchId = (repair?.branchId as string | null | undefined) ?? undefined
@@ -339,6 +340,18 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/repairs/${repairId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['repairs'] })
+      toast.success('ลบงานซ่อมสำเร็จ')
+      onClose()
+    },
+    onError: (err: any) => {
+      toast.error(apiErrorMessage(err))
+    },
+  })
+
   const handleStatusSave = () => {
     updateMutation.mutate({ status: localStatus }, {
       onSuccess: () => toast.success('อัปเดตสถานะสำเร็จ'),
@@ -411,15 +424,28 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     <Wrench className="h-4.5 w-4.5 text-blue-600" style={{ width: 18, height: 18 }} />
                     <span className="font-mono">{repair.ticketNumber}</span>
                   </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 h-8 text-xs"
-                    onClick={() => setPrintOpen(true)}
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                    พิมพ์ใบรับงาน
-                  </Button>
+                  <span className="flex items-center gap-2">
+                    {repair.status === 'CANCELLED' && authUser?.role === 'OWNER' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 h-8 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => setConfirmDelete(true)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        ลบ
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-8 text-xs"
+                      onClick={() => setPrintOpen(true)}
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      พิมพ์ใบรับงาน
+                    </Button>
+                  </span>
                 </>
               )}
             </DialogTitle>
@@ -1488,6 +1514,37 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
           repairId={repairId}
           onClose={() => setShowDeliveryPrint(false)}
         />
+      )}
+
+      {/* ─── Delete Confirm Dialog ─── */}
+      {confirmDelete && repair && (
+        <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <Trash2 className="h-5 w-5" />
+                ลบงานซ่อม
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              ยืนยันลบงานซ่อม <span className="font-semibold text-slate-900 dark:text-white">{repair.ticketNumber}</span>?
+              การลบนี้ไม่สามารถยกเลิกได้
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmDelete(false)} disabled={deleteMutation.isPending}>
+                ยกเลิก
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="min-w-[80px]"
+              >
+                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ลบงานซ่อม'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   )
