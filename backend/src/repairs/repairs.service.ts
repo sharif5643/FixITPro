@@ -100,6 +100,19 @@ export class RepairsService {
     return created.id;
   }
 
+  // H-3: Self-healing shadow stock — recalculates Product.stock from sum of all BranchStock rows.
+  // Idempotent: safe to call after any BranchStock change; eliminates increment/decrement drift.
+  private async syncShadowStock(tx: any, productId: string): Promise<void> {
+    const agg = await tx.branchStock.aggregate({
+      where: { productId },
+      _sum: { quantity: true },
+    });
+    await tx.product.update({
+      where: { id: productId },
+      data: { stock: agg._sum.quantity ?? 0 },
+    });
+  }
+
   private async resolveEffectiveBranchId(branchId: string | undefined, tenantId: string | null | undefined): Promise<string> {
     if (branchId) {
       // Validate the provided branchId belongs to this tenant (prevents cross-tenant repair creation
@@ -376,6 +389,51 @@ export class RepairsService {
     if (dto.status === 'DELIVERED') updateData.deliveredAt = new Date();
     if (dto.status === 'APPROVED') updateData.approvedAt = new Date();
 
+    // C-1 FIX: CANCELLED → auto-void all active parts + return stock atomically.
+    // Without this, every cancellation permanently consumes inventory with no recovery path.
+    if (dto.status === 'CANCELLED') {
+      const repairBranchId = (repair as any).branchId ?? null;
+      return this.prisma.$transaction(async (tx) => {
+        const activeParts = await tx.repairPart.findMany({
+          where: { repairId: id, isVoided: false },
+          include: { stockMovements: { where: { type: 'REPAIR_USE' }, select: { id: true } } },
+        });
+
+        for (const part of activeParts) {
+          await tx.repairPart.update({
+            where: { id: part.id },
+            data: { isVoided: true, voidedAt: new Date() },
+          });
+          if ((part as any).stockMovements.length > 0 && repairBranchId) {
+            await (tx as any).branchStock.upsert({
+              where: { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
+              create: { branchId: repairBranchId, productId: part.productId, quantity: part.quantity, minStock: 0 },
+              update: { quantity: { increment: part.quantity } },
+            });
+            await tx.stockMovement.create({
+              data: {
+                productId: part.productId, type: 'REPAIR_RETURN', quantity: part.quantity,
+                repairPartId: part.id, branchId: repairBranchId,
+                note: `คืนอะไหล่ — ยกเลิกงานซ่อม ${repair.ticketNumber}`,
+              },
+            });
+            await this.syncShadowStock(tx, part.productId);
+          }
+        }
+
+        updateData.status = 'CANCELLED';
+        const updated = await tx.repair.update({ where: { id }, data: updateData, include: REPAIR_INCLUDE });
+        await this.auditLog.logWithTx(tx, {
+          actorId, actorName,
+          action: 'REPAIR_CANCELLED',
+          entityType: 'Repair',
+          entityId: id,
+          afterData: { status: 'CANCELLED', partsVoided: activeParts.length },
+        });
+        return updated;
+      });
+    }
+
     // Safety-net deduction for legacy parts (added before immediate-deduction migration).
     // New parts created after migration are already deducted at addPart time.
     // We only touch active parts that still have no REPAIR_USE movement.
@@ -414,12 +472,16 @@ export class RepairsService {
 
         for (const part of legacyParts) {
           if (repairBranchId) {
-            await (tx as any).branchStock.update({
-              where: { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
+            // M-3 FIX: atomic conditional update — prevents double-deduction under concurrent COMPLETED transitions
+            const stockResult = await (tx as any).branchStock.updateMany({
+              where: { branchId: repairBranchId, productId: part.productId, quantity: { gte: part.quantity } },
               data: { quantity: { decrement: part.quantity } },
             });
+            if (stockResult.count === 0) {
+              throw new BadRequestException(`สต็อกสาขาไม่พอสำหรับ "${part.product?.name}" (legacy deduction)`);
+            }
           }
-          await tx.product.update({ where: { id: part.productId }, data: { stock: { decrement: part.quantity } } });
+          await this.syncShadowStock(tx, part.productId);
           await tx.stockMovement.create({
             data: {
               productId: part.productId, type: 'REPAIR_USE', quantity: part.quantity,
@@ -476,11 +538,12 @@ export class RepairsService {
     return updated;
   }
 
-  async addPart(repairId: string, dto: AddRepairPartDto, tenantId?: string | null) {
+  async addPart(repairId: string, dto: AddRepairPartDto, tenantId?: string | null, actorId?: string, actorName?: string) {
     // Guard 1: repair exists + tenant-scoped
     const repair = await this.findOne(repairId, tenantId);
-    if (['COMPLETED', 'DELIVERED'].includes(repair.status)) {
-      throw new BadRequestException('ไม่สามารถเพิ่มอะไหล่หลังงานซ่อมเสร็จแล้ว');
+    // C-2 FIX: also block on CANCELLED — adding to a dead repair drains stock with no purpose
+    if (['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(repair.status)) {
+      throw new BadRequestException('ไม่สามารถเพิ่มอะไหล่หลังงานซ่อมเสร็จหรือยกเลิกแล้ว');
     }
 
     // Guard 2: repair must belong to a specific branch
@@ -495,7 +558,8 @@ export class RepairsService {
     });
     if (!product) throw new NotFoundException('ไม่พบสินค้า หรือสินค้าไม่ได้อยู่ใน tenant นี้');
 
-    return this.prisma.$transaction(async (tx) => {
+    let addedPartId: string;
+    await this.prisma.$transaction(async (tx) => {
       // Guard 4: BranchStock MUST exist — no product.stock fallback allowed
       const bs = await (tx as any).branchStock.findUnique({
         where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
@@ -513,25 +577,39 @@ export class RepairsService {
         throw new ForbiddenException('สาขานี้ไม่ได้อยู่ใน tenant ของคุณ');
       }
 
-      // Guard 6: BranchStock.qty must cover requested quantity
-      const available = bs.quantity ?? 0;
-      if (available < dto.quantity) {
+      // M-1 FIX: duplicate guard — same product already active on this repair
+      const existing = await tx.repairPart.findFirst({
+        where: { repairId, productId: dto.productId, isVoided: false },
+        select: { id: true, quantity: true },
+      });
+      if (existing) {
         throw new BadRequestException(
-          `สต็อกสาขาไม่พอสำหรับ "${product.name}" มีอยู่ในสาขา: ${available} ชิ้น`,
+          `สินค้า "${product.name}" มีในรายการอะไหล่แล้ว (${existing.quantity} ชิ้น) — ลบแล้วเพิ่มใหม่ หรือแก้ไขจำนวน`,
         );
       }
 
-      // Deduct BranchStock (source of truth)
-      await (tx as any).branchStock.update({
-        where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
+      // C-3 FIX: atomic conditional update — prevents race condition where two concurrent addPart
+      // requests both pass the qty check then both decrement, driving stock negative.
+      const stockResult = await (tx as any).branchStock.updateMany({
+        where: {
+          branchId:  repairBranchId,
+          productId: dto.productId,
+          quantity:  { gte: dto.quantity },
+        },
         data: { quantity: { decrement: dto.quantity } },
       });
+      if (stockResult.count === 0) {
+        // Re-read to show accurate current qty in the error message
+        const current = await (tx as any).branchStock.findUnique({
+          where: { branchId_productId: { branchId: repairBranchId, productId: dto.productId } },
+        });
+        throw new BadRequestException(
+          `สต็อกสาขาไม่พอสำหรับ "${product.name}" มีอยู่ในสาขา: ${current?.quantity ?? 0} ชิ้น`,
+        );
+      }
 
-      // Decrement shadow stock (kept in sync for global aggregates)
-      await tx.product.update({
-        where: { id: dto.productId },
-        data: { stock: { decrement: dto.quantity } },
-      });
+      // H-3 FIX: recalculate shadow stock from true BranchStock sum (not increment/decrement)
+      await this.syncShadowStock(tx, dto.productId);
 
       // Snapshot prices at add time
       const costPrice        = Number(product.costPrice ?? 0);
@@ -566,11 +644,29 @@ export class RepairsService {
         },
       });
 
-      return this.findOne(repairId);
+      addedPartId = part.id;
     });
+
+    // H-2 FIX: AuditLog with actor — previously impossible to answer "who added this part?"
+    await this.auditLog.log({
+      actorId, actorName,
+      action: 'REPAIR_PART_ADDED',
+      entityType: 'RepairPart',
+      entityId:   repairId,
+      afterData: {
+        partId:           addedPartId!,
+        productId:        dto.productId,
+        productName:      product.name,
+        quantity:         dto.quantity,
+        chargeToCustomer: dto.chargeToCustomer ?? false,
+        ticketNumber:     (repair as any).ticketNumber,
+      },
+    });
+
+    return this.findOne(repairId);
   }
 
-  async removePart(repairId: string, partId: string, tenantId?: string | null) {
+  async removePart(repairId: string, partId: string, tenantId?: string | null, actorId?: string, actorName?: string) {
     const repairWhere: any = { id: repairId };
     if (tenantId) repairWhere.branch = { tenantId };
     const repairRow = await this.prisma.repair.findFirst({
@@ -613,11 +709,8 @@ export class RepairsService {
             update: { quantity: { increment: part.quantity } },
           });
         }
-        // Restore shadow stock
-        await tx.product.update({
-          where: { id: part.productId },
-          data: { stock: { increment: part.quantity } },
-        });
+        // H-3 FIX: recalculate shadow stock from true sum (not increment which can drift)
+        await this.syncShadowStock(tx, part.productId);
         // Create REPAIR_RETURN movement — preserves audit trail (does NOT delete REPAIR_USE)
         await tx.stockMovement.create({
           data: {
@@ -630,6 +723,22 @@ export class RepairsService {
           },
         });
       }
+    });
+
+    // H-2 FIX: AuditLog with actor for removePart — previously no traceability
+    await this.auditLog.log({
+      actorId, actorName,
+      action: 'REPAIR_PART_VOIDED',
+      entityType: 'RepairPart',
+      entityId:   repairId,
+      afterData: {
+        partId:       partId,
+        productId:    part.productId,
+        productName:  part.productName ?? undefined,
+        quantity:     part.quantity,
+        stockReturned: wasDeducted,
+        ticketNumber: repairRow.ticketNumber,
+      },
     });
 
     return this.findOne(repairId);
@@ -944,6 +1053,36 @@ export class RepairsService {
 
       // QC passed → COMPLETED; QC failed → back to IN_PROGRESS
       const nextStatus = allPassed ? 'COMPLETED' : 'IN_PROGRESS';
+
+      // H-1 FIX: submitQc bypassed the legacy parts safety-net in update().
+      // When QC passes, deduct any legacy parts (no REPAIR_USE movement yet) atomically.
+      if (allPassed) {
+        const repairBranchId = (repair as any).branchId ?? null;
+        const legacyParts = await tx.repairPart.findMany({
+          where: { repairId, isVoided: false, stockMovements: { none: {} } },
+          include: { product: { select: { name: true } } },
+        });
+        for (const part of legacyParts) {
+          if (repairBranchId) {
+            const stockResult = await (tx as any).branchStock.updateMany({
+              where: { branchId: repairBranchId, productId: part.productId, quantity: { gte: part.quantity } },
+              data: { quantity: { decrement: part.quantity } },
+            });
+            if (stockResult.count === 0) {
+              throw new BadRequestException(`สต็อกสาขาไม่พอสำหรับ "${part.product?.name}" (QC completion)`);
+            }
+            await this.syncShadowStock(tx, part.productId);
+          }
+          await tx.stockMovement.create({
+            data: {
+              productId: part.productId, type: 'REPAIR_USE', quantity: part.quantity,
+              repairPartId: part.id, branchId: repairBranchId,
+              note: `เบิกอะไหล่งานซ่อม ${repair.ticketNumber} (QC legacy)`,
+            },
+          });
+        }
+      }
+
       await tx.repair.update({
         where: { id: repairId },
         data: {

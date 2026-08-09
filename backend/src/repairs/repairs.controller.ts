@@ -154,8 +154,10 @@ export class RepairsController {
     @Param('id') id: string,
     @Body() dto: AddRepairPartDto,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
   ) {
-    return this.repairsService.addPart(id, dto, tenantId);
+    return this.repairsService.addPart(id, dto, tenantId, actorId, actorName);
   }
 
   @Delete(':id/parts/:partId')
@@ -165,8 +167,10 @@ export class RepairsController {
     @Param('id') id: string,
     @Param('partId') partId: string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
   ) {
-    return this.repairsService.removePart(id, partId, tenantId);
+    return this.repairsService.removePart(id, partId, tenantId, actorId, actorName);
   }
 
   @Post(':id/images')
