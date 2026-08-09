@@ -85,8 +85,10 @@ export class AccountingService {
   /**
    * Record a financial event in the Cash Drawer ledger.
    *
-   * - Non-CASH payment methods: no-op (returns null), no DB touch.
-   * - CASH + STRICT policy + no open session: throws BadRequestException (rolls back caller's tx).
+   * - Non-CASH payment methods: writes an unassigned ledger entry (sessionId=null) for audit.
+   *   Uses the caller's `tx` when provided (atomic with business record), otherwise best-effort.
+   * - CASH + STRICT policy + no open session: logs a warning and records as unassigned (never
+   *   throws) so the business record is never blocked by drawer state.
    * - CASH + ALLOW_UNASSIGNED + no open session: creates unassigned ledger entry (sessionId=null)
    *   outside the caller's transaction so the business record is never rolled back.
    * - CASH + open session: creates ledger entry within the caller's `tx` (atomic).
@@ -99,7 +101,30 @@ export class AccountingService {
     entry: AccountingEntry,
     tx?: TxClient,
   ): Promise<Prisma.CashDrawerTransactionGetPayload<object> | null> {
-    if (entry.paymentMethod !== 'CASH') return null;
+    // Non-CASH: write an unassigned ledger entry for audit (no drawer session involved).
+    if (entry.paymentMethod !== 'CASH') {
+      const client = tx ?? this.prisma;
+      const idempotencyKey = [
+        entry.tenantId ?? 'global',
+        entry.sourceType,
+        entry.sourceId,
+        entry.direction,
+      ].join(':');
+      const existing = await (client as any).cashDrawerTransaction.findUnique({ where: { idempotencyKey } });
+      if (existing) return existing;
+      const data = this.buildEntryData(entry, idempotencyKey, null, null);
+      try {
+        return await (client as any).cashDrawerTransaction.create({ data });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          return this.prisma.cashDrawerTransaction.findUnique({ where: { idempotencyKey } });
+        }
+        this.logger.warn(
+          `Accounting.record: non-CASH write failed for sourceType=${entry.sourceType} sourceId=${entry.sourceId}: ${err.message}`,
+        );
+        return null;
+      }
+    }
 
     const client = tx ?? this.prisma;
 
@@ -182,7 +207,7 @@ export class AccountingService {
       sourceType:    entry.sourceType,
       referenceType: entry.sourceType,
       referenceId:   entry.sourceId,
-      paymentMethod: 'CASH',
+      paymentMethod: entry.paymentMethod,
       idempotencyKey,
       metadata:      { sourceType: entry.sourceType, sourceId: entry.sourceId },
       ...(entry.reversalOfId ? { reversalOfId: entry.reversalOfId } : {}),

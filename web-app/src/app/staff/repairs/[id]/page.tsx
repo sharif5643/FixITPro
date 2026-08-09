@@ -146,6 +146,7 @@ export default function RepairDetailPage() {
   const [partQty, setPartQty]                       = useState(1)
   const [partPrice, setPartPrice]                   = useState('')
   const [chargeCustomer, setChargeCustomer]         = useState(false)
+  const [showAdvancedPartOpts, setShowAdvancedPartOpts] = useState(false)
   const [transferPart, setTransferPart]             = useState<Product | null>(null)
 
   // Estimate
@@ -261,6 +262,7 @@ export default function RepairDetailPage() {
       setPartQty(1)
       setPartPrice('')
       setChargeCustomer(false)
+      setShowAdvancedPartOpts(false)
     },
     onError: (err: unknown) => toast.error(errMsg(err)),
   })
@@ -349,6 +351,17 @@ export default function RepairDetailPage() {
     updateMutation.mutate(
       { status: 'APPROVED', approvalNote: approvalNote || undefined },
       { onSuccess: () => toast.success('บันทึกการอนุมัติแล้ว') },
+    )
+  }
+
+  function handleSyncEstimate() {
+    updateMutation.mutate(
+      {
+        estimatedLaborCost: Number(laborCost) || 0,
+        estimatedPartsCost: computedCustomerPartsCost,
+        estimatedTotal:     computedTotal,
+      },
+      { onSuccess: () => toast.success('อัปเดตราคาประมาณแล้ว') },
     )
   }
 
@@ -822,22 +835,13 @@ export default function RepairDetailPage() {
                 <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-[#111] truncate flex-1">{addingPart.name}</p>
-                    <button onClick={() => { setAddingPart(null); setChargeCustomer(false); setPartPrice('') }}
+                    <button onClick={() => { setAddingPart(null); setChargeCustomer(false); setPartPrice(''); setShowAdvancedPartOpts(false) }}
                       className="text-slate-400 ml-2"><X className="h-4 w-4" /></button>
                   </div>
                   <p className="text-xs text-slate-400">
                     SKU: {addingPart.sku} · สต็อก: {addingPart.branchQuantity ?? addingPart.stock} ชิ้น
                     {canViewCost && ` · ราคาทุน: ${fmtMoney(addingPart.costPrice)}`}
                   </p>
-
-                  {/* chargeToCustomer toggle */}
-                  <div className="flex items-center justify-between py-0.5">
-                    <span className="text-xs font-medium text-slate-700">คิดเงินลูกค้าเพิ่ม</span>
-                    <button type="button" onClick={() => { setChargeCustomer((v) => !v); setPartPrice('') }}
-                      className={`relative w-10 h-5 rounded-full transition-colors ${chargeCustomer ? 'bg-blue-600' : 'bg-slate-300'}`}>
-                      <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${chargeCustomer ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </button>
-                  </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -857,8 +861,30 @@ export default function RepairDetailPage() {
                     </div>
                   </div>
 
-                  {chargeCustomer && (
-                    <p className="text-xs text-blue-600">ราคานี้จะบวกเพิ่มในบิลลูกค้า</p>
+                  {/* Advanced options (chargeToCustomer) — collapsed by default */}
+                  <button type="button" onClick={() => setShowAdvancedPartOpts((v) => !v)}
+                    className="flex items-center gap-1 text-xs text-slate-400 font-medium">
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAdvancedPartOpts ? 'rotate-180' : ''}`} />
+                    ตัวเลือกเพิ่มเติม
+                    {chargeCustomer && <span className="ml-1 text-blue-600 font-semibold">(คิดลูกค้า)</span>}
+                  </button>
+
+                  {showAdvancedPartOpts && (
+                    <div className="rounded-xl bg-white border border-slate-200 px-3 py-2.5 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium text-slate-700">คิดเงินลูกค้าเพิ่ม</p>
+                          <p className="text-[10px] text-slate-400">เพิ่มค่าอะไหล่นี้ในบิลลูกค้า</p>
+                        </div>
+                        <button type="button" onClick={() => { setChargeCustomer((v) => !v); setPartPrice('') }}
+                          className={`relative w-10 h-5 rounded-full transition-colors ${chargeCustomer ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                          <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${chargeCustomer ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                      {chargeCustomer && (
+                        <p className="text-[10px] text-blue-600">ราคา/ชิ้น ด้านบนจะใช้เป็นราคาที่คิดลูกค้า</p>
+                      )}
+                    </div>
                   )}
 
                   <button onClick={handleAddPart}
@@ -869,6 +895,29 @@ export default function RepairDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Sync estimate banner — shown when actual total differs from saved estimate */}
+            {!isLocked && repair.estimatedTotal != null &&
+              Math.abs(computedTotal - Number(repair.estimatedTotal)) > 0.01 && (
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-amber-800">ราคาประมาณไม่ตรงกับอะไหล่จริง</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      คำนวณได้ <span className="font-bold">{computedTotal.toLocaleString('th-TH')} ฿</span>
+                      {' '}· ในใบประมาณ <span className="font-bold">{Number(repair.estimatedTotal).toLocaleString('th-TH')} ฿</span>
+                    </p>
+                  </div>
+                </div>
+                <button onClick={handleSyncEstimate} disabled={updateMutation.isPending}
+                  className="mt-3 w-full h-10 rounded-xl bg-amber-500 text-white text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-60">
+                  {updateMutation.isPending
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <>อัปเดตราคาประมาณเป็น {computedTotal.toLocaleString('th-TH')} ฿</>}
+                </button>
+              </div>
+            )}
 
             {/* Estimate */}
             {!isLocked && (
