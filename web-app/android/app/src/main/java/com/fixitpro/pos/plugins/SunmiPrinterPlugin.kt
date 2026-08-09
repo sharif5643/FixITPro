@@ -299,7 +299,7 @@ class SunmiPrinterPlugin : Plugin() {
 
                 val wv = WebView(act)
                 wv.settings.apply {
-                    javaScriptEnabled = false
+                    javaScriptEnabled = true
                     textZoom = 100
                 }
                 wv.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
@@ -314,11 +314,20 @@ class SunmiPrinterPlugin : Plugin() {
                         super.onPageFinished(view, url)
                         view.postDelayed({
                             try {
-                                val cssH      = view.contentHeight
                                 val viewScale = view.scale
-                                val contentH  = (cssH * density).toInt().coerceAtLeast(100)
+                                // evaluateJavascript gives accurate content height;
+                                // view.contentHeight on older SUNMI firmware returns viewport height (blank space bug).
+                                view.evaluateJavascript(
+                                    "(function(){return Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);})()"
+                                ) { jsResult ->
+                                try {
+                                val jsCssH   = jsResult?.trim()?.trim('"')?.toIntOrNull() ?: 0
+                                val cssH     = if (jsCssH > 50) jsCssH else view.contentHeight
+                                val contentH = (cssH * density).toInt().coerceAtLeast(100)
 
-                                Log.d("PRINTER_DBG", "contentHeight (CSS px) : $cssH")
+                                Log.d("PRINTER_DBG", "contentHeight (JS)     : $jsCssH")
+                                Log.d("PRINTER_DBG", "contentHeight (native) : ${view.contentHeight}")
+                                Log.d("PRINTER_DBG", "cssH used              : $cssH")
                                 Log.d("PRINTER_DBG", "view.scale             : $viewScale")
                                 Log.d("PRINTER_DBG", "contentH (phys px)     : $contentH  (= CSS × density)")
 
@@ -389,6 +398,15 @@ class SunmiPrinterPlugin : Plugin() {
                                     }
                                 }
 
+                                } catch (e: Exception) {
+                                    Log.e("PRINTER_DBG", "RENDER ERROR: ${e.message}")
+                                    root?.removeView(wv)
+                                    printWebView = null
+                                    call.resolve(JSObject().apply {
+                                        put("success", false); put("error", e.message ?: "Render failed")
+                                    })
+                                }
+                                } // end evaluateJavascript callback
                             } catch (e: Exception) {
                                 Log.e("PRINTER_DBG", "RENDER ERROR: ${e.message}")
                                 root?.removeView(wv)
