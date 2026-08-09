@@ -693,7 +693,11 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         </label>
                         <button
                           type="button"
-                          onClick={() => { setChargeCustomer(v => !v); setPartPrice('') }}
+                          onClick={() => {
+                            const next = !chargeCustomer
+                            setChargeCustomer(next)
+                            setPartPrice(next ? String(addingPart.price) : '')
+                          }}
                           className={`relative w-10 h-5 rounded-full transition-colors ${chargeCustomer ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'}`}
                         >
                           <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${chargeCustomer ? 'translate-x-5' : 'translate-x-0.5'}`} />

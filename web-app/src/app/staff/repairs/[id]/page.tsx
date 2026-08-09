@@ -876,7 +876,11 @@ export default function RepairDetailPage() {
                           <p className="text-xs font-medium text-slate-700">คิดเงินลูกค้าเพิ่ม</p>
                           <p className="text-[10px] text-slate-400">เพิ่มค่าอะไหล่นี้ในบิลลูกค้า</p>
                         </div>
-                        <button type="button" onClick={() => { setChargeCustomer((v) => !v); setPartPrice('') }}
+                        <button type="button" onClick={() => {
+                            const next = !chargeCustomer
+                            setChargeCustomer(next)
+                            setPartPrice(next ? String(addingPart.price) : '')
+                          }}
                           className={`relative w-10 h-5 rounded-full transition-colors ${chargeCustomer ? 'bg-blue-600' : 'bg-slate-300'}`}>
                           <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${chargeCustomer ? 'translate-x-5' : 'translate-x-0.5'}`} />
                         </button>
