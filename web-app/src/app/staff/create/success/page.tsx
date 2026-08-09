@@ -7,6 +7,8 @@ import { toast } from 'sonner'
 import api from '@/lib/api'
 import { printRepairReceipt } from '@/lib/print'
 import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
+import { Platform } from '@/lib/platform'
+import { RepairReceiptPrintFlow } from '@/components/sunmi/repair-receipt-print'
 
 interface RepairDetail {
   id: string; ticketNumber: string; createdAt: string; status: string
@@ -50,9 +52,10 @@ function SuccessContent() {
   const params = useSearchParams()
   const id     = params.get('id')
 
-  const [repair,  setRepair]  = useState<RepairDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [mounted, setMounted] = useState(false)
+  const [repair,       setRepair]       = useState<RepairDetail | null>(null)
+  const [loading,      setLoading]      = useState(true)
+  const [mounted,      setMounted]      = useState(false)
+  const [showPrintFlow, setShowPrintFlow] = useState(false)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -96,8 +99,10 @@ function SuccessContent() {
   const issueDetail = repair?.issue?.split('\n').slice(1).join('\n').trim()
 
   function handlePrint() {
-    if (!repair) return
-    if (isInWebViewApp()) {
+    if (!repair || !id) return
+    if (Platform.isNative()) {
+      setShowPrintFlow(true)
+    } else if (isInWebViewApp()) {
       bridgePrintRepairIntake({
         shopName:      'FixITPro',
         ticketNumber:  repair.ticketNumber,
@@ -303,6 +308,13 @@ function SuccessContent() {
             <Home className="h-4 w-4"/> กลับหน้าหลัก
           </button>
         </div>
+
+      {showPrintFlow && id && (
+        <RepairReceiptPrintFlow
+          repairId={id}
+          onClose={() => setShowPrintFlow(false)}
+        />
+      )}
       </div>
   )
 }
