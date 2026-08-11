@@ -18,9 +18,10 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { IsEmail, IsOptional, IsString, IsIn, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 class CreateUserDto {
-  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @Transform(({ value }) => value || undefined) @IsEmail() email?: string;
   @IsOptional() @IsString() username?: string;
   @IsString() name: string;
   @IsOptional() @IsString() phone?: string;
@@ -32,7 +33,7 @@ class CreateUserDto {
 class UpdateUserDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() phone?: string;
-  @IsOptional() @IsEmail() email?: string;
+  @IsOptional() @Transform(({ value }) => value || undefined) @IsEmail() email?: string;
   @IsOptional() @IsIn(['OWNER','MANAGER','CASHIER','TECHNICIAN','STOCK_STAFF']) role?: string;
   @IsOptional() @IsString() branchId?: string;
 }
