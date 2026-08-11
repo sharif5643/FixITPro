@@ -53,149 +53,115 @@ const LABEL_SIZE_CONFIG: Record<LabelSize, { label: string; widthPx: number; hei
 
 type CardCodeType = 'barcode' | 'qr' | 'both'
 
-function ProductLabel({ product, size, cardCodeType = 'both' }: { product: Product; size: LabelSize; cardCodeType?: CardCodeType }) {
+// Per-size typographic + spacing constants
+const SP: Record<LabelSize, { pad: number; nameFs: number; priceFs: number; bcFs: number; bcW: number; maxBcW: number; skuFs: number; gap: number; baseH: number }> = {
+  '20x10':   { pad: 4,  nameFs: 9,  priceFs: 9,  bcFs: 7,  bcW: 1.4, maxBcW: 2.5, skuFs: 0,  gap: 2, baseH: 38 },
+  '40x20':   { pad: 2,  nameFs: 7,  priceFs: 8,  bcFs: 6,  bcW: 0.8, maxBcW: 1.5, skuFs: 5,  gap: 1, baseH: 18 },
+  '40x30':   { pad: 4,  nameFs: 9,  priceFs: 10, bcFs: 7,  bcW: 1.0, maxBcW: 2.0, skuFs: 6,  gap: 2, baseH: 28 },
+  '50x30':   { pad: 4,  nameFs: 9,  priceFs: 10, bcFs: 7,  bcW: 1.0, maxBcW: 2.5, skuFs: 6,  gap: 2, baseH: 28 },
+  '58x30':   { pad: 4,  nameFs: 9,  priceFs: 10, bcFs: 7,  bcW: 1.0, maxBcW: 2.8, skuFs: 6,  gap: 2, baseH: 28 },
+  '60x40':   { pad: 6,  nameFs: 11, priceFs: 13, bcFs: 8,  bcW: 1.5, maxBcW: 3.0, skuFs: 8,  gap: 3, baseH: 38 },
+  '80x50':   { pad: 6,  nameFs: 11, priceFs: 13, bcFs: 8,  bcW: 1.5, maxBcW: 3.5, skuFs: 8,  gap: 3, baseH: 38 },
+  '100x200': { pad: 14, nameFs: 18, priceFs: 24, bcFs: 11, bcW: 2.2, maxBcW: 4.0, skuFs: 10, gap: 8, baseH: 72 },
+}
+
+// Compute dynamic barcode bar-height and bar-width based on what text is shown
+function calcBc(size: LabelSize, heightPx: number, showName: boolean, showPrice: boolean) {
+  const p = SP[size]
+  const LH = 1.35
+  let textH = (p.skuFs > 0 ? p.skuFs * LH : 0)
+  let gaps  = (p.skuFs > 0 ? 1 : 0)
+  if (showName)  { textH += p.nameFs  * LH; gaps++ }
+  if (showPrice) { textH += p.priceFs * LH; gaps++ }
+  const bcH = Math.max(8, heightPx - 2 * p.pad - textH - gaps * p.gap - p.bcFs * LH)
+  const ratio = bcH / p.baseH
+  const bcW = Math.min(p.maxBcW, +(p.bcW * Math.sqrt(ratio)).toFixed(1))
+  return { bcH: Math.round(bcH), bcW }
+}
+
+function ProductLabel({
+  product, size, cardCodeType = 'both', showName = true, showPrice = true,
+}: {
+  product: Product; size: LabelSize; cardCodeType?: CardCodeType; showName?: boolean; showPrice?: boolean
+}) {
   const cfg = LABEL_SIZE_CONFIG[size]
+  const p   = SP[size]
   const barcodeValue = product.barcode || product.sku
-
-  const isTiny   = size === '20x10'
-  const isSmall  = size === '40x20'
-  const isMedium = size === '40x30' || size === '50x30' || size === '58x30'
-  const isCard   = size === '100x200'
-
-  if (isTiny) {
-    const showBarcode = cardCodeType !== 'qr'
-    const showQR      = cardCodeType === 'qr'
-    return (
-      <div
-        className="label-item border border-dashed border-slate-300 dark:border-slate-600/60 flex flex-col items-center justify-center overflow-hidden bg-white dark:bg-[#1E293B]"
-        style={{ width: cfg.widthPx, height: cfg.heightPx, padding: 4, gap: 2 }}
-      >
-        {showQR ? (
-          <>
-            <QRCode value={barcodeValue} size={70} level="M" />
-            <p className="font-mono text-slate-500 dark:text-slate-400 text-center" style={{ fontSize: 7 }}>
-              {barcodeValue}
-            </p>
-          </>
-        ) : (
-          <>
-            <p
-              className="font-bold text-center leading-none text-slate-900 dark:text-white w-full truncate"
-              style={{ fontSize: 9 }}
-            >
-              {product.name}
-            </p>
-            <p className="font-bold text-slate-900 dark:text-white tabular-nums" style={{ fontSize: 9 }}>
-              {formatThaiMoney(Number(product.price))}
-            </p>
-            <Barcode
-              value={barcodeValue}
-              width={showBarcode ? 1.4 : 1.4}
-              height={38}
-              fontSize={7}
-              margin={0}
-              displayValue={true}
-            />
-          </>
-        )}
-      </div>
-    )
-  }
+  const isCard = size === '100x200'
 
   if (isCard) {
     const showBarcode = cardCodeType === 'barcode' || cardCodeType === 'both'
     const showQR      = cardCodeType === 'qr'      || cardCodeType === 'both'
     const soloBarcode = cardCodeType === 'barcode'
     const soloQR      = cardCodeType === 'qr'
-
     return (
       <div
         className="label-item border border-dashed border-slate-300 dark:border-slate-600/60 flex flex-col items-center overflow-hidden bg-white dark:bg-[#1E293B]"
-        style={{ width: cfg.widthPx, height: cfg.heightPx, padding: 14, gap: 8, justifyContent: 'center' }}
+        style={{ width: cfg.widthPx, height: cfg.heightPx, padding: p.pad, gap: p.gap, justifyContent: 'center' }}
       >
-        {/* Product name */}
-        <p
-          className="font-bold text-center leading-snug text-slate-900 dark:text-white w-full"
-          style={{ fontSize: 18 }}
-        >
-          {product.name}
-        </p>
-
-        {/* Price */}
-        <p
-          className="font-bold text-slate-900 dark:text-white tabular-nums"
-          style={{ fontSize: 24 }}
-        >
-          {formatThaiMoney(Number(product.price))}
-        </p>
-
-        {/* Barcode */}
+        {showName && (
+          <p className="font-bold text-center leading-snug text-slate-900 dark:text-white w-full" style={{ fontSize: p.nameFs }}>
+            {product.name}
+          </p>
+        )}
+        {showPrice && (
+          <p className="font-bold text-slate-900 dark:text-white tabular-nums" style={{ fontSize: p.priceFs }}>
+            {formatThaiMoney(Number(product.price))}
+          </p>
+        )}
         {showBarcode && (
           <div className="flex-shrink-0">
-            <Barcode
-              value={barcodeValue}
-              width={soloBarcode ? 2.8 : 2.2}
-              height={soloBarcode ? 110 : 72}
-              fontSize={soloBarcode ? 13 : 11}
-              margin={0}
-              displayValue={true}
-            />
+            <Barcode value={barcodeValue} width={soloBarcode ? 2.8 : p.bcW} height={soloBarcode ? 110 : p.baseH} fontSize={p.bcFs} margin={0} displayValue />
           </div>
         )}
-
-        {/* QR Code */}
         {showQR && (
           <div className="flex-shrink-0">
-            <QRCode
-              value={barcodeValue}
-              size={soloQR ? 170 : 110}
-              level="M"
-            />
+            <QRCode value={barcodeValue} size={soloQR ? 170 : 110} level="M" />
           </div>
         )}
-
-        {/* SKU */}
-        <p
-          className="text-slate-500 dark:text-slate-400 font-mono text-center"
-          style={{ fontSize: 10 }}
-        >
+        <p className="text-slate-500 dark:text-slate-400 font-mono text-center" style={{ fontSize: p.skuFs }}>
           SKU: {product.sku}
         </p>
       </div>
     )
   }
 
+  // Standard label: QR-only mode (only for 20x10 with code type selector)
+  if (size === '20x10' && cardCodeType === 'qr') {
+    return (
+      <div
+        className="label-item border border-dashed border-slate-300 dark:border-slate-600/60 flex flex-col items-center justify-center overflow-hidden bg-white dark:bg-[#1E293B]"
+        style={{ width: cfg.widthPx, height: cfg.heightPx, padding: p.pad, gap: p.gap }}
+      >
+        <QRCode value={barcodeValue} size={70} level="M" />
+        <p className="font-mono text-slate-500 dark:text-slate-400 text-center" style={{ fontSize: 7 }}>{barcodeValue}</p>
+      </div>
+    )
+  }
+
+  // Standard label: barcode (all sizes, with dynamic height/width)
+  const { bcH, bcW } = calcBc(size, cfg.heightPx, showName, showPrice)
   return (
     <div
       className="label-item border border-dashed border-slate-300 dark:border-slate-600/60 flex flex-col items-center justify-center overflow-hidden bg-white dark:bg-[#1E293B]"
-      style={{ width: cfg.widthPx, height: cfg.heightPx, padding: isSmall ? 2 : isMedium ? 4 : 6 }}
+      style={{ width: cfg.widthPx, height: cfg.heightPx, padding: p.pad, gap: p.gap }}
     >
-      <p
-        className="font-bold text-center leading-tight text-slate-900 dark:text-white w-full truncate"
-        style={{ fontSize: isSmall ? 7 : isMedium ? 9 : 11 }}
-      >
-        {product.name}
-      </p>
-      <p
-        className="font-bold text-slate-900 dark:text-white tabular-nums"
-        style={{ fontSize: isSmall ? 8 : isMedium ? 10 : 13 }}
-      >
-        {formatThaiMoney(Number(product.price))}
-      </p>
-      <Barcode
-        value={barcodeValue}
-        width={isSmall ? 0.8 : isMedium ? 1 : 1.5}
-        height={isSmall ? 18 : isMedium ? 28 : 38}
-        fontSize={isSmall ? 6 : isMedium ? 7 : 8}
-        margin={0}
-        displayValue={true}
-      />
-      <p
-        className="text-slate-500 dark:text-slate-400 font-mono"
-        style={{ fontSize: isSmall ? 5 : isMedium ? 6 : 8 }}
-      >
-        {product.sku}
-      </p>
+      {showName && (
+        <p className="font-bold text-center leading-tight text-slate-900 dark:text-white w-full truncate" style={{ fontSize: p.nameFs }}>
+          {product.name}
+        </p>
+      )}
+      {showPrice && (
+        <p className="font-bold text-slate-900 dark:text-white tabular-nums" style={{ fontSize: p.priceFs }}>
+          {formatThaiMoney(Number(product.price))}
+        </p>
+      )}
+      <Barcode value={barcodeValue} width={bcW} height={bcH} fontSize={p.bcFs} margin={0} displayValue />
+      {p.skuFs > 0 && (
+        <p className="text-slate-500 dark:text-slate-400 font-mono" style={{ fontSize: p.skuFs }}>
+          {product.sku}
+        </p>
+      )}
     </div>
   )
 }
@@ -207,6 +173,8 @@ export default function BarcodePrintPage() {
   const [labelSize, setLabelSize] = useState<LabelSize>('40x30')
   const [printMode, setPrintMode] = useState<'label' | 'sheet'>('label')
   const [cardCodeType, setCardCodeType] = useState<CardCodeType>('both')
+  const [showName,  setShowName]  = useState(true)
+  const [showPrice, setShowPrice] = useState(true)
   const searchRef               = useRef<HTMLDivElement>(null)
   const debouncedSearch         = useDebounce(search, 300)
 
@@ -471,6 +439,35 @@ export default function BarcodePrintPage() {
               </div>
             )}
 
+            {/* Show/hide fields */}
+            <div className="space-y-1.5">
+              <Label>แสดงบน Label</Label>
+              <div className="flex gap-2">
+                {([
+                  { key: 'name',  label: 'ชื่อสินค้า', val: showName,  set: setShowName  },
+                  { key: 'price', label: 'ราคา',       val: showPrice, set: setShowPrice },
+                ] as const).map(({ key, label, val, set }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => set(!val)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      val
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                        : 'border-slate-200 dark:border-slate-700/60 text-slate-400 dark:text-slate-500 line-through'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {!showName && !showPrice && (
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  ✓ Barcode จะขยายเต็มพื้นที่อัตโนมัติ
+                </p>
+              )}
+            </div>
+
             {/* Print mode */}
             <div className="space-y-1.5">
               <Label>โหมดพิมพ์</Label>
@@ -558,7 +555,7 @@ export default function BarcodePrintPage() {
               <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 p-4 overflow-auto max-h-[60vh]">
                 <div className="flex flex-wrap gap-2">
                   {allLabels.map((product, idx) => (
-                    <ProductLabel key={`${product.id}-${idx}`} product={product} size={labelSize} cardCodeType={cardCodeType} />
+                    <ProductLabel key={`${product.id}-${idx}`} product={product} size={labelSize} cardCodeType={cardCodeType} showName={showName} showPrice={showPrice} />
                   ))}
                 </div>
               </div>
@@ -570,7 +567,7 @@ export default function BarcodePrintPage() {
       {/* Print area (hidden on screen, shown on print) */}
       <div className="print-area">
         {allLabels.map((product, idx) => (
-          <ProductLabel key={`print-${product.id}-${idx}`} product={product} size={labelSize} cardCodeType={cardCodeType} />
+          <ProductLabel key={`print-${product.id}-${idx}`} product={product} size={labelSize} cardCodeType={cardCodeType} showName={showName} showPrice={showPrice} />
         ))}
       </div>
     </>
