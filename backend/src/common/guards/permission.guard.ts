@@ -1,16 +1,12 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PrismaService } from '../../database/prisma.service';
 import { PERMISSION_KEY } from '../decorators/permission.decorator';
 
 @Injectable()
 export class PermissionGuard implements CanActivate {
-  constructor(
-    private reflector: Reflector,
-    private prisma: PrismaService,
-  ) {}
+  constructor(private reflector: Reflector) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  canActivate(context: ExecutionContext): boolean {
     const permission = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -24,11 +20,10 @@ export class PermissionGuard implements CanActivate {
     // OWNER and SUPER_ADMIN bypass all permission checks
     if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') return true;
 
-    const has = await this.prisma.rolePermission.findUnique({
-      where: { role_permission: { role: user.role, permission } },
-    });
-
-    if (!has) throw new ForbiddenException(`ไม่มีสิทธิ์: ${permission}`);
+    // req.user.permissions already merges role grants + user-specific grants (from JwtStrategy)
+    if (!(user.permissions as string[])?.includes(permission)) {
+      throw new ForbiddenException(`ไม่มีสิทธิ์: ${permission}`);
+    }
     return true;
   }
 }

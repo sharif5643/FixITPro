@@ -194,4 +194,58 @@ export class PermissionsService implements OnModuleInit {
     const preset = ROLE_PRESETS[role] ?? [];
     return this.setRolePermissions(role, preset, actorId, actorName);
   }
+
+  // ── Per-user permission grants ──────────────────────────────────────────────
+
+  async getUserGrants(userId: string) {
+    const rows = await this.prisma.userPermission.findMany({
+      where: { userId },
+      select: { permission: true, createdAt: true },
+      orderBy: { permission: 'asc' },
+    });
+    return rows.map((r) => r.permission);
+  }
+
+  async grantToUser(
+    userId: string,
+    permission: string,
+    actorId: string,
+    actorName?: string,
+  ) {
+    if (!ALL_PERMISSIONS.includes(permission)) {
+      throw new Error(`สิทธิ์ไม่ถูกต้อง: ${permission}`);
+    }
+    await this.prisma.userPermission.upsert({
+      where: { userId_permission: { userId, permission } },
+      create: { userId, permission, grantedById: actorId },
+      update: {},
+    });
+    await this.auditLog.log({
+      actorId,
+      actorName,
+      action: 'USER_PERMISSION_GRANTED',
+      entityType: 'User',
+      entityId: userId,
+      afterData: { permission },
+    });
+    return { userId, permission, granted: true };
+  }
+
+  async revokeFromUser(
+    userId: string,
+    permission: string,
+    actorId: string,
+    actorName?: string,
+  ) {
+    await this.prisma.userPermission.deleteMany({ where: { userId, permission } });
+    await this.auditLog.log({
+      actorId,
+      actorName,
+      action: 'USER_PERMISSION_REVOKED',
+      entityType: 'User',
+      entityId: userId,
+      afterData: { permission },
+    });
+    return { userId, permission, granted: false };
+  }
 }

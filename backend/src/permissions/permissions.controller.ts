@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
@@ -50,5 +50,32 @@ export class PermissionsController {
     @CurrentUser('name') actorName: string,
   ) {
     return this.service.applyPreset(role, actorId, actorName);
+  }
+
+  // ── Per-user grants ──────────────────────────────────────────────────────────
+
+  @Get('users/:userId')
+  getUserGrants(@Param('userId') userId: string) {
+    return this.service.getUserGrants(userId);
+  }
+
+  @Post('users/:userId')
+  grantToUser(
+    @Param('userId') userId: string,
+    @Body() body: { permission: string },
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
+  ) {
+    return this.service.grantToUser(userId, body.permission, actorId, actorName);
+  }
+
+  @Delete('users/:userId/:permission')
+  revokeFromUser(
+    @Param('userId') userId: string,
+    @Param('permission') permission: string,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
+  ) {
+    return this.service.revokeFromUser(userId, permission, actorId, actorName);
   }
 }

@@ -405,6 +405,7 @@ model User {
   approvedDrawerSessions   CashDrawerSession[]      @relation("CashDrawerApprovedBy")
   drawerParticipations     CashDrawerParticipant[]  @relation("CashDrawerParticipants")
   drawerTransactions       CashDrawerTransaction[]  @relation("CashDrawerTransactions")
+  userPermissions          UserPermission[]
 
   @@index([role, isActive])
   @@index([tenantId])
@@ -1145,6 +1146,20 @@ model RolePermission {
 
   @@unique([role, permission])
   @@index([role])
+}
+
+model UserPermission {
+  id          String   @id @default(cuid())
+  permission  String
+  createdAt   DateTime @default(now())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  grantedById String?
+
+  @@unique([userId, permission])
+  @@index([userId])
 }
 
 model CarrierWallet {

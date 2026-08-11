@@ -268,7 +268,8 @@ export const PERMISSION_GROUPS = [
 
 export interface User {
   id: string
-  email: string
+  email?: string | null
+  username?: string | null
   name: string
   phone?: string
   role: AppRole

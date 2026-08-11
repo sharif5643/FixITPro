@@ -74,11 +74,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') {
       permissions = ALL_PERMISSIONS;
     } else {
-      const rows = await this.prisma.rolePermission.findMany({
-        where: { role: user.role },
-        select: { permission: true },
-      });
-      permissions = rows.map((r) => r.permission);
+      const [roleRows, userRows] = await Promise.all([
+        this.prisma.rolePermission.findMany({ where: { role: user.role }, select: { permission: true } }),
+        this.prisma.userPermission.findMany({ where: { userId: user.id }, select: { permission: true } }),
+      ]);
+      permissions = [...new Set([...roleRows.map((r) => r.permission), ...userRows.map((r) => r.permission)])];
     }
 
     return {

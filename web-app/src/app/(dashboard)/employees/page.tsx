@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import {
   Users, Plus, Pencil, KeyRound, ToggleLeft, ToggleRight, Loader2,
   Clock, Mail, Phone, Copy, Check, Building2, Wand2, ChevronDown, ChevronUp,
-  Trash2, AlertTriangle,
+  Trash2, AlertTriangle, ShieldPlus, AtSign,
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -29,6 +29,7 @@ import api from '@/lib/api'
 import {
   User, AppRole, Branch,
   ROLE_LABEL, ROLE_DESCRIPTION, ROLES_REQUIRING_BRANCH, ROLE_PRESET_PERMISSIONS,
+  ALL_PERMISSIONS, PERMISSION_LABEL,
 } from '@/types'
 import { useAuthStore } from '@/store/auth.store'
 import { format } from 'date-fns'
@@ -295,7 +296,7 @@ function CreateDialog({
 
 const editSchema = z.object({
   name:     z.string().min(1, 'กรุณากรอกชื่อ'),
-  email:    z.string().email('อีเมลไม่ถูกต้อง'),
+  email:    z.union([z.string().email('อีเมลไม่ถูกต้อง'), z.literal('')]).optional(),
   phone:    z.string().optional(),
   role:     z.enum(['OWNER','MANAGER','CASHIER','TECHNICIAN','STOCK_STAFF']),
   branchId: z.string().optional(),
@@ -326,7 +327,7 @@ function EditDialog({
     resolver: zodResolver(editSchema),
     values: {
       name: user.name,
-      email: user.email,
+      email: user.email ?? '',
       phone: user.phone ?? '',
       role: user.role as EditForm['role'],
       branchId: user.branchId ?? undefined,
@@ -364,8 +365,8 @@ function EditDialog({
               {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label>อีเมล <span className="text-red-500">*</span></Label>
-              <Input type="email" {...register('email')} className={errors.email ? 'border-red-400' : ''} />
+              <Label>อีเมล <span className="text-xs text-muted-foreground font-normal">(ไม่บังคับ)</span></Label>
+              <Input type="email" placeholder="email@example.com" {...register('email')} className={errors.email ? 'border-red-400' : ''} />
               {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
             </div>
             <div className="space-y-1.5">
@@ -486,6 +487,142 @@ function ResetPasswordDialog({
   )
 }
 
+// ── User Permission Dialog ────────────────────────────────────────────────────
+
+const PERM_GROUPS: { label: string; prefixes: string[] }[] = [
+  { label: 'การขาย & POS',      prefixes: ['sales.'] },
+  { label: 'สินค้า',            prefixes: ['products.'] },
+  { label: 'งานซ่อม',           prefixes: ['repair.', 'repairs.'] },
+  { label: 'สต็อก & จัดซื้อ',   prefixes: ['stock.', 'purchase.', 'supplier.'] },
+  { label: 'รายงาน & ข้อมูล',   prefixes: ['reports.', 'audit.', 'data.'] },
+  { label: 'ลิ้นชักเงินสด',    prefixes: ['cash_drawer.'] },
+  { label: 'อื่นๆ',             prefixes: [] }, // catch-all
+]
+
+function UserPermissionDialog({
+  user, roleGrantMap, open, onOpenChange,
+}: {
+  user: User
+  roleGrantMap: Record<string, string[]>
+  open: boolean
+  onOpenChange: (v: boolean) => void
+}) {
+  const queryClient = useQueryClient()
+  const rolePermsSet = new Set(roleGrantMap[user.role] ?? [])
+
+  const { data: userGrants = [], isLoading } = useQuery<string[]>({
+    queryKey: ['user-permissions', user.id],
+    queryFn: async () => (await api.get(`/permissions/users/${user.id}`)).data,
+    enabled: open,
+    staleTime: 10_000,
+  })
+  const userGrantSet = new Set(userGrants)
+
+  const grantMut = useMutation({
+    mutationFn: (permission: string) => api.post(`/permissions/users/${user.id}`, { permission }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-permissions', user.id] })
+      toast.success('เพิ่มสิทธิ์แล้ว')
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message ?? err.message),
+  })
+  const revokeMut = useMutation({
+    mutationFn: (permission: string) => api.delete(`/permissions/users/${user.id}/${encodeURIComponent(permission)}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-permissions', user.id] })
+      toast.success('เพิกถอนสิทธิ์แล้ว')
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message ?? err.message),
+  })
+
+  const grantable = ALL_PERMISSIONS.filter((p) => !rolePermsSet.has(p))
+
+  const grouped = PERM_GROUPS.map((g) => {
+    if (g.prefixes.length === 0) {
+      const usedPrefixes = PERM_GROUPS.flatMap((x) => x.prefixes)
+      return { ...g, perms: grantable.filter((p) => !usedPrefixes.some((x) => p.startsWith(x))) }
+    }
+    return { ...g, perms: grantable.filter((p) => g.prefixes.some((x) => p.startsWith(x))) }
+  }).filter((g) => g.perms.length > 0)
+
+  const isBusy = grantMut.isPending || revokeMut.isPending
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg flex flex-col" style={{ maxHeight: '85vh' }}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldPlus className="h-5 w-5 text-purple-600" />
+            สิทธิ์พิเศษ — {user.name}
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            ตำแหน่ง {ROLE_LABEL[user.role]} · สิทธิ์ด้านล่างคือสิทธิ์ที่ <span className="font-semibold">ไม่ได้</span>อยู่ในตำแหน่ง — เพิ่มให้เฉพาะคนนี้ได้
+          </p>
+        </DialogHeader>
+        <div className="overflow-y-auto flex-1 space-y-4 pr-1 pb-1">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-24 gap-2 text-slate-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm">กำลังโหลด...</span>
+            </div>
+          ) : grantable.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">
+              ตำแหน่งนี้มีสิทธิ์ครบทุกอย่างอยู่แล้ว
+            </div>
+          ) : (
+            <>
+              {userGrants.length > 0 && (
+                <div className="rounded-lg bg-purple-50 border border-purple-100 px-3 py-2">
+                  <p className="text-xs text-purple-700 font-medium">
+                    สิทธิ์พิเศษที่ได้รับแล้ว: {userGrants.length} รายการ
+                  </p>
+                </div>
+              )}
+              {grouped.map((group) => (
+                <div key={group.label}>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">{group.label}</p>
+                  <div className="space-y-1.5">
+                    {group.perms.map((perm) => {
+                      const isGranted = userGrantSet.has(perm)
+                      return (
+                        <div
+                          key={perm}
+                          className={cn(
+                            'flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-all',
+                            isGranted
+                              ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-700/60'
+                              : 'bg-slate-50 border-slate-100 dark:bg-slate-800/60 dark:border-slate-700/60',
+                          )}
+                        >
+                          <span className={cn('flex-1', isGranted ? 'text-green-900 dark:text-green-300 font-medium' : 'text-slate-600 dark:text-slate-400')}>
+                            {PERMISSION_LABEL[perm] ?? perm}
+                          </span>
+                          <button
+                            disabled={isBusy}
+                            onClick={() => isGranted ? revokeMut.mutate(perm) : grantMut.mutate(perm)}
+                            className={cn(
+                              'text-xs rounded-full px-2.5 py-1 font-medium transition-colors disabled:opacity-50',
+                              isGranted
+                                ? 'bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-600 dark:bg-green-800/40 dark:text-green-300'
+                                : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200',
+                            )}
+                          >
+                            {isGranted ? 'เพิกถอน' : '+ เพิ่ม'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function EmployeesPage() {
@@ -506,6 +643,7 @@ export default function EmployeesPage() {
   const [editTarget, setEditTarget]       = useState<User | null>(null)
   const [resetTarget, setResetTarget]     = useState<User | null>(null)
   const [deleteTarget, setDeleteTarget]   = useState<User | null>(null)
+  const [permTarget, setPermTarget]       = useState<User | null>(null)
 
   const { data: rawUsers = [], isLoading } = useQuery<User[]>({
     queryKey: ['users'],
@@ -521,6 +659,16 @@ export default function EmployeesPage() {
     staleTime: 60_000,
     enabled: currentUser?.role !== 'SUPER_ADMIN',
   })
+
+  const { data: rolePermsData = [] } = useQuery<{ role: string; permissions: string[] }[]>({
+    queryKey: ['role-permissions'],
+    queryFn: async () => (await api.get('/permissions/roles')).data,
+    staleTime: 60_000,
+    enabled: currentUser?.role === 'OWNER',
+  })
+  const roleGrantMap: Record<string, string[]> = Object.fromEntries(
+    rolePermsData.map((r) => [r.role, r.permissions]),
+  )
 
   const toggleMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/users/${id}/toggle`),
@@ -612,9 +760,15 @@ export default function EmployeesPage() {
                     {!user.isActive && <Badge variant="secondary" className="text-xs">ปิดการใช้งาน</Badge>}
                   </div>
                   <div className="flex items-center gap-x-4 gap-y-1 mt-1 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Mail className="h-3 w-3" />{user.email}
-                    </span>
+                    {user.email ? (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Mail className="h-3 w-3" />{user.email}
+                      </span>
+                    ) : user.username ? (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <AtSign className="h-3 w-3" />{user.username}
+                      </span>
+                    ) : null}
                     {user.phone && (
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Phone className="h-3 w-3" />{user.phone}
@@ -672,6 +826,15 @@ export default function EmployeesPage() {
                       {user.isActive ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
                     </button>
                   )}
+                  {!isOwner && currentUser?.role === 'OWNER' && (
+                    <button
+                      onClick={() => setPermTarget(user)}
+                      className="rounded-lg p-2 text-muted-foreground hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                      title="สิทธิ์พิเศษเฉพาะคน"
+                    >
+                      <ShieldPlus className="h-4 w-4" />
+                    </button>
+                  )}
                   {!isMe && !isOwner && currentUser?.role === 'OWNER' && (
                     <button
                       onClick={() => setDeleteTarget(user)}
@@ -710,6 +873,15 @@ export default function EmployeesPage() {
           user={resetTarget}
           open={!!resetTarget}
           onOpenChange={(v) => { if (!v) setResetTarget(null) }}
+        />
+      )}
+
+      {permTarget && (
+        <UserPermissionDialog
+          user={permTarget}
+          roleGrantMap={roleGrantMap}
+          open={!!permTarget}
+          onOpenChange={(v) => { if (!v) setPermTarget(null) }}
         />
       )}
 
