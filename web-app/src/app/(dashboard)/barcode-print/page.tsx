@@ -19,8 +19,9 @@ import { formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Product } from '@/types'
 
-// react-barcode uses browser APIs — load client-side only
+// react-barcode and qrcode.react use browser APIs — load client-side only
 const Barcode = dynamic(() => import('react-barcode'), { ssr: false })
+const QRCode = dynamic(() => import('qrcode.react').then((m) => ({ default: m.QRCodeSVG })), { ssr: false })
 
 // Simple debounce hook
 function useDebounce<T>(value: T, delay: number) {
@@ -37,15 +38,16 @@ interface LabelItem {
   quantity: number
 }
 
-type LabelSize = '40x20' | '40x30' | '50x30' | '58x30' | '60x40' | '80x50'
+type LabelSize = '40x20' | '40x30' | '50x30' | '58x30' | '60x40' | '80x50' | '100x200'
 
 const LABEL_SIZE_CONFIG: Record<LabelSize, { label: string; widthPx: number; heightPx: number; widthMm: number; heightMm: number }> = {
-  '40x20': { label: '40×20 มม.',  widthPx: 151, heightPx: 76,  widthMm: 40, heightMm: 20 },
-  '40x30': { label: '40×30 มม. (Niimbot B1)', widthPx: 151, heightPx: 113, widthMm: 40, heightMm: 30 },
-  '50x30': { label: '50×30 มม. (Niimbot B1)', widthPx: 189, heightPx: 113, widthMm: 50, heightMm: 30 },
-  '58x30': { label: '58×30 มม.',  widthPx: 219, heightPx: 113, widthMm: 58, heightMm: 30 },
-  '60x40': { label: '60×40 มม. (Niimbot B1)', widthPx: 227, heightPx: 151, widthMm: 60, heightMm: 40 },
-  '80x50': { label: '80×50 มม.',  widthPx: 302, heightPx: 189, widthMm: 80, heightMm: 50 },
+  '40x20':   { label: '40×20 มม.',                    widthPx: 151, heightPx: 76,  widthMm: 40,  heightMm: 20  },
+  '40x30':   { label: '40×30 มม. (Niimbot B1)',        widthPx: 151, heightPx: 113, widthMm: 40,  heightMm: 30  },
+  '50x30':   { label: '50×30 มม. (Niimbot B1)',        widthPx: 189, heightPx: 113, widthMm: 50,  heightMm: 30  },
+  '58x30':   { label: '58×30 มม.',                    widthPx: 219, heightPx: 113, widthMm: 58,  heightMm: 30  },
+  '60x40':   { label: '60×40 มม. (Niimbot B1)',        widthPx: 227, heightPx: 151, widthMm: 60,  heightMm: 40  },
+  '80x50':   { label: '80×50 มม.',                    widthPx: 302, heightPx: 189, widthMm: 80,  heightMm: 50  },
+  '100x200': { label: '10×20 ซม. (การ์ดสินค้า)',       widthPx: 378, heightPx: 756, widthMm: 100, heightMm: 200 },
 }
 
 function ProductLabel({ product, size }: { product: Product; size: LabelSize }) {
@@ -54,6 +56,61 @@ function ProductLabel({ product, size }: { product: Product; size: LabelSize }) 
 
   const isSmall  = size === '40x20'
   const isMedium = size === '40x30' || size === '50x30' || size === '58x30'
+  const isCard   = size === '100x200'
+
+  if (isCard) {
+    return (
+      <div
+        className="label-item border border-dashed border-slate-300 dark:border-slate-600/60 flex flex-col items-center overflow-hidden bg-white dark:bg-[#1E293B]"
+        style={{ width: cfg.widthPx, height: cfg.heightPx, padding: 14, gap: 6 }}
+      >
+        {/* Product name */}
+        <p
+          className="font-bold text-center leading-snug text-slate-900 dark:text-white w-full"
+          style={{ fontSize: 18, lineClamp: 2 }}
+        >
+          {product.name}
+        </p>
+
+        {/* Price */}
+        <p
+          className="font-bold text-slate-900 dark:text-white tabular-nums"
+          style={{ fontSize: 22 }}
+        >
+          {formatThaiMoney(Number(product.price))}
+        </p>
+
+        {/* Barcode */}
+        <div className="flex-shrink-0">
+          <Barcode
+            value={barcodeValue}
+            width={2.2}
+            height={72}
+            fontSize={11}
+            margin={0}
+            displayValue={true}
+          />
+        </div>
+
+        {/* QR Code */}
+        <div className="flex-shrink-0">
+          <QRCode
+            value={barcodeValue}
+            size={110}
+            level="M"
+          />
+        </div>
+
+        {/* SKU */}
+        <p
+          className="text-slate-500 dark:text-slate-400 font-mono text-center"
+          style={{ fontSize: 10 }}
+        >
+          SKU: {product.sku}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -151,9 +208,10 @@ export default function BarcodePrintPage() {
     const printArea = document.querySelector('.print-area')
     if (!printArea) return
 
-    const pad = cfg.widthMm <= 40 ? 2 : 4
+    const pad = cfg.widthMm <= 40 ? 2 : labelSize === '100x200' ? 14 : 4
+    const isCardSize = labelSize === '100x200'
 
-    if (printMode === 'label') {
+    if (printMode === 'label' && !isCardSize) {
       // ── Label printer (Niimbot, thermal) ──────────────────────────────────────
       // Isolated popup: @page size = label size, one label per page
       const w = window.open('', '_blank', 'width=300,height=200,menubar=no,toolbar=no,scrollbars=no')
@@ -177,24 +235,29 @@ export default function BarcodePrintPage() {
       setTimeout(() => { w.focus(); w.print(); setTimeout(() => w.close(), 500) }, 600)
 
     } else {
-      // ── A4 / sticker sheet ────────────────────────────────────────────────────
-      // Isolated popup: A4 page, labels tiled in a flex-wrap grid
+      // ── A4 / sticker sheet (and card size 100x200) ────────────────────────────
+      // For card size: 2 cards per A4 page (portrait); otherwise tile
+      const cardGap = isCardSize ? '10mm' : '3mm'
+      const pageMargin = isCardSize ? '10mm' : '6mm'
       const w = window.open('', '_blank', 'width=800,height=600,menubar=no,toolbar=no,scrollbars=no')
       if (!w) { window.print(); return }
       w.document.write(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
-  @page { size: A4 portrait; margin: 6mm; }
+  @page { size: A4 portrait; margin: ${pageMargin}; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: white; }
   .print-area {
-    display: flex; flex-wrap: wrap; gap: 3mm; align-content: flex-start;
+    display: flex; flex-wrap: wrap; gap: ${cardGap}; align-content: flex-start;
+    justify-content: ${isCardSize ? 'center' : 'flex-start'};
   }
   .label-item {
     width: ${cfg.widthMm}mm !important; height: ${cfg.heightMm}mm !important;
     display: flex !important; flex-direction: column;
-    align-items: center; justify-content: center;
+    align-items: center; ${isCardSize ? 'justify-content: flex-start;' : 'justify-content: center;'}
     overflow: hidden; background: white; padding: ${pad}px;
-    border: 0.5px dashed #999;
+    border: ${isCardSize ? '0.5px solid #999' : '0.5px dashed #999'};
+    ${isCardSize ? 'border-radius: 4px;' : ''}
+    gap: ${isCardSize ? '6px' : '0'};
   }
   p { font-family: Arial, sans-serif; text-align: center; font-weight: bold; width: 100%; overflow: hidden; }
 </style></head><body><div class="print-area">${printArea.innerHTML}</div></body></html>`)
@@ -311,11 +374,15 @@ export default function BarcodePrintPage() {
                   ))}
                 </SelectContent>
               </Select>
-              {printMode === 'label' && (
+              {labelSize === '100x200' ? (
+                <p className="text-xs text-muted-foreground">
+                  📄 พิมพ์บน <strong>กระดาษ A4</strong> — ได้ 2 การ์ดต่อหน้า (100×200 มม.)
+                </p>
+              ) : printMode === 'label' ? (
                 <p className="text-xs text-muted-foreground">
                   ⚠️ เลือกขนาดให้ตรงกับ roll ใน Niimbot แล้วกด พิมพ์ → เลือก <strong>NIIMBOT B1</strong>
                 </p>
-              )}
+              ) : null}
             </div>
 
             {/* Print mode */}
