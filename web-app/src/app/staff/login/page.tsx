@@ -14,8 +14,8 @@ import api from '@/lib/api'
 const REMEMBER_KEY = 'fixitpro_remembered_email'
 
 const schema = z.object({
-  email:    z.string().email('กรุณากรอกอีเมลที่ถูกต้อง').min(1, 'กรุณากรอกอีเมล'),
-  password: z.string().min(6, 'รหัสผ่านอย่างน้อย 6 ตัวอักษร'),
+  email:    z.string().min(1, 'กรุณากรอกอีเมล หรือ Username'),
+  password: z.string().min(4, 'รหัสผ่าน/PIN อย่างน้อย 4 ตัว'),
 })
 type Form = z.infer<typeof schema>
 
@@ -196,9 +196,9 @@ function LoginForm() {
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-slate-400"/>
                   <input
-                    type="email"
-                    autoComplete="email"
-                    placeholder="อีเมลที่ใช้สมัคร"
+                    type="text"
+                    autoComplete="username"
+                    placeholder="อีเมล หรือ username"
                     {...register('email')}
                     className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#F8F9FB] pl-11 pr-11 text-sm text-[#111] outline-none transition-all focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20"
                   />

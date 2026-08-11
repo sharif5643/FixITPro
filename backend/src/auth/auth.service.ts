@@ -49,10 +49,10 @@ export class AuthService {
     return raw;
   }
 
-  private buildPayload(user: { id: string; email: string; role: string; branchId?: string | null; tenantId?: string | null }) {
+  private buildPayload(user: { id: string; email?: string | null; role: string; branchId?: string | null; tenantId?: string | null }) {
     return {
       sub:      user.id,
-      email:    user.email,
+      email:    user.email ?? null,
       role:     user.role,
       branchId: user.branchId ?? null,
       tenantId: user.tenantId ?? null,
@@ -60,7 +60,15 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const identifier = dto.email; // dto.email holds email OR username
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { username: identifier },
+        ],
+      },
+    });
     if (!user || !user.isActive) throw new UnauthorizedException('Invalid credentials');
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);

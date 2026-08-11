@@ -15,6 +15,7 @@ const ROLES_REQUIRING_BRANCH = ['MANAGER', 'CASHIER', 'TECHNICIAN', 'STOCK_STAFF
 const USER_SELECT = {
   id:                   true,
   email:                true,
+  username:             true,
   name:                 true,
   phone:                true,
   role:                 true,
@@ -52,23 +53,33 @@ export class UsersService {
   }
 
   async create(
-    dto: { email: string; name: string; phone?: string; password: string; role?: string; branchId?: string },
+    dto: { email?: string; username?: string; name: string; phone?: string; password: string; role?: string; branchId?: string },
     requester: { id: string; tenantId: string | null; name?: string },
   ) {
     if (dto.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot assign SUPER_ADMIN role');
+    if (!dto.email && !dto.username) {
+      throw new BadRequestException('ต้องระบุ อีเมล หรือ Username อย่างน้อยหนึ่งอย่าง');
+    }
 
     const role = (dto.role as string) || 'CASHIER';
     if (ROLES_REQUIRING_BRANCH.includes(role) && !dto.branchId) {
       throw new BadRequestException('ตำแหน่งนี้ต้องระบุสาขาที่ประจำ');
     }
 
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) throw new ConflictException('Email already in use');
+    if (dto.email) {
+      const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+      if (existing) throw new ConflictException('Email นี้ถูกใช้งานแล้ว');
+    }
+    if (dto.username) {
+      const existing = await this.prisma.user.findUnique({ where: { username: dto.username.toLowerCase() } });
+      if (existing) throw new ConflictException('Username นี้ถูกใช้งานแล้ว');
+    }
 
     const hashed = await bcrypt.hash(dto.password, 12);
     const user = await this.prisma.user.create({
       data: {
-        email:    dto.email,
+        email:    dto.email   ?? null,
+        username: dto.username ? dto.username.toLowerCase() : null,
         name:     dto.name,
         phone:    dto.phone,
         password: hashed,

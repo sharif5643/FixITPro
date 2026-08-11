@@ -15,8 +15,8 @@ import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
 
 const loginSchema = z.object({
-  email: z.string().email('อีเมลไม่ถูกต้อง'),
-  password: z.string().min(6, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'),
+  email: z.string().min(1, 'กรุณากรอกอีเมล หรือ Username'),
+  password: z.string().min(4, 'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร'),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
@@ -162,16 +162,16 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Email */}
+            {/* Email / Username */}
             <div className="space-y-1.5">
               <label htmlFor="email" className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                อีเมล
+                อีเมล หรือ Username
               </label>
               <input
                 id="email"
-                type="email"
-                placeholder="owner@fixitpro.com"
-                autoComplete="email"
+                type="text"
+                placeholder="อีเมล หรือ username"
+                autoComplete="username"
                 disabled={isLoading}
                 {...register('email')}
                 className={`w-full h-11 px-4 rounded-xl border text-sm bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 focus:border-blue-500 disabled:opacity-50 ${

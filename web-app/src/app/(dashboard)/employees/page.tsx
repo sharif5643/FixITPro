@@ -172,18 +172,18 @@ function PermissionPresetPanel({
 
 const createSchema = z.object({
   name:     z.string().min(1, 'กรุณากรอกชื่อ'),
-  email:    z.string().email('อีเมลไม่ถูกต้อง'),
+  email:    z.union([z.string().email('อีเมลไม่ถูกต้อง'), z.literal('')]).optional(),
+  username: z.string().min(2, 'Username อย่างน้อย 2 ตัว').regex(/^[a-z0-9_]+$/, 'ใช้ตัวพิมพ์เล็ก ตัวเลข และ _ เท่านั้น').optional().or(z.literal('')),
   phone:    z.string().optional(),
-  password: z.string().min(6, 'รหัสผ่านอย่างน้อย 6 ตัว'),
+  password: z.string().min(4, 'รหัสผ่าน/PIN อย่างน้อย 4 ตัว'),
   role:     z.enum(['OWNER','MANAGER','CASHIER','TECHNICIAN','STOCK_STAFF']),
   branchId: z.string().optional(),
 }).superRefine((data, ctx) => {
+  if (!data.email && !data.username) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ต้องระบุ อีเมล หรือ Username อย่างน้อยหนึ่งอย่าง', path: ['email'] })
+  }
   if (ROLES_REQUIRING_BRANCH.includes(data.role as AppRole) && !data.branchId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'ตำแหน่งนี้ต้องระบุสาขาที่ประจำ',
-      path: ['branchId'],
-    })
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ตำแหน่งนี้ต้องระบุสาขาที่ประจำ', path: ['branchId'] })
   }
 })
 type CreateForm = z.infer<typeof createSchema>
@@ -232,7 +232,12 @@ function CreateDialog({
               {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label>อีเมล <span className="text-red-500">*</span></Label>
+              <Label>Username <span className="text-red-500">*</span> <span className="text-xs text-muted-foreground font-normal">(ใช้ login — ตัวพิมพ์เล็ก, ตัวเลข, _)</span></Label>
+              <Input placeholder="somchai / cashier1" {...register('username')} className={errors.username ? 'border-red-400' : ''} />
+              {errors.username && <p className="text-xs text-red-500">{errors.username.message}</p>}
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>อีเมล <span className="text-xs text-muted-foreground font-normal">(ไม่บังคับ)</span></Label>
               <Input type="email" placeholder="email@example.com" {...register('email')} className={errors.email ? 'border-red-400' : ''} />
               {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
             </div>
@@ -259,8 +264,8 @@ function CreateDialog({
               </Select>
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label>รหัสผ่าน <span className="text-red-500">*</span></Label>
-              <Input type="password" placeholder="อย่างน้อย 6 ตัวอักษร" {...register('password')} className={errors.password ? 'border-red-400' : ''} />
+              <Label>รหัสผ่าน / PIN <span className="text-red-500">*</span> <span className="text-xs text-muted-foreground font-normal">(อย่างน้อย 4 ตัว)</span></Label>
+              <Input type="password" placeholder="รหัสผ่าน หรือ PIN 4 หลัก" {...register('password')} className={errors.password ? 'border-red-400' : ''} />
               {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
             </div>
             {(needsBranch || role === 'OWNER') && role !== 'OWNER' && (
