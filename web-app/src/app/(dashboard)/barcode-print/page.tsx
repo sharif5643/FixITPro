@@ -38,9 +38,10 @@ interface LabelItem {
   quantity: number
 }
 
-type LabelSize = '40x20' | '40x30' | '50x30' | '58x30' | '60x40' | '80x50' | '100x200'
+type LabelSize = '20x10' | '40x20' | '40x30' | '50x30' | '58x30' | '60x40' | '80x50' | '100x200'
 
 const LABEL_SIZE_CONFIG: Record<LabelSize, { label: string; widthPx: number; heightPx: number; widthMm: number; heightMm: number }> = {
+  '20x10':   { label: '20×10 มม. (สติ๊กเกอร์เล็ก)',    widthPx: 227, heightPx: 114, widthMm: 20,  heightMm: 10  },
   '40x20':   { label: '40×20 มม.',                    widthPx: 151, heightPx: 76,  widthMm: 40,  heightMm: 20  },
   '40x30':   { label: '40×30 มม. (Niimbot B1)',        widthPx: 151, heightPx: 113, widthMm: 40,  heightMm: 30  },
   '50x30':   { label: '50×30 มม. (Niimbot B1)',        widthPx: 189, heightPx: 113, widthMm: 50,  heightMm: 30  },
@@ -56,9 +57,50 @@ function ProductLabel({ product, size, cardCodeType = 'both' }: { product: Produ
   const cfg = LABEL_SIZE_CONFIG[size]
   const barcodeValue = product.barcode || product.sku
 
+  const isTiny   = size === '20x10'
   const isSmall  = size === '40x20'
   const isMedium = size === '40x30' || size === '50x30' || size === '58x30'
   const isCard   = size === '100x200'
+
+  if (isTiny) {
+    const showBarcode = cardCodeType !== 'qr'
+    const showQR      = cardCodeType === 'qr'
+    return (
+      <div
+        className="label-item border border-dashed border-slate-300 dark:border-slate-600/60 flex flex-col items-center justify-center overflow-hidden bg-white dark:bg-[#1E293B]"
+        style={{ width: cfg.widthPx, height: cfg.heightPx, padding: 4, gap: 2 }}
+      >
+        {showQR ? (
+          <>
+            <QRCode value={barcodeValue} size={70} level="M" />
+            <p className="font-mono text-slate-500 dark:text-slate-400 text-center" style={{ fontSize: 7 }}>
+              {barcodeValue}
+            </p>
+          </>
+        ) : (
+          <>
+            <p
+              className="font-bold text-center leading-none text-slate-900 dark:text-white w-full truncate"
+              style={{ fontSize: 9 }}
+            >
+              {product.name}
+            </p>
+            <p className="font-bold text-slate-900 dark:text-white tabular-nums" style={{ fontSize: 9 }}>
+              {formatThaiMoney(Number(product.price))}
+            </p>
+            <Barcode
+              value={barcodeValue}
+              width={showBarcode ? 1.4 : 1.4}
+              height={38}
+              fontSize={7}
+              margin={0}
+              displayValue={true}
+            />
+          </>
+        )}
+      </div>
+    )
+  }
 
   if (isCard) {
     const showBarcode = cardCodeType === 'barcode' || cardCodeType === 'both'
@@ -390,6 +432,10 @@ export default function BarcodePrintPage() {
                 <p className="text-xs text-muted-foreground">
                   📄 พิมพ์บน <strong>กระดาษ A4</strong> — ได้ 2 การ์ดต่อหน้า (100×200 มม.)
                 </p>
+              ) : labelSize === '20x10' ? (
+                <p className="text-xs text-muted-foreground">
+                  🏷️ สติ๊กเกอร์ thermal 20×10 มม. — ตั้งขนาดกระดาษใน driver ให้ตรง
+                </p>
               ) : printMode === 'label' ? (
                 <p className="text-xs text-muted-foreground">
                   ⚠️ เลือกขนาดให้ตรงกับ roll ใน Niimbot แล้วกด พิมพ์ → เลือก <strong>NIIMBOT B1</strong>
@@ -397,8 +443,8 @@ export default function BarcodePrintPage() {
               ) : null}
             </div>
 
-            {/* Code type — card only */}
-            {labelSize === '100x200' && (
+            {/* Code type — card and tiny label */}
+            {(labelSize === '100x200' || labelSize === '20x10') && (
               <div className="space-y-1.5">
                 <Label>ประเภท Code</Label>
                 <div className="grid grid-cols-3 gap-2">
