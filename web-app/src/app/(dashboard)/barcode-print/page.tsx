@@ -50,7 +50,9 @@ const LABEL_SIZE_CONFIG: Record<LabelSize, { label: string; widthPx: number; hei
   '100x200': { label: '10×20 ซม. (การ์ดสินค้า)',       widthPx: 378, heightPx: 756, widthMm: 100, heightMm: 200 },
 }
 
-function ProductLabel({ product, size }: { product: Product; size: LabelSize }) {
+type CardCodeType = 'barcode' | 'qr' | 'both'
+
+function ProductLabel({ product, size, cardCodeType = 'both' }: { product: Product; size: LabelSize; cardCodeType?: CardCodeType }) {
   const cfg = LABEL_SIZE_CONFIG[size]
   const barcodeValue = product.barcode || product.sku
 
@@ -59,15 +61,20 @@ function ProductLabel({ product, size }: { product: Product; size: LabelSize }) 
   const isCard   = size === '100x200'
 
   if (isCard) {
+    const showBarcode = cardCodeType === 'barcode' || cardCodeType === 'both'
+    const showQR      = cardCodeType === 'qr'      || cardCodeType === 'both'
+    const soloBarcode = cardCodeType === 'barcode'
+    const soloQR      = cardCodeType === 'qr'
+
     return (
       <div
         className="label-item border border-dashed border-slate-300 dark:border-slate-600/60 flex flex-col items-center overflow-hidden bg-white dark:bg-[#1E293B]"
-        style={{ width: cfg.widthPx, height: cfg.heightPx, padding: 14, gap: 6 }}
+        style={{ width: cfg.widthPx, height: cfg.heightPx, padding: 14, gap: 8, justifyContent: 'center' }}
       >
         {/* Product name */}
         <p
           className="font-bold text-center leading-snug text-slate-900 dark:text-white w-full"
-          style={{ fontSize: 18, lineClamp: 2 }}
+          style={{ fontSize: 18 }}
         >
           {product.name}
         </p>
@@ -75,31 +82,35 @@ function ProductLabel({ product, size }: { product: Product; size: LabelSize }) 
         {/* Price */}
         <p
           className="font-bold text-slate-900 dark:text-white tabular-nums"
-          style={{ fontSize: 22 }}
+          style={{ fontSize: 24 }}
         >
           {formatThaiMoney(Number(product.price))}
         </p>
 
         {/* Barcode */}
-        <div className="flex-shrink-0">
-          <Barcode
-            value={barcodeValue}
-            width={2.2}
-            height={72}
-            fontSize={11}
-            margin={0}
-            displayValue={true}
-          />
-        </div>
+        {showBarcode && (
+          <div className="flex-shrink-0">
+            <Barcode
+              value={barcodeValue}
+              width={soloBarcode ? 2.8 : 2.2}
+              height={soloBarcode ? 110 : 72}
+              fontSize={soloBarcode ? 13 : 11}
+              margin={0}
+              displayValue={true}
+            />
+          </div>
+        )}
 
         {/* QR Code */}
-        <div className="flex-shrink-0">
-          <QRCode
-            value={barcodeValue}
-            size={110}
-            level="M"
-          />
-        </div>
+        {showQR && (
+          <div className="flex-shrink-0">
+            <QRCode
+              value={barcodeValue}
+              size={soloQR ? 170 : 110}
+              level="M"
+            />
+          </div>
+        )}
 
         {/* SKU */}
         <p
@@ -153,6 +164,7 @@ export default function BarcodePrintPage() {
   const [items, setItems]       = useState<LabelItem[]>([])
   const [labelSize, setLabelSize] = useState<LabelSize>('40x30')
   const [printMode, setPrintMode] = useState<'label' | 'sheet'>('label')
+  const [cardCodeType, setCardCodeType] = useState<CardCodeType>('both')
   const searchRef               = useRef<HTMLDivElement>(null)
   const debouncedSearch         = useDebounce(search, 300)
 
@@ -385,6 +397,34 @@ export default function BarcodePrintPage() {
               ) : null}
             </div>
 
+            {/* Code type — card only */}
+            {labelSize === '100x200' && (
+              <div className="space-y-1.5">
+                <Label>ประเภท Code</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'barcode', label: '▌▌▌ Barcode', sub: 'สแกนด้วยเครื่อง' },
+                    { value: 'qr',      label: '⬛ QR Code',   sub: 'สแกนด้วยมือถือ' },
+                    { value: 'both',    label: 'ทั้งสองอย่าง', sub: 'Barcode + QR'    },
+                  ] as const).map(({ value, label, sub }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setCardCodeType(value)}
+                      className={`rounded-lg border px-2 py-2.5 text-sm font-medium text-left transition-colors ${
+                        cardCodeType === value
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                          : 'border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <div className="font-semibold text-xs">{label}</div>
+                      <div className="text-xs mt-0.5 opacity-75">{sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Print mode */}
             <div className="space-y-1.5">
               <Label>โหมดพิมพ์</Label>
@@ -472,7 +512,7 @@ export default function BarcodePrintPage() {
               <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 p-4 overflow-auto max-h-[60vh]">
                 <div className="flex flex-wrap gap-2">
                   {allLabels.map((product, idx) => (
-                    <ProductLabel key={`${product.id}-${idx}`} product={product} size={labelSize} />
+                    <ProductLabel key={`${product.id}-${idx}`} product={product} size={labelSize} cardCodeType={cardCodeType} />
                   ))}
                 </div>
               </div>
@@ -484,7 +524,7 @@ export default function BarcodePrintPage() {
       {/* Print area (hidden on screen, shown on print) */}
       <div className="print-area">
         {allLabels.map((product, idx) => (
-          <ProductLabel key={`print-${product.id}-${idx}`} product={product} size={labelSize} />
+          <ProductLabel key={`print-${product.id}-${idx}`} product={product} size={labelSize} cardCodeType={cardCodeType} />
         ))}
       </div>
     </>
