@@ -174,6 +174,8 @@ export class RepairsController {
   }
 
   @Post(':id/images')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.edit')
   @UseInterceptors(
     FilesInterceptor('files', 6, {
       storage: imageStorage,

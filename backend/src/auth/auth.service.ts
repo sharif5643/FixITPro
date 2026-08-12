@@ -217,9 +217,9 @@ export class AuthService {
         where: { id: user.id },
         data: { password: hashed, forcePasswordChange: true },
       });
-      return { found: true, tempPassword, message: 'รหัสผ่านชั่วคราวสำหรับเข้าระบบ' };
+      return { found: true, message: 'รีเซ็ตรหัสผ่านสำเร็จ กรุณาให้ผู้ใช้ตรวจสอบอีเมล' };
     }
-    return { found: false, tempPassword: null, message: 'ไม่พบอีเมลนี้ในระบบ' };
+    return { found: false, message: 'ไม่พบอีเมลนี้ในระบบ' };
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {

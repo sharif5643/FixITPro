@@ -626,7 +626,7 @@ export interface Repair {
   receivedAt: string
   completedAt?: string
   deliveredAt?: string
-  paymentStatus: 'PENDING' | 'PAID'
+  paymentStatus: 'PENDING' | 'PARTIAL' | 'PAID'
   paymentMethod?: 'CASH' | 'TRANSFER' | 'CARD'
   paidAmount?: number
   paidAt?: string

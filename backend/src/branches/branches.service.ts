@@ -709,16 +709,19 @@ export class BranchesService implements OnModuleInit {
     });
   }
 
-  async approveTransfer(id: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string) {
+  async approveTransfer(id: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string, actorTenantId?: string | null) {
     const transfer = await this.prisma.stockTransfer.findUnique({
       where: { id },
       include: {
-        fromBranch: { select: { name: true } },
+        fromBranch: { select: { name: true, tenantId: true } },
         toBranch:   { select: { name: true } },
         product:    { select: { name: true } },
       },
     });
     if (!transfer) throw new NotFoundException('ไม่พบรายการโอน');
+    if (actorRole !== 'SUPER_ADMIN' && actorTenantId && transfer.fromBranch.tenantId !== actorTenantId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงรายการโอนนี้');
+    }
     if (transfer.status !== 'PENDING') {
       throw new BadRequestException(`ไม่สามารถอนุมัติได้ (สถานะปัจจุบัน: ${transfer.status})`);
     }
@@ -770,16 +773,19 @@ export class BranchesService implements OnModuleInit {
     return updated;
   }
 
-  async rejectTransfer(id: string, rejectReason?: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string) {
+  async rejectTransfer(id: string, rejectReason?: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string, actorTenantId?: string | null) {
     const transfer = await this.prisma.stockTransfer.findUnique({
       where: { id },
       include: {
-        fromBranch: { select: { name: true } },
+        fromBranch: { select: { name: true, tenantId: true } },
         toBranch:   { select: { name: true } },
         product:    { select: { name: true } },
       },
     });
     if (!transfer) throw new NotFoundException('ไม่พบรายการโอน');
+    if (actorRole !== 'SUPER_ADMIN' && actorTenantId && transfer.fromBranch.tenantId !== actorTenantId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงรายการโอนนี้');
+    }
     if (transfer.status !== 'PENDING') {
       throw new BadRequestException(`ไม่สามารถปฏิเสธได้ (สถานะปัจจุบัน: ${transfer.status})`);
     }

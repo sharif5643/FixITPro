@@ -132,8 +132,9 @@ export class BranchesController {
     @CurrentUser('name')     actorName: string,
     @CurrentUser('branchId') actorBranchId: string,
     @CurrentUser('role')     actorRole: string,
+    @CurrentUser('tenantId') actorTenantId: string,
   ) {
-    return this.svc.approveTransfer(id, actorId, actorName, actorBranchId, actorRole);
+    return this.svc.approveTransfer(id, actorId, actorName, actorBranchId, actorRole, actorTenantId);
   }
 
   @Patch('transfers/:id/reject')
@@ -145,8 +146,9 @@ export class BranchesController {
     @CurrentUser('name')     actorName?: string,
     @CurrentUser('branchId') actorBranchId?: string,
     @CurrentUser('role')     actorRole?: string,
+    @CurrentUser('tenantId') actorTenantId?: string,
   ) {
-    return this.svc.rejectTransfer(id, rejectReason, actorId, actorName, actorBranchId, actorRole);
+    return this.svc.rejectTransfer(id, rejectReason, actorId, actorName, actorBranchId, actorRole, actorTenantId);
   }
 
   @Patch('transfers/:id/dispatch')

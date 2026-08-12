@@ -173,7 +173,7 @@ export class AccountingService {
           `Connect cash drawer via Settings > Hardware.`,
         );
       }
-      return this.createUnassignedEntry(entry, idempotencyKey);
+      return this.createUnassignedEntry(client, entry, idempotencyKey);
     }
 
     // Session found — write within caller's transaction (atomic with business record)
@@ -239,14 +239,14 @@ export class AccountingService {
     }
   }
 
-  /** Write ALLOW_UNASSIGNED ledger entry outside the caller's tx (best-effort, never throws). */
-  private async createUnassignedEntry(entry: AccountingEntry, idempotencyKey: string) {
+  /** Write ALLOW_UNASSIGNED ledger entry using the caller's client (rolls back with the caller's tx). */
+  private async createUnassignedEntry(client: any, entry: AccountingEntry, idempotencyKey: string) {
     const data = this.buildEntryData(entry, idempotencyKey, null, null);
     try {
-      return await this.prisma.cashDrawerTransaction.create({ data });
+      return await client.cashDrawerTransaction.create({ data });
     } catch (err: any) {
       if (err?.code === 'P2002') {
-        return this.prisma.cashDrawerTransaction.findUnique({ where: { idempotencyKey } });
+        return client.cashDrawerTransaction.findUnique({ where: { idempotencyKey } });
       }
       this.logger.error(
         `Accounting.record ALLOW_UNASSIGNED write failed for sourceId=${entry.sourceId}: ${err.message}`,

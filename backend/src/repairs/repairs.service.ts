@@ -779,7 +779,7 @@ export class RepairsService {
     const deposit = Number(repair.deposit ?? 0);
     const balance = Math.max(0, total - deposit);
 
-    if (dto.paymentMethod === 'CASH' && dto.amountPaid < balance) {
+    if (dto.amountPaid < balance) {
       throw new BadRequestException(
         `จำนวนเงินน้อยกว่ายอดค้างชำระ (ต้องชำระอีก ${balance} บาท)`,
       );

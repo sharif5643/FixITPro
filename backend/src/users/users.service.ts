@@ -202,12 +202,16 @@ export class UsersService {
   }
 
   async assignBranch(
-    id:          string,
-    branchId:    string | null,
-    requesterId: string,
-    requesterName?: string,
+    id:               string,
+    branchId:         string | null,
+    requesterId:      string,
+    requesterName?:   string,
+    requesterTenantId?: string | null,
   ) {
     const target = await this.findOne(id);
+    if (requesterTenantId && (target as any).tenantId !== requesterTenantId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขผู้ใช้นี้');
+    }
     const oldBranchId = (target as any).branchId ?? null;
 
     const updated = await this.prisma.user.update({

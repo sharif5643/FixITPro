@@ -12,6 +12,9 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
+import { createHmac, randomBytes } from 'crypto';
+
+const LINE_STATE_COOKIE = 'lo_state';
 
 const REFRESH_COOKIE = 'refresh_token';
 const REFRESH_DAYS   = 30;
@@ -167,9 +170,16 @@ export class AuthController {
     const channelId  = this.config.get<string>('LINE_CHANNEL_ID');
     const callbackUrl = this.config.get<string>('LINE_CALLBACK_URL')
       ?? 'https://fixitpro.in.th/api/v1/auth/line/callback';
-    const state = Math.random().toString(36).slice(2);
 
     if (!channelId) return res.redirect('/staff/login?error=line_not_configured');
+
+    // CSRF: generate a signed state token, store in HttpOnly cookie
+    const state  = randomBytes(16).toString('hex');
+    const secret = this.config.get<string>('LINE_STATE_SECRET') ?? 'fixitpro-oauth-state';
+    const sig    = createHmac('sha256', secret).update(state).digest('hex');
+    res.cookie(LINE_STATE_COOKIE, `${state}.${sig}`, {
+      httpOnly: true, sameSite: 'lax', maxAge: 600_000,
+    });
 
     const url = new URL('https://access.line.me/oauth2/v2.1/authorize');
     url.searchParams.set('response_type', 'code');
@@ -181,8 +191,26 @@ export class AuthController {
   }
 
   @Get('line/callback')
-  async lineCallback(@Query('code') code: string, @Res() res: Response) {
+  async lineCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
     if (!code) return res.redirect('/staff/login?error=line_failed');
+
+    // Verify CSRF state: compare query param against signed cookie
+    const rawCookie = (req.headers['cookie'] as string) ?? '';
+    const cookieVal = rawCookie.match(/(?:^|;\s*)lo_state=([^;]+)/)?.[1] ?? '';
+    res.clearCookie(LINE_STATE_COOKIE);
+    const [cookieState, cookieSig] = cookieVal.split('.');
+    const secret = this.config.get<string>('LINE_STATE_SECRET') ?? 'fixitpro-oauth-state';
+    const expectedSig = cookieState
+      ? createHmac('sha256', secret).update(cookieState).digest('hex')
+      : '';
+    if (!state || !cookieState || cookieSig !== expectedSig || state !== cookieState) {
+      return res.redirect('/staff/login?error=invalid_state');
+    }
 
     try {
       const channelId     = this.config.get<string>('LINE_CHANNEL_ID') ?? '';

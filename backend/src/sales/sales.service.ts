@@ -233,6 +233,14 @@ export class SalesService {
         },
       });
 
+      // Build per-productId queue so duplicate products map to distinct SaleItems
+      const saleItemQueue = new Map<string, Array<(typeof sale.items)[number]>>();
+      for (const si of sale.items) {
+        const q = saleItemQueue.get(si.productId) ?? [];
+        q.push(si);
+        saleItemQueue.set(si.productId, q);
+      }
+
       for (const item of dto.items) {
         const product = products.find((p) => p.id === item.productId);
 
@@ -273,7 +281,7 @@ export class SalesService {
           }
         }
 
-        const saleItem = sale.items.find((si) => si.productId === item.productId);
+        const saleItem = saleItemQueue.get(item.productId)?.shift();
         await tx.stockMovement.create({
           data: {
             productId:  item.productId,
@@ -650,12 +658,16 @@ export class SalesService {
       });
 
       for (const item of sale.items) {
+        // Only restore stock that wasn't already returned via partial refund
+        const restoreQty = item.quantity - (item.refundedQty ?? 0);
+        if (restoreQty <= 0) continue;
+
         if (sale.branchId) {
           // Restore BranchStock for the branch this sale was made in
           await (tx as any).branchStock.upsert({
             where: { branchId_productId: { branchId: sale.branchId, productId: item.productId } },
-            create: { branchId: sale.branchId, productId: item.productId, quantity: item.quantity, minStock: 0 },
-            update: { quantity: { increment: item.quantity } },
+            create: { branchId: sale.branchId, productId: item.productId, quantity: restoreQty, minStock: 0 },
+            update: { quantity: { increment: restoreQty } },
           });
           // Recalculate Product.stock from SUM(BranchStock) — prevents drift
           await this.syncProductShadowStock(item.productId, tx);
@@ -663,7 +675,7 @@ export class SalesService {
           // Legacy no-branch sale: BranchStock doesn't exist, restore Product.stock directly
           await tx.product.update({
             where: { id: item.productId },
-            data: { stock: { increment: item.quantity } },
+            data: { stock: { increment: restoreQty } },
           });
         }
 
@@ -671,7 +683,7 @@ export class SalesService {
           data: {
             productId: item.productId,
             type:      'IN',
-            quantity:  item.quantity,
+            quantity:  restoreQty,
             branchId:  sale.branchId ?? null,
             note:      `ยกเลิกบิล ${sale.receiptNumber}: ${reason}`,
           },

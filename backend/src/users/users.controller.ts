@@ -84,8 +84,9 @@ export class UsersController {
     @Body() body: AssignBranchDto,
     @CurrentUser('id') requesterId: string,
     @CurrentUser('name') requesterName: string,
+    @CurrentUser('tenantId') requesterTenantId: string | null,
   ) {
-    return this.usersService.assignBranch(id, body.branchId ?? null, requesterId, requesterName);
+    return this.usersService.assignBranch(id, body.branchId ?? null, requesterId, requesterName, requesterTenantId);
   }
 
   @Patch(':id/toggle')

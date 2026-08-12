@@ -12,7 +12,6 @@ export class TenantActiveGuard implements CanActivate {
     const user = request.user;
 
     if (!user || user.role === 'SUPER_ADMIN') return true;
-    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return true;
     if (!user.tenantId) return true;
 
     const tenant = await this.prisma.tenant.findUnique({
