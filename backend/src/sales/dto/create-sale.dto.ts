@@ -40,6 +40,17 @@ export class SaleItemDto {
   serialIds?: string[];
 }
 
+export class SalePaymentItemDto {
+  @IsIn(['CASH', 'TRANSFER', 'CARD'])
+  paymentMethod: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000_000)
+  amount: number;
+}
+
 export class CreateSaleDto {
   @IsOptional()
   @IsString()
@@ -65,14 +76,26 @@ export class CreateSaleDto {
   @IsString()
   branchId?: string;
 
+  // Single-method legacy path — kept for backward compat with old clients.
+  // Provide either (paymentMethod + amountPaid) OR payments[], not both.
+  @IsOptional()
   @IsIn(['CASH', 'TRANSFER', 'CARD'])
-  paymentMethod: string;
+  paymentMethod?: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   @Max(10_000_000)
-  amountPaid: number;
+  amountPaid?: number;
+
+  // Split payment path — array of { paymentMethod, amount } legs.
+  // When provided, paymentMethod/amountPaid are ignored.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SalePaymentItemDto)
+  payments?: SalePaymentItemDto[];
 
   @IsOptional()
   @Type(() => Number)

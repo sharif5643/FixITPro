@@ -501,6 +501,14 @@ export interface SaleRefund {
   items: SaleRefundItem[]
 }
 
+export interface SalePayment {
+  id: string
+  saleId: string
+  paymentMethod: PaymentMethod
+  amount: number
+  sortOrder: number
+}
+
 export interface Sale {
   id: string
   receiptNumber: string
@@ -518,6 +526,7 @@ export interface Sale {
   user: { id: string; name: string }
   shiftId?: string
   items: SaleItem[]
+  payments?: SalePayment[]
   refunds?: SaleRefund[]
   createdAt: string
   voidedById?: string | null

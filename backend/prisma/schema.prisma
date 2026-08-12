@@ -624,8 +624,9 @@ model Sale {
 
   voidedBy User? @relation("SaleVoidedBy", fields: [voidedById], references: [id])
 
-  items   SaleItem[]
-  refunds SaleRefund[]
+  items    SaleItem[]
+  refunds  SaleRefund[]
+  payments SalePayment[]
 
   @@index([createdAt])
   @@index([userId, createdAt])
@@ -634,6 +635,17 @@ model Sale {
   @@index([branchId])
   @@index([branchId, createdAt])
   @@index([status])
+}
+
+model SalePayment {
+  id            String        @id @default(cuid())
+  saleId        String
+  sale          Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod
+  amount        Decimal       @db.Decimal(10, 2)
+  sortOrder     Int           @default(0)
+
+  @@index([saleId])
 }
 
 model SaleItem {

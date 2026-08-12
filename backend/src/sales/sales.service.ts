@@ -166,11 +166,26 @@ export class SalesService {
       throw new BadRequestException('Discount cannot exceed the order subtotal');
     }
     const total = subtotal - discount;
-    const change = dto.amountPaid - total;
+
+    // Normalize payment input: split array OR legacy single method
+    const paymentLegs = (dto.payments && dto.payments.length > 0)
+      ? dto.payments.map((p) => ({ paymentMethod: p.paymentMethod, amount: p.amount }))
+      : (() => {
+          if (!dto.paymentMethod || dto.amountPaid === undefined) {
+            throw new BadRequestException('ต้องระบุ payments array หรือ paymentMethod + amountPaid');
+          }
+          return [{ paymentMethod: dto.paymentMethod, amount: dto.amountPaid }];
+        })();
+
+    const totalPaid = paymentLegs.reduce((s, leg) => s + leg.amount, 0);
+    const change    = totalPaid - total;
 
     if (change < 0) {
       throw new BadRequestException('Amount paid is less than total');
     }
+
+    // Primary method = largest leg (used in Sale.paymentMethod for legacy reports)
+    const primaryMethod = [...paymentLegs].sort((a, b) => b.amount - a.amount)[0].paymentMethod;
 
     const sale = await this.prisma.$transaction(async (tx) => {
       // P0-5 FIX: resolve/create customer inside the transaction so a concurrent
@@ -184,11 +199,11 @@ export class SalesService {
           customerId,
           shiftId: activeShift.id,
           branchId: branchId ?? null,
-          paymentMethod: dto.paymentMethod as any,
+          paymentMethod: primaryMethod as any,
           subtotal,
           discount,
           total,
-          amountPaid: dto.amountPaid,
+          amountPaid: totalPaid,
           change,
           note: dto.note,
           status: 'COMPLETED',
@@ -202,11 +217,19 @@ export class SalesService {
               total: item.price * item.quantity - (item.discount || 0),
             })),
           },
+          payments: {
+            create: paymentLegs.map((leg, i) => ({
+              paymentMethod: leg.paymentMethod as any,
+              amount: leg.amount,
+              sortOrder: i,
+            })),
+          },
         },
         include: {
           items: { include: { product: { select: { name: true, sku: true } } } },
           customer: { select: { id: true, name: true, phone: true } },
           user: { select: { id: true, name: true } },
+          payments: { orderBy: { sortOrder: 'asc' } },
         },
       });
 
@@ -293,19 +316,21 @@ export class SalesService {
         }
       }
 
-      // Record CASH payment in Cash Drawer ledger (no-op if no open session or non-CASH)
+      // Record each payment leg in accounting ledger (CASH → cash drawer; others → audit-only)
       if (branchId) {
-        await this.accounting.record({
-          sourceType:    ACCOUNTING_SOURCE.SALE_PAYMENT,
-          sourceId:      sale.id,
-          paymentMethod: dto.paymentMethod as any,
-          amount:        sale.total,
-          direction:     'IN',
-          branchId,
-          tenantId:      tenantId ?? null,
-          actorUserId:   userId,
-          note:          sale.receiptNumber,
-        }, tx);
+        for (const payment of sale.payments) {
+          await this.accounting.record({
+            sourceType:    ACCOUNTING_SOURCE.SALE_PAYMENT,
+            sourceId:      payment.id,
+            paymentMethod: payment.paymentMethod as any,
+            amount:        Number(payment.amount),
+            direction:     'IN',
+            branchId,
+            tenantId:      tenantId ?? null,
+            actorUserId:   userId,
+            note:          sale.receiptNumber,
+          }, tx);
+        }
       }
 
       // P0-5/6 FIX: use logWithTx so the audit row rolls back if the sale tx rolls back.
@@ -318,6 +343,7 @@ export class SalesService {
           receiptNumber: sale.receiptNumber,
           total:         Number(sale.total),
           paymentMethod: sale.paymentMethod,
+          payments:      sale.payments.map((p) => ({ method: p.paymentMethod, amount: Number(p.amount) })),
           itemCount:     sale.items.length,
         },
       });
@@ -367,6 +393,7 @@ export class SalesService {
         items: { include: { product: { select: { name: true, sku: true } } } },
         customer: { select: { id: true, name: true, phone: true } },
         user: { select: { id: true, name: true } },
+        payments: { orderBy: { sortOrder: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
@@ -399,6 +426,7 @@ export class SalesService {
         customer: true,
         user: { select: { id: true, name: true } },
         shift: true,
+        payments: { orderBy: { sortOrder: 'asc' } },
         refunds: {
           include: {
             items: { include: { product: { select: { id: true, name: true } } } },
@@ -667,22 +695,44 @@ export class SalesService {
         entityId:   id,
       });
 
-      // Reverse the cash ledger entry for CASH sales
-      if (sale.paymentMethod === 'CASH') {
-        await this.accounting.record(
-          {
-            sourceType:    ACCOUNTING_SOURCE.SALE_REFUND,
-            sourceId:      id,
-            direction:     'OUT',
-            amount:        Number(sale.total),
-            paymentMethod: 'CASH',
-            branchId:      sale.branchId ?? '',
-            tenantId:      tenantId ?? null,
-            actorUserId:   userId,
-            note:          `ยกเลิกบิล ${sale.receiptNumber}: ${reason}`,
-          },
-          tx,
-        );
+      // Reverse accounting ledger for each payment leg
+      if (sale.branchId) {
+        const salePayments = (sale as any).payments as Array<{ id: string; paymentMethod: string; amount: any }> | undefined;
+        if (salePayments && salePayments.length > 0) {
+          // New format: reverse each leg using its SalePayment.id as sourceId
+          for (const leg of salePayments) {
+            await this.accounting.record(
+              {
+                sourceType:    ACCOUNTING_SOURCE.SALE_REFUND,
+                sourceId:      leg.id,
+                direction:     'OUT',
+                amount:        Number(leg.amount),
+                paymentMethod: leg.paymentMethod as any,
+                branchId:      sale.branchId,
+                tenantId:      tenantId ?? null,
+                actorUserId:   userId,
+                note:          `ยกเลิกบิล ${sale.receiptNumber}: ${reason}`,
+              },
+              tx,
+            );
+          }
+        } else if (sale.paymentMethod === 'CASH') {
+          // Backward compat: old sales without SalePayment rows — only CASH was tracked
+          await this.accounting.record(
+            {
+              sourceType:    ACCOUNTING_SOURCE.SALE_REFUND,
+              sourceId:      id,
+              direction:     'OUT',
+              amount:        Number(sale.total),
+              paymentMethod: 'CASH',
+              branchId:      sale.branchId,
+              tenantId:      tenantId ?? null,
+              actorUserId:   userId,
+              note:          `ยกเลิกบิล ${sale.receiptNumber}: ${reason}`,
+            },
+            tx,
+          );
+        }
       }
 
       return updated;
