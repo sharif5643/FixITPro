@@ -1,0 +1,50 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to fixitpro.in.th
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 91.98.151.10
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          command_timeout: 15m
+          script: /root/trigger-coolify-deploy.sh
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for containers to be healthy..."
+          sleep 30
+          COMMIT="${{ github.sha }}"
+          MAX_WAIT=300
+          ELAPSED=0
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/login --max-time 5)
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Site responding (HTTP $STATUS)"
+              break
+            fi
+            echo "Waiting... HTTP $STATUS (${ELAPSED}s/${MAX_WAIT}s)"
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+
+          if [ "$STATUS" != "200" ]; then
+            echo "❌ Deploy verification failed — site returned HTTP $STATUS"
+            exit 1
+          fi
+
+          echo "✅ Deploy complete! Commit: ${COMMIT:0:7}"
