@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
   Banknote, Smartphone, CreditCard, Receipt, RefreshCw,
-  X, AlertTriangle, RotateCcw, ChevronRight, Search,
+  X, AlertTriangle, RotateCcw, ChevronRight, Search, Minus, Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -98,6 +98,240 @@ function VoidDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () => v
   )
 }
 
+// ── Refund dialog ─────────────────────────────────────────────────────────────
+
+type RefundLineState = { selected: boolean; qty: number }
+
+function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () => void; onSuccess: () => void }) {
+  const [reason, setReason]   = useState('')
+  const [note,   setNote]     = useState('')
+  const [pm,     setPm]       = useState<PaymentMethod>('CASH')
+
+  const refundableItems = useMemo(
+    () => sale.items.filter((i) => i.refundedQty < i.quantity),
+    [sale.items],
+  )
+
+  const [lines, setLines] = useState<Record<string, RefundLineState>>(() =>
+    Object.fromEntries(refundableItems.map((i) => [i.id, { selected: false, qty: i.quantity - i.refundedQty }])),
+  )
+
+  const selectedItems = refundableItems.filter((i) => lines[i.id]?.selected)
+
+  const totalRefund = useMemo(() =>
+    selectedItems.reduce((sum, i) => {
+      const unitPrice = i.quantity > 0 ? Number(i.total) / i.quantity : Number(i.price)
+      return sum + unitPrice * (lines[i.id]?.qty ?? 1)
+    }, 0),
+    [selectedItems, lines],
+  )
+
+  function toggleItem(id: string) {
+    setLines((prev) => ({ ...prev, [id]: { ...prev[id], selected: !prev[id].selected } }))
+  }
+
+  function setQty(id: string, val: number, max: number) {
+    const clamped = Math.max(1, Math.min(max, val))
+    setLines((prev) => ({ ...prev, [id]: { ...prev[id], qty: clamped } }))
+  }
+
+  const canSubmit = selectedItems.length > 0 && reason.trim().length >= 3
+
+  const mutation = useMutation({
+    mutationFn: () => api.post(`/sales/${sale.id}/refund`, {
+      reason: reason.trim(),
+      paymentMethod: pm,
+      note: note.trim() || undefined,
+      items: selectedItems.map((i) => ({
+        saleItemId: i.id,
+        quantity:   lines[i.id].qty,
+        refundPrice: i.quantity > 0 ? Number(i.total) / i.quantity : Number(i.price),
+      })),
+    }),
+    onSuccess: () => {
+      toast.success(`คืนสินค้า ${sale.receiptNumber} สำเร็จ`)
+      onSuccess()
+      onClose()
+    },
+    onError: (err: any) => toast.error(apiErrorMessage(err)),
+  })
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-orange-600">
+            <RotateCcw className="h-5 w-5" />
+            คืนสินค้าบางส่วน
+          </DialogTitle>
+          <p className="text-sm text-slate-400 font-mono">{sale.receiptNumber}</p>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+          {/* Item selection */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">เลือกรายการที่ต้องการคืน</p>
+            {refundableItems.map((item) => {
+              const remaining = item.quantity - item.refundedQty
+              const line      = lines[item.id]
+              const unitPrice = item.quantity > 0 ? Number(item.total) / item.quantity : Number(item.price)
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    'rounded-xl border p-3 cursor-pointer transition-colors',
+                    line.selected
+                      ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/10'
+                      : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/40',
+                  )}
+                  onClick={() => toggleItem(item.id)}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Checkbox */}
+                    <div className={cn(
+                      'mt-0.5 h-4 w-4 rounded border-2 flex-shrink-0 flex items-center justify-center',
+                      line.selected ? 'bg-orange-500 border-orange-500' : 'border-slate-300',
+                    )}>
+                      {line.selected && <X className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold leading-tight">{item.product?.name ?? 'สินค้า'}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        ราคา {formatThaiMoney(unitPrice)} / ชิ้น
+                        {item.refundedQty > 0 && (
+                          <span className="ml-2 text-orange-500">คืนไปแล้ว {item.refundedQty}</span>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Qty control */}
+                    {line.selected && (
+                      <div
+                        className="flex items-center gap-1 flex-shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          className="h-7 w-7 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-100 disabled:opacity-40"
+                          onClick={() => setQty(item.id, line.qty - 1, remaining)}
+                          disabled={line.qty <= 1}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <span className="w-8 text-center text-sm font-bold tabular-nums">{line.qty}</span>
+                        <button
+                          className="h-7 w-7 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-100 disabled:opacity-40"
+                          onClick={() => setQty(item.id, line.qty + 1, remaining)}
+                          disabled={line.qty >= remaining}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                        <span className="text-xs text-slate-400 ml-1">/{remaining}</span>
+                      </div>
+                    )}
+                    {!line.selected && (
+                      <span className="text-xs text-slate-400 flex-shrink-0">คงเหลือ {remaining}</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {refundableItems.length === 0 && (
+              <p className="text-sm text-slate-400 text-center py-4">ไม่มีรายการที่คืนได้</p>
+            )}
+
+            {/* Items already fully refunded */}
+            {sale.items.filter((i) => i.refundedQty >= i.quantity).map((item) => (
+              <div key={item.id} className="rounded-xl border border-slate-100 dark:border-slate-700/40 p-3 opacity-40">
+                <div className="flex items-center gap-3">
+                  <div className="h-4 w-4 rounded border-2 border-slate-200 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium line-through">{item.product?.name ?? 'สินค้า'}</p>
+                  </div>
+                  <span className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-2 py-0.5 rounded-full">คืนครบแล้ว</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Total refund */}
+          {selectedItems.length > 0 && (
+            <div className="rounded-xl bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800/40 px-4 py-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-orange-700 dark:text-orange-400">ยอดที่จะคืน</span>
+                <span className="text-lg font-bold text-orange-700 dark:text-orange-400 tabular-nums">
+                  {formatThaiMoney(totalRefund)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Payment method */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">คืนเงินโดย</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(['CASH', 'TRANSFER', 'CARD'] as PaymentMethod[]).map((method) => {
+                const Icon = PM_ICON[method]
+                return (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setPm(method)}
+                    className={cn(
+                      'flex flex-col items-center gap-1 rounded-xl border py-2.5 text-xs font-semibold transition-colors',
+                      pm === method
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                        : 'border-slate-200 dark:border-slate-700/60 text-slate-500 hover:bg-slate-50',
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {PM_LABEL[method]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div className="space-y-1.5">
+            <Label>เหตุผล <span className="text-red-500">*</span></Label>
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="เช่น ลูกค้าเปลี่ยนใจ / สินค้าชำรุด"
+            />
+            {reason.length > 0 && reason.trim().length < 3 && (
+              <p className="text-xs text-red-500">กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษร</p>
+            )}
+          </div>
+
+          {/* Note (optional) */}
+          <div className="space-y-1.5">
+            <Label className="text-slate-500">หมายเหตุ <span className="text-slate-400">(ไม่บังคับ)</span></Label>
+            <Input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="บันทึกเพิ่มเติม..."
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="pt-2 border-t">
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>ยกเลิก</Button>
+          <Button
+            className="bg-orange-600 hover:bg-orange-700 text-white"
+            disabled={!canSubmit || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? 'กำลังดำเนินการ...' : `ยืนยันคืน ${selectedItems.length > 0 ? formatThaiMoney(totalRefund) : ''}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Sale detail dialog ────────────────────────────────────────────────────────
 
 function SaleDetailDialog({
@@ -105,16 +339,19 @@ function SaleDetailDialog({
   canVoid,
   onClose,
   onVoidRequest,
+  onRefundRequest,
 }: {
   sale: Sale
   canVoid: boolean
   onClose: () => void
   onVoidRequest: () => void
+  onRefundRequest: () => void
 }) {
   const PMIcon   = PM_ICON[sale.paymentMethod as PaymentMethod] ?? Banknote
-  const isVoided = sale.status === 'VOIDED'
-  const isRefunded   = sale.status === 'REFUNDED'
-  const isPartial    = sale.status === 'PARTIAL_REFUND'
+  const isVoided   = sale.status === 'VOIDED'
+  const isRefunded = sale.status === 'REFUNDED'
+  const isPartial  = sale.status === 'PARTIAL_REFUND'
+  const hasRefundable = sale.items.some((i) => i.refundedQty < i.quantity)
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -158,18 +395,31 @@ function SaleDetailDialog({
 
           {/* Items */}
           <div className="rounded-xl bg-slate-50 dark:bg-slate-800/40 p-3 space-y-2">
-            {sale.items.map((item) => (
-              <div key={item.id} className="flex items-start gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold leading-tight">{item.product?.name ?? 'สินค้า'}</p>
-                  <p className="text-xs text-slate-400">
-                    {item.quantity} × {formatThaiMoney(Number(item.price))}
-                    {Number(item.discount) > 0 && ` (ลด ${formatThaiMoney(Number(item.discount))})`}
-                  </p>
+            {sale.items.map((item) => {
+              const fullyRefunded = item.refundedQty >= item.quantity
+              return (
+                <div key={item.id} className={cn('flex items-start gap-2', fullyRefunded && 'opacity-50')}>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn('text-sm font-semibold leading-tight', fullyRefunded && 'line-through')}>
+                      {item.product?.name ?? 'สินค้า'}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {item.quantity} × {formatThaiMoney(Number(item.price))}
+                      {Number(item.discount) > 0 && ` (ลด ${formatThaiMoney(Number(item.discount))})`}
+                      {item.refundedQty > 0 && (
+                        <span className="ml-2 text-orange-500">คืน {item.refundedQty}</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-sm font-bold tabular-nums">{formatThaiMoney(Number(item.total))}</span>
+                    {fullyRefunded && (
+                      <p className="text-[10px] text-orange-500 font-medium">คืนครบแล้ว</p>
+                    )}
+                  </div>
                 </div>
-                <span className="text-sm font-bold tabular-nums shrink-0">{formatThaiMoney(Number(item.total))}</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Totals */}
@@ -218,12 +468,25 @@ function SaleDetailDialog({
         </div>
 
         {/* Actions */}
-        {canVoid && !isVoided && !isRefunded && (
-          <DialogFooter className="pt-2 border-t">
-            <Button variant="destructive" size="sm" onClick={onVoidRequest}>
-              <X className="h-4 w-4 mr-1.5" />
-              ยกเลิกบิล
-            </Button>
+        {canVoid && !isVoided && (hasRefundable || !isRefunded) && (
+          <DialogFooter className="pt-2 border-t flex gap-2">
+            {hasRefundable && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                onClick={onRefundRequest}
+              >
+                <RotateCcw className="h-4 w-4 mr-1.5" />
+                คืนสินค้า
+              </Button>
+            )}
+            {!isRefunded && !isPartial && (
+              <Button variant="destructive" size="sm" onClick={onVoidRequest}>
+                <X className="h-4 w-4 mr-1.5" />
+                ยกเลิกบิล
+              </Button>
+            )}
           </DialogFooter>
         )}
       </DialogContent>
@@ -237,10 +500,11 @@ export default function SalesHistoryPage() {
   const { hasPermission } = useAuthStore()
   const qc = useQueryClient()
 
-  const [dateStr,    setDateStr]    = useState(todayStr)
-  const [search,     setSearch]     = useState('')
-  const [selected,   setSelected]   = useState<Sale | null>(null)
-  const [voidTarget, setVoidTarget] = useState<Sale | null>(null)
+  const [dateStr,      setDateStr]      = useState(todayStr)
+  const [search,       setSearch]       = useState('')
+  const [selected,     setSelected]     = useState<Sale | null>(null)
+  const [voidTarget,   setVoidTarget]   = useState<Sale | null>(null)
+  const [refundTarget, setRefundTarget] = useState<Sale | null>(null)
 
   const canVoid = hasPermission('sales.refund')
 
@@ -275,6 +539,11 @@ export default function SalesHistoryPage() {
   const voidedCount = useMemo(() => sorted.filter((s) => s.status === 'VOIDED').length, [sorted])
 
   function handleVoidSuccess() {
+    qc.invalidateQueries({ queryKey: ['sales-history-web', dateStr] })
+    setSelected(null)
+  }
+
+  function handleRefundSuccess() {
     qc.invalidateQueries({ queryKey: ['sales-history-web', dateStr] })
     setSelected(null)
   }
@@ -418,6 +687,10 @@ export default function SalesHistoryPage() {
             setVoidTarget(selected)
             setSelected(null)
           }}
+          onRefundRequest={() => {
+            setRefundTarget(selected)
+            setSelected(null)
+          }}
         />
       )}
 
@@ -427,6 +700,15 @@ export default function SalesHistoryPage() {
           sale={voidTarget}
           onClose={() => setVoidTarget(null)}
           onSuccess={handleVoidSuccess}
+        />
+      )}
+
+      {/* Partial refund dialog */}
+      {refundTarget && (
+        <RefundDialog
+          sale={refundTarget}
+          onClose={() => setRefundTarget(null)}
+          onSuccess={handleRefundSuccess}
         />
       )}
     </div>
