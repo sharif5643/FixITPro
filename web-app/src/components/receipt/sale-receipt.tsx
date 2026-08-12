@@ -124,11 +124,23 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
 
       {/* ── Payment ── */}
       <div className="space-y-0.5 pb-1">
-        <Row
-          label="ช่องทาง"
-          value={PAYMENT_LABEL[sale.paymentMethod] ?? sale.paymentMethod}
-        />
-        <Row label="รับเงิน" value={formatThaiMoney(Number(sale.amountPaid))} />
+        {sale.payments && sale.payments.length > 1 ? (
+          <>
+            {sale.payments.map((leg, i) => (
+              <Row
+                key={leg.id}
+                label={`ช่องทาง ${i + 1} (${PAYMENT_LABEL[leg.paymentMethod] ?? leg.paymentMethod})`}
+                value={formatThaiMoney(Number(leg.amount))}
+              />
+            ))}
+            <Row label="รับเงินรวม" value={formatThaiMoney(Number(sale.amountPaid))} />
+          </>
+        ) : (
+          <>
+            <Row label="ช่องทาง" value={PAYMENT_LABEL[sale.paymentMethod] ?? sale.paymentMethod} />
+            <Row label="รับเงิน" value={formatThaiMoney(Number(sale.amountPaid))} />
+          </>
+        )}
         {Number(sale.change) > 0 && (
           <Row label="เงินทอน" value={formatThaiMoney(Number(sale.change))} bold />
         )}

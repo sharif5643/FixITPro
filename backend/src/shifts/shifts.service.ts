@@ -154,7 +154,7 @@ export class ShiftsService {
     const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId, status: { not: 'VOIDED' } },
-        select: { total: true, paymentMethod: true },
+        select: { total: true, paymentMethod: true, payments: { select: { paymentMethod: true, amount: true } } },
       }),
       this.prisma.repair.findMany({
         where: { paymentShiftId: shiftId },
@@ -187,7 +187,12 @@ export class ShiftsService {
 
     const paymentBreakdown = sales.reduce(
       (acc, s) => {
-        acc[s.paymentMethod] = (acc[s.paymentMethod] || 0) + Number(s.total);
+        const legs = s.payments?.length
+          ? s.payments.map((p) => ({ method: p.paymentMethod, amount: Number(p.amount) }))
+          : [{ method: s.paymentMethod, amount: Number(s.total) }];
+        for (const leg of legs) {
+          acc[leg.method] = (acc[leg.method] || 0) + leg.amount;
+        }
         return acc;
       },
       {} as Record<string, number>,
@@ -313,7 +318,7 @@ export class ShiftsService {
     const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId: shift.id, status: { not: 'VOIDED' } },
-        select: { total: true, paymentMethod: true },
+        select: { total: true, paymentMethod: true, payments: { select: { paymentMethod: true, amount: true } } },
       }),
       this.prisma.repair.findMany({
         where: { paymentShiftId: shift.id },
@@ -347,7 +352,12 @@ export class ShiftsService {
     const packageSaleRevenue = packageSales.reduce((sum, p) => sum + Number(p.profit), 0);
     const packageSaleAmount = packageSales.reduce((sum, p) => sum + Number(p.packageAmount), 0);
 
-    const cashSales = sales.filter(s => s.paymentMethod === 'CASH').reduce((sum, s) => sum + Number(s.total), 0);
+    const cashSales = sales.reduce((sum, s) => {
+      const legs = s.payments?.length
+        ? s.payments.filter((p) => p.paymentMethod === 'CASH').map((p) => Number(p.amount))
+        : s.paymentMethod === 'CASH' ? [Number(s.total)] : [];
+      return sum + legs.reduce((a, b) => a + b, 0);
+    }, 0);
     const cashRepairs = repairPayments.filter(r => r.paymentMethod === 'CASH').reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0);
     const cashSupplierPayments = supplierPayments.filter(p => p.paymentMethod === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0);
     const cashPackageSales = packageSales.filter(p => p.paymentMethod === 'CASH').reduce((sum, p) => sum + Number(p.packageAmount), 0);
