@@ -53,7 +53,7 @@ export const useAuthStore = create<AuthState>()(
         hasModule: (moduleKey: string) => {
           const { user, enabledModules } = get()
           if (!user) return false
-          if (user.role === 'SUPER_ADMIN') return true
+          if (user.role === 'SUPER_ADMIN' || user.role === 'OWNER') return true
           return enabledModules.includes(moduleKey)
         },
         isSuperAdmin: () => get().user?.role === 'SUPER_ADMIN',
