@@ -18,9 +18,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { QRCodeSVG } from 'qrcode.react'
+import generatePayload from 'promptpay-qr'
 import { formatThaiMoney, cn, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
-import type { Sale, SerialNumber, PaymentMethod } from '@/types'
+import type { Sale, SerialNumber, PaymentMethod, ShopSettings } from '@/types'
 import type { CartItem } from '@/store/cart.store'
 
 const checkoutSchema = z.object({
@@ -256,6 +258,13 @@ export function CheckoutDialog({
   // step: 'serials' → 'payment'
   const [step, setStep]                   = useState<'serials' | 'payment'>('payment')
   const [serialAssignments, setSerialAssignments] = useState<Record<string, string[]>>({})
+
+  // ── Shop settings (for PromptPay QR) ────────────────────────────────────
+  const { data: settings } = useQuery<ShopSettings>({
+    queryKey: ['settings'],
+    queryFn: async () => (await api.get('/settings')).data,
+    staleTime: 5 * 60_000,
+  })
 
   // ── Split payment state ───────────────────────────────────────────────────
   const [splitMode, setSplitMode]     = useState(false)
@@ -551,6 +560,26 @@ export function CheckoutDialog({
                     <p className="text-xs text-red-500">{errors.amountPaid.message}</p>
                   )}
                 </div>
+
+                {/* PromptPay QR — shown when TRANSFER selected and promptpayId configured */}
+                {paymentMethod === 'TRANSFER' && settings?.promptpayId && (
+                  <div className="flex flex-col items-center gap-3 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10 p-4">
+                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">สแกน QR ชำระเงิน</p>
+                    <div className="bg-white p-3 rounded-xl shadow-sm">
+                      <QRCodeSVG
+                        value={generatePayload(settings.promptpayId, { amount: total })}
+                        size={180}
+                        level="M"
+                      />
+                    </div>
+                    <p className="text-sm font-bold tabular-nums text-blue-800 dark:text-blue-200">
+                      {formatThaiMoney(total)}
+                    </p>
+                    <p className="text-xs text-blue-500 dark:text-blue-400 text-center">
+                      ลูกค้าสแกนแล้วยอดขึ้นอัตโนมัติ — กด &quot;ยืนยันชำระเงิน&quot; หลังลูกค้าโอนเสร็จ
+                    </p>
+                  </div>
+                )}
 
                 {/* Change */}
                 {isCash && (

@@ -100,4 +100,8 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   lineNotifyEnabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  promptpayId?: string;
 }

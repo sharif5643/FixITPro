@@ -847,6 +847,7 @@ model ShopSettings {
   showLogo               Boolean  @default(true)
   lineChannelAccessToken String?
   lineNotifyEnabled      Boolean  @default(false)
+  promptpayId            String?
   updatedAt              DateTime @updatedAt
 
   tenantId String? @unique

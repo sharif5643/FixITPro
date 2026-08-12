@@ -21,6 +21,7 @@ export interface ShopSettings {
   paymentQrUrl?: string | null
   showTaxId: boolean
   showLogo: boolean
+  promptpayId?: string | null
   lineChannelAccessToken?: string | null
   lineNotifyEnabled: boolean
 }

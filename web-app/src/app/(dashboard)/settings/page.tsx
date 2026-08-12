@@ -45,6 +45,7 @@ const settingsSchema = z.object({
   lowStockAlert:       z.coerce.number().min(0),
   repairWarrantyText:  z.string().optional(),
   paymentQrUrl:        z.string().optional(),
+  promptpayId:         z.string().optional(),
   showTaxId:           z.boolean(),
   showLogo:            z.boolean(),
 })
@@ -132,6 +133,7 @@ export default function SettingsPage() {
       lowStockAlert:       5,
       repairWarrantyText:  '',
       paymentQrUrl:        '',
+      promptpayId:         '',
       showTaxId:           true,
       showLogo:            true,
     },
@@ -164,6 +166,7 @@ export default function SettingsPage() {
         lowStockAlert:       settings.lowStockAlert,
         repairWarrantyText:  settings.repairWarrantyText  ?? '',
         paymentQrUrl:        settings.paymentQrUrl        ?? '',
+        promptpayId:         settings.promptpayId         ?? '',
         showTaxId:           settings.showTaxId           ?? true,
         showLogo:            settings.showLogo            ?? true,
       })
@@ -184,6 +187,7 @@ export default function SettingsPage() {
         receiptFooter:      data.receiptFooter       || null,
         repairWarrantyText: data.repairWarrantyText  || null,
         paymentQrUrl:       data.paymentQrUrl        || null,
+        promptpayId:        data.promptpayId         || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
@@ -398,12 +402,21 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label>URL QR Code ชำระเงิน (PromptPay)</Label>
+                    <Label>หมายเลข PromptPay ของร้าน</Label>
+                    <Input
+                      placeholder="เบอร์มือถือ เช่น 0812345678 หรือเลขบัตรประชาชน 13 หลัก"
+                      {...register('promptpayId')}
+                    />
+                    <p className="text-xs text-slate-400">ใช้สร้าง QR Code ชำระเงินอัตโนมัติเมื่อลูกค้าเลือกโอนเงิน — ลูกค้าสแกนแล้วยอดขึ้นอัตโนมัติ</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>URL รูป QR Code (ถ้าไม่ใช้ PromptPay ID)</Label>
                     <Input
                       placeholder="https://example.com/qr-promptpay.png"
                       {...register('paymentQrUrl')}
                     />
-                    <p className="text-xs text-slate-400">แสดง QR Code ในใบเสร็จเมื่อชำระผ่านการโอนเงิน</p>
+                    <p className="text-xs text-slate-400">แสดงรูป QR สำเร็จรูปในใบเสร็จ (ถ้าตั้ง PromptPay ID ไว้แล้ว ไม่ต้องใส่)</p>
                   </div>
 
                   <div className="pt-1 border-t border-slate-100 space-y-0 divide-y divide-slate-100">
