@@ -105,7 +105,7 @@ export class CreateRepairDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['CASH', 'TRANSFER', 'CARD', 'QR', 'BANK', 'CREDIT'])
+  @IsIn(['CASH', 'TRANSFER', 'CARD'])
   depositPaymentMethod?: string;
 
   @IsOptional()

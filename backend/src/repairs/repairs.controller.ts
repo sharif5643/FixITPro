@@ -268,7 +268,8 @@ export class RepairsController {
   submitReview(
     @Param('id') id: string,
     @Body() body: { rating: number; comment?: string },
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.repairsService.submitReview(id, body.rating, body.comment);
+    return this.repairsService.submitReview(id, body.rating, body.comment, tenantId);
   }
 }

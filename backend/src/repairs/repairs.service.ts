@@ -807,6 +807,15 @@ export class RepairsService {
         throw new BadRequestException('งานซ่อมนี้ชำระเงินแล้ว');
       }
 
+      // Set warrantyExpiresAt on Repair record so UI can display it directly
+      if (dto.warrantyDays && dto.warrantyDays > 0) {
+        const expiresAt = new Date(Date.now() + dto.warrantyDays * 86_400_000);
+        await tx.repair.update({
+          where: { id: repairId },
+          data:  { warrantyExpiresAt: expiresAt },
+        });
+      }
+
       await this.auditLog.logWithTx(tx, {
         actorId:    userId,
         action:     'REPAIR_PAYMENT',
@@ -1182,10 +1191,14 @@ export class RepairsService {
     });
   }
 
-  async submitReview(repairId: string, rating: number, comment?: string) {
+  async submitReview(repairId: string, rating: number, comment?: string, tenantId?: string | null) {
     if (rating < 1 || rating > 5) {
       throw new Error('Rating must be between 1 and 5');
     }
+    const where: any = { id: repairId };
+    if (tenantId) where.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({ where, select: { id: true } });
+    if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
     return this.prisma.repairReview.upsert({
       where:  { repairId },
       create: { repairId, rating, comment },

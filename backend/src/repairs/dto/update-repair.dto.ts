@@ -19,9 +19,11 @@ export class UpdateRepairDto {
     'APPROVED',
     'WAITING_PARTS',
     'IN_PROGRESS',
+    'QC_PENDING',
     'COMPLETED',
-    'DELIVERED',
+    'READY_PICKUP',
     'CANCELLED',
+    // DELIVERED is set exclusively via POST /repairs/:id/payment
   ])
   status?: string;
 

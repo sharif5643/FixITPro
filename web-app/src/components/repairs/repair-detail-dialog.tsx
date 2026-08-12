@@ -69,9 +69,10 @@ const STATUS_COLOR: Record<RepairStatus, string> = {
 }
 
 // DELIVERED is set via payment only, not via status dropdown
+// QC_PENDING must be set via /qc endpoint (Kanban drag), not via dropdown
 const CHANGEABLE_STATUSES: RepairStatus[] = [
   'RECEIVED', 'DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED',
-  'WAITING_PARTS', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED',
+  'WAITING_PARTS', 'IN_PROGRESS', 'COMPLETED', 'READY_PICKUP', 'CANCELLED',
 ]
 
 const PAYMENT_OPTIONS = [
@@ -951,11 +952,11 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               )}
 
               {/* ─── Payment / Delivery Section ─── */}
-              {repair.status === 'COMPLETED' && repair.paymentStatus === 'PENDING' && (
+              {(repair.status === 'COMPLETED' || repair.status === 'READY_PICKUP') && repair.paymentStatus === 'PENDING' && (
                 <div className="rounded-xl border border-green-200 dark:border-green-700/40 bg-green-50 dark:bg-green-900/10 p-4 space-y-3">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    ซ่อมเสร็จแล้ว — พร้อมส่งมอบ
+                    {repair.status === 'READY_PICKUP' ? 'รอลูกค้ารับ — พร้อมส่งมอบ' : 'ซ่อมเสร็จแล้ว — พร้อมส่งมอบ'}
                   </div>
                   <div className="text-sm space-y-1">
                     <div className="flex justify-between">
