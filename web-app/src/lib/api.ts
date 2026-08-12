@@ -6,10 +6,9 @@ interface RetryConfig extends AxiosRequestConfig {
   _retryCount?: number
 }
 
-// Use a relative path in production so requests stay same-origin through Traefik.
-// Allow an absolute localhost URL only for local dev (different ports for FE/BE).
-const _rawApiUrl = process.env.NEXT_PUBLIC_API_URL ?? ''
-const _apiUrl = /^https?:\/\/localhost/.test(_rawApiUrl) ? _rawApiUrl : '/api/v1'
+// Always use a relative path so requests stay same-origin through Traefik in
+// production. Local dev uses next.config.js rewrites to proxy /api/** → backend.
+const _apiUrl = '/api/v1'
 
 const api = axios.create({
   baseURL: _apiUrl,

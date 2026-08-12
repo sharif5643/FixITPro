@@ -20,6 +20,13 @@ const nextConfig = {
     fetches: { fullUrl: false },
   },
 
+  // Proxy /api/** to local backend in dev only (production uses Traefik)
+  async rewrites() {
+    if (process.env.NODE_ENV !== 'development') return []
+    const backend = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') ?? 'http://localhost:3000'
+    return [{ source: '/api/:path*', destination: `${backend}/api/:path*` }]
+  },
+
   async headers() {
     // Next.js App Router requires 'unsafe-inline' + 'unsafe-eval' for hydration scripts
     const csp = [
