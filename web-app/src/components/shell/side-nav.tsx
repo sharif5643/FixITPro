@@ -32,8 +32,9 @@ const OWNER_PRIMARY: NavSection[] = [
     { href: '/reminders', icon: CalendarDays, label: 'นัดหมาย',  permission: 'repair.create', module: 'repair' },
   ]},
   { label: 'การขาย', items: [
-    { href: '/sales',  icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create', module: 'pos' },
-    { href: '/shifts', icon: Clock,        label: 'เปิด/ปิดกะ' },
+    { href: '/sales',         icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create', module: 'pos' },
+    { href: '/sales/history', icon: ScrollText,   label: 'ประวัติการขาย',   permission: 'sales.create', module: 'pos' },
+    { href: '/shifts',        icon: Clock,        label: 'เปิด/ปิดกะ' },
   ]},
   { label: 'สต็อก', items: [
     { href: '/products',  icon: Package,        label: 'สินค้า',    permission: 'products.view',  module: 'stock' },
@@ -91,9 +92,10 @@ const MANAGER_SECTIONS: NavSection[] = [
     { href: '/claims',     icon: FileWarning,  label: 'จัดการเคลม',    permission: 'claims.manage',  module: 'repair' },
   ]},
   { label: 'การขาย', items: [
-    { href: '/sales',    icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create',    module: 'pos'     },
-    { href: '/shifts',   icon: Clock,        label: 'เปิด/ปิดกะ' },
-    { href: '/expenses', icon: Receipt,      label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance' },
+    { href: '/sales',         icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create',    module: 'pos'     },
+    { href: '/sales/history', icon: ScrollText,   label: 'ประวัติการขาย',   permission: 'sales.create',    module: 'pos'     },
+    { href: '/shifts',        icon: Clock,        label: 'เปิด/ปิดกะ' },
+    { href: '/expenses',      icon: Receipt,      label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance' },
   ]},
   { label: 'สต็อก', items: [
     { href: '/products',  icon: Package,        label: 'สินค้า',    permission: 'products.view',  module: 'stock' },
@@ -118,8 +120,9 @@ const MANAGER_SECTIONS: NavSection[] = [
 const CASHIER_SECTIONS: NavSection[] = [
   { label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' }] },
   { label: 'การขาย', items: [
-    { href: '/sales',  icon: ShoppingCart, label: 'ขายสินค้า (POS)', module: 'pos' },
-    { href: '/shifts', icon: Clock,        label: 'เปิด/ปิดกะ' },
+    { href: '/sales',         icon: ShoppingCart, label: 'ขายสินค้า (POS)', module: 'pos' },
+    { href: '/sales/history', icon: ScrollText,   label: 'ประวัติการขาย',   module: 'pos' },
+    { href: '/shifts',        icon: Clock,        label: 'เปิด/ปิดกะ' },
   ]},
   { label: 'งานซ่อม', items: [{ href: '/repairs', icon: Wrench, label: 'รับชำระงานซ่อม', module: 'repair' }] },
   { label: 'ลูกค้า', items: [
