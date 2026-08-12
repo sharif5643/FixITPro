@@ -6,19 +6,14 @@ interface RetryConfig extends AxiosRequestConfig {
   _retryCount?: number
 }
 
-// CHB-08: NEXT_PUBLIC_API_URL is substituted at build time by Next.js.
-const _apiUrl = process.env.NEXT_PUBLIC_API_URL
-if (!_apiUrl) {
-  console.error(
-    '[FixITPro] NEXT_PUBLIC_API_URL is not set. ' +
-    'Set it in Coolify Build Variables or .env.production before running "next build".',
-  )
-}
+// Use a relative path in production so requests stay same-origin through Traefik.
+// Allow an absolute localhost URL only for local dev (different ports for FE/BE).
+const _rawApiUrl = process.env.NEXT_PUBLIC_API_URL ?? ''
+const _apiUrl = /^https?:\/\/localhost/.test(_rawApiUrl) ? _rawApiUrl : '/api/v1'
 
 const api = axios.create({
   baseURL: _apiUrl,
   headers: { 'Content-Type': 'application/json' },
-  // CHB-01: send HttpOnly cookie on every cross-origin request
   withCredentials: true,
   timeout: 30_000,
 })
