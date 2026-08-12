@@ -11,6 +11,7 @@ import { NotificationsService, LARGE_REFUND_THRESHOLD } from '../notifications/n
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { RefundSaleDto } from './dto/refund-sale.dto';
+import { ExchangeSaleDto } from './dto/exchange-sale.dto';
 
 @Injectable()
 export class SalesService {
@@ -748,6 +749,273 @@ export class SalesService {
       }
 
       return updated;
+    });
+  }
+
+  async exchangeSaleItems(id: string, dto: ExchangeSaleDto, userId: string, tenantId?: string | null) {
+    const saleWhere: any = { id };
+    if (tenantId) saleWhere.branch = { tenantId };
+
+    const sale = await this.prisma.sale.findFirst({
+      where: saleWhere,
+      include: {
+        items: {
+          include: { product: { select: { id: true, name: true, hasSerial: true, costPrice: true } } },
+        },
+        branch: { select: { id: true } },
+      },
+    });
+
+    if (!sale) throw new NotFoundException('Sale not found');
+    if (sale.status === 'VOIDED')   throw new BadRequestException('ไม่สามารถเปลี่ยนสินค้าในบิลที่ยกเลิกแล้ว');
+    if (sale.status === 'REFUNDED') throw new BadRequestException('บิลนี้ถูกคืนเงินครบแล้ว');
+    if (dto.returnItems.length === 0) throw new BadRequestException('ต้องระบุสินค้าที่ต้องการคืนอย่างน้อย 1 รายการ');
+    if (dto.newItems.length === 0)    throw new BadRequestException('ต้องระบุสินค้าที่ต้องการเปลี่ยนอย่างน้อย 1 รายการ');
+
+    // Validate return quantities
+    for (const ri of dto.returnItems) {
+      const saleItem = sale.items.find((si) => si.id === ri.saleItemId);
+      if (!saleItem) throw new NotFoundException(`SaleItem ${ri.saleItemId} not found in this sale`);
+      const remaining = saleItem.quantity - saleItem.refundedQty;
+      if (ri.quantity > remaining) {
+        throw new BadRequestException(
+          `สินค้า "${saleItem.product.name}": คืนได้อีก ${remaining} ชิ้น (ขอคืน ${ri.quantity} ชิ้น)`,
+        );
+      }
+    }
+
+    // Validate replacement products exist and have stock
+    const newProductIds = dto.newItems.map((i) => i.productId);
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: newProductIds }, isActive: true, ...(tenantId ? { tenantId } : {}) },
+    });
+    if (products.length !== new Set(newProductIds).size) {
+      throw new NotFoundException('One or more replacement products not found');
+    }
+
+    const demandMap = new Map<string, number>();
+    for (const ni of dto.newItems) {
+      demandMap.set(ni.productId, (demandMap.get(ni.productId) ?? 0) + ni.quantity);
+    }
+
+    if (sale.branchId) {
+      const bsRows = await this.prisma.branchStock.findMany({
+        where: { branchId: sale.branchId, productId: { in: newProductIds } },
+        select: { productId: true, quantity: true },
+      });
+      const bsMap = new Map(bsRows.map((r) => [r.productId, r.quantity]));
+      for (const [pid, totalQty] of demandMap) {
+        const product = products.find((p) => p.id === pid)!;
+        const available = bsMap.get(pid) ?? 0;
+        if (available < totalQty) {
+          throw new BadRequestException(`สต็อกไม่พอสำหรับ "${product.name}" คงเหลือ: ${available} ชิ้น`);
+        }
+      }
+    } else {
+      for (const [pid, totalQty] of demandMap) {
+        const product = products.find((p) => p.id === pid)!;
+        if (product.stock < totalQty) {
+          throw new BadRequestException(`สต็อกไม่พอสำหรับ "${product.name}" คงเหลือ: ${product.stock} ชิ้น`);
+        }
+      }
+    }
+
+    const activeShift = await this.prisma.shift.findFirst({
+      where: { userId, isActive: true },
+      select: { id: true },
+    });
+    if (!activeShift) throw new BadRequestException('กรุณาเปิดกะก่อนทำรายการเปลี่ยนสินค้า');
+
+    const refundTotal = dto.returnItems.reduce((sum, ri) => sum + ri.refundPrice * ri.quantity, 0);
+    const newTotal    = dto.newItems.reduce((sum, ni) => sum + ni.price * ni.quantity, 0);
+
+    return this.prisma.$transaction(async (tx) => {
+      // A. Record returned items as a SaleRefund
+      const refundNumber = this.generateRefundNumber();
+      const refund = await tx.saleRefund.create({
+        data: {
+          refundNumber,
+          saleId: id,
+          customerId: sale.customerId,
+          createdById: userId,
+          reason: dto.reason,
+          paymentMethod: dto.paymentMethod as any,
+          totalRefund: refundTotal,
+          note: dto.note,
+          items: {
+            create: dto.returnItems.map((ri) => ({
+              saleItemId: ri.saleItemId,
+              productId: sale.items.find((si) => si.id === ri.saleItemId)!.productId,
+              quantity: ri.quantity,
+              refundPrice: ri.refundPrice,
+              total: ri.refundPrice * ri.quantity,
+            })),
+          },
+        },
+      });
+
+      let allItemsFullyRefunded = true;
+
+      for (const ri of dto.returnItems) {
+        const saleItem = sale.items.find((si) => si.id === ri.saleItemId)!;
+        const newRefundedQty = saleItem.refundedQty + ri.quantity;
+
+        await tx.saleItem.update({
+          where: { id: ri.saleItemId },
+          data: { refundedQty: newRefundedQty },
+        });
+
+        if (sale.branchId) {
+          await (tx as any).branchStock.upsert({
+            where: { branchId_productId: { branchId: sale.branchId, productId: saleItem.productId } },
+            create: { branchId: sale.branchId, productId: saleItem.productId, quantity: ri.quantity, minStock: 0 },
+            update: { quantity: { increment: ri.quantity } },
+          });
+          await this.syncProductShadowStock(saleItem.productId, tx);
+        } else {
+          await tx.product.update({ where: { id: saleItem.productId }, data: { stock: { increment: ri.quantity } } });
+        }
+
+        await tx.stockMovement.create({
+          data: {
+            productId:  saleItem.productId,
+            type:       'REFUND',
+            quantity:   ri.quantity,
+            saleItemId: ri.saleItemId,
+            branchId:   sale.branchId ?? null,
+            note:       `เปลี่ยนสินค้า ${sale.receiptNumber}: ${dto.reason}`,
+          },
+        });
+
+        if (saleItem.product.hasSerial && newRefundedQty === saleItem.quantity) {
+          await tx.serialNumber.updateMany({
+            where: { saleItemId: ri.saleItemId },
+            data: { status: 'RETURNED', soldAt: null },
+          });
+        }
+
+        if (newRefundedQty < saleItem.quantity) allItemsFullyRefunded = false;
+      }
+
+      for (const si of sale.items) {
+        if (!dto.returnItems.find((ri) => ri.saleItemId === si.id)) {
+          if (si.refundedQty < si.quantity) allItemsFullyRefunded = false;
+        }
+      }
+
+      const newSaleStatus = allItemsFullyRefunded ? 'REFUNDED' : 'PARTIAL_REFUND';
+      await tx.sale.update({ where: { id }, data: { status: newSaleStatus } });
+
+      // B. Create new Sale for replacement items
+      const newReceiptNumber = this.generateReceiptNumber();
+      const newSale = await tx.sale.create({
+        data: {
+          receiptNumber: newReceiptNumber,
+          userId,
+          customerId: sale.customerId,
+          shiftId: activeShift.id,
+          branchId: sale.branchId ?? null,
+          paymentMethod: dto.paymentMethod as any,
+          subtotal: newTotal,
+          discount: 0,
+          total: newTotal,
+          amountPaid: newTotal,
+          change: 0,
+          note: `เปลี่ยนสินค้าจาก ${sale.receiptNumber}${dto.note ? ` — ${dto.note}` : ''}`,
+          status: 'COMPLETED',
+          items: {
+            create: dto.newItems.map((ni) => {
+              const product = products.find((p) => p.id === ni.productId)!;
+              return {
+                productId:   ni.productId,
+                quantity:    ni.quantity,
+                price:       ni.price,
+                costPrice:   Number(product.costPrice ?? 0),
+                discount:    0,
+                total:       ni.price * ni.quantity,
+                refundedQty: 0,
+              };
+            }),
+          },
+          payments: {
+            create: [{ paymentMethod: dto.paymentMethod as any, amount: newTotal, sortOrder: 0 }],
+          },
+        },
+      });
+
+      for (const ni of dto.newItems) {
+        if (sale.branchId) {
+          await (tx as any).branchStock.update({
+            where: { branchId_productId: { branchId: sale.branchId, productId: ni.productId } },
+            data: { quantity: { decrement: ni.quantity } },
+          });
+          await this.syncProductShadowStock(ni.productId, tx);
+        } else {
+          await tx.product.update({ where: { id: ni.productId }, data: { stock: { decrement: ni.quantity } } });
+        }
+
+        await tx.stockMovement.create({
+          data: {
+            productId: ni.productId,
+            type:      'SALE',
+            quantity:  ni.quantity,
+            branchId:  sale.branchId ?? null,
+            note:      `เปลี่ยนสินค้าจาก ${sale.receiptNumber}`,
+          },
+        });
+      }
+
+      // C. Accounting: record return OUT + new sale IN separately for clear audit trail
+      if (sale.branchId) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.SALE_REFUND,
+          sourceId:      refund.id,
+          paymentMethod: dto.paymentMethod as any,
+          amount:        refundTotal,
+          direction:     'OUT',
+          branchId:      sale.branchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   userId,
+          note:          refundNumber,
+        }, tx);
+
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.SALE_PAYMENT,
+          sourceId:      newSale.id,
+          paymentMethod: dto.paymentMethod as any,
+          amount:        newTotal,
+          direction:     'IN',
+          branchId:      sale.branchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   userId,
+          note:          newReceiptNumber,
+        }, tx);
+      }
+
+      await this.auditLog.log({
+        actorId: userId,
+        action: 'SALE_EXCHANGED',
+        entityType: 'Sale',
+        entityId: id,
+        afterData: {
+          refundNumber,
+          newReceiptNumber,
+          returnItemCount: dto.returnItems.length,
+          newItemCount: dto.newItems.length,
+          refundTotal,
+          newTotal,
+          netAmount: newTotal - refundTotal,
+        },
+      });
+
+      return {
+        originalSaleStatus: newSaleStatus,
+        refundNumber,
+        refundTotal,
+        newReceiptNumber,
+        newTotal,
+        netAmount: newTotal - refundTotal,
+      };
     });
   }
 }

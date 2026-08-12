@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
   Banknote, Smartphone, CreditCard, Receipt, RefreshCw,
-  X, AlertTriangle, RotateCcw, ChevronRight, Search, Minus, Plus,
+  X, AlertTriangle, RotateCcw, ChevronRight, Search, Minus, Plus, ArrowLeftRight, Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -332,6 +332,367 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
   )
 }
 
+// ── Exchange dialog ───────────────────────────────────────────────────────────
+
+type NewItem = { productId: string; name: string; price: number; qty: number; stock: number }
+
+function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () => void; onSuccess: () => void }) {
+  const [reason, setReason]   = useState('')
+  const [note,   setNote]     = useState('')
+  const [pm,     setPm]       = useState<PaymentMethod>('CASH')
+  const [productSearch, setProductSearch] = useState('')
+  const [newItems, setNewItems] = useState<NewItem[]>([])
+  const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  const refundableItems = useMemo(
+    () => sale.items.filter((i) => i.refundedQty < i.quantity),
+    [sale.items],
+  )
+
+  const [returnLines, setReturnLines] = useState<Record<string, { selected: boolean; qty: number }>>(() =>
+    Object.fromEntries(refundableItems.map((i) => [i.id, { selected: false, qty: i.quantity - i.refundedQty }])),
+  )
+
+  const selectedReturnItems = refundableItems.filter((i) => returnLines[i.id]?.selected)
+
+  const refundTotal = useMemo(() =>
+    selectedReturnItems.reduce((sum, i) => {
+      const unitPrice = i.quantity > 0 ? Number(i.total) / i.quantity : Number(i.price)
+      return sum + unitPrice * (returnLines[i.id]?.qty ?? 1)
+    }, 0),
+    [selectedReturnItems, returnLines],
+  )
+
+  const newTotal = useMemo(() =>
+    newItems.reduce((sum, ni) => sum + ni.price * ni.qty, 0),
+    [newItems],
+  )
+
+  const netAmount = newTotal - refundTotal
+
+  function toggleReturnItem(id: string) {
+    setReturnLines((prev) => ({ ...prev, [id]: { ...prev[id], selected: !prev[id].selected } }))
+  }
+
+  function setReturnQty(id: string, val: number, max: number) {
+    setReturnLines((prev) => ({ ...prev, [id]: { ...prev[id], qty: Math.max(1, Math.min(max, val)) } }))
+  }
+
+  function handleProductSearchChange(val: string) {
+    setProductSearch(val)
+    if (searchRef.current) clearTimeout(searchRef.current)
+    searchRef.current = setTimeout(() => setDebouncedSearch(val), 300)
+  }
+
+  const { data: searchResults = [] } = useQuery<any[]>({
+    queryKey: ['catalog-search', debouncedSearch],
+    queryFn: async () => {
+      if (!debouncedSearch.trim()) return []
+      const res = await api.get('/products/catalog', { params: { search: debouncedSearch.trim() } })
+      return Array.isArray(res.data) ? res.data : []
+    },
+    enabled: debouncedSearch.trim().length >= 1,
+  })
+
+  function addNewItem(p: any) {
+    setNewItems((prev) => {
+      const existing = prev.find((ni) => ni.productId === p.id)
+      if (existing) {
+        if (existing.qty >= existing.stock) return prev
+        return prev.map((ni) => ni.productId === p.id ? { ...ni, qty: ni.qty + 1 } : ni)
+      }
+      return [...prev, { productId: p.id, name: p.name, price: Number(p.sellingPrice ?? p.price ?? 0), qty: 1, stock: Number(p.stock ?? 0) }]
+    })
+    setProductSearch('')
+    setDebouncedSearch('')
+  }
+
+  function setNewItemQty(productId: string, val: number) {
+    setNewItems((prev) => prev.map((ni) => ni.productId === productId ? { ...ni, qty: Math.max(1, Math.min(ni.stock, val)) } : ni))
+  }
+
+  function removeNewItem(productId: string) {
+    setNewItems((prev) => prev.filter((ni) => ni.productId !== productId))
+  }
+
+  const canSubmit = selectedReturnItems.length > 0 && newItems.length > 0 && reason.trim().length >= 3
+
+  const mutation = useMutation({
+    mutationFn: () => api.post(`/sales/${sale.id}/exchange`, {
+      reason: reason.trim(),
+      paymentMethod: pm,
+      note: note.trim() || undefined,
+      returnItems: selectedReturnItems.map((i) => ({
+        saleItemId: i.id,
+        quantity: returnLines[i.id].qty,
+        refundPrice: i.quantity > 0 ? Number(i.total) / i.quantity : Number(i.price),
+      })),
+      newItems: newItems.map((ni) => ({
+        productId: ni.productId,
+        quantity: ni.qty,
+        price: ni.price,
+      })),
+    }),
+    onSuccess: (res) => {
+      const data = res.data
+      const net = Number(data?.netAmount ?? 0)
+      const sign = net > 0 ? `ลูกค้าชำระเพิ่ม ${formatThaiMoney(net)}` : net < 0 ? `คืนเงินลูกค้า ${formatThaiMoney(Math.abs(net))}` : 'เท่ากัน'
+      toast.success(`เปลี่ยนสินค้าสำเร็จ — ${sign}`)
+      onSuccess()
+      onClose()
+    },
+    onError: (err: any) => toast.error(apiErrorMessage(err)),
+  })
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-blue-600">
+            <ArrowLeftRight className="h-5 w-5" />
+            เปลี่ยนสินค้า
+          </DialogTitle>
+          <p className="text-sm text-slate-400 font-mono">{sale.receiptNumber}</p>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-5 pr-1">
+          {/* Two-panel grid */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Left: Return items */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">สินค้าที่ต้องการคืน</p>
+              {refundableItems.map((item) => {
+                const remaining  = item.quantity - item.refundedQty
+                const line       = returnLines[item.id]
+                const unitPrice  = item.quantity > 0 ? Number(item.total) / item.quantity : Number(item.price)
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'rounded-xl border p-3 cursor-pointer transition-colors',
+                      line.selected
+                        ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/10'
+                        : 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/40',
+                    )}
+                    onClick={() => toggleReturnItem(item.id)}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className={cn(
+                        'mt-0.5 h-4 w-4 rounded border-2 flex-shrink-0 flex items-center justify-center',
+                        line.selected ? 'bg-orange-500 border-orange-500' : 'border-slate-300',
+                      )}>
+                        {line.selected && <X className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold leading-tight truncate">{item.product?.name ?? 'สินค้า'}</p>
+                        <p className="text-[10px] text-slate-400">{formatThaiMoney(unitPrice)}/ชิ้น</p>
+                      </div>
+                      {line.selected && (
+                        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className="h-6 w-6 rounded border border-slate-200 flex items-center justify-center hover:bg-slate-100 disabled:opacity-40"
+                            onClick={() => setReturnQty(item.id, line.qty - 1, remaining)}
+                            disabled={line.qty <= 1}
+                          ><Minus className="h-2.5 w-2.5" /></button>
+                          <span className="w-6 text-center text-xs font-bold tabular-nums">{line.qty}</span>
+                          <button
+                            className="h-6 w-6 rounded border border-slate-200 flex items-center justify-center hover:bg-slate-100 disabled:opacity-40"
+                            onClick={() => setReturnQty(item.id, line.qty + 1, remaining)}
+                            disabled={line.qty >= remaining}
+                          ><Plus className="h-2.5 w-2.5" /></button>
+                        </div>
+                      )}
+                      {!line.selected && (
+                        <span className="text-[10px] text-slate-400 flex-shrink-0">×{remaining}</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+              {refundableItems.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-4">ไม่มีรายการที่คืนได้</p>
+              )}
+              {selectedReturnItems.length > 0 && (
+                <div className="rounded-xl bg-orange-50 dark:bg-orange-900/10 border border-orange-200 px-3 py-2 flex justify-between items-center">
+                  <span className="text-xs text-orange-700">มูลค่าที่คืน</span>
+                  <span className="text-sm font-bold text-orange-700 tabular-nums">{formatThaiMoney(refundTotal)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Right: New items */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">สินค้าที่ต้องการเปลี่ยน</p>
+
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  placeholder="ค้นหาสินค้า..."
+                  value={productSearch}
+                  onChange={(e) => handleProductSearchChange(e.target.value)}
+                />
+              </div>
+
+              {/* Search results */}
+              {debouncedSearch.trim() && searchResults.length > 0 && (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700/60 max-h-40 overflow-y-auto">
+                  {searchResults.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors"
+                      onClick={() => addNewItem(p)}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold truncate">{p.name}</p>
+                        <p className="text-[10px] text-slate-400">คงเหลือ {p.stock ?? 0}</p>
+                      </div>
+                      <span className="text-xs font-bold text-blue-700 tabular-nums ml-2 shrink-0">
+                        {formatThaiMoney(Number(p.sellingPrice ?? p.price ?? 0))}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {debouncedSearch.trim() && searchResults.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-2">ไม่พบสินค้า</p>
+              )}
+
+              {/* Selected new items */}
+              {newItems.length > 0 && (
+                <div className="space-y-1.5">
+                  {newItems.map((ni) => (
+                    <div key={ni.productId} className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-900/10 p-2.5 flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate">{ni.name}</p>
+                        <p className="text-[10px] text-slate-400">{formatThaiMoney(ni.price)}/ชิ้น</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          className="h-6 w-6 rounded border border-slate-200 flex items-center justify-center hover:bg-slate-100 disabled:opacity-40"
+                          onClick={() => setNewItemQty(ni.productId, ni.qty - 1)}
+                          disabled={ni.qty <= 1}
+                        ><Minus className="h-2.5 w-2.5" /></button>
+                        <span className="w-6 text-center text-xs font-bold tabular-nums">{ni.qty}</span>
+                        <button
+                          className="h-6 w-6 rounded border border-slate-200 flex items-center justify-center hover:bg-slate-100 disabled:opacity-40"
+                          onClick={() => setNewItemQty(ni.productId, ni.qty + 1)}
+                          disabled={ni.qty >= ni.stock}
+                        ><Plus className="h-2.5 w-2.5" /></button>
+                      </div>
+                      <button
+                        className="text-slate-400 hover:text-red-500 ml-1"
+                        onClick={() => removeNewItem(ni.productId)}
+                      ><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  ))}
+                  <div className="rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 px-3 py-2 flex justify-between items-center">
+                    <span className="text-xs text-blue-700">มูลค่าสินค้าใหม่</span>
+                    <span className="text-sm font-bold text-blue-700 tabular-nums">{formatThaiMoney(newTotal)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Net amount summary */}
+          {selectedReturnItems.length > 0 && newItems.length > 0 && (
+            <div className={cn(
+              'rounded-xl border px-4 py-3 flex items-center justify-between',
+              netAmount > 0
+                ? 'border-green-200 bg-green-50 dark:bg-green-900/10'
+                : netAmount < 0
+                  ? 'border-orange-200 bg-orange-50 dark:bg-orange-900/10'
+                  : 'border-slate-200 bg-slate-50 dark:bg-slate-800/40',
+            )}>
+              <div>
+                <p className="text-xs text-slate-500">ยอดสุทธิ</p>
+                <p className={cn(
+                  'text-sm font-semibold',
+                  netAmount > 0 ? 'text-green-700' : netAmount < 0 ? 'text-orange-700' : 'text-slate-600',
+                )}>
+                  {netAmount > 0 ? 'ลูกค้าชำระเพิ่ม' : netAmount < 0 ? 'คืนเงินลูกค้า' : 'ราคาเท่ากัน'}
+                </p>
+              </div>
+              <span className={cn(
+                'text-xl font-bold tabular-nums',
+                netAmount > 0 ? 'text-green-700' : netAmount < 0 ? 'text-orange-700' : 'text-slate-600',
+              )}>
+                {netAmount !== 0 ? formatThaiMoney(Math.abs(netAmount)) : '—'}
+              </span>
+            </div>
+          )}
+
+          {/* Payment method */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">ช่องทางการชำระ / คืนเงิน</p>
+            <div className="grid grid-cols-3 gap-2">
+              {(['CASH', 'TRANSFER', 'CARD'] as PaymentMethod[]).map((method) => {
+                const Icon = PM_ICON[method]
+                return (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setPm(method)}
+                    className={cn(
+                      'flex flex-col items-center gap-1 rounded-xl border py-2.5 text-xs font-semibold transition-colors',
+                      pm === method
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                        : 'border-slate-200 dark:border-slate-700/60 text-slate-500 hover:bg-slate-50',
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {PM_LABEL[method]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">เหตุผล <span className="text-red-500">*</span></label>
+            <input
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="เช่น ลูกค้าเปลี่ยนใจ / สินค้าชำรุด"
+            />
+            {reason.length > 0 && reason.trim().length < 3 && (
+              <p className="text-xs text-red-500">กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษร</p>
+            )}
+          </div>
+
+          {/* Note */}
+          <div className="space-y-1.5">
+            <label className="text-sm text-slate-500">หมายเหตุ <span className="text-slate-400">(ไม่บังคับ)</span></label>
+            <input
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="บันทึกเพิ่มเติม..."
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="pt-2 border-t">
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>ยกเลิก</Button>
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={!canSubmit || mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? 'กำลังดำเนินการ...' : 'ยืนยันเปลี่ยนสินค้า'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Sale detail dialog ────────────────────────────────────────────────────────
 
 function SaleDetailDialog({
@@ -340,12 +701,14 @@ function SaleDetailDialog({
   onClose,
   onVoidRequest,
   onRefundRequest,
+  onExchangeRequest,
 }: {
   sale: Sale
   canVoid: boolean
   onClose: () => void
   onVoidRequest: () => void
   onRefundRequest: () => void
+  onExchangeRequest: () => void
 }) {
   const PMIcon   = PM_ICON[sale.paymentMethod as PaymentMethod] ?? Banknote
   const isVoided   = sale.status === 'VOIDED'
@@ -471,15 +834,26 @@ function SaleDetailDialog({
         {canVoid && !isVoided && (hasRefundable || !isRefunded) && (
           <DialogFooter className="pt-2 border-t flex gap-2">
             {hasRefundable && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                onClick={onRefundRequest}
-              >
-                <RotateCcw className="h-4 w-4 mr-1.5" />
-                คืนสินค้า
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                  onClick={onRefundRequest}
+                >
+                  <RotateCcw className="h-4 w-4 mr-1.5" />
+                  คืนสินค้า
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                  onClick={onExchangeRequest}
+                >
+                  <ArrowLeftRight className="h-4 w-4 mr-1.5" />
+                  เปลี่ยนสินค้า
+                </Button>
+              </>
             )}
             {!isRefunded && !isPartial && (
               <Button variant="destructive" size="sm" onClick={onVoidRequest}>
@@ -500,11 +874,12 @@ export default function SalesHistoryPage() {
   const { hasPermission } = useAuthStore()
   const qc = useQueryClient()
 
-  const [dateStr,      setDateStr]      = useState(todayStr)
-  const [search,       setSearch]       = useState('')
-  const [selected,     setSelected]     = useState<Sale | null>(null)
-  const [voidTarget,   setVoidTarget]   = useState<Sale | null>(null)
-  const [refundTarget, setRefundTarget] = useState<Sale | null>(null)
+  const [dateStr,        setDateStr]        = useState(todayStr)
+  const [search,         setSearch]         = useState('')
+  const [selected,       setSelected]       = useState<Sale | null>(null)
+  const [voidTarget,     setVoidTarget]     = useState<Sale | null>(null)
+  const [refundTarget,   setRefundTarget]   = useState<Sale | null>(null)
+  const [exchangeTarget, setExchangeTarget] = useState<Sale | null>(null)
 
   const canVoid = hasPermission('sales.refund')
 
@@ -544,6 +919,11 @@ export default function SalesHistoryPage() {
   }
 
   function handleRefundSuccess() {
+    qc.invalidateQueries({ queryKey: ['sales-history-web', dateStr] })
+    setSelected(null)
+  }
+
+  function handleExchangeSuccess() {
     qc.invalidateQueries({ queryKey: ['sales-history-web', dateStr] })
     setSelected(null)
   }
@@ -691,6 +1071,10 @@ export default function SalesHistoryPage() {
             setRefundTarget(selected)
             setSelected(null)
           }}
+          onExchangeRequest={() => {
+            setExchangeTarget(selected)
+            setSelected(null)
+          }}
         />
       )}
 
@@ -709,6 +1093,15 @@ export default function SalesHistoryPage() {
           sale={refundTarget}
           onClose={() => setRefundTarget(null)}
           onSuccess={handleRefundSuccess}
+        />
+      )}
+
+      {/* Exchange dialog */}
+      {exchangeTarget && (
+        <ExchangeDialog
+          sale={exchangeTarget}
+          onClose={() => setExchangeTarget(null)}
+          onSuccess={handleExchangeSuccess}
         />
       )}
     </div>

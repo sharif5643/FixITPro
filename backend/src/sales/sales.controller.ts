@@ -11,6 +11,7 @@ import { SalesService } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { VoidSaleDto } from './dto/void-sale.dto';
 import { RefundSaleDto } from './dto/refund-sale.dto';
+import { ExchangeSaleDto } from './dto/exchange-sale.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
@@ -90,5 +91,17 @@ export class SalesController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.salesService.refundSaleItems(id, dto, userId, tenantId);
+  }
+
+  @Post(':id/exchange')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('sales.refund')
+  exchangeSale(
+    @Param('id') id: string,
+    @Body() dto: ExchangeSaleDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.salesService.exchangeSaleItems(id, dto, userId, tenantId);
   }
 }
