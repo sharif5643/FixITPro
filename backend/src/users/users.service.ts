@@ -212,6 +212,15 @@ export class UsersService {
     if (requesterTenantId && (target as any).tenantId !== requesterTenantId) {
       throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขผู้ใช้นี้');
     }
+
+    // Verify the destination branch belongs to the same tenant
+    if (branchId && requesterTenantId) {
+      const branch = await this.prisma.branch.findUnique({ where: { id: branchId }, select: { tenantId: true } });
+      if (!branch || branch.tenantId !== requesterTenantId) {
+        throw new ForbiddenException('ไม่มีสิทธิ์กำหนดสาขานี้');
+      }
+    }
+
     const oldBranchId = (target as any).branchId ?? null;
 
     const updated = await this.prisma.user.update({
