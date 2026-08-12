@@ -51,8 +51,9 @@ const OWNER_PRIMARY: NavSection[] = [
   {
     label: 'การขาย',
     items: [
-      { href: '/sales',  icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create', module: 'pos' },
-      { href: '/shifts', icon: Clock,        label: 'เปิด/ปิดกะ' },
+      { href: '/sales',         icon: ShoppingCart, label: 'ขายสินค้า (POS)',   permission: 'sales.create', module: 'pos' },
+      { href: '/sales/history', icon: ScrollText,   label: 'ประวัติการขาย',     permission: 'sales.create', module: 'pos' },
+      { href: '/shifts',        icon: Clock,        label: 'เปิด/ปิดกะ' },
     ],
   },
   {
@@ -146,9 +147,10 @@ const MANAGER_SECTIONS: NavSection[] = [
   {
     label: 'การขาย',
     items: [
-      { href: '/sales',    icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create',    module: 'pos'     },
-      { href: '/shifts',   icon: Clock,        label: 'เปิด/ปิดกะ' },
-      { href: '/expenses', icon: Receipt,      label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance' },
+      { href: '/sales',         icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create',    module: 'pos'     },
+      { href: '/sales/history', icon: ScrollText,   label: 'ประวัติการขาย',   permission: 'sales.create',    module: 'pos'     },
+      { href: '/shifts',        icon: Clock,        label: 'เปิด/ปิดกะ' },
+      { href: '/expenses',      icon: Receipt,      label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance' },
     ],
   },
   {
@@ -195,8 +197,9 @@ const CASHIER_SECTIONS: NavSection[] = [
   {
     label: 'การขาย',
     items: [
-      { href: '/sales',  icon: ShoppingCart, label: 'ขายสินค้า (POS)', module: 'pos' },
-      { href: '/shifts', icon: Clock,        label: 'เปิด/ปิดกะ' },
+      { href: '/sales',         icon: ShoppingCart, label: 'ขายสินค้า (POS)', module: 'pos' },
+      { href: '/sales/history', icon: ScrollText,   label: 'ประวัติการขาย',   module: 'pos' },
+      { href: '/shifts',        icon: Clock,        label: 'เปิด/ปิดกะ' },
     ],
   },
   {

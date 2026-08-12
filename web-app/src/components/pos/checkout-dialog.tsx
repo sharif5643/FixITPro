@@ -498,7 +498,27 @@ export function CheckoutDialog({
                       )}
                     </div>
                   </div>
+                  {/* QR for transfer leg 2 */}
+                  {leg2Method === 'TRANSFER' && leg2Amount > 0 && settings?.promptpayId && (
+                    <div className="flex flex-col items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                      <div className="bg-white p-2 rounded-lg shadow-sm">
+                        <QRCodeSVG value={generatePayload(settings.promptpayId, { amount: leg2Amount })} size={140} level="M" />
+                      </div>
+                      <p className="text-xs text-blue-600 dark:text-blue-400">สแกนโอน {formatThaiMoney(leg2Amount)}</p>
+                    </div>
+                  )}
                 </div>
+
+                {/* QR for transfer leg 1 */}
+                {leg1Method === 'TRANSFER' && leg1Amount > 0 && settings?.promptpayId && (
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10 p-3">
+                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">สแกนโอนวิธีที่ 1</p>
+                    <div className="bg-white p-2 rounded-lg shadow-sm">
+                      <QRCodeSVG value={generatePayload(settings.promptpayId, { amount: leg1Amount })} size={140} level="M" />
+                    </div>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">สแกนโอน {formatThaiMoney(leg1Amount)}</p>
+                  </div>
+                )}
 
                 {/* Change (if leg1 overpays) */}
                 {splitChange > 0 && (
