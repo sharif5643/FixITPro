@@ -8,43 +8,44 @@ jobs:
   deploy:
     name: Deploy to fixitpro.in.th
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat >> ~/.ssh/known_hosts << 'EOF'
+          |1|QXt+ufjmCnRMQgRYn79oNLOLCMk=|MbbxthlQVmKY3M5MBmDVm1r6rk4= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC1POudJbT9sdzW8+y1VcJaD2wl5Su74uaxJyOdE1NyzMOSS69Iz2ABRMDhGN3tblP7cldNMHFetyuz/yLy3VA6KCIWWzvgFVGUGOX9ic61b0iqOs2PiGs5cGAX4qfcPaxu8gIjxWSneXpJ5gjNpBUlp4z5V0feOH6d3tgWmXpAtxpaQ/4/X4zJ2GJvnCjvWVaFc3H/hg+rhCGFjfbBfKPUIM1nhWV0E7PuxUvTZGKhQMqF+SFMGOTFYAmBys0cKbFwoXjBGERwhD/ibQo/xWUWP0ujUSy9mULA0IYwEyktekfa8IkgBqC7BALAwIuT6r0uiiNX84Adwbg/HOt793Qyke6qpuFmQ4uVLum/cmjVdAkuQvw5KNCmgpAhSa6ULA7nuZu+RXQFjXo0LgY+jSuY39qHHK0nbhtpkemAH1No6wmJ48gKXlOeIO15XEl1tjSsQh2X7f2dzgnhUco5acOqvY249efxJh73YgaBTAdP+0E+wp7BwK7szvZg+4UBt5s=
+          |1|DvsnTBCxLHm8F065S5GQgbFtQ7A=|p3bzmY/gf4hK9k12IVBMYJRUmW0= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJXdI/T+EG5TAdAn1+taAQ11ZngzxKD1IfntVnXaH9du
+          |1|ibmwetm0PAiC8BgSyTtf4uTAKd8=|eE9sCjfTwZLn5uRd6FLxn8RF2do= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLrzre/wkU0criEqkVfDAb3Dx1xjcWhPtoWGVXr7hKPyWz32Zd5rIuLBoqRrf+Llc9ODEUj6Zumb/3ummYQCjHc=
+          EOF
+
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 91.98.151.10
-          username: root
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script_stop: true
-          command_timeout: 15m
-          script: /root/trigger-coolify-deploy.sh
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 \
+            "bash /root/trigger-coolify-deploy.sh" 2>&1
 
       - name: Verify deployment
         run: |
           echo "Waiting for containers to be healthy..."
-          sleep 30
-          COMMIT="${{ github.sha }}"
+          sleep 20
           MAX_WAIT=300
           ELAPSED=0
+          STATUS="000"
           while [ $ELAPSED -lt $MAX_WAIT ]; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/login --max-time 5)
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/login --max-time 10)
             if [ "$STATUS" = "200" ]; then
-              echo "✅ Site responding (HTTP $STATUS)"
-              break
+              echo "✅ Deploy complete! Commit: ${{ github.sha }}"
+              exit 0
             fi
             echo "Waiting... HTTP $STATUS (${ELAPSED}s/${MAX_WAIT}s)"
             sleep 15
             ELAPSED=$((ELAPSED + 15))
           done
-
-          if [ "$STATUS" != "200" ]; then
-            echo "❌ Deploy verification failed — site returned HTTP $STATUS"
-            exit 1
-          fi
-
-          echo "✅ Deploy complete! Commit: ${COMMIT:0:7}"
+          echo "❌ Verification failed — HTTP $STATUS"
+          exit 1
