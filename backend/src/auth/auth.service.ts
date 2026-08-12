@@ -206,6 +206,8 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
+    const GENERIC_MSG = 'หากอีเมลนี้มีในระบบ รหัสผ่านชั่วคราวจะถูกส่งให้ผู้ดูแลระบบแจ้งให้ผู้ใช้';
+
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     let tempPassword = 'Tmp';
     for (let i = 0; i < 8; i++) tempPassword += chars[Math.floor(Math.random() * chars.length)];
@@ -217,9 +219,9 @@ export class AuthService {
         where: { id: user.id },
         data: { password: hashed, forcePasswordChange: true },
       });
-      return { found: true, message: 'รีเซ็ตรหัสผ่านสำเร็จ กรุณาให้ผู้ใช้ตรวจสอบอีเมล' };
     }
-    return { found: false, message: 'ไม่พบอีเมลนี้ในระบบ' };
+    // Always return the same response — prevents user enumeration via email
+    return { message: GENERIC_MSG };
   }
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {

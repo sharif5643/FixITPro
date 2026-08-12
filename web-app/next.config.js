@@ -20,17 +20,32 @@ const nextConfig = {
     fetches: { fullUrl: false },
   },
 
-  // RC2-002: Security headers for the Coolify/Traefik deployment (no Nginx layer).
-  // HSTS is intentionally omitted — Traefik handles TLS termination and sets it there.
   async headers() {
+    // Next.js App Router requires 'unsafe-inline' + 'unsafe-eval' for hydration scripts
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "upgrade-insecure-requests",
+    ].join('; ');
+
     return [
       {
         source: '/(.*)',
         headers: [
-          { key: 'X-Frame-Options',       value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy',        value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy',     value: 'camera=(), microphone=(), geolocation=(), payment=()' },
+          { key: 'X-Frame-Options',              value: 'DENY' },
+          { key: 'X-Content-Type-Options',        value: 'nosniff' },
+          { key: 'Referrer-Policy',               value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy',            value: 'camera=(), microphone=(), geolocation=(), payment=()' },
+          { key: 'Strict-Transport-Security',     value: 'max-age=63072000; includeSubDomains; preload' },
+          { key: 'Content-Security-Policy',       value: csp },
         ],
       },
       {

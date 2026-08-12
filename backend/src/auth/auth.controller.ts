@@ -56,7 +56,7 @@ export class AuthController {
   }
 
   @UseGuards(AuthThrottlerGuard)
-  @Throttle({ auth_login: { limit: 20, ttl: 60 * 1000 } })
+  @Throttle({ auth_login: { limit: 10, ttl: 15 * 60 * 1000 } })
   @SkipThrottle({ auth_register: true, auth_change_pwd: true })
   @Post('login')
   async login(

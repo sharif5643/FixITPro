@@ -67,7 +67,7 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
     // never leak onto general API endpoints.
     ThrottlerModule.forRoot([
       { name: 'default',         ttl: 60 * 1000,        limit: 300 }, // 300 per minute (all routes)
-      { name: 'auth_login',      ttl: 60 * 1000,        limit: 20  }, // 20 per minute (login only)
+      { name: 'auth_login',      ttl: 15 * 60 * 1000,   limit: 10  }, // 10 per 15 min (login only)
       { name: 'auth_register',   ttl: 60 * 60 * 1000,  limit: 3   }, // 3 per hour (register only)
       { name: 'auth_change_pwd', ttl: 15 * 60 * 1000,  limit: 5   }, // 5 per 15 min (change-pwd only)
       { name: 'public_tracking', ttl: 60 * 1000,        limit: 60  }, // 60 per minute (public tracking)
