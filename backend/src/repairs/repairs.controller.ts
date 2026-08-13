@@ -136,6 +136,19 @@ export class RepairsController {
     return this.repairsService.getDeviceHistory(imei, role, userBranchId, tenantId);
   }
 
+  @Get('ar-aging')
+  getArAging(
+    @Query('branchId') queryBranchId: string | undefined,
+    @CurrentUser('role') role: string,
+    @CurrentUser('branchId') userBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    const branchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
+      ? queryBranchId
+      : (userBranchId ?? undefined);
+    return this.repairsService.getArAging(branchId, tenantId);
+  }
+
   @Get(':id/profit')
   getProfit(
     @Param('id') id: string,

@@ -1152,6 +1152,69 @@ export class RepairsService {
     }));
   }
 
+  async getArAging(branchId?: string, tenantId?: string | null) {
+    const where: any = {
+      status:        'DELIVERED',
+      paymentStatus: { in: ['PENDING', 'PARTIAL'] },
+      ...(branchId ? { branchId } : {}),
+    };
+    if (tenantId) where.branch = { tenantId };
+
+    const repairs = await this.prisma.repair.findMany({
+      where,
+      select: {
+        id:            true,
+        ticketNumber:  true,
+        deviceBrand:   true,
+        deviceModel:   true,
+        finalCost:     true,
+        deposit:       true,
+        paymentStatus: true,
+        deliveredAt:   true,
+        customer:      { select: { id: true, name: true, phone: true } },
+        additionalPayments: { select: { amount: true } },
+      },
+      orderBy: { deliveredAt: 'asc' },
+    });
+
+    const now = Date.now();
+    const aged = repairs.map((r) => {
+      const outstanding = Math.max(
+        0,
+        Number(r.finalCost ?? 0) -
+        Number(r.deposit  ?? 0) -
+        r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0),
+      );
+      const daysOverdue = r.deliveredAt
+        ? Math.floor((now - r.deliveredAt.getTime()) / 86_400_000)
+        : 0;
+      const bucket =
+        daysOverdue <= 30  ? 'current' :
+        daysOverdue <= 60  ? 'days30'  :
+        daysOverdue <= 90  ? 'days60'  : 'days90plus';
+      return { ...r, outstandingAmount: outstanding, daysOverdue, bucket };
+    });
+
+    const buckets = {
+      current:   aged.filter(r => r.bucket === 'current'),
+      days30:    aged.filter(r => r.bucket === 'days30'),
+      days60:    aged.filter(r => r.bucket === 'days60'),
+      days90plus: aged.filter(r => r.bucket === 'days90plus'),
+    };
+
+    const sum = (arr: typeof aged) => arr.reduce((s, r) => s + r.outstandingAmount, 0);
+    return {
+      summary: {
+        total:     sum(aged),
+        current:   sum(buckets.current),
+        days30:    sum(buckets.days30),
+        days60:    sum(buckets.days60),
+        days90plus: sum(buckets.days90plus),
+      },
+      buckets,
+    };
+  }
+
   async getDeviceHistory(
     imei: string,
     role: string,

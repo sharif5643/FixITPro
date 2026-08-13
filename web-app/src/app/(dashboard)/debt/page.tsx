@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
   AlertCircle, Users, Phone, ChevronDown, ChevronUp,
-  CreditCard, Clock, CheckCircle2, Printer, X, History,
+  CreditCard, Clock, CheckCircle2, Printer, X, History, BarChart2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -692,6 +692,19 @@ export default function DebtPage() {
     staleTime: 30_000,
   })
 
+  const { data: aging } = useQuery<{
+    summary: { total: number; current: number; days30: number; days60: number; days90plus: number }
+  }>({
+    queryKey: ['repairs-ar-aging', branchId],
+    queryFn:  async () => {
+      const params = new URLSearchParams()
+      if (branchId) params.set('branchId', branchId)
+      return (await api.get(`/repairs/ar-aging?${params}`)).data
+    },
+    staleTime: 30_000,
+    enabled:  !isLoading && repairs.length > 0,
+  })
+
   const groups    = groupRepairs(repairs)
   const totalDebt = groups.reduce((s, g) => s + g.totalDebt, 0)
   const unpaidCount   = repairs.filter((r) => r.paymentStatus === 'PENDING').length
@@ -740,6 +753,29 @@ export default function DebtPage() {
               <span className="text-amber-700 dark:text-amber-400">{partialCount} ชำระบางส่วน</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* AR Aging summary */}
+      {!isLoading && aging && aging.summary.total > 0 && (
+        <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart2 className="h-4 w-4 text-slate-400" />
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">อายุหนี้ค้างชำระ</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {([
+              { label: '0–30 วัน',  key: 'current',    bg: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700/50', text: 'text-emerald-700 dark:text-emerald-400' },
+              { label: '31–60 วัน', key: 'days30',     bg: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700/50',   text: 'text-yellow-700 dark:text-yellow-400' },
+              { label: '61–90 วัน', key: 'days60',     bg: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700/50',   text: 'text-orange-700 dark:text-orange-400' },
+              { label: '90+ วัน',   key: 'days90plus', bg: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/50',               text: 'text-red-700 dark:text-red-400' },
+            ] as const).map(({ label, key, bg, text }) => (
+              <div key={key} className={`rounded-xl border p-2.5 ${bg}`}>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{label}</p>
+                <p className={`text-sm font-bold tabular-nums ${text}`}>{money((aging.summary as any)[key])}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
