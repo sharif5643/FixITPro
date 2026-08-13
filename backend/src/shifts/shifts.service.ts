@@ -109,15 +109,20 @@ export class ShiftsService {
             });
             await tx.cashDrawerTransaction.create({
               data: {
-                sessionId:    session.id,
-                cashDrawerId: drawer!.id,
-                tenantId:     tenantId ?? undefined,
+                sessionId:      session.id,
+                cashDrawerId:   drawer!.id,
+                tenantId:       tenantId ?? undefined,
                 branchId,
-                actorUserId:  userId,
-                type:         'OPENING',
-                direction:    'IN',
-                amount:       dto.openBalance,
-                reason:       'เงินตั้งต้นเปิดกะ',
+                actorUserId:    userId,
+                type:           'OPENING',
+                direction:      'IN',
+                amount:         dto.openBalance,
+                reason:         'เงินตั้งต้นเปิดกะ',
+                sourceType:     'OPENING',
+                referenceType:  'OPENING',
+                referenceId:    session.id,
+                paymentMethod:  'CASH',
+                idempotencyKey: `${tenantId ?? 'global'}:OPENING:${session.id}:IN`,
               },
             });
           });

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { CreatePurchaseOrderDto } from './dto/create-po.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-po.dto';
 import { ReceiveGoodsDto } from './dto/receive-goods.dto';
@@ -29,6 +30,7 @@ export class PurchaseOrdersService {
   constructor(
     private prisma: PrismaService,
     private auditLog: AuditLogService,
+    private accounting: AccountingService,
   ) {}
 
   private async generatePoNumber(): Promise<string> {
@@ -366,23 +368,36 @@ export class PurchaseOrdersService {
     const newPaymentStatus =
       newPaidTotal >= Number(po.total) - 0.001 ? 'PAID' : 'PARTIAL_PAID';
 
-    await this.prisma.$transaction([
-      this.prisma.supplierPayment.create({
+    await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.supplierPayment.create({
         data: {
           purchaseOrderId: poId,
           amount: dto.amount,
           paymentMethod: dto.paymentMethod as any,
           note: dto.note,
         },
-      }),
-      this.prisma.purchaseOrder.update({
+      });
+      await tx.purchaseOrder.update({
         where: { id: poId },
         data: {
           paidTotal: newPaidTotal,
           paymentStatus: newPaymentStatus as any,
         },
-      }),
-    ]);
+      });
+      if (dto.paymentMethod === 'CASH' && po.branchId) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.SUPPLIER_PAYMENT,
+          sourceId:      payment.id,
+          paymentMethod: 'CASH',
+          amount:        dto.amount,
+          direction:     'OUT',
+          branchId:      po.branchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   userId,
+          note:          po.poNumber,
+        }, tx);
+      }
+    });
 
     const result = await this.findOne(poId);
     await this.auditLog.log({

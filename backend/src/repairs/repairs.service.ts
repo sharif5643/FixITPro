@@ -158,7 +158,7 @@ export class RepairsService {
       const partsCost  = dto.estimatedPartsCost;
       const total      = laborCost != null && partsCost != null ? laborCost + partsCost : dto.estimateCost;
 
-      return tx.repair.create({
+      const newRepair = await tx.repair.create({
         data: {
           ticketNumber:       this.generateTicketNumber(),
           customerId,
@@ -184,6 +184,22 @@ export class RepairsService {
         },
         include: REPAIR_INCLUDE,
       });
+
+      if ((dto.deposit ?? 0) > 0) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.REPAIR_DEPOSIT,
+          sourceId:      newRepair.id,
+          paymentMethod: (dto.depositPaymentMethod ?? 'CASH') as any,
+          amount:        dto.deposit!,
+          direction:     'IN',
+          branchId:      effectiveBranchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   actorId ?? '',
+          note:          newRepair.ticketNumber,
+        }, tx);
+      }
+
+      return newRepair;
     });
 
     await this.auditLog.log({
@@ -205,21 +221,6 @@ export class RepairsService {
         entityType: 'Repair',
         entityId: repair.id,
         afterData: { technicianId: dto.technicianId, ticketNumber: repair.ticketNumber },
-      });
-    }
-
-    // Record deposit in cash drawer ledger (only when deposit > 0 and paid in cash)
-    if ((dto.deposit ?? 0) > 0) {
-      await this.accounting.record({
-        sourceType:    ACCOUNTING_SOURCE.REPAIR_DEPOSIT,
-        sourceId:      repair.id,
-        paymentMethod: (dto.depositPaymentMethod ?? 'CASH') as any,
-        amount:        dto.deposit!,
-        direction:     'IN',
-        branchId:      effectiveBranchId,
-        tenantId:      tenantId ?? null,
-        actorUserId:   actorId ?? '',
-        note:          repair.ticketNumber,
       });
     }
 

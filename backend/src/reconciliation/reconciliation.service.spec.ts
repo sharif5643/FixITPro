@@ -51,23 +51,23 @@ function makeCdtFindMany(overrides: Record<string, any[]> = {}) {
 }
 
 function makePrisma(opts: {
-  sales?:        any[];
-  repairs?:      any[];
-  expenses?:     any[];
-  sessions?:     any[];
-  saleRefs?:     any[];
-  repairRefs?:   any[];
-  expenseRefs?:  any[];
-  orphanEntries?: any[];
-  dupEntries?:   any[];
-  postCloseTxs?: any[];
-  unassigned?:   any[];
-  saleExists?:   boolean;
+  salePayments?:      any[];
+  repairs?:           any[];
+  expenses?:          any[];
+  sessions?:          any[];
+  saleRefs?:          any[];
+  repairRefs?:        any[];
+  expenseRefs?:       any[];
+  orphanEntries?:     any[];
+  dupEntries?:        any[];
+  postCloseTxs?:      any[];
+  unassigned?:        any[];
+  salePaymentExists?: boolean;
 } = {}) {
   return {
-    sale: {
-      findMany:   jest.fn().mockResolvedValue(opts.sales ?? []),
-      findUnique: jest.fn().mockResolvedValue(opts.saleExists !== false ? { id: 'x' } : null),
+    salePayment: {
+      findMany:   jest.fn().mockResolvedValue(opts.salePayments ?? []),
+      findUnique: jest.fn().mockResolvedValue(opts.salePaymentExists !== false ? { id: 'x' } : null),
     },
     repair: {
       findMany:   jest.fn().mockResolvedValue(opts.repairs ?? []),
@@ -79,13 +79,13 @@ function makePrisma(opts: {
     },
     cashDrawerTransaction: {
       findMany: makeCdtFindMany({
-        saleRefs:     opts.saleRefs ?? [],
-        repairRefs:   opts.repairRefs ?? [],
-        expenseRefs:  opts.expenseRefs ?? [],
+        saleRefs:      opts.saleRefs ?? [],
+        repairRefs:    opts.repairRefs ?? [],
+        expenseRefs:   opts.expenseRefs ?? [],
         orphanEntries: opts.orphanEntries ?? [],
-        dupEntries:   opts.dupEntries ?? [],
-        postCloseTxs: opts.postCloseTxs ?? [],
-        unassigned:   opts.unassigned ?? [],
+        dupEntries:    opts.dupEntries ?? [],
+        postCloseTxs:  opts.postCloseTxs ?? [],
+        unassigned:    opts.unassigned ?? [],
       }),
     },
     cashDrawerSession: {
@@ -110,21 +110,24 @@ describe('ReconciliationService', () => {
 
   // ── Check 1: missing sale payment ledger ──────────────────────────────────
 
-  it('detects CASH sale without ledger entry as missing', async () => {
-    const cashSale = { id: 'sale-1', receiptNumber: 'REC-001', total: '500', createdAt: new Date() };
-    const { service } = await build({ sales: [cashSale], saleRefs: [] });
+  it('detects CASH sale payment without ledger entry as missing', async () => {
+    const saleCreatedAt = new Date('2026-01-10T10:00:00Z');
+    const cashPayment = { id: 'sp-1', amount: '500', sale: { receiptNumber: 'REC-001', createdAt: saleCreatedAt } };
+    const { service } = await build({ salePayments: [cashPayment], saleRefs: [] });
 
     const report = await service.runReport(makeQuery());
 
     expect(report.checks.missingSalePaymentLedger).toHaveLength(1);
-    expect(report.checks.missingSalePaymentLedger[0].sourceId).toBe('sale-1');
+    expect(report.checks.missingSalePaymentLedger[0].sourceId).toBe('sp-1');
+    expect(report.checks.missingSalePaymentLedger[0].referenceNumber).toBe('REC-001');
+    expect(report.checks.missingSalePaymentLedger[0].amount).toBe(500);
   });
 
-  it('does NOT flag CASH sale when ledger entry exists', async () => {
-    const cashSale = { id: 'sale-1', receiptNumber: 'REC-001', total: '500', createdAt: new Date() };
+  it('does NOT flag CASH sale payment when ledger entry exists', async () => {
+    const cashPayment = { id: 'sp-1', amount: '500', sale: { receiptNumber: 'REC-001', createdAt: new Date() } };
     const { service } = await build({
-      sales:    [cashSale],
-      saleRefs: [{ referenceId: 'sale-1' }],
+      salePayments: [cashPayment],
+      saleRefs:     [{ referenceId: 'sp-1' }],
     });
 
     const report = await service.runReport(makeQuery());
@@ -158,14 +161,14 @@ describe('ReconciliationService', () => {
 
   // ── Check 4: orphan ledger entries ───────────────────────────────────────
 
-  it('detects orphan ledger entry when referenced sale no longer exists', async () => {
+  it('detects orphan ledger entry when referenced SalePayment no longer exists', async () => {
     const orphan = {
-      id: 'tx-orphan', referenceType: 'SALE_PAYMENT', referenceId: 'sale-deleted',
+      id: 'tx-orphan', referenceType: 'SALE_PAYMENT', referenceId: 'sp-deleted',
       amount: '100', createdAt: new Date(),
     };
     const { service } = await build({
-      orphanEntries: [orphan],
-      saleExists:    false,   // sale.findUnique returns null
+      orphanEntries:     [orphan],
+      salePaymentExists: false,   // salePayment.findUnique returns null
     });
 
     const report = await service.runReport(makeQuery());
@@ -174,14 +177,14 @@ describe('ReconciliationService', () => {
     expect(report.checks.orphanLedgerEntries[0].ledgerId).toBe('tx-orphan');
   });
 
-  it('does NOT flag ledger entry as orphan when business record exists', async () => {
+  it('does NOT flag ledger entry as orphan when SalePayment exists', async () => {
     const notOrphan = {
-      id: 'tx-ok', referenceType: 'SALE_PAYMENT', referenceId: 'sale-existing',
+      id: 'tx-ok', referenceType: 'SALE_PAYMENT', referenceId: 'sp-existing',
       amount: '100', createdAt: new Date(),
     };
     const { service } = await build({
-      orphanEntries: [notOrphan],
-      saleExists:    true,    // sale.findUnique returns a record
+      orphanEntries:     [notOrphan],
+      salePaymentExists: true,    // salePayment.findUnique returns a record
     });
 
     const report = await service.runReport(makeQuery());

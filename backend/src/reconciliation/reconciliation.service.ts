@@ -121,34 +121,41 @@ export class ReconciliationService {
     tenantId: string | null,
     dateRange: { gte: Date; lte: Date },
   ): Promise<MissingLedgerItem[]> {
-    const cashSales = await this.prisma.sale.findMany({
+    // Accounting writes referenceId = SalePayment.id (per-leg), not Sale.id.
+    const cashPayments = await this.prisma.salePayment.findMany({
       where: {
-        branchId,
         paymentMethod: 'CASH',
-        status:        { not: 'VOIDED' },
-        createdAt:     dateRange,
+        sale: {
+          branchId,
+          status:    { not: 'VOIDED' },
+          createdAt: dateRange,
+        },
       },
-      select: { id: true, receiptNumber: true, total: true, createdAt: true },
+      select: {
+        id:     true,
+        amount: true,
+        sale:   { select: { receiptNumber: true, createdAt: true } },
+      },
     });
-    if (cashSales.length === 0) return [];
+    if (cashPayments.length === 0) return [];
 
     const ledgerRefs = await this.prisma.cashDrawerTransaction.findMany({
       where: {
         branchId,
         referenceType: 'SALE_PAYMENT',
-        referenceId:   { in: cashSales.map(s => s.id) },
+        referenceId:   { in: cashPayments.map(p => p.id) },
       },
       select: { referenceId: true },
     });
     const covered = new Set(ledgerRefs.map(r => r.referenceId).filter(Boolean) as string[]);
 
-    return cashSales
-      .filter(s => !covered.has(s.id))
-      .map(s => ({
-        sourceId:        s.id,
-        referenceNumber: s.receiptNumber,
-        amount:          Number(s.total),
-        createdAt:       s.createdAt.toISOString(),
+    return cashPayments
+      .filter(p => !covered.has(p.id))
+      .map(p => ({
+        sourceId:        p.id,
+        referenceNumber: p.sale.receiptNumber,
+        amount:          Number(p.amount),
+        createdAt:       p.sale.createdAt.toISOString(),
       }));
   }
 
@@ -255,7 +262,7 @@ export class ReconciliationService {
       let exists = false;
 
       if (refType === 'SALE_PAYMENT') {
-        exists = !!(await this.prisma.sale.findUnique({ where: { id: refId }, select: { id: true } }));
+        exists = !!(await this.prisma.salePayment.findUnique({ where: { id: refId }, select: { id: true } }));
       } else if (refType === 'REPAIR_FINAL_PAYMENT') {
         exists = !!(await this.prisma.repair.findUnique({ where: { id: refId }, select: { id: true } }));
       } else if (refType === 'EXPENSE_PAYMENT') {
