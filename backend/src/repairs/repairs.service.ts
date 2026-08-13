@@ -1207,6 +1207,64 @@ export class RepairsService {
     });
   }
 
+  async getProfit(id: string, tenantId: string | null) {
+    const where: any = { id };
+    if (tenantId) where.branch = { tenantId };
+
+    const repair = await this.prisma.repair.findFirst({
+      where,
+      select: {
+        id:             true,
+        ticketNumber:   true,
+        status:         true,
+        paymentStatus:  true,
+        deposit:        true,
+        paidAmount:     true,
+        parts: {
+          where: { isVoided: false },
+          select: { quantity: true, price: true, costPrice: true, productName: true },
+        },
+        additionalPayments: { select: { amount: true } },
+        paymentReversals:   { select: { amount: true } },
+      },
+    });
+    if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
+
+    const deposit          = Number(repair.deposit ?? 0);
+    const finalPayment     = Number(repair.paidAmount ?? 0);
+    const additionalTotal  = repair.additionalPayments.reduce((s, p) => s + Number(p.amount), 0);
+    const reversalTotal    = repair.paymentReversals.reduce((s, r) => s + Number(r.amount), 0);
+    const revenue          = deposit + finalPayment + additionalTotal - reversalTotal;
+
+    const partsCost = repair.parts.reduce((s, p) => {
+      const unit = Number(p.costPrice ?? p.price);
+      return s + unit * p.quantity;
+    }, 0);
+
+    const grossProfit  = revenue - partsCost;
+    const marginPercent = revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0;
+
+    return {
+      repairId:     repair.id,
+      ticketNumber: repair.ticketNumber,
+      status:       repair.status,
+      paymentStatus: repair.paymentStatus,
+      revenue: {
+        deposit,
+        finalPayment,
+        additionalPayments: additionalTotal,
+        reversals:          reversalTotal,
+        total:              revenue,
+      },
+      costs: {
+        parts: partsCost,
+        total: partsCost,
+      },
+      grossProfit,
+      marginPercent,
+    };
+  }
+
   async deleteRepair(id: string, actorId: string, actorRole: string, actorName: string, tenantId: string | null) {
     if (actorRole !== 'OWNER') {
       throw new ForbiddenException('เฉพาะเจ้าของร้านเท่านั้นที่ลบงานซ่อมได้');

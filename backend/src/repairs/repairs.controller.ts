@@ -136,6 +136,14 @@ export class RepairsController {
     return this.repairsService.getDeviceHistory(imei, role, userBranchId, tenantId);
   }
 
+  @Get(':id/profit')
+  getProfit(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.getProfit(id, tenantId);
+  }
+
   @Get(':id')
   findOne(
     @Param('id') id: string,

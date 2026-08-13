@@ -130,6 +130,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
     staleTime: 30_000,
   })
 
+
   const { data: settings } = useQuery<ShopSettings>({
     queryKey: ['settings'],
     queryFn: async () => (await api.get('/settings')).data,
@@ -183,6 +184,19 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const { hasPermission, user: authUser } = useAuthStore()
   const repairBranchId = (repair?.branchId as string | null | undefined) ?? undefined
   const canViewCost = hasPermission('products.view_cost')
+  const canViewProfit = authUser?.role === 'OWNER' || authUser?.role === 'MANAGER'
+
+  const { data: profitData } = useQuery<{
+    revenue: { deposit: number; finalPayment: number; additionalPayments: number; reversals: number; total: number }
+    costs:   { parts: number; total: number }
+    grossProfit: number
+    marginPercent: number
+  }>({
+    queryKey: ['repairs', repairId, 'profit'],
+    queryFn: async () => (await api.get(`/repairs/${repairId}/profit`)).data,
+    enabled: !!repairId && canViewProfit,
+    staleTime: 30_000,
+  })
   const canReverse = hasPermission('repair.close') || repair?.paymentStatus === 'PAID'
 
   useEffect(() => {
@@ -1103,6 +1117,33 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 {repair.completedAt && <p>ซ่อมเสร็จ: {fmtDate(repair.completedAt)}</p>}
                 {repair.deliveredAt && <p>ส่งคืน: {fmtDate(repair.deliveredAt)}</p>}
               </div>
+
+              {/* ─── Profit summary (OWNER / MANAGER only) ─── */}
+              {canViewProfit && profitData && (
+                <div className="rounded-xl border border-emerald-100 dark:border-emerald-700/40 bg-emerald-50/40 dark:bg-emerald-900/10 p-4 space-y-2">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                    กำไรเบื้องต้น
+                  </p>
+                  <div className="text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">รายรับรวม</span>
+                      <span className="tabular-nums font-medium">{formatThaiMoney(profitData.revenue.total)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">ต้นทุนอะไหล่</span>
+                      <span className="tabular-nums text-red-600 dark:text-red-400">{formatThaiMoney(profitData.costs.parts)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold border-t border-emerald-100 dark:border-emerald-700/40 pt-1.5 mt-0.5">
+                      <span>กำไรขั้นต้น</span>
+                      <span className={`tabular-nums ${profitData.grossProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {formatThaiMoney(profitData.grossProfit)}
+                        <span className="text-xs font-normal ml-1 text-muted-foreground">({profitData.marginPercent.toFixed(1)}%)</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Status change — DELIVERED removed (must go through payment) */}
               {repair.status !== 'DELIVERED' && (
