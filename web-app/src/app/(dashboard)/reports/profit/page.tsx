@@ -6,7 +6,7 @@ import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns
 import { th } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, TrendingUp, TrendingDown,
-  ShoppingCart, Wrench, Package, Receipt, Download,
+  ShoppingCart, Wrench, Package, Receipt, Download, Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
@@ -435,6 +435,9 @@ export default function ProfitReportPage() {
                   <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                 </div>
               )}
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.print()}>
+                <Printer className="h-3.5 w-3.5" />พิมพ์
+              </Button>
             </div>
           }
         />

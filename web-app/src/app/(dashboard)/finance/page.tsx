@@ -6,7 +6,7 @@ import { format, subDays, startOfMonth, endOfMonth } from 'date-fns'
 import { th } from 'date-fns/locale'
 import Link from 'next/link'
 import {
-  TrendingUp, TrendingDown, Wallet, ArrowRight, BarChart2, Receipt,
+  TrendingUp, TrendingDown, Wallet, ArrowRight, BarChart2, Receipt, Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
@@ -110,13 +110,18 @@ export default function FinancePage() {
           subtitle="ภาพรวมรายรับ-รายจ่ายจากลิ้นชัก"
           secondaryActions={<BranchContextBar className="hidden sm:flex" />}
           primaryAction={
-            <Link href="/finance/transactions">
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Receipt className="h-4 w-4" />
-                รายการทั้งหมด
-                <ArrowRight className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.print()}>
+                <Printer className="h-3.5 w-3.5" />พิมพ์
               </Button>
-            </Link>
+              <Link href="/finance/transactions">
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Receipt className="h-4 w-4" />
+                  รายการทั้งหมด
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            </div>
           }
         />
 
