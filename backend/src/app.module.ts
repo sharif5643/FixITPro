@@ -48,6 +48,7 @@ import { ChatModule } from './chat/chat.module';
 import { CashDrawerModule } from './cash-drawer/cash-drawer.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { FinanceModule } from './finance/finance.module';
 import { RedisModule } from './redis/redis.module';
 
 @Module({
@@ -118,6 +119,7 @@ import { RedisModule } from './redis/redis.module';
     CashDrawerModule,
     AccountingModule,
     ReconciliationModule,
+    FinanceModule,
   ],
 })
 export class AppModule {}
