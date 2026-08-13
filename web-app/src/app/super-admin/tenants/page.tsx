@@ -36,7 +36,7 @@ function ChangePlanDialog({
   open: boolean; onClose: () => void; tenant: Tenant | null
 }) {
   const qc = useQueryClient()
-  const [plan, setPlan] = useState<TenantPlan>('BASIC')
+  const [plan, setPlan] = useState<TenantPlan>('BUSINESS')
 
   const mutation = useMutation({
     mutationFn: () => api.patch(`/super-admin/tenants/${tenant?.id}/change-plan`, { plan }),
@@ -66,7 +66,7 @@ function ChangePlanDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                {(['TRIAL', 'BASIC', 'PRO', 'ENTERPRISE'] as TenantPlan[]).map((p) => (
+                {(['TRIAL', 'LITE', 'PRO', 'BUSINESS', 'PRIVATE'] as TenantPlan[]).map((p) => (
                   <SelectItem key={p} value={p} className="focus:bg-slate-700 focus:text-white">
                     {TENANT_PLAN_LABEL[p]}
                   </SelectItem>
@@ -218,7 +218,7 @@ function PlanDialog({
   open: boolean; onClose: () => void; tenant: Tenant | null; action: PlanAction
 }) {
   const qc = useQueryClient()
-  const [plan, setPlan] = useState<TenantPlan>('BASIC')
+  const [plan, setPlan] = useState<TenantPlan>('BUSINESS')
   const [durationType, setDurationType] = useState<'preset' | 'custom'>('preset')
   const [duration, setDuration] = useState(30)
   const [customDate, setCustomDate] = useState('')
@@ -259,7 +259,7 @@ function PlanDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                {(['TRIAL', 'BASIC', 'PRO', 'ENTERPRISE'] as TenantPlan[]).map((p) => (
+                {(['TRIAL', 'LITE', 'PRO', 'BUSINESS', 'PRIVATE'] as TenantPlan[]).map((p) => (
                   <SelectItem key={p} value={p} className="focus:bg-slate-700 focus:text-white">
                     {TENANT_PLAN_LABEL[p]}
                   </SelectItem>

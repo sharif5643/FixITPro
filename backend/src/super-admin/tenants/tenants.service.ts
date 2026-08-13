@@ -191,6 +191,7 @@ export class TenantsService {
     }
 
     const newPlan: TenantPlan = dto.plan ?? tenant.plan;
+    if (!PLAN_LIMITS[newPlan]) throw new BadRequestException(`แผน ${newPlan} ไม่รองรับ`);
 
     // Phase 18: Downgrade safety — verify current branch count fits new plan limit
     if (newPlan !== tenant.plan) {
@@ -268,6 +269,7 @@ export class TenantsService {
   }
 
   async changePlan(id: string, plan: TenantPlan) {
+    if (!PLAN_LIMITS[plan]) throw new BadRequestException(`แผน ${plan} ไม่รองรับ`);
     const tenant = await this.prisma.tenant.findUnique({ where: { id } });
     if (!tenant) throw new NotFoundException('ไม่พบข้อมูลร้าน');
     return this.prisma.tenant.update({ where: { id }, data: { plan } });
