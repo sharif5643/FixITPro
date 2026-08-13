@@ -51,6 +51,51 @@ export class FinanceService {
     };
   }
 
+  async getBranchPnL(params: {
+    startDate:  string;
+    endDate:    string;
+    tenantId?:  string | null;
+  }) {
+    const start = new Date(`${params.startDate}T00:00:00+07:00`);
+    const end   = new Date(`${params.endDate}T23:59:59+07:00`);
+
+    const txns = await this.prisma.cashDrawerTransaction.findMany({
+      where: {
+        createdAt: { gte: start, lte: end },
+        ...(params.tenantId ? { tenantId: params.tenantId } : {}),
+      },
+      select: { branchId: true, direction: true, amount: true },
+    });
+
+    const branchIds = [...new Set(txns.map(t => t.branchId).filter(Boolean))] as string[];
+    const branches  = branchIds.length
+      ? await this.prisma.branch.findMany({
+          where: { id: { in: branchIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const nameMap = Object.fromEntries(branches.map(b => [b.id, b.name]));
+
+    const map: Record<string, { branchId: string; branchName: string; totalIn: number; totalOut: number }> = {};
+    for (const t of txns) {
+      const key = t.branchId ?? 'unassigned';
+      if (!map[key]) {
+        map[key] = {
+          branchId:   key,
+          branchName: nameMap[key] ?? (key === 'unassigned' ? 'ไม่ระบุสาขา' : key),
+          totalIn:    0,
+          totalOut:   0,
+        };
+      }
+      if (t.direction === 'IN')  map[key].totalIn  += Number(t.amount);
+      if (t.direction === 'OUT') map[key].totalOut += Number(t.amount);
+    }
+
+    return Object.values(map)
+      .map(b => ({ ...b, net: b.totalIn - b.totalOut }))
+      .sort((a, b) => b.net - a.net);
+  }
+
   async getTransactions(params: {
     startDate?:  string;
     endDate?:    string;

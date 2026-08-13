@@ -33,6 +33,21 @@ export class FinanceController {
     });
   }
 
+  @Get('branch-pnl')
+  @RequirePermission('reports.view')
+  getBranchPnL(
+    @Query('startDate') startDate: string,
+    @Query('endDate')   endDate:   string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    const today = new Date().toISOString().slice(0, 10);
+    return this.financeService.getBranchPnL({
+      startDate: startDate ?? today,
+      endDate:   endDate   ?? today,
+      tenantId,
+    });
+  }
+
   @Get('transactions')
   @RequirePermission('reports.view')
   getTransactions(
