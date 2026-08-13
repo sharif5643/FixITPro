@@ -10,6 +10,7 @@ import {
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
   BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Scale,
+  ListChecks, Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
@@ -51,9 +52,10 @@ const OWNER_PRIMARY: NavSection[] = [
   {
     label: 'การขาย',
     items: [
-      { href: '/sales',         icon: ShoppingCart, label: 'ขายสินค้า (POS)',   permission: 'sales.create', module: 'pos' },
-      { href: '/sales/history', icon: ScrollText,   label: 'ประวัติการขาย',     permission: 'sales.create', module: 'pos' },
-      { href: '/shifts',        icon: Clock,        label: 'เปิด/ปิดกะ' },
+      { href: '/sales',               icon: ShoppingCart, label: 'ขายสินค้า (POS)',   permission: 'sales.create', module: 'pos' },
+      { href: '/sales/history',       icon: ScrollText,   label: 'ประวัติการขาย',     permission: 'sales.create', module: 'pos' },
+      { href: '/shifts',              icon: Clock,        label: 'เปิด/ปิดกะ' },
+      { href: '/shifts/checklist',    icon: ListChecks,   label: 'Checklist เปิด/ปิดร้าน' },
     ],
   },
   {
@@ -84,11 +86,13 @@ const OWNER_SECONDARY: NavSection[] = [
   {
     label: 'การเงิน',
     items: [
-      { href: '/expenses',         icon: Receipt,         label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance' },
-      { href: '/reconciliation',   icon: Scale,           label: 'กระทบยอดเงินสด',  ownerOnly: true,               module: 'finance' },
-      { href: '/suppliers',        icon: Building2,       label: 'ซัพพลายเออร์',    permission: 'purchase.create', module: 'finance' },
-      { href: '/purchase-orders',  icon: ClipboardList,   label: 'ใบสั่งซื้อ (PO)', permission: 'purchase.create', module: 'finance' },
-      { href: '/reports/payables', icon: FileSpreadsheet, label: 'รายงานเจ้าหนี้',  permission: 'reports.view',    module: 'finance' },
+      { href: '/finance',              icon: Wallet,          label: 'ภาพรวมการเงิน',    permission: 'reports.view',    module: 'finance' },
+      { href: '/finance/transactions', icon: ArrowRightLeft,  label: 'รายการบัญชี',      permission: 'reports.view',    module: 'finance' },
+      { href: '/expenses',             icon: Receipt,         label: 'ค่าใช้จ่าย',       permission: 'expenses.manage', module: 'finance' },
+      { href: '/reconciliation',       icon: Scale,           label: 'กระทบยอดเงินสด',   ownerOnly: true,               module: 'finance' },
+      { href: '/suppliers',            icon: Building2,       label: 'ซัพพลายเออร์',     permission: 'purchase.create', module: 'finance' },
+      { href: '/purchase-orders',      icon: ClipboardList,   label: 'ใบสั่งซื้อ (PO)',  permission: 'purchase.create', module: 'finance' },
+      { href: '/reports/payables',     icon: FileSpreadsheet, label: 'รายงานเจ้าหนี้',   permission: 'reports.view',    module: 'finance' },
     ],
   },
   {
@@ -147,10 +151,12 @@ const MANAGER_SECTIONS: NavSection[] = [
   {
     label: 'การขาย',
     items: [
-      { href: '/sales',         icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create',    module: 'pos'     },
-      { href: '/sales/history', icon: ScrollText,   label: 'ประวัติการขาย',   permission: 'sales.create',    module: 'pos'     },
-      { href: '/shifts',        icon: Clock,        label: 'เปิด/ปิดกะ' },
-      { href: '/expenses',      icon: Receipt,      label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance' },
+      { href: '/sales',            icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create',    module: 'pos'     },
+      { href: '/sales/history',    icon: ScrollText,   label: 'ประวัติการขาย',   permission: 'sales.create',    module: 'pos'     },
+      { href: '/shifts',           icon: Clock,        label: 'เปิด/ปิดกะ' },
+      { href: '/shifts/checklist', icon: ListChecks,   label: 'Checklist เปิด/ปิดร้าน' },
+      { href: '/expenses',         icon: Receipt,      label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance' },
+      { href: '/reconciliation',   icon: Scale,        label: 'กระทบยอดเงินสด',  permission: 'expenses.manage', module: 'finance' },
     ],
   },
   {
@@ -169,10 +175,12 @@ const MANAGER_SECTIONS: NavSection[] = [
   {
     label: 'รายงาน',
     items: [
-      { href: '/reports/daily-closing', icon: BookOpen,   label: 'รายงานปิดวัน',     permission: 'reports.view', module: 'report' },
-      { href: '/reports/profit',        icon: TrendingUp, label: 'รายงานกำไร',       permission: 'reports.view', module: 'report' },
-      { href: '/analytics',             icon: BarChart2,  label: 'วิเคราะห์เชิงลึก', permission: 'reports.view', module: 'report' },
-      { href: '/technicians',           icon: UserCog,    label: 'ประสิทธิภาพช่าง',  permission: 'technician.view' },
+      { href: '/reports/daily-closing', icon: BookOpen,       label: 'รายงานปิดวัน',     permission: 'reports.view', module: 'report'  },
+      { href: '/reports/profit',        icon: TrendingUp,     label: 'รายงานกำไร',       permission: 'reports.view', module: 'report'  },
+      { href: '/analytics',             icon: BarChart2,      label: 'วิเคราะห์เชิงลึก', permission: 'reports.view', module: 'report'  },
+      { href: '/finance',               icon: Wallet,         label: 'ภาพรวมการเงิน',    permission: 'reports.view', module: 'finance' },
+      { href: '/finance/transactions',  icon: ArrowRightLeft, label: 'รายการบัญชี',      permission: 'reports.view', module: 'finance' },
+      { href: '/technicians',           icon: UserCog,        label: 'ประสิทธิภาพช่าง',  permission: 'technician.view' },
     ],
   },
   {
@@ -197,9 +205,11 @@ const CASHIER_SECTIONS: NavSection[] = [
   {
     label: 'การขาย',
     items: [
-      { href: '/sales',         icon: ShoppingCart, label: 'ขายสินค้า (POS)', module: 'pos' },
-      { href: '/sales/history', icon: ScrollText,   label: 'ประวัติการขาย',   module: 'pos' },
-      { href: '/shifts',        icon: Clock,        label: 'เปิด/ปิดกะ' },
+      { href: '/sales',            icon: ShoppingCart, label: 'ขายสินค้า (POS)', module: 'pos' },
+      { href: '/sales/history',    icon: ScrollText,   label: 'ประวัติการขาย',   module: 'pos' },
+      { href: '/shifts',           icon: Clock,        label: 'เปิด/ปิดกะ' },
+      { href: '/shifts/checklist', icon: ListChecks,   label: 'Checklist เปิด/ปิดร้าน' },
+      { href: '/expenses',         icon: Receipt,      label: 'ค่าใช้จ่าย',      module: 'finance' },
     ],
   },
   {
@@ -296,6 +306,7 @@ function SidebarNav({ role, hasPerm, hasModule, isOwner }: SidebarNavProps) {
   const pathname     = usePathname()
   const searchParams = useSearchParams()
   const [othersOpen, setOthersOpen] = useState(false)
+  const userId = useAuthStore((s) => s.user?.id)
 
   function isVisible(item: NavItem): boolean {
     if (item.ownerOnly && !isOwner) return false
@@ -321,8 +332,19 @@ function SidebarNav({ role, hasPerm, hasModule, isOwner }: SidebarNavProps) {
   }
 
   function getSections() {
+    if (role === 'TECHNICIAN') {
+      const withStats: NavSection[] = [
+        ...TECHNICIAN_SECTIONS,
+        {
+          label: null,
+          items: [
+            ...(userId ? [{ href: `/technicians/${userId}`, icon: BarChart2, label: 'สถิติของฉัน' }] : []),
+          ],
+        },
+      ]
+      return { primary: withStats }
+    }
     switch (role) {
-      case 'TECHNICIAN':  return { primary: TECHNICIAN_SECTIONS }
       case 'CASHIER':     return { primary: CASHIER_SECTIONS }
       case 'STOCK_STAFF': return { primary: STOCK_STAFF_SECTIONS }
       case 'MANAGER':     return { primary: MANAGER_SECTIONS }
