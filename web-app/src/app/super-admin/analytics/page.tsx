@@ -11,9 +11,12 @@ import { cn } from '@/lib/utils'
 
 const PLAN_COLORS: Record<TenantPlan, string> = {
   TRIAL:      'bg-slate-500',
+  LITE:       'bg-cyan-500',
   BASIC:      'bg-blue-500',
   PRO:        'bg-violet-500',
-  ENTERPRISE: 'bg-emerald-500',
+  BUSINESS:   'bg-emerald-500',
+  ENTERPRISE: 'bg-amber-500',
+  PRIVATE:    'bg-rose-500',
 }
 
 function formatThb(n: number) {

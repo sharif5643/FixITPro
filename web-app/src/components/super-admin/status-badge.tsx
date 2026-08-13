@@ -24,13 +24,16 @@ export function TenantStatusBadge({ status }: { status: TenantStatus }) {
 
 const PLAN_CFG: Record<TenantPlan, { label: string; cls: string }> = {
   TRIAL:      { label: 'Trial',      cls: 'bg-slate-700 text-slate-300' },
+  LITE:       { label: 'Lite',       cls: 'bg-cyan-900/60 text-cyan-300 border border-cyan-700/40' },
   BASIC:      { label: 'Basic',      cls: 'bg-blue-900/60 text-blue-300 border border-blue-700/40' },
   PRO:        { label: 'Pro',        cls: 'bg-violet-900/60 text-violet-300 border border-violet-700/40' },
+  BUSINESS:   { label: 'Business',   cls: 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/40' },
   ENTERPRISE: { label: 'Enterprise', cls: 'bg-amber-900/60 text-amber-300 border border-amber-700/40' },
+  PRIVATE:    { label: 'Private',    cls: 'bg-rose-900/60 text-rose-300 border border-rose-700/40' },
 }
 
 export function PlanBadge({ plan }: { plan: TenantPlan }) {
-  const cfg = PLAN_CFG[plan]
+  const cfg = PLAN_CFG[plan] ?? { label: plan, cls: 'bg-slate-700 text-slate-300' }
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold', cfg.cls)}>
       {cfg.label}

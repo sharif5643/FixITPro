@@ -99,10 +99,13 @@ export default function SuperAdminDashboard() {
   }, [tenants])
 
   const PLAN_BAR: Record<TenantPlan, string> = {
-    TRIAL: 'bg-slate-500',
-    BASIC: 'bg-blue-500',
-    PRO: 'bg-violet-500',
+    TRIAL:      'bg-slate-500',
+    LITE:       'bg-cyan-500',
+    BASIC:      'bg-blue-500',
+    PRO:        'bg-violet-500',
+    BUSINESS:   'bg-emerald-500',
     ENTERPRISE: 'bg-amber-500',
+    PRIVATE:    'bg-rose-500',
   }
 
   return (

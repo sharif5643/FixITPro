@@ -115,10 +115,13 @@ const STATUS_COLOR: Record<TenantStatus, string> = {
 }
 
 const PLAN_COLOR: Record<TenantPlan, string> = {
-  TRIAL: 'bg-slate-700 text-slate-300',
-  BASIC: 'bg-blue-900 text-blue-300',
-  PRO: 'bg-violet-900 text-violet-300',
+  TRIAL:      'bg-slate-700 text-slate-300',
+  LITE:       'bg-cyan-900 text-cyan-300',
+  BASIC:      'bg-blue-900 text-blue-300',
+  PRO:        'bg-violet-900 text-violet-300',
+  BUSINESS:   'bg-emerald-900 text-emerald-300',
   ENTERPRISE: 'bg-amber-900 text-amber-300',
+  PRIVATE:    'bg-rose-900 text-rose-300',
 }
 
 const DURATION_OPTIONS = [

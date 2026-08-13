@@ -228,9 +228,12 @@ describe('Req 5 — Package plan labels', () => {
   it('Branch limits by plan', () => {
     const branchLimits: Record<TenantPlan, number | null> = {
       TRIAL:      1,
+      LITE:       1,
       BASIC:      1,
       PRO:        5,
+      BUSINESS:   10,
       ENTERPRISE: null, // unlimited
+      PRIVATE:    null,
     }
     expect(branchLimits.TRIAL).toBe(1)
     expect(branchLimits.PRO).toBe(5)

@@ -95,7 +95,7 @@ export const ROLE_PRESET_PERMISSIONS: Partial<Record<AppRole, string[]>> = {
 }
 
 export type TenantStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'EXPIRED'
-export type TenantPlan = 'TRIAL' | 'BASIC' | 'PRO' | 'ENTERPRISE'
+export type TenantPlan = 'TRIAL' | 'LITE' | 'BASIC' | 'PRO' | 'BUSINESS' | 'ENTERPRISE' | 'PRIVATE'
 
 export const TENANT_STATUS_LABEL: Record<TenantStatus, string> = {
   PENDING: 'รอเปิดใช้งาน',
@@ -105,10 +105,13 @@ export const TENANT_STATUS_LABEL: Record<TenantStatus, string> = {
 }
 
 export const TENANT_PLAN_LABEL: Record<TenantPlan, string> = {
-  TRIAL: 'Trial',
-  BASIC: 'Basic',
-  PRO: 'Pro',
+  TRIAL:      'Trial',
+  LITE:       'Lite',
+  BASIC:      'Basic',
+  PRO:        'Pro',
+  BUSINESS:   'Business',
   ENTERPRISE: 'Enterprise',
+  PRIVATE:    'Private',
 }
 
 export interface TenantRenewal {
