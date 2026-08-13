@@ -78,29 +78,51 @@ describe('AccountingService', () => {
     service = module.get<AccountingService>(AccountingService);
   });
 
-  // ── 1. Non-CASH: immediate no-op ─────────────────────────────────────────
+  // ── 1. Non-CASH: writes unassigned audit ledger entry (no drawer session) ──
+  // Changed in e128d11: non-CASH now creates a CashDrawerTransaction for audit
+  // instead of returning null — so every payment is captured in the ledger.
 
-  it('returns null without touching DB for TRANSFER', async () => {
+  it('writes unassigned ledger entry for TRANSFER (not null)', async () => {
+    const TRANSFER_TX = { ...CREATED_TX, sessionId: null, cashDrawerId: null, type: 'DEPOSIT' };
+    prisma.cashDrawerTransaction.findUnique.mockResolvedValue(null);
+    prisma.cashDrawerTransaction.create.mockResolvedValue(TRANSFER_TX);
+
     const result = await service.record(makeEntry({ paymentMethod: 'TRANSFER' }));
-    expect(result).toBeNull();
-    expect(prisma.cashDrawerTransaction.findUnique).not.toHaveBeenCalled();
-    expect(prisma.branch.findUnique).not.toHaveBeenCalled();
+
+    expect(result).not.toBeNull();
+    expect(prisma.branch.findUnique).not.toHaveBeenCalled(); // no drawer session check for non-CASH
+    expect(prisma.cashDrawerSession.findFirst).not.toHaveBeenCalled();
+    expect(prisma.cashDrawerTransaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ sessionId: null, cashDrawerId: null }) }),
+    );
   });
 
-  it('returns null for QR', async () => {
-    expect(await service.record(makeEntry({ paymentMethod: 'QR' }))).toBeNull();
+  it('writes unassigned ledger entry for QR', async () => {
+    prisma.cashDrawerTransaction.findUnique.mockResolvedValue(null);
+    prisma.cashDrawerTransaction.create.mockResolvedValue({ ...CREATED_TX, sessionId: null });
+    const result = await service.record(makeEntry({ paymentMethod: 'QR' }));
+    expect(result).not.toBeNull();
   });
 
-  it('returns null for CARD', async () => {
-    expect(await service.record(makeEntry({ paymentMethod: 'CARD' }))).toBeNull();
+  it('writes unassigned ledger entry for CARD', async () => {
+    prisma.cashDrawerTransaction.findUnique.mockResolvedValue(null);
+    prisma.cashDrawerTransaction.create.mockResolvedValue({ ...CREATED_TX, sessionId: null });
+    const result = await service.record(makeEntry({ paymentMethod: 'CARD' }));
+    expect(result).not.toBeNull();
   });
 
-  it('returns null for BANK', async () => {
-    expect(await service.record(makeEntry({ paymentMethod: 'BANK' }))).toBeNull();
+  it('writes unassigned ledger entry for BANK', async () => {
+    prisma.cashDrawerTransaction.findUnique.mockResolvedValue(null);
+    prisma.cashDrawerTransaction.create.mockResolvedValue({ ...CREATED_TX, sessionId: null });
+    const result = await service.record(makeEntry({ paymentMethod: 'BANK' }));
+    expect(result).not.toBeNull();
   });
 
-  it('returns null for CREDIT', async () => {
-    expect(await service.record(makeEntry({ paymentMethod: 'CREDIT' }))).toBeNull();
+  it('writes unassigned ledger entry for CREDIT', async () => {
+    prisma.cashDrawerTransaction.findUnique.mockResolvedValue(null);
+    prisma.cashDrawerTransaction.create.mockResolvedValue({ ...CREATED_TX, sessionId: null });
+    const result = await service.record(makeEntry({ paymentMethod: 'CREDIT' }));
+    expect(result).not.toBeNull();
   });
 
   // ── 2. Idempotency: existing record returned immediately ─────────────────
@@ -191,9 +213,13 @@ describe('AccountingService', () => {
   // ── 5. Non-CASH passes through even with no session ──────────────────────
 
   it('non-cash succeeds without checking session even in STRICT mode', async () => {
+    prisma.cashDrawerTransaction.findUnique.mockResolvedValue(null);
+    prisma.cashDrawerTransaction.create.mockResolvedValue({ ...CREATED_TX, sessionId: null });
+
     const result = await service.record(makeEntry({ paymentMethod: 'QR' }));
-    expect(result).toBeNull();
-    expect(prisma.cashDrawerSession.findFirst).not.toHaveBeenCalled();
+
+    expect(result).not.toBeNull(); // writes audit entry, not null
+    expect(prisma.cashDrawerSession.findFirst).not.toHaveBeenCalled(); // no session check
   });
 
   // ── 6. CASH + open session → creates ledger entry ────────────────────────
