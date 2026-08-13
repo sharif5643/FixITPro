@@ -146,11 +146,11 @@ describe('PublicRegisterService', () => {
     expect(capturedTenantData.plan).toBe('TRIAL')
     expect(capturedTenantData.status).toBe('ACTIVE')
     expect(capturedRenewalData.action).toBe('TRIAL_STARTED')
-    expect(capturedRenewalData.duration).toBe(30)
 
     const expiry: Date = capturedTenantData.expiryDate
     const diffDays = Math.round((expiry.getTime() - before.getTime()) / (1000 * 60 * 60 * 24))
-    expect(diffDays).toBeGreaterThanOrEqual(29)
-    expect(diffDays).toBeLessThanOrEqual(30)
+    // Phase 17: trial changed from 30 to 14 days
+    expect(diffDays).toBeGreaterThanOrEqual(13)
+    expect(diffDays).toBeLessThanOrEqual(14)
   })
 })

@@ -56,7 +56,7 @@ export class ReportsService {
         },
       }),
       this.prisma.stockMovement.findMany({
-        where: { createdAt: { gte: start, lt: end }, type: 'IN', ...(branchId ? { branchId } : {}) },
+        where: { createdAt: { gte: start, lt: end }, type: 'IN', ...(branchId ? { branchId } : this.tenantSvc.branchScope(tenantId)) },
         include: { product: { select: { name: true, sku: true } } },
       }),
       this.prisma.repair.findMany({
@@ -937,7 +937,7 @@ export class ReportsService {
 
       // Package sales in range
       this.prisma.packageSale.findMany({
-        where: { createdAt: { gte: start, lt: end } },
+        where: { createdAt: { gte: start, lt: end }, ...(tenantId ? { createdBy: { tenantId } } : {}) },
         select: {
           id: true,
           carrier: true,

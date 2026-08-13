@@ -55,8 +55,12 @@ export class PermissionsController {
   // ── Per-user grants ──────────────────────────────────────────────────────────
 
   @Get('users/:userId')
-  getUserGrants(@Param('userId') userId: string) {
-    return this.service.getUserGrants(userId);
+  getUserGrants(
+    @Param('userId') userId: string,
+    @CurrentUser('tenantId') callerTenantId: string | null,
+    @CurrentUser('role') callerRole: string,
+  ) {
+    return this.service.getUserGrants(userId, callerTenantId, callerRole);
   }
 
   @Post('users/:userId')

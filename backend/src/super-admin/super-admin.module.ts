@@ -16,9 +16,10 @@ import { SettingsService } from './settings/settings.service';
 import { DataRepairController } from './data-repair/data-repair.controller';
 import { DataRepairService } from './data-repair/data-repair.service';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { PlanLimitsModule } from '../plan-limits/plan-limits.module';
 
 @Module({
-  imports: [AuditLogModule],
+  imports: [AuditLogModule, PlanLimitsModule],
   controllers: [
     TenantsController,
     PaymentsController,

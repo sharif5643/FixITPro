@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service';
+import { PlanLimitsService, PLAN_LIMITS } from '../../plan-limits/plan-limits.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { ActivateTenantDto } from './dto/activate-tenant.dto';
 import { RenewTenantDto } from './dto/renew-tenant.dto';
@@ -15,7 +16,10 @@ const DAY_MS = 86_400_000;
 
 @Injectable()
 export class TenantsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private planLimits: PlanLimitsService,
+  ) {}
 
   async findAll(filter?: string) {
     const now = new Date();
@@ -187,6 +191,21 @@ export class TenantsService {
     }
 
     const newPlan: TenantPlan = dto.plan ?? tenant.plan;
+
+    // Phase 18: Downgrade safety — verify current branch count fits new plan limit
+    if (newPlan !== tenant.plan) {
+      const newLimit = PLAN_LIMITS[newPlan].branches;
+      if (isFinite(newLimit)) {
+        const currentBranches = await this.prisma.branch.count({
+          where: { tenantId: id, status: { notIn: ['SUSPENDED', 'REJECTED'] } },
+        });
+        if (currentBranches > newLimit) {
+          throw new BadRequestException(
+            `ไม่สามารถลดแผนเป็น ${newPlan} ได้ — ปัจจุบันมี ${currentBranches} สาขา แต่แผนใหม่รองรับสูงสุด ${newLimit} สาขา กรุณาลดจำนวนสาขาก่อน`,
+          );
+        }
+      }
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.tenant.update({

@@ -25,9 +25,10 @@ enum TenantStatus {
 
 enum TenantPlan {
   TRIAL
-  BASIC
+  LITE
   PRO
-  ENTERPRISE
+  BUSINESS
+  PRIVATE
 }
 
 enum PaymentStatus {
@@ -286,6 +287,7 @@ model Tenant {
 
   users             User[]
   renewals          TenantRenewal[]
+  addons            TenantAddon[]
   payments          TenantPayment[]
   moduleOverrides   TenantModule[]
   branches          Branch[]
@@ -315,6 +317,23 @@ model TenantRenewal {
 
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+// Phase 13: Add-on purchases — extra storage (99฿/10GB) or extra branches (500฿/branch).
+model TenantAddon {
+  id          String   @id @default(cuid())
+  type        String   // 'STORAGE_GB' | 'BRANCH'
+  quantity    Int      // GB for STORAGE_GB, branch count for BRANCH
+  priceThb    Decimal  @db.Decimal(10, 2)
+  note        String?
+  createdAt   DateTime @default(now())
+
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  grantedById String?
 
   @@index([tenantId])
 }
@@ -891,6 +910,7 @@ model RepairImage {
   repair    Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
   url       String
   category  String?
+  fileSize  Int?     // bytes; null for images uploaded before Phase 10
   createdAt DateTime @default(now())
 
   @@index([repairId])

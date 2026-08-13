@@ -27,9 +27,15 @@ const CREATED_CASH_SALE = {
   id: 'sale-1', receiptNumber: 'RCP-001', total: 200, paymentMethod: 'CASH',
   status: 'COMPLETED', branchId: BRANCH_ID, shiftId: SHIFT_ID, customer: null,
   items: [{ id: 'si-1', productId: 'prod-1', quantity: 1, product: MOCK_PRODUCT }],
+  payments: [{ id: 'pay-1', paymentMethod: 'CASH', amount: 200 }],
 };
 
-const CREATED_TRANSFER_SALE = { ...CREATED_CASH_SALE, paymentMethod: 'TRANSFER', id: 'sale-2' };
+const CREATED_TRANSFER_SALE = {
+  ...CREATED_CASH_SALE,
+  paymentMethod: 'TRANSFER',
+  id: 'sale-2',
+  payments: [{ id: 'pay-2', paymentMethod: 'TRANSFER', amount: 200 }],
+};
 
 // ── Mock factory helpers ───────────────────────────────────────────────────────
 
@@ -81,7 +87,7 @@ describe('SalesService — Workflow tests (RC1)', () => {
     notif      = { notify: jest.fn().mockResolvedValue(undefined), notifyLowStock: jest.fn().mockResolvedValue(undefined) };
 
     prisma = {
-      branch:       { findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE' }) },
+      branch:       { findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE', tenantId: TENANT_ID }) },
       shift:        {
         findFirst:  jest.fn().mockResolvedValue({ id: SHIFT_ID }),
         findUnique: jest.fn().mockResolvedValue({ isActive: true }),
@@ -244,14 +250,22 @@ describe('SalesService — Workflow tests (RC1)', () => {
       );
     });
 
-    it('TC-W11: TRANSFER sale void → accounting.record NOT called', async () => {
+    it('TC-W11: TRANSFER sale void → accounting.record called with TRANSFER direction OUT', async () => {
       (prisma.sale.findFirst as jest.Mock).mockResolvedValue(CREATED_TRANSFER_SALE);
       const tx = makeVoidTx();
       (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
 
       await service.voidSale('sale-2', 'ลูกค้าเปลี่ยนใจ', ACTOR_ID, TENANT_ID);
 
-      expect(accounting.record).not.toHaveBeenCalled();
+      // Multi-payment: each leg (including TRANSFER) gets a SALE_REFUND audit entry
+      expect(accounting.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceType:    ACCOUNTING_SOURCE.SALE_REFUND,
+          direction:     'OUT',
+          paymentMethod: 'TRANSFER',
+        }),
+        expect.anything(),
+      );
     });
 
     it('TC-W12: already VOIDED sale → BadRequestException before tx', async () => {

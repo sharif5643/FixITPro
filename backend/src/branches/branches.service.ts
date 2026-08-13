@@ -11,6 +11,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantService } from '../tenant/tenant.service';
+import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { CreateTransferDto } from './dto/create-transfer.dto';
@@ -23,6 +24,7 @@ export class BranchesService implements OnModuleInit {
     private auditLog: AuditLogService,
     private notif: NotificationsService,
     private tenantSvc: TenantService,
+    private planLimits: PlanLimitsService,
   ) {}
 
   async onModuleInit() {
@@ -162,6 +164,9 @@ export class BranchesService implements OnModuleInit {
   }
 
   async create(dto: CreateBranchDto, actorId?: string, actorName?: string, tenantId?: string | null) {
+    // Enforce plan branch limit before creating
+    if (tenantId) await this.planLimits.assertBranchLimit(tenantId);
+
     if (dto.isDefault) {
       await this.prisma.branch.updateMany({
         where: tenantId ? { tenantId } : {},

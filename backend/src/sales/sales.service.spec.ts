@@ -9,6 +9,7 @@ const MOCK_PRODUCT = {
 const MOCK_SALE = {
   id: 's1', receiptNumber: 'RCP-001', total: 200, paymentMethod: 'CASH',
   items: [{ id: 'si1', productId: 'prod1', quantity: 1 }], customer: null, user: null,
+  payments: [{ id: 'pay1', paymentMethod: 'CASH', amount: 200 }],
 };
 
 describe('SalesService.create — P0-5', () => {
@@ -29,7 +30,7 @@ describe('SalesService.create — P0-5', () => {
     const accounting = { record: jest.fn().mockResolvedValue({ id: 'acctx-1' }) };
     service = new (SalesService as any)(prisma, auditLog, notif, accounting);
 
-    (prisma.branch.findUnique as jest.Mock).mockResolvedValue({ status: 'ACTIVE' });
+    (prisma.branch.findUnique as jest.Mock).mockResolvedValue({ status: 'ACTIVE', tenantId: 't1' });
     (prisma.shift.findFirst as jest.Mock).mockResolvedValue({ id: 'shift1' });
     (prisma.product.findMany as jest.Mock).mockResolvedValue([MOCK_PRODUCT]);
     (prisma.product.findUnique as jest.Mock).mockResolvedValue(MOCK_PRODUCT);

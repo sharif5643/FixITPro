@@ -1,21 +1,24 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { ALL_MODULE_KEYS } from './modules.const';
 
-// Per-tenant cache: { enabledModules, expiresAt }
-const cache = new Map<string, { keys: string[]; expiresAt: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_SEC = 5 * 60; // 5 minutes
+const cacheKey = (tenantId: string) => `module_cache:${tenantId}`;
 
 @Injectable()
 export class ModulesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async getEnabledModules(tenantId: string | null): Promise<string[]> {
     // No tenant (SUPER_ADMIN or standalone) → all modules
     if (!tenantId) return ALL_MODULE_KEYS;
 
-    const cached = cache.get(tenantId);
-    if (cached && cached.expiresAt > Date.now()) return cached.keys;
+    const raw = await this.redis.get(cacheKey(tenantId));
+    if (raw) return JSON.parse(raw) as string[];
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -46,12 +49,12 @@ export class ModulesService {
     }
 
     const keys = Array.from(enabled);
-    cache.set(tenantId, { keys, expiresAt: Date.now() + CACHE_TTL_MS });
+    await this.redis.set(cacheKey(tenantId), JSON.stringify(keys), CACHE_TTL_SEC);
     return keys;
   }
 
-  invalidateCache(tenantId: string) {
-    cache.delete(tenantId);
+  async invalidateCache(tenantId: string) {
+    await this.redis.del(cacheKey(tenantId));
   }
 
   // ── Super Admin: Module Registry ────────────────────────────────────────────
@@ -94,7 +97,7 @@ export class ModulesService {
       where: { plan: packageKey as any },
       select: { id: true },
     });
-    for (const t of affected) cache.delete(t.id);
+    await Promise.all(affected.map((t) => this.redis.del(cacheKey(t.id))));
 
     return this.getPackage(packageKey);
   }
@@ -155,7 +158,7 @@ export class ModulesService {
       create: { tenantId, moduleKey, enabled, expiresAt: expiresAt ? new Date(expiresAt) : null },
       update: { enabled, expiresAt: expiresAt ? new Date(expiresAt) : null, updatedAt: new Date() },
     });
-    this.invalidateCache(tenantId);
+    await this.invalidateCache(tenantId);
     return result;
   }
 
@@ -167,7 +170,7 @@ export class ModulesService {
     await this.prisma.tenantModule.delete({
       where: { tenantId_moduleKey: { tenantId, moduleKey } },
     });
-    this.invalidateCache(tenantId);
+    await this.invalidateCache(tenantId);
     return { deleted: true };
   }
 
@@ -186,7 +189,7 @@ export class ModulesService {
     const existing = await this.prisma.appModule.findUnique({ where: { key } });
     if (!existing) throw new NotFoundException(`Module '${key}' not found`);
     const updated = await this.prisma.appModule.update({ where: { key }, data });
-    if (data.isActive === false) cache.clear();
+    if (data.isActive === false) await this.redis.delByPattern('module_cache:*');
     return updated;
   }
 
@@ -194,7 +197,7 @@ export class ModulesService {
     const existing = await this.prisma.appModule.findUnique({ where: { key } });
     if (!existing) throw new NotFoundException(`Module '${key}' not found`);
     await this.prisma.appModule.delete({ where: { key } });
-    cache.clear();
+    await this.redis.delByPattern('module_cache:*');
     return { deleted: true };
   }
 

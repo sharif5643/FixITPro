@@ -1,21 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 
 const SUB_ID = 1;
 const TRIAL_DAYS = 30;
 
 const PLAN_LABELS: Record<string, string> = {
-  TRIAL: 'Founding Customer (ทดลองใช้)',
-  BASIC: 'Starter',
-  PRO: 'Business',
-  ENTERPRISE: 'Enterprise',
+  TRIAL:    'ทดลองใช้งาน (14 วัน)',
+  LITE:     'LITE — 1 สาขา / 5 GB',
+  PRO:      'PRO — 1 สาขา / 30 GB',
+  BUSINESS: 'BUSINESS — 3 สาขา / 100 GB',
+  PRIVATE:  'PRIVATE — Custom Contract',
 };
 
 const PLAN_BRANCH_LIMITS: Record<string, string> = {
-  TRIAL: '1 สาขา',
-  BASIC: '1 สาขา',
-  PRO: '3 สาขา',
-  ENTERPRISE: 'ไม่จำกัด',
+  TRIAL:    '1 สาขา',
+  LITE:     '1 สาขา',
+  PRO:      '1 สาขา',
+  BUSINESS: '3 สาขา',
+  PRIVATE:  'ตามสัญญา',
 };
 
 @Injectable()
@@ -130,6 +132,69 @@ export class SubscriptionService {
         createdAt: r.createdAt.toISOString(),
       })),
     };
+  }
+
+  // ── Tenant-scoped operations (for OWNER) ──────────────────────────────────
+
+  async updateTenantNotes(tenantId: string, notes: string | undefined) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    await this.prisma.tenant.update({ where: { id: tenantId }, data: { notes } });
+    return this.getSubscriptionForTenant(tenantId);
+  }
+
+  async requestTenantRenewal(tenantId: string, dto: { note?: string; action?: string }) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { plan: true, expiryDate: true },
+    });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    // Create a pending renewal record. SUPER_ADMIN must verify payment to activate.
+    const currentExpiry = tenant.expiryDate ?? new Date();
+    await this.prisma.tenantRenewal.create({
+      data: {
+        tenantId,
+        action: dto.action ?? 'RENEWAL_REQUEST',
+        plan: tenant.plan,
+        duration: 30,
+        expiryDate: currentExpiry,
+        note: dto.note ?? 'รออนุมัติจาก Super Admin',
+      },
+    });
+
+    return this.getSubscriptionForTenant(tenantId);
+  }
+
+  // ── Phase 19: Add-ons (SA only) ──────────────────────────────────────────────
+
+  async grantAddon(tenantId: string, dto: {
+    type: string;
+    quantity: number;
+    priceThb: number;
+    note?: string;
+    grantedById?: string;
+  }) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    return this.prisma.tenantAddon.create({
+      data: {
+        tenantId,
+        type:        dto.type,
+        quantity:    dto.quantity,
+        priceThb:    dto.priceThb,
+        note:        dto.note,
+        grantedById: dto.grantedById,
+      },
+    });
+  }
+
+  async getAddons(tenantId: string) {
+    return this.prisma.tenantAddon.findMany({
+      where:   { tenantId },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async addRenewal(dto: {

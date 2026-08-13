@@ -237,6 +237,7 @@ export class ReconciliationService {
     const entries = await this.prisma.cashDrawerTransaction.findMany({
       where: {
         branchId,
+        ...(tenantId ? { tenantId } : {}),
         referenceId:   { not: null },
         referenceType: { not: null },
         createdAt:     dateRange,
@@ -292,6 +293,7 @@ export class ReconciliationService {
     const entries = await this.prisma.cashDrawerTransaction.findMany({
       where: {
         branchId,
+        ...(tenantId ? { tenantId } : {}),
         referenceId:   { not: null },
         referenceType: { not: null },
         type:          { not: 'REVERSAL' },
@@ -328,6 +330,7 @@ export class ReconciliationService {
     const closedSessions = await this.prisma.cashDrawerSession.findMany({
       where: {
         branchId,
+        ...(tenantId ? { tenantId } : {}),
         status:   'CLOSED',
         closedAt: { not: null },
       },
@@ -368,6 +371,7 @@ export class ReconciliationService {
     const entries = await this.prisma.cashDrawerTransaction.findMany({
       where: {
         branchId,
+        ...(tenantId ? { tenantId } : {}),
         sessionId:    null,
         paymentMethod: 'CASH',
         createdAt:    dateRange,

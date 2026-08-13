@@ -13,6 +13,8 @@ export class TenantActiveGuard implements CanActivate {
 
     if (!user || user.role === 'SUPER_ADMIN') return true;
     if (!user.tenantId) return true;
+    // GET requests are read-only — allow even for expired tenants so users can view their data
+    if (request.method === 'GET') return true;
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: user.tenantId },

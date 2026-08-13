@@ -14,6 +14,8 @@ import {
   Clock,
   RefreshCw,
   GitBranch,
+  HardDrive,
+  BarChart3,
 } from 'lucide-react'
 import { formatThaiMoney } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/page-header'
@@ -29,6 +31,15 @@ interface SubscriptionRenewal {
   amount?: number | null
   note?: string | null
   createdAt: string
+}
+
+interface UsageData {
+  plan: string
+  branches: { used: number; limit: number | null; isUnlimited: boolean }
+  storage: {
+    usedBytes: number; limitBytes: number | null; isUnlimited: boolean
+    usedMB: number; limitGB: number | null; percentUsed: number
+  }
 }
 
 interface SubscriptionData {
@@ -80,6 +91,13 @@ export default function SubscriptionPage() {
     queryKey: ['subscription'],
     queryFn: async () => (await api.get('/subscription')).data,
     staleTime: 30_000,
+  })
+
+  const { data: usage } = useQuery<UsageData>({
+    queryKey: ['subscription', 'usage'],
+    queryFn: async () => (await api.get('/subscription/usage')).data,
+    staleTime: 60_000,
+    enabled: user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN',
   })
 
   if (isLoading) {
@@ -207,6 +225,75 @@ export default function SubscriptionPage() {
           <span className="font-semibold text-blue-700">ผู้ดูแลระบบ</span>
         </div>
       </div>
+
+      {/* Usage Card */}
+      {usage && (
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <BarChart3 className="h-4 w-4 text-blue-600" />
+            <h2 className="font-semibold text-slate-900 dark:text-white">การใช้งาน</h2>
+          </div>
+
+          <div className="space-y-5">
+            {/* Branch usage */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                  <GitBranch className="h-4 w-4 text-muted-foreground" />
+                  <span>สาขา</span>
+                </div>
+                <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
+                  {usage.branches.used}
+                  {' / '}
+                  {usage.branches.isUnlimited ? '∞' : usage.branches.limit}
+                </span>
+              </div>
+              {!usage.branches.isUnlimited && usage.branches.limit != null && (
+                <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-blue-500 transition-all"
+                    style={{ width: `${Math.min(100, (usage.branches.used / usage.branches.limit) * 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Storage usage */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                  <HardDrive className="h-4 w-4 text-muted-foreground" />
+                  <span>พื้นที่จัดเก็บ</span>
+                </div>
+                <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
+                  {usage.storage.usedMB} MB
+                  {' / '}
+                  {usage.storage.isUnlimited ? '∞' : `${usage.storage.limitGB} GB`}
+                </span>
+              </div>
+              {!usage.storage.isUnlimited && usage.storage.limitBytes != null && (
+                <>
+                  <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        usage.storage.percentUsed >= 90 ? 'bg-red-500'
+                        : usage.storage.percentUsed >= 70 ? 'bg-amber-500'
+                        : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${Math.min(100, usage.storage.percentUsed)}%` }}
+                    />
+                  </div>
+                  {usage.storage.percentUsed >= 80 && (
+                    <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
+                      ใช้ไปแล้ว {usage.storage.percentUsed}% — พิจารณาซื้อ Storage เพิ่ม
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Renewal History */}
       <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6">

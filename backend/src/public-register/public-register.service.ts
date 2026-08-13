@@ -29,7 +29,7 @@ export class PublicRegisterService {
     const hashedPassword = await bcrypt.hash(dto.password, 12)
     const now = new Date()
     const expiryDate = new Date(now)
-    expiryDate.setDate(expiryDate.getDate() + 30)
+    expiryDate.setDate(expiryDate.getDate() + 14) // Phase 17: 14-day trial
 
     const notes = JSON.stringify({
       businessType: dto.businessType ?? null,
@@ -86,9 +86,9 @@ export class PublicRegisterService {
         data: {
           action: 'TRIAL_STARTED',
           plan: 'TRIAL',
-          duration: 30,
+          duration: 14, // Phase 17: 14-day trial
           expiryDate,
-          note: 'สมัครทดลองใช้งาน 30 วัน',
+          note: 'สมัครทดลองใช้งาน 14 วัน',
           tenantId: tenant.id,
         },
       })

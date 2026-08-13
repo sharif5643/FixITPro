@@ -2,11 +2,13 @@ import {
   Controller,
   Get,
   Param,
+  Req,
   Res,
   UseGuards,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { createReadStream, existsSync } from 'fs';
 import { join, resolve, extname, sep } from 'path';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -22,6 +24,9 @@ const MIME: Record<string, string> = {
   '.gif':  'image/gif',
 };
 
+// Phase 9: UUIDs (cuid/uuid) used as tenant directory names — 20+ char alphanumeric/dash
+const TENANT_PATH_RE = /^[a-z0-9_-]{20,}\//i;
+
 @UseGuards(JwtAuthGuard)
 @Controller('files')
 export class FilesController {
@@ -34,10 +39,24 @@ export class FilesController {
   // Serves authenticated file access at GET /api/v1/files/<relative-path>
   // Path traversal prevention: resolve() is applied and the result must stay
   // inside uploadsBase. Extension whitelist ensures only images are served.
+  // Phase 9: tenant-scoped paths enforce isolation — a user can only access
+  // files under their own tenantId directory (or legacy shared paths).
   @Get('*')
-  serveFile(@Param('0') filePath: string, @Res() res: Response) {
+  serveFile(@Param('0') filePath: string, @Req() req: Request, @Res() res: Response) {
     // Strip any leading slashes to prevent path.join treating it as absolute
     const relative = (filePath ?? '').replace(/^[/\\]+/, '');
+
+    // Phase 12: tenant path isolation — deny cross-tenant file access
+    const user = (req as any).user;
+    if (TENANT_PATH_RE.test(relative)) {
+      const pathTenantId = relative.split('/')[0];
+      const callerTenantId = user?.tenantId ?? null;
+      const callerRole = user?.role ?? '';
+      // SUPER_ADMIN can access all tenants; others must match their own tenantId
+      if (callerRole !== 'SUPER_ADMIN' && pathTenantId !== callerTenantId) {
+        throw new ForbiddenException();
+      }
+    }
 
     const fullPath = resolve(join(this.uploadsBase, relative));
 

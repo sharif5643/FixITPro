@@ -49,7 +49,7 @@ describe('TenantActiveGuard', () => {
     }).compile();
 
     guard = module.get<TenantActiveGuard>(TenantActiveGuard);
-    jest.clearAllMocks();
+    jest.resetAllMocks(); // resetAllMocks clears implementations; clearAllMocks does not
   });
 
   it('should allow SUPER_ADMIN to write regardless of tenant expiry', async () => {

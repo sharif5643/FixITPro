@@ -66,7 +66,7 @@ const DEMO_TENANTS: DemoTenant[] = [
     email: 'demo.charifpc@fixitpro.dev',
     phone: '081-234-5678',
     status: 'ACTIVE',
-    plan: 'ENTERPRISE',
+    plan: 'BUSINESS',
     startDate: new Date('2026-06-07'),
     expiryDate: new Date('2027-06-07'),
     notes: 'Enterprise plan — flagship demo tenant',
@@ -88,7 +88,7 @@ const DEMO_TENANTS: DemoTenant[] = [
     email: 'demo.smartfix@fixitpro.dev',
     phone: '083-456-7890',
     status: 'SUSPENDED',
-    plan: 'BASIC',
+    plan: 'LITE',
     startDate: new Date('2026-04-01'),
     expiryDate: new Date('2026-05-01'),
     notes: 'Starter plan — suspended after rejected payment',
@@ -99,7 +99,7 @@ const DEMO_TENANTS: DemoTenant[] = [
     email: 'demo.bbit@fixitpro.dev',
     phone: '084-567-8901',
     status: 'EXPIRED',
-    plan: 'BASIC',
+    plan: 'LITE',
     startDate: new Date('2026-04-07'),
     expiryDate: new Date('2026-05-07'),  // expired 1 month ago
     notes: 'Starter plan — expired, pending renewal payment',
@@ -269,10 +269,11 @@ async function seedRenewals(
   if (td.status === 'PENDING') return; // pending tenants have no renewals yet
 
   const planDuration: Record<TenantPlan, number> = {
-    TRIAL: 30,
-    BASIC: 30,
-    PRO: 30,
-    ENTERPRISE: 365,
+    TRIAL:    14,
+    LITE:     30,
+    PRO:      30,
+    BUSINESS: 365,
+    PRIVATE:  365,
   };
 
   // Initial activation renewal
@@ -313,10 +314,11 @@ async function seedPayments(
   ownerId: string,
 ) {
   const planPricing: Record<TenantPlan, number> = {
-    TRIAL: 0,
-    BASIC: 1500,
-    PRO: 2500,
-    ENTERPRISE: 9900,
+    TRIAL:    0,
+    LITE:     1500,
+    PRO:      2500,
+    BUSINESS: 9900,
+    PRIVATE:  0,
   };
   const amount = planPricing[td.plan];
 
@@ -325,7 +327,7 @@ async function seedPayments(
     await prisma.tenantPayment.create({
       data: {
         tenantId,
-        plan: 'ENTERPRISE',
+        plan: 'BUSINESS',
         duration: 365,
         paymentReference: 'TRF-CHF-20260601',
         paymentDate: new Date('2026-06-01'),
@@ -376,7 +378,7 @@ async function seedPayments(
     await prisma.tenantPayment.create({
       data: {
         tenantId,
-        plan: 'BASIC',
+        plan: 'LITE',
         duration: 30,
         paymentReference: 'TRF-SMF-20260420',
         paymentDate: new Date('2026-04-20'),
@@ -393,7 +395,7 @@ async function seedPayments(
     await prisma.tenantPayment.create({
       data: {
         tenantId,
-        plan: 'BASIC',
+        plan: 'LITE',
         duration: 30,
         paymentReference: 'TRF-BBI-20260407',
         paymentDate: new Date('2026-04-07'),
@@ -438,10 +440,11 @@ async function seedPayments(
 
 function planLabel(plan: TenantPlan): string {
   const labels: Record<TenantPlan, string> = {
-    TRIAL: 'Founding Customer',
-    BASIC: 'Starter',
-    PRO: 'Business',
-    ENTERPRISE: 'Enterprise',
+    TRIAL:    'ทดลองใช้งาน',
+    LITE:     'LITE',
+    PRO:      'PRO',
+    BUSINESS: 'BUSINESS',
+    PRIVATE:  'PRIVATE',
   };
   return labels[plan];
 }

@@ -48,6 +48,7 @@ import { ChatModule } from './chat/chat.module';
 import { CashDrawerModule } from './cash-drawer/cash-drawer.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   controllers: [HealthController],
@@ -74,6 +75,7 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
     ]),
     ScheduleModule.forRoot(),
     DatabaseModule,
+    RedisModule,
     AuthModule,
     UsersModule,
     CategoriesModule,

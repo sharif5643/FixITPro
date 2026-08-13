@@ -299,10 +299,10 @@ export class RepairsService {
     return repair;
   }
 
-  async addImages(repairId: string, urls: string[]) {
+  async addImages(repairId: string, images: { url: string; fileSize?: number }[]) {
     await this.findOne(repairId);
     return this.prisma.repairImage.createMany({
-      data: urls.map((url) => ({ repairId, url })),
+      data: images.map(({ url, fileSize }) => ({ repairId, url, fileSize })),
     });
   }
 

@@ -31,12 +31,16 @@ export class SalesService {
     await tx.product.update({ where: { id: productId }, data: { stock: total } });
   }
 
-  private async assertBranchActive(branchId: string) {
+  private async assertBranchActive(branchId: string, tenantId?: string | null) {
     const branch = await this.prisma.branch.findUnique({
       where: { id: branchId },
-      select: { status: true },
+      select: { status: true, tenantId: true },
     });
     if (!branch) throw new NotFoundException('ไม่พบสาขา');
+    // Tenant isolation: non-SUPER_ADMIN cannot create sales on another tenant's branch
+    if (tenantId && branch.tenantId !== tenantId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์ใช้งานสาขานี้');
+    }
     if ((branch as any).status !== 'ACTIVE') {
       throw new ForbiddenException('สาขานี้ยังไม่ได้รับการอนุมัติหรือถูกระงับการใช้งาน');
     }
@@ -84,7 +88,7 @@ export class SalesService {
   }
 
   async create(dto: CreateSaleDto, userId: string, branchId?: string, tenantId?: string | null) {
-    if (branchId) await this.assertBranchActive(branchId);
+    if (branchId) await this.assertBranchActive(branchId, tenantId);
 
     const activeShift = await this.prisma.shift.findFirst({
       where: { userId, isActive: true },

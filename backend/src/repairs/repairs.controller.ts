@@ -12,13 +12,16 @@ import {
   UploadedFiles,
   BadRequestException,
   ForbiddenException,
+  PayloadTooLargeException,
 } from '@nestjs/common';
+import { unlinkSync } from 'fs';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { repairsUploadDir } from '../common/storage-paths';
+import { repairsUploadDir, uploadsBaseDir } from '../common/storage-paths';
 import { RepairsService } from './repairs.service';
+import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { CreateRepairDto } from './dto/create-repair.dto';
 import { UpdateRepairDto } from './dto/update-repair.dto';
 import { AddRepairPartDto } from './dto/add-repair-part.dto';
@@ -34,14 +37,10 @@ import { RequireModule } from '../common/decorators/require-module.decorator';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-const UPLOADS_DIR = repairsUploadDir;
-if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
-
-// M-4 FIX: whitelist of allowed image extensions (lowercase).
+// Phase 9: Tenant-scoped upload paths. Fallback to legacy 'repairs/' for non-tenant contexts.
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
 
 // M-4 FIX: derive safe extension from MIME type rather than original filename
-// so a file named "shell.jpg.php" cannot smuggle in a .php extension.
 const MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/png':  '.png',
@@ -50,7 +49,15 @@ const MIME_TO_EXT: Record<string, string> = {
 };
 
 const imageStorage = diskStorage({
-  destination: UPLOADS_DIR,
+  destination: (req: any, _file, cb) => {
+    // Use tenantId from JWT if present; fall back to legacy shared dir
+    const tenantId = req.user?.tenantId;
+    const dir = tenantId
+      ? join(uploadsBaseDir, tenantId, 'repairs')
+      : repairsUploadDir;
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
   filename: (_req, file, cb) => {
     const unique  = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const safeExt = MIME_TO_EXT[file.mimetype] ?? '.jpg';
@@ -62,7 +69,10 @@ const imageStorage = diskStorage({
 @UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
 @Controller('repairs')
 export class RepairsController {
-  constructor(private repairsService: RepairsService) {}
+  constructor(
+    private repairsService: RepairsService,
+    private planLimits: PlanLimitsService,
+  ) {}
 
   @Post()
   @UseGuards(PermissionGuard)
@@ -193,15 +203,34 @@ export class RepairsController {
       limits: { fileSize: 10 * 1024 * 1024 },
     }),
   )
-  uploadImages(
+  async uploadImages(
     @Param('id') id: string,
     @UploadedFiles() files: Express.Multer.File[],
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
     if (!files?.length) throw new BadRequestException('No files uploaded');
-    return this.repairsService.addImages(
-      id,
-      files.map((f) => `/uploads/repairs/${f.filename}`),
-    );
+
+    // Phase 10: enforce storage quota before persisting. Files are already on disk
+    // from multer; clean them up if the tenant is over their plan limit.
+    if (tenantId) {
+      const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
+      try {
+        await this.planLimits.assertStorageLimit(tenantId, totalBytes);
+      } catch (err) {
+        for (const f of files) {
+          try { unlinkSync(f.path); } catch { /* ignore cleanup errors */ }
+        }
+        throw err;
+      }
+    }
+
+    const images = files.map((f) => ({
+      url:      tenantId
+        ? `/uploads/${tenantId}/repairs/${f.filename}`
+        : `/uploads/repairs/${f.filename}`,
+      fileSize: f.size,
+    }));
+    return this.repairsService.addImages(id, images);
   }
 
   @Post(':id/payment')

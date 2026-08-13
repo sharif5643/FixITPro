@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -197,7 +197,17 @@ export class PermissionsService implements OnModuleInit {
 
   // ── Per-user permission grants ──────────────────────────────────────────────
 
-  async getUserGrants(userId: string) {
+  async getUserGrants(userId: string, callerTenantId?: string | null, callerRole?: string) {
+    // Tenant isolation: OWNER/MANAGER can only read grants for users in their own tenant
+    if (callerRole !== 'SUPER_ADMIN' && callerTenantId) {
+      const target = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { tenantId: true },
+      });
+      if (!target || target.tenantId !== callerTenantId) {
+        throw new ForbiddenException('ไม่มีสิทธิ์ดูข้อมูลผู้ใช้ของ Tenant อื่น');
+      }
+    }
     const rows = await this.prisma.userPermission.findMany({
       where: { userId },
       select: { permission: true, createdAt: true },

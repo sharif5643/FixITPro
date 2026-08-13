@@ -51,9 +51,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromExtractors([
         // Primary: HttpOnly cookie (CHB-01)
         (req: any) => req?.cookies?.access_token ?? null,
-        // Fallback: Bearer header — kept for 30-day APK transition window.
-        // Remove this extractor after all SUNMI APKs are confirmed on cookie auth.
+        // Fallback: Bearer header — controlled by BEARER_AUTH_ALLOWED env var.
+        // Set BEARER_AUTH_ALLOWED=false to disable once all SUNMI APKs are on cookie auth.
         (req: any) => {
+          if ((configService as any).get('BEARER_AUTH_ALLOWED') === 'false') return null;
           const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
           if (token) {
             logger.warn(`[CHB-01] Bearer fallback used — IP: ${req?.ip ?? 'unknown'}, path: ${req?.url ?? 'unknown'}`);
