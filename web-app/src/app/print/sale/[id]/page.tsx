@@ -57,7 +57,12 @@ export default function SalePrintPage() {
         .print-outer {
           display: block !important;
           padding: 0 !important;
+          min-height: 0 !important;
           background: transparent !important;
+        }
+        .print-mid {
+          display: block !important;
+          padding: 0 !important;
         }
       }
     `
@@ -111,7 +116,7 @@ export default function SalePrintPage() {
       </div>
 
       {/* Receipt */}
-      <div className="flex justify-center p-4 no-print-padding">
+      <div className="flex justify-center p-4 print-mid">
         {isLoading ? (
           <div className="flex items-center gap-2 text-gray-500 py-20">
             <Loader2 className="h-6 w-6 animate-spin" />

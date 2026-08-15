@@ -40,8 +40,14 @@ export default function RepairPrintPage() {
     const style = document.createElement('style')
     style.id = 'print-page-size'
     style.textContent = `
-      @page { size: ${paperWidth === 'A4' ? 'A4 portrait' : `${paperWidth} auto`}; margin: ${paperWidth === 'A4' ? '10mm' : '3mm'}; }
-      @media print { .no-print { display: none !important; } }
+      @page { size: ${paperWidth === 'A4' ? 'A4 portrait' : `${paperWidth} auto`}; margin: ${paperWidth === 'A4' ? '10mm' : '2mm'}; }
+      @media print {
+        html, body { min-height: 0 !important; height: auto !important; background: #fff !important; margin: 0 !important; padding: 0 !important; }
+        .no-print { display: none !important; }
+        .print-outer  { display: block !important; padding: 0 !important; min-height: 0 !important; background: transparent !important; }
+        .print-mid    { display: block !important; padding: 0 !important; }
+        .print-wrapper { display: block !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; background: transparent !important; }
+      }
     `
     document.head.appendChild(style)
     return () => document.getElementById('print-page-size')?.remove()
@@ -64,7 +70,7 @@ export default function RepairPrintPage() {
   }, [data, printed, isApkMode])
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 print-outer">
       {/* Print controls — hidden when printing or in APK iframe mode */}
       <div className={`no-print sticky top-0 z-10 flex items-center justify-between gap-2 bg-white border-b px-4 py-2 shadow-sm${isApkMode ? ' hidden' : ''}`}>
         <span className="text-sm font-semibold text-gray-700">
@@ -89,7 +95,7 @@ export default function RepairPrintPage() {
       </div>
 
       {/* Receipt */}
-      <div className="flex justify-center p-6">
+      <div className="flex justify-center p-6 print-mid">
         {isLoading ? (
           <div className="flex items-center gap-2 text-gray-500 py-20">
             <Loader2 className="h-6 w-6 animate-spin" />
@@ -98,7 +104,7 @@ export default function RepairPrintPage() {
         ) : isError ? (
           <p className="text-red-600 py-20">ไม่สามารถโหลดข้อมูลได้</p>
         ) : data ? (
-          <div className="bg-white shadow-md p-4">
+          <div className="bg-white shadow-md p-4 print-wrapper">
             {dual ? (
               <>
                 {/* ใบร้าน */}

@@ -16,7 +16,7 @@ interface SaleReceiptProps {
 }
 
 export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceiptProps) {
-  const widthClass = paperWidth === '58mm' ? 'w-[200px]' : 'w-[280px]'
+  const widthClass = paperWidth === '58mm' ? 'w-[200px]' : 'w-[300px]'
 
   const shopName      = settings?.shopName      || 'FixITPro'
   const shopPhone     = settings?.shopPhone     || ''
@@ -62,7 +62,7 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
         {logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <div className="flex justify-center mb-1">
-            <img src={logoUrl} alt="logo" className="h-12 w-auto object-contain" />
+            <img src={logoUrl} alt="logo" className="h-14 w-auto object-contain" />
           </div>
         )}
         <p className="font-bold text-sm tracking-widest">{shopName}</p>

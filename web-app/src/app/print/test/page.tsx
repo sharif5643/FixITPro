@@ -2,7 +2,10 @@
 
 import { Suspense, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { Printer, X } from 'lucide-react'
+import api from '@/lib/api'
+import type { ShopSettings } from '@/types'
 
 type PW = '58mm' | '80mm'
 
@@ -12,14 +15,23 @@ function TestPrintContent() {
   const autoPrint     = searchParams.get('autoprint') === '1'
   const printFiredRef = useRef(false)
 
+  const { data: settings } = useQuery<ShopSettings>({
+    queryKey: ['settings'],
+    queryFn: async () => (await api.get('/settings')).data,
+    staleTime: 60_000,
+  })
+
   useEffect(() => {
     const style = document.createElement('style')
     style.id    = 'print-page-size'
     style.textContent = `
       @page { size: ${paperWidth} auto; margin: 2mm; }
       @media print {
-        html, body { min-height: auto !important; background: #fff !important; margin: 0 !important; padding: 0 !important; }
+        html, body { min-height: 0 !important; height: auto !important; background: #fff !important; margin: 0 !important; padding: 0 !important; }
         .no-print { display: none !important; }
+        .print-outer  { display: block !important; padding: 0 !important; min-height: 0 !important; background: transparent !important; }
+        .print-mid    { display: block !important; padding: 0 !important; }
+        .print-wrapper { display: block !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; background: transparent !important; }
       }
     `
     document.head.appendChild(style)
@@ -43,10 +55,16 @@ function TestPrintContent() {
   }, [autoPrint])
 
   const now    = new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
-  const lineW  = paperWidth === '58mm' ? 200 : 280
+  const lineW  = paperWidth === '58mm' ? 200 : 300
+
+  const logoUrl   = settings?.logoUrl   || ''
+  const shopName  = settings?.shopName  || 'FixITPro'
+  const shopPhone = settings?.shopPhone || ''
+
+  const Divider = () => <div className="border-b border-dashed border-gray-400 my-2" />
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 print-outer">
       <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-2 bg-white border-b px-4 py-2 shadow-sm">
         <span className="text-sm font-semibold text-gray-700">
           ใบเสร็จทดสอบ — {paperWidth}
@@ -69,23 +87,47 @@ function TestPrintContent() {
         </div>
       </div>
 
-      <div className="flex justify-center p-4">
-        <div className="bg-white shadow-md p-4 font-mono text-xs" style={{ width: `${lineW}px` }}>
-          <div className="text-center space-y-0.5 border-b border-dashed pb-2 mb-2">
-            <p className="font-bold text-sm">*** ทดสอบเครื่องพิมพ์ ***</p>
-            <p className="text-xs text-gray-500">{now}</p>
+      <div className="flex justify-center p-4 print-mid">
+        <div className="bg-white shadow-md print-wrapper font-mono text-[11px] leading-relaxed" style={{ width: `${lineW}px` }}>
+          {/* Shop header — matches real receipt */}
+          <div className="text-center space-y-0.5 pb-2">
+            {logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <div className="flex justify-center mb-1">
+                <img src={logoUrl} alt="logo" className="h-14 w-auto object-contain" />
+              </div>
+            )}
+            <p className="font-bold text-sm tracking-widest">{shopName}</p>
+            {shopPhone && <p>โทร: {shopPhone}</p>}
           </div>
-          <div className="space-y-1">
-            <div className="flex justify-between"><span>สินค้าทดสอบ 1</span><span>×1  ฿100</span></div>
-            <div className="flex justify-between"><span>สินค้าทดสอบ 2</span><span>×2  ฿200</span></div>
+          <Divider />
+
+          {/* Test label */}
+          <div className="text-center space-y-0.5 pb-1">
+            <p className="font-bold">*** ทดสอบเครื่องพิมพ์ ***</p>
+            <p className="text-gray-600">{now}</p>
           </div>
-          <div className="border-t border-dashed mt-2 pt-2 space-y-1">
-            <div className="flex justify-between"><span>ยอดรวม</span><span>฿300</span></div>
-            <div className="flex justify-between font-bold border-t border-dashed pt-1 mt-1">
-              <span>ยอดสุทธิ</span><span>฿300</span>
-            </div>
+          <Divider />
+
+          {/* Dummy items */}
+          <div className="space-y-1 pb-1">
+            <div className="flex justify-between"><span>สินค้าทดสอบ 1</span><span>×1  ฿100.00</span></div>
+            <div className="flex justify-between"><span>สินค้าทดสอบ 2</span><span>×2  ฿200.00</span></div>
           </div>
-          <div className="text-center mt-3 border-t border-dashed pt-2 text-gray-500">
+          <Divider />
+
+          {/* Totals */}
+          <div className="space-y-1 pb-1">
+            <div className="flex justify-between"><span>ยอดรวม</span><span>฿300.00</span></div>
+          </div>
+          <Divider />
+          <div className="flex justify-between font-bold pb-1">
+            <span>ยอดสุทธิ</span><span>฿300.00</span>
+          </div>
+          <Divider />
+
+          {/* Footer */}
+          <div className="text-center space-y-0.5 pt-1 pb-2 text-gray-500">
             <p>*** ใบเสร็จทดสอบ — ไม่ใช่ใบเสร็จจริง ***</p>
           </div>
         </div>

@@ -28,7 +28,7 @@ function buildTrackingUrl(baseUrl: string | undefined, ticketNumber: string, pho
 function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
   repair: Repair; paperWidth: '58mm' | '80mm'; settings?: ShopSettings | null; trackingBaseUrl?: string
 }) {
-  const widthClass    = paperWidth === '58mm' ? 'w-[200px]' : 'w-[280px]'
+  const widthClass    = paperWidth === '58mm' ? 'w-[200px]' : 'w-[300px]'
   const qrSize        = paperWidth === '58mm' ? 90 : 110
   const shopName      = settings?.shopName  || 'FixITPro'
   const shopPhone     = settings?.shopPhone || ''
@@ -58,7 +58,7 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
         {logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <div className="flex justify-center mb-1">
-            <img src={logoUrl} alt="logo" className="h-10 w-auto object-contain" />
+            <img src={logoUrl} alt="logo" className="h-14 w-auto object-contain" />
           </div>
         )}
         <p className="font-bold text-sm tracking-widest">{shopName}</p>

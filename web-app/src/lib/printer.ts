@@ -194,7 +194,7 @@ function shopHeaderHtml(opts: {
 }): string {
   return [
     opts.showLogo && opts.logoUrl
-      ? `<div class="c" style="margin-bottom:6px"><img src="${opts.logoUrl}" alt="logo" style="max-width:80px;max-height:60px;object-fit:contain"/></div>`
+      ? `<div class="c" style="margin-bottom:6px"><img src="${opts.logoUrl}" alt="logo" style="max-width:110px;max-height:80px;object-fit:contain"/></div>`
       : '',
     `<p class="c xl">${opts.shopName}</p>`,
     opts.shopAddress ? `<p class="c xs">${opts.shopAddress}</p>` : '',
@@ -587,9 +587,9 @@ export function buildRepairReceiptThermalHtml(
     }).format(new Date(repair.receivedAt))
   } catch { /* keep ISO fallback */ }
 
-  // Logo: h-10 = 40px in web component
+  // Logo: h-14 = 56px in web component
   const logoBlock = showLogo
-    ? `<div class="c" style="margin-bottom:${r(4)}px"><img src="${logoUrl}" alt="logo" style="height:${r(40)}px;width:auto;object-fit:contain" onerror="this.style.display='none'"/></div>`
+    ? `<div class="c" style="margin-bottom:${r(4)}px"><img src="${logoUrl}" alt="logo" style="height:${r(56)}px;width:auto;object-fit:contain" onerror="this.style.display='none'"/></div>`
     : ''
 
   const accessoriesBlock = accessories.length > 0 ? `
@@ -1157,7 +1157,7 @@ ${repair.warrantyNote ? `<p class="c xs">${e(repair.warrantyNote)}</p>` : ''}`
     : ''
 
   const logoBlock = showLogo
-    ? `<div class="c" style="margin-bottom:6px"><img src="${logoUrl}" alt="logo" style="max-width:80px;max-height:60px;object-fit:contain" onerror="this.style.display='none'"/></div>`
+    ? `<div class="c" style="margin-bottom:6px"><img src="${logoUrl}" alt="logo" style="max-width:110px;max-height:80px;object-fit:contain" onerror="this.style.display='none'"/></div>`
     : ''
 
   function buildCopy(isShop: boolean): string {
