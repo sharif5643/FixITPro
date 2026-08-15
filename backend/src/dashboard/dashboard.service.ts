@@ -43,9 +43,12 @@ export class DashboardService {
       ? { branchId: params.branchId }
       : this.tenantSvc.branchScope(tenantId);
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const notifWhere = params.branchId
-      ? { OR: [{ branchId: params.branchId }, { branchId: null as string | null }] }
-      : tenantId ? { branch: { tenantId } } : {};
+    // When tenantId is null (SUPER_ADMIN), scope to nothing — SUPER_ADMIN should use /super-admin
+    const notifWhere = !tenantId
+      ? { id: 'no-tenant-scope' }
+      : params.branchId
+        ? { OR: [{ branchId: params.branchId }, { branchId: null as string | null }] }
+        : { branch: { tenantId } };
 
     // Pre-fetch tenant user IDs for scoping AuditLog (no direct tenantId field)
     const tenantUserIds = tenantId
@@ -188,7 +191,7 @@ export class DashboardService {
         select: { profit: true, createdAt: true },
       }),
       this.prisma.auditLog.findMany({
-        where: tenantUserIds ? { actorId: { in: tenantUserIds } } : {},
+        where: { actorId: { in: tenantUserIds ?? [] } },
         orderBy: { createdAt: 'desc' },
         take: 8,
         select: { id: true, action: true, entityType: true, actorName: true, createdAt: true },

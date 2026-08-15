@@ -1,6 +1,7 @@
 ﻿'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -631,8 +632,18 @@ export default function DashboardPage() {
   const user      = useAuthStore(s => s.user)
   const hasModule = useAuthStore(s => s.hasModule)
   const shopName  = useShopName()
+  const router    = useRouter()
   const role = user?.role
   const isOwner = role === 'OWNER' || role === 'SUPER_ADMIN'
+
+  // SUPER_ADMIN has no tenant — redirect to super-admin workspace to prevent
+  // cross-tenant data exposure (tenantId=null causes all queries to return data
+  // from every tenant in the system)
+  useEffect(() => {
+    if (role === 'SUPER_ADMIN') {
+      router.replace('/super-admin')
+    }
+  }, [role, router])
   const isOwnerOrManager = isOwner || role === 'MANAGER'
   const showRepairs = role !== 'STOCK_STAFF'
   const { branchId: contextBranchId, isGlobalMode, isOwner: ctxIsOwner } = useBranchContext()
