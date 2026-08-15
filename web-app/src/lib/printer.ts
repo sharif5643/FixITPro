@@ -28,6 +28,7 @@ export interface PrintRepairIntakeOptions {
   showTaxId?:    boolean
   showLogo?:     boolean
   logoUrl?:      string
+  paperWidth?:   '58mm' | '80mm'
 }
 
 export type RepairCopyType = 'customer' | 'shop' | 'both' | 'a4'
@@ -265,10 +266,12 @@ ${opts.technicianName ? `<p class="xs">ช่าง: ${opts.technicianName}</p>`
 
 export function buildReceiptHtml(opts: PrintReceiptOptions): string {
   const PM: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
+  const px  = opts.paperWidth === '80mm' ? 576 : 384
+  const css = makeReceiptThermalCss(px)
   return `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
 <title>ใบเสร็จ ${opts.receiptNumber}</title>
-<style>${THERMAL_CSS}</style>
+<style>${css}</style>
 </head><body>
 ${shopHeaderHtml(opts)}
 <div class="hr"></div>
@@ -295,8 +298,10 @@ ${opts.customerName ? `<div class="hr"></div><p class="xs">ลูกค้า: $
 }
 
 export function buildRepairIntakeHtml(opts: PrintRepairIntakeOptions, copyType: RepairCopyType = 'customer'): string {
-  const wrap = (css: string, body: string) =>
-    `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>ใบรับซ่อม ${opts.ticketNumber}</title><style>${css}</style></head><body>${body}</body></html>`
+  const px  = opts.paperWidth === '80mm' ? 576 : 384
+  const css = makeReceiptThermalCss(px)
+  const wrap = (style: string, body: string) =>
+    `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>ใบรับซ่อม ${opts.ticketNumber}</title><style>${style}</style></head><body>${body}</body></html>`
 
   if (copyType === 'a4') {
     const body = `
@@ -338,11 +343,11 @@ ${opts.technicianName ? `<p class="xs">ช่าง: ${opts.technicianName}</p>`
   const customerBlock = repairIntake58Block(opts, 'ฉบับลูกค้า')
   const shopBlock     = repairIntake58Block(opts, 'สำเนาร้าน')
 
-  if (copyType === 'customer') return wrap(THERMAL_CSS, customerBlock)
-  if (copyType === 'shop')     return wrap(THERMAL_CSS, shopBlock)
+  if (copyType === 'customer') return wrap(css, customerBlock)
+  if (copyType === 'shop')     return wrap(css, shopBlock)
   // 'both': 2 copies in one print job
   return wrap(
-    THERMAL_CSS + `.cut{border-top:3px dashed #000;margin:12px 0;text-align:center;font-size:16px;letter-spacing:2px}`,
+    css + `.cut{border-top:3px dashed #000;margin:12px 0;text-align:center;font-size:16px;letter-spacing:2px}`,
     `${customerBlock}<div class="cut">✂ ──── ตัดที่นี่ ──── ✂</div>${shopBlock}`,
   )
 }
@@ -1103,11 +1108,16 @@ export function buildRepairDeliveryReceiptThermalHtml(
     logoUrl?: string | null
     receiptFooter?: string | null
     showLogo?: boolean
+    paperWidth?: string | null
   } | null | undefined,
-  opts: { copyType: 'shop' | 'customer' | 'both' },
+  opts: { copyType: 'shop' | 'customer' | 'both'; trackingOrigin?: string },
 ): string {
   const e = escHtml
   const PM_D: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
+
+  const px  = settings?.paperWidth === '80mm' ? 576 : 384
+  const css = makeReceiptThermalCss(px)
+  const r   = (webPx: number) => Math.round(webPx * px / 200)
 
   const shopName  = e(settings?.shopName  ?? 'FixITPro')
   const shopPhone = settings?.shopPhone ? e(settings.shopPhone) : ''
@@ -1157,34 +1167,51 @@ ${repair.warrantyNote ? `<p class="c xs">${e(repair.warrantyNote)}</p>` : ''}`
     : ''
 
   const logoBlock = showLogo
-    ? `<div class="c" style="margin-bottom:6px"><img src="${logoUrl}" alt="logo" style="max-width:110px;max-height:80px;object-fit:contain" onerror="this.style.display='none'"/></div>`
+    ? `<div class="c" style="margin-bottom:${r(4)}px"><img src="${logoUrl}" alt="logo" style="height:${r(56)}px;width:auto;object-fit:contain" onerror="this.style.display='none'"/></div>`
     : ''
+
+  function makeTrackingBlock(isCustomer: boolean): string {
+    if (!isCustomer || !opts.trackingOrigin) return ''
+    const rawUrl = customerPhone
+      ? `${opts.trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}?phone=${encodeURIComponent(repair.customer?.phone ?? '')}`
+      : `${opts.trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}`
+    const encoded = encodeURIComponent(rawUrl)
+    const escaped = escHtml(rawUrl)
+    return `<div class="hr"></div>
+<p class="c qr-t">ติดตามประวัติการซ่อม</p>
+<p class="c qr-s">สแกน QR หรือเปิดลิงก์เพื่อดูประวัติ</p>
+<div class="c" style="margin:${r(4)}px 0">
+  <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encoded}&size=150x150&format=png" alt="QR" style="width:${r(90)}px;height:${r(90)}px" onerror="this.style.display='none'"/>
+</div>
+<p class="c qr-url">${escaped}</p>`
+  }
 
   function buildCopy(isShop: boolean): string {
     const copyLabel = isShop ? '[ฉบับร้าน]' : '[ฉบับลูกค้า]'
     return `${logoBlock}
-<p class="c xl">${shopName}</p>
-${shopPhone ? `<p class="c xs">โทร: ${shopPhone}</p>` : ''}
+<p class="c shop-name">${shopName}</p>
+${shopPhone ? `<p class="c">โทร: ${shopPhone}</p>` : ''}
 <div class="hr"></div>
-<p class="c lg">ใบเสร็จรับเงิน</p>
-<p class="c sm b">${copyLabel}</p>
-<p class="c sm">#${ticketNum}</p>
-<p class="c xs">${paidDateStr}</p>
+<p class="c b">ใบเสร็จรับเงิน</p>
+<p class="c b">${copyLabel}</p>
+<p class="c">#${ticketNum}</p>
+<p class="c gray">${paidDateStr}</p>
 <div class="hr"></div>
 <div class="row"><span>ลูกค้า</span><span class="v b">${customerName}</span></div>
-${customerPhone ? `<div class="row"><span class="xs">โทร</span><span class="v xs">${customerPhone}</span></div>` : ''}
-<div class="row"><span class="xs">อุปกรณ์</span><span class="v xs">${deviceInfo}</span></div>
+${customerPhone ? `<div class="row"><span>โทร</span><span class="v">${customerPhone}</span></div>` : ''}
+<div class="row"><span>อุปกรณ์</span><span class="v">${deviceInfo}</span></div>
 ${partsBlock}
 <div class="hr"></div>
 <div class="row"><span>ค่าซ่อมรวม</span><span class="v">฿${fmtI(finalCost)}</span></div>
-${deposit > 0 ? `<div class="row"><span class="xs">มัดจำชำระแล้ว</span><span class="v xs">-฿${fmtI(deposit)}</span></div>` : ''}
-<div class="total"><span>ยอดชำระ</span><span class="v">฿${fmtI(remaining)}</span></div>
+${deposit > 0 ? `<div class="row"><span>มัดจำชำระแล้ว</span><span class="v gray">-฿${fmtI(deposit)}</span></div>` : ''}
+<div class="row b"><span>ยอดชำระ</span><span class="v">฿${fmtI(remaining)}</span></div>
 <div class="hr"></div>
 <div class="row"><span>${payMethod}</span><span class="v">฿${fmtI(paidAmount)}</span></div>
-${change > 0 ? `<div class="row"><span class="xs">เงินทอน</span><span class="v xs">฿${fmtI(change)}</span></div>` : ''}
+${change > 0 ? `<div class="row"><span>เงินทอน</span><span class="v">฿${fmtI(change)}</span></div>` : ''}
 ${warrantyBlock}
+${makeTrackingBlock(!isShop)}
 <div class="hr"></div>
-<p class="c xs">${footer}</p>`.trim()
+<p class="c gray">${footer}</p>`.trim()
   }
 
   const shopBody     = buildCopy(true)
@@ -1196,13 +1223,17 @@ ${warrantyBlock}
   else body = `${shopBody}\n<div class="cut">✂ ──── ตัดที่นี่ ──── ✂</div>\n${customerBody}`
 
   const cutCss = opts.copyType === 'both'
-    ? `.cut{border-top:3px dashed #000;margin:12px 0;text-align:center;font-size:16px;letter-spacing:2px}`
+    ? `.cut{border-top:3px dashed #000;margin:${r(10)}px 0;text-align:center;font-size:${r(10)}px;letter-spacing:2px}`
     : ''
 
   return `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
 <title>ใบเสร็จซ่อม ${ticketNum}</title>
-<style>${THERMAL_CSS}${cutCss}</style>
+<style>${css}${cutCss}
+.qr-t { font-weight:700; }
+.qr-s { color:#333; }
+.qr-url { word-break:break-all; color:#333; line-height:1.3; margin-top:${r(2)}px; }
+</style>
 </head><body>
 ${body}
 </body></html>`

@@ -41,7 +41,7 @@ export class AnalyticsService {
           status: { notIn: ['DELIVERED', 'CANCELLED'] },
           ...bFilter,
         },
-        select: { id: true, receivedAt: true, status: true, paymentStatus: true },
+        select: { id: true, receivedAt: true, status: true, paymentStatus: true, branchId: true },
       }),
       branchId
         ? this.prisma.branch.findMany({ where: { id: branchId }, select: { id: true, name: true } })
@@ -93,7 +93,7 @@ export class AnalyticsService {
         !branchId || bs.branchId === branch.id,
       );
       const branchRepairs = openRepairs.filter((r) =>
-        !branchId /* global filter would need branchId on repair, which we'll skip */ || true,
+        !branchId || r.branchId === branch.id,
       );
 
       const criticalRepairs = branchRepairs.filter(

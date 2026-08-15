@@ -89,6 +89,7 @@ const OWNER_SECONDARY: NavSection[] = [
       { href: '/finance',              icon: Wallet,          label: 'ภาพรวมการเงิน',    permission: 'reports.view',    module: 'finance' },
       { href: '/finance/transactions', icon: ArrowRightLeft,  label: 'รายการบัญชี',      permission: 'reports.view',    module: 'finance' },
       { href: '/finance/branch-pnl',   icon: GitBranch,       label: 'P&L รายสาขา',      permission: 'reports.view',    module: 'finance', ownerOnly: true },
+      { href: '/finance/daily-close',  icon: CalendarDays,    label: 'ปิดบัญชีประจำวัน', permission: 'reports.view',    module: 'finance' },
       { href: '/expenses',             icon: Receipt,         label: 'ค่าใช้จ่าย',       permission: 'expenses.manage', module: 'finance' },
       { href: '/reconciliation',       icon: Scale,           label: 'กระทบยอดเงินสด',   ownerOnly: true,               module: 'finance' },
       { href: '/suppliers',            icon: Building2,       label: 'ซัพพลายเออร์',     permission: 'purchase.create', module: 'finance' },

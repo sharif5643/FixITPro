@@ -77,14 +77,16 @@ export function RepairDeliveryPrintFlow({ repairId, onClose, successNavItems }: 
         import('@/lib/printer'),
       ])
 
+      const trackingOrigin = typeof window !== 'undefined' ? window.location.origin : undefined
+
       if (selectedCopy === 'shop' || selectedCopy === 'both') {
-        const html = buildRepairDeliveryReceiptThermalHtml(repair, settings, { copyType: 'shop' })
+        const html = buildRepairDeliveryReceiptThermalHtml(repair, settings, { copyType: 'shop', trackingOrigin })
         const r = await SunmiPrinter.printHtml({ html, printerId: printer.id, jobName: 'ใบเสร็จ (ใบร้าน)' })
         if (!r.success) throw new Error(r.error ?? 'พิมพ์ใบร้านไม่สำเร็จ')
       }
 
       if (selectedCopy === 'customer' || selectedCopy === 'both') {
-        const html = buildRepairDeliveryReceiptThermalHtml(repair, settings, { copyType: 'customer' })
+        const html = buildRepairDeliveryReceiptThermalHtml(repair, settings, { copyType: 'customer', trackingOrigin })
         const r = await SunmiPrinter.printHtml({ html, printerId: printer.id, jobName: 'ใบเสร็จ (ใบลูกค้า)' })
         if (!r.success) throw new Error(r.error ?? 'พิมพ์ใบลูกค้าไม่สำเร็จ')
       }

@@ -202,6 +202,7 @@ model Branch {
   cashDrawerSessions     CashDrawerSession[]
   cashDrawerTransactions CashDrawerTransaction[]
   purchaseOrders         PurchaseOrder[]
+  dailyCloses            DailyClose[]
 
   @@index([tenantId])
   @@index([isActive])
@@ -301,6 +302,7 @@ model Tenant {
   cashDrawers            CashDrawer[]
   cashDrawerSessions     CashDrawerSession[]
   cashDrawerTransactions CashDrawerTransaction[]
+  dailyCloses            DailyClose[]
 
   @@index([status])
   @@index([expiryDate])
@@ -425,6 +427,7 @@ model User {
   drawerParticipations     CashDrawerParticipant[]  @relation("CashDrawerParticipants")
   drawerTransactions       CashDrawerTransaction[]  @relation("CashDrawerTransactions")
   userPermissions          UserPermission[]
+  dailyCloses              DailyClose[]             @relation("DailyCloseClosedBy")
 
   @@index([role, isActive])
   @@index([tenantId])
@@ -1630,4 +1633,37 @@ model CashDrawerTransaction {
   @@index([type, direction])
   @@index([referenceType, referenceId])
   @@index([sourceType])
+}
+
+model DailyClose {
+  id        String   @id @default(cuid())
+  date      String   // YYYY-MM-DD
+
+  posRevenue      Decimal @default(0) @db.Decimal(12, 2)
+  repairRevenue   Decimal @default(0) @db.Decimal(12, 2)
+  packageRevenue  Decimal @default(0) @db.Decimal(12, 2)
+  expenseTotal    Decimal @default(0) @db.Decimal(12, 2)
+  grandTotal      Decimal @default(0) @db.Decimal(12, 2)
+  cashRevenue     Decimal @default(0) @db.Decimal(12, 2)
+  transferRevenue Decimal @default(0) @db.Decimal(12, 2)
+  cardRevenue     Decimal @default(0) @db.Decimal(12, 2)
+
+  actualCash     Decimal? @db.Decimal(12, 2)
+  cashDifference Decimal? @db.Decimal(12, 2)
+  notes          String?
+
+  closedAt DateTime @default(now())
+
+  tenantId String?
+  tenant   Tenant?  @relation(fields: [tenantId], references: [id])
+
+  branchId String?
+  branch   Branch?  @relation(fields: [branchId], references: [id])
+
+  closedById String
+  closedBy   User   @relation("DailyCloseClosedBy", fields: [closedById], references: [id])
+
+  @@unique([date, branchId, tenantId])
+  @@index([tenantId, date])
+  @@index([branchId, date])
 }

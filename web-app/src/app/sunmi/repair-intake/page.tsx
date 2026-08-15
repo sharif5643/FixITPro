@@ -896,6 +896,7 @@ export default function RepairIntakePage() {
         showTaxId:      settings?.showTaxId ?? true,
         showLogo:       settings?.showLogo ?? true,
         logoUrl:        settings?.logoUrl ?? undefined,
+        paperWidth:     (settings?.paperWidth as '58mm' | '80mm' | undefined) ?? '80mm',
       }
 
       toast.success(`รับงาน ${repair.ticketNumber} สำเร็จ`)

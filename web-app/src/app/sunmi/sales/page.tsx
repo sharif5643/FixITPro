@@ -647,6 +647,7 @@ export default function SunmiSalesPage() {
       paymentQrUrl:  settings?.paymentQrUrl ?? undefined,
       showLogo:      settings?.showLogo ?? true,
       logoUrl:       settings?.logoUrl ?? undefined,
+      paperWidth:    (settings?.paperWidth as '58mm' | '80mm' | undefined) ?? '80mm',
     }
 
     if (sale.paymentMethod === 'CASH') {

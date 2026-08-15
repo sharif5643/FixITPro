@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
@@ -152,6 +152,109 @@ export class FinanceService {
 
     return {
       data: items.map(t => ({ ...t, amount: Number(t.amount) })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  // ── Daily Close ──────────────────────────────────────────────────────────────
+
+  async saveDailyClose(params: {
+    date:           string;
+    posRevenue:     number;
+    repairRevenue:  number;
+    packageRevenue: number;
+    expenseTotal:   number;
+    grandTotal:     number;
+    cashRevenue:    number;
+    transferRevenue: number;
+    cardRevenue:    number;
+    actualCash?:    number;
+    cashDifference?: number;
+    notes?:         string;
+    tenantId?:      string | null;
+    branchId?:      string;
+    closedById:     string;
+  }) {
+    const existing = await this.prisma.dailyClose.findFirst({
+      where: {
+        date:     params.date,
+        branchId: params.branchId ?? null,
+        tenantId: params.tenantId ?? null,
+      },
+    });
+
+    const data = {
+      posRevenue:      params.posRevenue,
+      repairRevenue:   params.repairRevenue,
+      packageRevenue:  params.packageRevenue,
+      expenseTotal:    params.expenseTotal,
+      grandTotal:      params.grandTotal,
+      cashRevenue:     params.cashRevenue,
+      transferRevenue: params.transferRevenue,
+      cardRevenue:     params.cardRevenue,
+      actualCash:      params.actualCash ?? null,
+      cashDifference:  params.cashDifference ?? null,
+      notes:           params.notes ?? null,
+      closedAt:        new Date(),
+    };
+
+    if (existing) {
+      return this.prisma.dailyClose.update({ where: { id: existing.id }, data });
+    }
+
+    return this.prisma.dailyClose.create({
+      data: {
+        ...data,
+        date:      params.date,
+        tenantId:  params.tenantId ?? null,
+        branchId:  params.branchId ?? null,
+        closedById: params.closedById,
+      },
+    });
+  }
+
+  async getDailyCloseHistory(params: {
+    tenantId?: string | null;
+    branchId?: string;
+    page?:     number;
+    limit?:    number;
+  }) {
+    const page  = params.page  ?? 1;
+    const limit = params.limit ?? 30;
+    const skip  = (page - 1) * limit;
+
+    const where: any = {};
+    if (params.tenantId) where.tenantId = params.tenantId;
+    if (params.branchId) where.branchId = params.branchId;
+
+    const [total, items] = await Promise.all([
+      this.prisma.dailyClose.count({ where }),
+      this.prisma.dailyClose.findMany({
+        where,
+        include: {
+          closedBy: { select: { id: true, name: true } },
+          branch:   { select: { id: true, name: true } },
+        },
+        orderBy: { date: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      data: items.map(r => ({
+        ...r,
+        posRevenue:      Number(r.posRevenue),
+        repairRevenue:   Number(r.repairRevenue),
+        packageRevenue:  Number(r.packageRevenue),
+        expenseTotal:    Number(r.expenseTotal),
+        grandTotal:      Number(r.grandTotal),
+        cashRevenue:     Number(r.cashRevenue),
+        transferRevenue: Number(r.transferRevenue),
+        cardRevenue:     Number(r.cardRevenue),
+        actualCash:      r.actualCash != null ? Number(r.actualCash) : null,
+        cashDifference:  r.cashDifference != null ? Number(r.cashDifference) : null,
+      })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }

@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { FinanceService } from './finance.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
@@ -72,6 +72,56 @@ export class FinanceController {
       tenantId,
       sourceType,
       direction,
+      page:  page  ? parseInt(page,  10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
+  @Post('daily-close')
+  @RequirePermission('reports.view')
+  saveDailyClose(
+    @Body() body: {
+      date:           string;
+      posRevenue:     number;
+      repairRevenue:  number;
+      packageRevenue: number;
+      expenseTotal:   number;
+      grandTotal:     number;
+      cashRevenue:    number;
+      transferRevenue: number;
+      cardRevenue:    number;
+      actualCash?:    number;
+      cashDifference?: number;
+      notes?:         string;
+      branchId?:      string;
+    },
+    @CurrentUser('id')       closedById: string,
+    @CurrentUser('tenantId') tenantId:   string | null,
+    @CurrentUser('role')     role:       string,
+    @CurrentUser('branchId') jwtBranchId: string | null,
+  ) {
+    const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
+      ? body.branchId
+      : (jwtBranchId ?? undefined);
+    return this.financeService.saveDailyClose({ ...body, tenantId, branchId: effectiveBranchId, closedById });
+  }
+
+  @Get('daily-close')
+  @RequirePermission('reports.view')
+  getDailyCloseHistory(
+    @Query('branchId')  queryBranchId: string | undefined,
+    @Query('page')      page:          string | undefined,
+    @Query('limit')     limit:         string | undefined,
+    @CurrentUser('role')     role:     string,
+    @CurrentUser('branchId') jwtBranchId: string | null,
+    @CurrentUser('tenantId') tenantId:    string | null,
+  ) {
+    const branchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
+      ? queryBranchId
+      : (jwtBranchId ?? undefined);
+    return this.financeService.getDailyCloseHistory({
+      tenantId,
+      branchId,
       page:  page  ? parseInt(page,  10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });

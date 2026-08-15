@@ -30,6 +30,7 @@ export interface PrintReceiptOptions {
   paymentQrUrl?: string
   showLogo?:     boolean
   logoUrl?:      string
+  paperWidth?:   '58mm' | '80mm'
 }
 
 // ── Printer info (returned by getAvailablePrinters) ───────────────────────────
