@@ -253,11 +253,23 @@ function RepairCard({
       })} />
 
       <div className="p-3 space-y-2">
-        {/* Row 1: ticket + SLA age */}
+        {/* Row 1: ticket + SLA age + urgent/claim badges */}
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400 shrink-0">
-            {repair.ticketNumber}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400 shrink-0">
+              {repair.ticketNumber}
+            </span>
+            {(repair.issueTags as string[] | undefined)?.includes('ด่วน') && (
+              <span className="shrink-0 rounded-full bg-red-500 text-white px-1.5 py-0.5 text-[9px] font-bold leading-none">
+                ⚡ ด่วน
+              </span>
+            )}
+            {(repair.issueTags as string[] | undefined)?.includes('เคลม') && (
+              <span className="shrink-0 rounded-full bg-amber-500 text-white px-1.5 py-0.5 text-[9px] font-bold leading-none">
+                🔄 เคลม
+              </span>
+            )}
+          </div>
           <span className={cn('flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0', SLA_CLS[tier])}>
             <span className={cn('h-1.5 w-1.5 rounded-full', SLA_DOT[tier])} />
             {ageText}

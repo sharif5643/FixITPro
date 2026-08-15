@@ -7,7 +7,7 @@ import { z } from 'zod'
 import {
   Loader2, User, X, Wrench, ShoppingCart, Printer, FileText, CheckCircle2,
   Smartphone, Tablet, Laptop, Watch, HelpCircle, Tag, UserCog, Camera, ImagePlus,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, CalendarDays,
 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -77,6 +77,11 @@ const CONDITION_OPTIONS = [
   { value: 'มีรอยขีดข่วน', color: 'bg-amber-50 border-amber-200 text-amber-700 data-[active=true]:bg-amber-500 data-[active=true]:text-white data-[active=true]:border-amber-500' },
   { value: 'ปกติ',         color: 'bg-green-50 border-green-200 text-green-700 data-[active=true]:bg-green-500 data-[active=true]:text-white data-[active=true]:border-green-500' },
   { value: 'เปียกน้ำ',    color: 'bg-blue-50 border-blue-200 text-blue-700 data-[active=true]:bg-blue-500 data-[active=true]:text-white data-[active=true]:border-blue-500' },
+]
+
+const SPECIAL_TAGS = [
+  { value: 'ด่วน',  activeClass: 'bg-red-600 text-white border-red-600',    baseClass: 'bg-red-50 text-red-700 border-red-200 hover:border-red-400' },
+  { value: 'เคลม',  activeClass: 'bg-amber-600 text-white border-amber-600', baseClass: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400' },
 ]
 
 const ISSUE_TAG_OPTIONS = [
@@ -510,6 +515,18 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                     <Tag className="h-3.5 w-3.5" />หมวดหมู่ปัญหา
                   </Label>
                   <div className="flex flex-wrap gap-1.5">
+                    {/* Special tags: ด่วน, เคลม */}
+                    {SPECIAL_TAGS.map(({ value, activeClass, baseClass }) => (
+                      <button key={value} type="button"
+                        onClick={() => toggleArr(issueTags, setIssueTags, value)}
+                        className={cn(
+                          'px-3 py-2 rounded-full border text-xs font-bold transition-all min-h-[36px]',
+                          issueTags.includes(value) ? activeClass : baseClass,
+                        )}>
+                        {value === 'ด่วน' ? '⚡ ด่วน' : '🔄 เคลม'}
+                      </button>
+                    ))}
+                    <div className="w-px bg-slate-200 self-stretch mx-0.5" />
                     {ISSUE_TAG_OPTIONS.map((tag) => (
                       <button key={tag} type="button"
                         onClick={() => toggleArr(issueTags, setIssueTags, tag)}
@@ -534,6 +551,15 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                   {errors.issue && <p className="text-xs text-red-500">{errors.issue.message}</p>}
                 </div>
 
+              </div>
+            </div>
+
+            {/* ── วันนัดรับเครื่อง (prominent, not in collapsible) ── */}
+            <div className="rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-3 flex items-center gap-3">
+              <CalendarDays className="h-4 w-4 text-blue-500 shrink-0" />
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-blue-700 block mb-1">วันนัดรับเครื่อง (ถ้ามี)</label>
+                <Input type="date" className="h-9 text-sm border-blue-200 bg-white" {...register('dueDate')} />
               </div>
             </div>
 
@@ -715,12 +741,6 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                         </button>
                       ))}
                     </div>
-                  </div>
-
-                  {/* Due date */}
-                  <div className="space-y-1.5">
-                    <Label>วันที่นัดรับ</Label>
-                    <Input type="date" className="h-11" {...register('dueDate')} />
                   </div>
 
                   {/* Note */}

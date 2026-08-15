@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FixITPro launcher icon foreground: F ⚡(dot) x  (= "Fix")
+  White symbol on transparent — overlays the orange gradient background.
+  Safe zone: 18-90 in 108x108 viewport.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- F: vertical bar -->
+    <path android:fillColor="#FFFFFF" android:pathData="M18,24 L26,24 L26,84 L18,84 Z"/>
+    <!-- F: top horizontal bar -->
+    <path android:fillColor="#FFFFFF" android:pathData="M18,24 L40,24 L40,33 L18,33 Z"/>
+    <!-- F: middle horizontal bar -->
+    <path android:fillColor="#FFFFFF" android:pathData="M18,47 L37,47 L37,56 L18,56 Z"/>
+
+    <!-- i dot: filled circle at (54, 22) r=5 -->
+    <path android:fillColor="#FFFFFF" android:pathData="M49,22 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"/>
+
+    <!-- i lightning bolt (body below dot) -->
+    <path android:fillColor="#FFFFFF" android:pathData="M61,33 L44,58 L55,58 L48,84 L65,59 L54,59 Z"/>
+
+    <!-- x: top-left to bottom-right bar -->
+    <path android:fillColor="#FFFFFF" android:pathData="M70,24 L78,24 L90,84 L82,84 Z"/>
+    <!-- x: top-right to bottom-left bar -->
+    <path android:fillColor="#FFFFFF" android:pathData="M82,24 L90,24 L78,84 L70,84 Z"/>
+
+</vector>
