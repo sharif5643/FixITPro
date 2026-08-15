@@ -15,9 +15,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { cn } from '@/lib/utils'
@@ -366,20 +363,86 @@ export default function SettingsPage() {
             {activeTab === 'receipt' && (
               <SectionCard title="ตั้งค่าใบเสร็จ" description="กระดาษพิมพ์ ข้อความ และการตั้งค่าการพิมพ์" icon={Receipt}>
                 <div className="space-y-4">
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <Label>ขนาดกระดาษ</Label>
-                    <Select
-                      value={paperWidth}
-                      onValueChange={(v) => setValue('paperWidth', v as '58mm' | '80mm', { shouldDirty: true })}
-                    >
-                      <SelectTrigger className="max-w-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="58mm">58 มม. (เครื่องพิมพ์เล็ก)</SelectItem>
-                        <SelectItem value="80mm">80 มม. (เครื่องพิมพ์มาตรฐาน)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="grid grid-cols-2 gap-3 max-w-sm">
+                      {([
+                        {
+                          value: '58mm',
+                          label: '58 มม.',
+                          sub: 'เครื่องพิมพ์ขนาดเล็ก',
+                          note: 'ประหยัด / กระทัดรัด',
+                          barW: 58,
+                        },
+                        {
+                          value: '80mm',
+                          label: '80 มม.',
+                          sub: 'เครื่องพิมพ์มาตรฐาน',
+                          note: 'ชัดเจน / อ่านง่าย',
+                          barW: 80,
+                        },
+                      ] as const).map((opt) => {
+                        const active = paperWidth === opt.value
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setValue('paperWidth', opt.value, { shouldDirty: true })}
+                            className={cn(
+                              'relative flex flex-col items-center gap-2 rounded-xl border-2 px-3 py-4 text-center transition-all',
+                              active
+                                ? 'border-emerald-500 bg-emerald-50'
+                                : 'border-slate-200 bg-white hover:border-slate-300',
+                            )}
+                          >
+                            {/* Paper roll diagram */}
+                            <div className="flex flex-col items-center gap-1">
+                              {/* Roll spool */}
+                              <div
+                                className={cn(
+                                  'rounded-sm border-2',
+                                  active ? 'border-emerald-500 bg-emerald-100' : 'border-slate-300 bg-slate-100',
+                                )}
+                                style={{ width: opt.barW * 0.9, height: 10 }}
+                              />
+                              {/* Paper strip */}
+                              <div
+                                className={cn(
+                                  'rounded-sm',
+                                  active ? 'bg-emerald-200' : 'bg-slate-200',
+                                )}
+                                style={{ width: opt.barW * 0.9, height: 36 }}
+                              />
+                              {/* Width label below strip */}
+                              <div className="flex w-full items-center justify-between px-0.5" style={{ width: opt.barW * 0.9 }}>
+                                <div className={cn('h-2 border-l', active ? 'border-emerald-400' : 'border-slate-400')} />
+                                <span className={cn('text-[10px] font-mono font-semibold', active ? 'text-emerald-600' : 'text-slate-400')}>
+                                  {opt.value}
+                                </span>
+                                <div className={cn('h-2 border-r', active ? 'border-emerald-400' : 'border-slate-400')} />
+                              </div>
+                            </div>
+
+                            <p className={cn('font-bold text-sm leading-tight', active ? 'text-emerald-700' : 'text-slate-700')}>
+                              {opt.label}
+                            </p>
+                            <p className={cn('text-xs leading-tight', active ? 'text-emerald-600' : 'text-slate-500')}>
+                              {opt.sub}
+                            </p>
+                            <p className={cn('text-[11px]', active ? 'text-emerald-500' : 'text-slate-400')}>
+                              {opt.note}
+                            </p>
+
+                            {active && (
+                              <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold">
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="text-xs text-slate-400">กระดาษทั้ง 2 ขนาดใช้ได้กับเครื่องพิมพ์ความร้อน (Thermal) — เลือกให้ตรงกับม้วนกระดาษที่ใช้จริง</p>
                   </div>
 
                   <div className="space-y-1.5">
