@@ -1,7 +1,7 @@
 'use client'
 
-import { Suspense, useEffect, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Printer, X } from 'lucide-react'
 import api from '@/lib/api'
@@ -11,9 +11,17 @@ type PW = '58mm' | '80mm'
 
 function TestPrintContent() {
   const searchParams  = useSearchParams()
+  const router        = useRouter()
   const paperWidth    = (searchParams.get('paper') as PW) || '80mm'
   const autoPrint     = searchParams.get('autoprint') === '1'
   const printFiredRef = useRef(false)
+
+  const switchPaper = useCallback((pw: PW) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('paper', pw)
+    params.delete('autoprint')
+    router.replace(`?${params.toString()}`)
+  }, [searchParams, router])
 
   const { data: settings } = useQuery<ShopSettings>({
     queryKey: ['settings'],
@@ -65,25 +73,63 @@ function TestPrintContent() {
 
   return (
     <div className="min-h-screen bg-gray-100 print-outer">
-      <div className="no-print sticky top-0 z-10 flex items-center justify-between gap-2 bg-white border-b px-4 py-2 shadow-sm">
-        <span className="text-sm font-semibold text-gray-700">
-          ใบเสร็จทดสอบ — {paperWidth}
-        </span>
-        <div className="flex gap-2">
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            พิมพ์
-          </button>
-          <button
-            onClick={() => window.close()}
-            className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <X className="h-3.5 w-3.5" />
-            ปิด
-          </button>
+      <div className="no-print sticky top-0 z-10 bg-white border-b shadow-sm">
+        {/* Top bar */}
+        <div className="flex items-center justify-between gap-2 px-4 py-2">
+          <span className="text-sm font-semibold text-gray-700">ทดสอบการพิมพ์</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              พิมพ์
+            </button>
+            <button
+              onClick={() => window.close()}
+              className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+              ปิด
+            </button>
+          </div>
+        </div>
+
+        {/* Paper size switcher */}
+        <div className="flex items-center gap-3 px-4 pb-3">
+          <span className="text-xs text-gray-500 shrink-0">ขนาดกระดาษ:</span>
+          <div className="flex gap-2">
+            {(['58mm', '80mm'] as const).map((pw) => {
+              const active = paperWidth === pw
+              const barW   = pw === '58mm' ? 30 : 42
+              return (
+                <button
+                  key={pw}
+                  onClick={() => switchPaper(pw)}
+                  className={[
+                    'flex items-center gap-2 rounded-lg border-2 px-3 py-1.5 text-xs font-semibold transition-all',
+                    active
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+                  ].join(' ')}
+                >
+                  {/* Mini paper diagram */}
+                  <span
+                    className={[
+                      'inline-block rounded-sm border',
+                      active ? 'border-blue-400 bg-blue-200' : 'border-gray-300 bg-gray-100',
+                    ].join(' ')}
+                    style={{ width: barW, height: 16 }}
+                  />
+                  {pw}
+                  {active && <span className="text-blue-500">✓</span>}
+                </button>
+              )
+            })}
+          </div>
+          <span className="text-xs text-gray-400">
+            {paperWidth === '58mm' ? 'เครื่องพิมพ์ขนาดเล็ก' : 'เครื่องพิมพ์มาตรฐาน'}
+          </span>
         </div>
       </div>
 
