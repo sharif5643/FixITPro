@@ -55,7 +55,7 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
   return (
     <div
       id="sale-receipt"
-      className={`${widthClass} font-mono text-[11px] leading-relaxed mx-auto bg-white text-gray-900`}
+      className={`${widthClass} font-mono text-[11px] leading-normal mx-auto bg-white text-black`}
     >
       {/* ── Shop header ── */}
       <div className="text-center space-y-0.5 pb-2">
@@ -97,7 +97,7 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
         {sale.items.map((item) => (
           <div key={item.id}>
             <p className="truncate">{item.product?.name ?? 'สินค้า'}</p>
-            <div className="flex justify-between text-gray-600 pl-2">
+            <div className="flex justify-between text-gray-900 pl-2">
               <span>
                 {formatThaiMoney(Number(item.price))} × {item.quantity}
                 {Number(item.discount) > 0 && ` (ลด ${formatThaiMoney(Number(item.discount))})`}
