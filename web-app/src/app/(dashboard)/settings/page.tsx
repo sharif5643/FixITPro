@@ -363,6 +363,7 @@ export default function SettingsPage() {
                       ) : logoPreview ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
+                          key={logoPreview}
                           src={logoPreview}
                           alt="logo"
                           className="h-full w-full object-contain"
