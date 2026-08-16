@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import {
   Loader2, Save, Store, Receipt, DollarSign, Settings2, Bell, Image, BellRing, ChevronRight,
-  MessageSquare, Database, AlertTriangle, Trash2,
+  MessageSquare, Database, AlertTriangle, Trash2, Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -100,7 +100,10 @@ type TabId = typeof SETTINGS_TABS[number]['id']
 
 export default function SettingsPage() {
   const queryClient               = useQueryClient()
-  const [logoPreview, setLogoPreview] = useState('')
+  const [logoPreview, setLogoPreview]       = useState('')
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null)
+  const [logoUploading, setLogoUploading]   = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [activeTab, setActiveTab] = useState<TabId>('shop')
   const [resetDialog, setResetDialog] = useState<{ open: boolean; step: 1 | 2; input: string }>({
     open: false, step: 1, input: '',
@@ -209,6 +212,29 @@ export default function SettingsPage() {
     },
   })
 
+  async function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLogoUploading(true)
+    setLogoUploadError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await api.post<{ url: string }>('/settings/logo', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      const url = res.data.url
+      setValue('logoUrl', url, { shouldDirty: true })
+      setLogoPreview(url)
+    } catch (err: any) {
+      const msg = err.response?.data?.message ?? err.message ?? 'อัพโหลดไม่สำเร็จ'
+      toast.error(Array.isArray(msg) ? msg[0] : msg)
+    } finally {
+      setLogoUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64 gap-3 text-slate-500">
@@ -289,7 +315,7 @@ export default function SettingsPage() {
               <SectionCard title="ข้อมูลร้านค้า" description="ชื่อร้าน ที่อยู่ และข้อมูลติดต่อ" icon={Store}>
                 {/* Logo */}
                 <div className="mb-5 pb-5 border-b border-slate-100">
-                  <Label className="mb-2 block">โลโก้ร้าน (URL รูปภาพ)</Label>
+                  <Label className="mb-2 block">โลโก้ร้าน</Label>
                   <div className="flex gap-3 items-start">
                     <div className="flex-1 space-y-1.5">
                       <Input
@@ -298,14 +324,46 @@ export default function SettingsPage() {
                         onChange={(e) => {
                           setValue('logoUrl', e.target.value, { shouldDirty: true })
                           setLogoPreview(e.target.value)
+                          setLogoUploadError(null)
                         }}
                       />
-                      <p className="text-xs text-slate-400">ใส่ URL รูปภาพ (png, jpg, svg)</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-slate-400 flex-1">ใส่ URL รูปภาพ หรืออัพโหลดจากเครื่อง (png, jpg, webp, gif · สูงสุด 2 MB)</p>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={logoUploading}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 shrink-0 transition-colors"
+                        >
+                          {logoUploading
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Upload className="h-3.5 w-3.5" />
+                          }
+                          {logoUploading ? 'กำลังอัพโหลด...' : 'อัพโหลดจากเครื่อง'}
+                        </button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          className="hidden"
+                          onChange={handleLogoFileChange}
+                        />
+                      </div>
                     </div>
                     <div className="h-16 w-16 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center shrink-0 overflow-hidden">
-                      {logoPreview ? (
+                      {logoUploadError ? (
+                        <div className="flex flex-col items-center gap-0.5 p-1">
+                          <AlertTriangle className="h-5 w-5 text-red-400" />
+                          <span className="text-[9px] text-red-400 text-center leading-tight">โหลดไม่ได้</span>
+                        </div>
+                      ) : logoPreview ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={logoPreview} alt="logo" className="h-full w-full object-contain" onError={() => setLogoPreview('')} />
+                        <img
+                          src={logoPreview}
+                          alt="logo"
+                          className="h-full w-full object-contain"
+                          onError={() => setLogoUploadError('โหลดรูปไม่ได้')}
+                        />
                       ) : (
                         <Image className="h-6 w-6 text-slate-300" />
                       )}
