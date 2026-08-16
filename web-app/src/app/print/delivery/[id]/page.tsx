@@ -59,7 +59,7 @@ export default function DeliveryPrintPage() {
   }, [data, printed])
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 print-outer">
       {/* Toolbar */}
       <div className="no-print sticky top-0 z-10 flex items-center gap-3 bg-white border-b px-4 py-2 shadow-sm">
         <span className="text-sm font-semibold text-gray-700 shrink-0">
@@ -101,7 +101,7 @@ export default function DeliveryPrintPage() {
         </div>
       </div>
 
-      <div className="flex justify-center p-6">
+      <div className="flex justify-center p-6 print-mid">
         {isLoading ? (
           <div className="flex items-center gap-2 text-gray-500 py-20">
             <Loader2 className="h-6 w-6 animate-spin" />
@@ -110,7 +110,7 @@ export default function DeliveryPrintPage() {
         ) : isError ? (
           <p className="text-red-600 py-20">ไม่สามารถโหลดข้อมูลได้</p>
         ) : data ? (
-          <div className="bg-white shadow-md p-4">
+          <div className="bg-white shadow-md p-4 print-wrapper">
             {dual ? (
               <>
                 <div className="relative">

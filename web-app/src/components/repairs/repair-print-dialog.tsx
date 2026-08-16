@@ -48,7 +48,9 @@ export function RepairPrintDialog({ repairId, onClose }: RepairPrintDialogProps)
           </DialogTitle>
         </DialogHeader>
 
-        {isInWebViewApp() && repair ? (
+        {isInWebViewApp() && !repair ? (
+          <p className="text-sm text-muted-foreground text-center py-4">กำลังโหลด...</p>
+        ) : isInWebViewApp() && repair ? (
           <button
             type="button"
             onClick={() => {
