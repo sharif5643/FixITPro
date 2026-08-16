@@ -36,11 +36,11 @@ export default function SalePrintPage() {
     style.textContent = `
       @page {
         size: ${paperWidth} auto;
-        margin: 2mm;
+        margin: 0mm;
       }
       @media print {
         html, body {
-          min-height: auto !important;
+          min-height: 0 !important;
           height: auto !important;
           background: #fff !important;
           margin: 0 !important;
@@ -57,12 +57,14 @@ export default function SalePrintPage() {
         .print-outer {
           display: block !important;
           padding: 0 !important;
+          margin: 0 !important;
           min-height: 0 !important;
           background: transparent !important;
         }
         .print-mid {
           display: block !important;
           padding: 0 !important;
+          margin: 0 !important;
         }
       }
     `

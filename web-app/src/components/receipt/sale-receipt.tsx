@@ -61,8 +61,8 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
       <div className="text-center space-y-0.5 pb-2">
         {logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <div className="flex justify-center mb-1">
-            <img src={logoUrl} alt="logo" className="h-14 w-auto object-contain" />
+          <div className="flex justify-center mb-0.5">
+            <img src={logoUrl} alt="logo" className="h-10 w-auto object-contain" />
           </div>
         )}
         <p className="font-bold text-sm tracking-widest">{shopName}</p>

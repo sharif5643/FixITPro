@@ -33,7 +33,7 @@ function TestPrintContent() {
     const style = document.createElement('style')
     style.id    = 'print-page-size'
     style.textContent = `
-      @page { size: ${paperWidth} auto; margin: 2mm; }
+      @page { size: ${paperWidth} auto; margin: 0mm; }
       @media print {
         html, body { min-height: 0 !important; height: auto !important; background: #fff !important; margin: 0 !important; padding: 0 !important; }
         .no-print { display: none !important; }
@@ -140,7 +140,7 @@ function TestPrintContent() {
             {logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <div className="flex justify-center mb-1">
-                <img src={logoUrl} alt="logo" className="h-14 w-auto object-contain" />
+                <img src={logoUrl} alt="logo" className="h-10 w-auto object-contain" />
               </div>
             )}
             <p className="font-bold text-sm tracking-widest">{shopName}</p>

@@ -40,12 +40,12 @@ export default function RepairPrintPage() {
     const style = document.createElement('style')
     style.id = 'print-page-size'
     style.textContent = `
-      @page { size: ${paperWidth === 'A4' ? 'A4 portrait' : `${paperWidth} auto`}; margin: ${paperWidth === 'A4' ? '10mm' : '2mm'}; }
+      @page { size: ${paperWidth === 'A4' ? 'A4 portrait' : `${paperWidth} auto`}; margin: ${paperWidth === 'A4' ? '10mm' : '0mm'}; }
       @media print {
         html, body { min-height: 0 !important; height: auto !important; background: #fff !important; margin: 0 !important; padding: 0 !important; }
         .no-print { display: none !important; }
-        .print-outer  { display: block !important; padding: 0 !important; min-height: 0 !important; background: transparent !important; }
-        .print-mid    { display: block !important; padding: 0 !important; }
+        .print-outer  { display: block !important; padding: 0 !important; margin: 0 !important; min-height: 0 !important; background: transparent !important; }
+        .print-mid    { display: block !important; padding: 0 !important; margin: 0 !important; }
         .print-wrapper { display: block !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; background: transparent !important; }
       }
     `
