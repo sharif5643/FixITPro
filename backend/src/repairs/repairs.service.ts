@@ -115,22 +115,23 @@ export class RepairsService {
 
   private async resolveEffectiveBranchId(branchId: string | undefined, tenantId: string | null | undefined): Promise<string> {
     if (branchId) {
-      // Validate the provided branchId belongs to this tenant (prevents cross-tenant repair creation
-      // and repairs created in orphan branches that the owner can't see later).
       if (tenantId) {
         const branch = await this.prisma.branch.findUnique({
           where:  { id: branchId },
           select: { tenantId: true, status: true },
         });
-        if (!branch) throw new NotFoundException('ไม่พบสาขา');
-        if (branch.tenantId !== null && branch.tenantId !== tenantId) {
-          throw new ForbiddenException('ไม่มีสิทธิ์สร้างงานซ่อมในสาขานี้');
+        // Branch deleted or belongs to another tenant → fall through to tenant default
+        // (prevents silent cross-tenant write; user's own JWT branchId may be stale)
+        if (branch && (branch.tenantId === null || branch.tenantId === tenantId)) {
+          return branchId;
         }
+        // else: branch missing or cross-tenant → fall through
+      } else {
+        return branchId;
       }
-      return branchId;
     }
 
-    // OWNER/SUPER_ADMIN may have no branchId in JWT — fall back to tenant's default branch
+    // No valid branchId — fall back to tenant's default branch
     if (tenantId) {
       const branch = await this.prisma.branch.findFirst({
         where: {
