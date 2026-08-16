@@ -71,6 +71,10 @@ async function bootstrap() {
     rawBody: true,
   });
 
+  // Increase JSON body limit to support base64-encoded logo images (default 100KB is too small)
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { limit: '10mb', extended: true });
+
   // CHB-09 / BLK-1: security headers on every response, including direct LAN
   // access from the SUNMI APK that bypasses Nginx.
   app.use(helmet());
