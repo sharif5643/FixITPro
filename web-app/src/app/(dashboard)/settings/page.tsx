@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import {
   Loader2, Save, Store, Receipt, DollarSign, Settings2, Bell, Image, BellRing, ChevronRight,
-  MessageSquare, Database, AlertTriangle, Trash2, Upload,
+  MessageSquare, Database, AlertTriangle, Trash2, Upload, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -139,6 +139,8 @@ export default function SettingsPage() {
     },
   })
 
+  const logoUrl             = watch('logoUrl')
+  const isBase64Logo        = (logoUrl ?? '').startsWith('data:')
   const paperWidth          = watch('paperWidth')
   const autoGenerateSku    = watch('autoGenerateSku')
   const autoGenerateBarcode = watch('autoGenerateBarcode')
@@ -222,6 +224,7 @@ export default function SettingsPage() {
     }
     setLogoUploading(true)
     setLogoUploadError(null)
+    setLogoPreview('')
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
@@ -322,15 +325,33 @@ export default function SettingsPage() {
                   <Label className="mb-2 block">โลโก้ร้าน</Label>
                   <div className="flex gap-3 items-start">
                     <div className="flex-1 space-y-1.5">
-                      <Input
-                        placeholder="https://..."
-                        {...register('logoUrl')}
-                        onChange={(e) => {
-                          setValue('logoUrl', e.target.value, { shouldDirty: true })
-                          setLogoPreview(e.target.value)
-                          setLogoUploadError(null)
-                        }}
-                      />
+                      {isBase64Logo ? (
+                        <div className="flex items-center gap-2 h-10 px-3 border border-slate-200 rounded-lg bg-slate-50 text-sm text-slate-600">
+                          <Upload className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <span className="flex-1 truncate text-slate-500">รูปที่อัพโหลดจากเครื่อง</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setValue('logoUrl', '', { shouldDirty: true })
+                              setLogoPreview('')
+                              setLogoUploadError(null)
+                            }}
+                            className="text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <Input
+                          placeholder="https://..."
+                          {...register('logoUrl')}
+                          onChange={(e) => {
+                            setValue('logoUrl', e.target.value, { shouldDirty: true })
+                            setLogoPreview(e.target.value)
+                            setLogoUploadError(null)
+                          }}
+                        />
+                      )}
                       <div className="flex items-center gap-2">
                         <p className="text-xs text-slate-400 flex-1">ใส่ URL รูปภาพ หรืออัพโหลดจากเครื่อง (png, jpg, webp, gif · สูงสุด 2 MB)</p>
                         <button
