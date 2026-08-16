@@ -287,7 +287,7 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
       const pw: string = (settings as any)?.paperWidth ?? '80mm'
       const width = pw === '58mm' ? 340 : 440
       const win = window.open(
-        `/print/test?paper=${pw}&autoprint=1`,
+        `/print/test?paper=${pw}`,
         '_blank',
         `width=${width},height=750,scrollbars=yes,toolbar=no,menubar=no,location=no`,
       )
