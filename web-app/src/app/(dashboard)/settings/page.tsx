@@ -215,8 +215,8 @@ export default function SettingsPage() {
   async function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 500 * 1024) {
-      toast.error('ไฟล์ใหญ่เกินไป (สูงสุด 500 KB สำหรับโลโก้)')
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('ไฟล์ใหญ่เกินไป (สูงสุด 2 MB)')
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
