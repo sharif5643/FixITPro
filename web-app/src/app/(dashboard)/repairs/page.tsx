@@ -23,7 +23,7 @@ import { BranchContextBar, GlobalModeBanner } from '@/components/layout/branch-c
 import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
 import api from '@/lib/api'
-import { printRepairReceipt } from '@/lib/print'
+import { RepairPrintDialog } from '@/components/repairs/repair-print-dialog'
 import type { RepairStatus, Repair } from '@/types'
 
 const RepairDetailDialog = dynamic(
@@ -73,6 +73,7 @@ function RepairsContent() {
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedRepairId, setSelectedRepairId] = useState<string | null>(null)
   const [qcRepairId, setQcRepairId] = useState<string | null>(null)
+  const [printRepairId, setPrintRepairId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list')
   const [scanOpen, setScanOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -210,7 +211,7 @@ function RepairsContent() {
             repairs={repairs}
             onOpenDetail={setSelectedRepairId}
             onPayment={(id) => setSelectedRepairId(id)}
-            onPrint={(id) => printRepairReceipt(id, { paperWidth: '80mm' })}
+            onPrint={setPrintRepairId}
             onQc={setQcRepairId}
             onStatusChanged={invalidate}
           />
@@ -220,6 +221,7 @@ function RepairsContent() {
           createOpen={createOpen} setCreateOpen={setCreateOpen}
           selectedRepairId={selectedRepairId} setSelectedRepairId={setSelectedRepairId}
           qcRepairId={qcRepairId} setQcRepairId={setQcRepairId}
+          printRepairId={printRepairId} setPrintRepairId={setPrintRepairId}
           invalidate={invalidate} branchId={branchId} repairs={repairs}
         />
       </div>
@@ -447,6 +449,7 @@ function RepairsContent() {
         createOpen={createOpen} setCreateOpen={setCreateOpen}
         selectedRepairId={selectedRepairId} setSelectedRepairId={setSelectedRepairId}
         qcRepairId={qcRepairId} setQcRepairId={setQcRepairId}
+        printRepairId={printRepairId} setPrintRepairId={setPrintRepairId}
         invalidate={invalidate} branchId={branchId} repairs={repairs}
       />
     </div>
@@ -483,6 +486,7 @@ function Dialogs({
   createOpen, setCreateOpen,
   selectedRepairId, setSelectedRepairId,
   qcRepairId, setQcRepairId,
+  printRepairId, setPrintRepairId,
   invalidate, branchId, repairs,
 }: {
   createOpen: boolean
@@ -491,6 +495,8 @@ function Dialogs({
   setSelectedRepairId: (v: string | null) => void
   qcRepairId: string | null
   setQcRepairId: (v: string | null) => void
+  printRepairId: string | null
+  setPrintRepairId: (v: string | null) => void
   invalidate: () => void
   branchId: string | undefined
   repairs: Repair[]
@@ -512,6 +518,7 @@ function Dialogs({
       {qcRepair && (
         <QcDialog repair={qcRepair} open={!!qcRepairId} onClose={() => { setQcRepairId(null); invalidate() }} />
       )}
+      <RepairPrintDialog repairId={printRepairId} onClose={() => setPrintRepairId(null)} />
     </>
   )
 }
