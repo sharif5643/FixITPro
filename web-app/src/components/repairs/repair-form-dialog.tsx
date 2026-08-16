@@ -313,20 +313,28 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                   <Printer className="h-5 w-5" />
                   พิมพ์ 2 ฉบับ (ร้าน + ลูกค้า) ✂
                 </button>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm&copy=shop`, '_blank')}
                     className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
                     <Printer className="h-5 w-5" />58mm<br />(ใบร้าน)
+                  </button>
+                  <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=80mm&copy=shop`, '_blank')}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+                    <Printer className="h-5 w-5" />80mm<br />(ใบร้าน)
                   </button>
                   <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm`, '_blank')}
                     className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
                     <Printer className="h-5 w-5" />58mm<br />(ใบลูกค้า)
                   </button>
-                  <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=A4`, '_blank')}
-                    className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors">
-                    <FileText className="h-5 w-5" />A4<br />(เอกสาร)
+                  <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=80mm`, '_blank')}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+                    <Printer className="h-5 w-5" />80mm<br />(ใบลูกค้า)
                   </button>
                 </div>
+                <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=A4`, '_blank')}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors">
+                  <FileText className="h-5 w-5" />A4 (เอกสาร)
+                </button>
               </>
             )}
 
