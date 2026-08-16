@@ -215,20 +215,24 @@ export default function SettingsPage() {
   async function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (file.size > 500 * 1024) {
+      toast.error('ไฟล์ใหญ่เกินไป (สูงสุด 500 KB สำหรับโลโก้)')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
     setLogoUploading(true)
     setLogoUploadError(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await api.post<{ url: string }>('/settings/logo', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload  = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
       })
-      const url = res.data.url
-      setValue('logoUrl', url, { shouldDirty: true })
-      setLogoPreview(url)
-    } catch (err: any) {
-      const msg = err.response?.data?.message ?? err.message ?? 'อัพโหลดไม่สำเร็จ'
-      toast.error(Array.isArray(msg) ? msg[0] : msg)
+      setValue('logoUrl', dataUrl, { shouldDirty: true })
+      setLogoPreview(dataUrl)
+    } catch {
+      toast.error('อ่านไฟล์ไม่สำเร็จ')
     } finally {
       setLogoUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
