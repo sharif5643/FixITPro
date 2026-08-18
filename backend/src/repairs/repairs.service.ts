@@ -18,6 +18,7 @@ import { RepairPaymentDto } from './dto/repair-payment.dto';
 import { ReversePaymentDto } from './dto/reverse-payment.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
+import { RepairAccountingAdapter } from './repair-accounting.adapter';
 
 const REPAIR_INCLUDE = {
   customer: true,
@@ -55,6 +56,7 @@ export class RepairsService {
     private warranties: WarrantiesService,
     private lineMsg: LineMessagingService,
     private accounting: AccountingService,
+    private repairAccounting: RepairAccountingAdapter,
   ) {}
 
   private async assertBranchActive(branchId: string) {
@@ -202,6 +204,16 @@ export class RepairsService {
 
       return newRepair;
     });
+
+    // Post-commit: record deposit journal (AFTER $transaction — failure swallowed, business unaffected)
+    if (tenantId && (dto.deposit ?? 0) > 0) {
+      await this.repairAccounting.recordDepositJournal(
+        repair,
+        dto.depositPaymentMethod ?? 'CASH',
+        tenantId,
+        actorId,
+      );
+    }
 
     await this.auditLog.log({
       actorId, actorName,
@@ -847,6 +859,11 @@ export class RepairsService {
       return tx.repair.findUniqueOrThrow({ where: { id: repairId }, include: REPAIR_INCLUDE });
     });
 
+    // Post-commit: record final payment + COGS journals (AFTER $transaction — failure swallowed)
+    if (tenantId) {
+      await this.repairAccounting.recordFinalPaymentJournal(paid as any, tenantId, userId);
+    }
+
     // Send LINE notification on DELIVERED (after transaction — non-critical)
     const lineTenantId = (paid as any).branch?.tenantId ?? tenantId ?? null;
     this.lineMsg.notifyRepairStatus(repairId, 'DELIVERED', lineTenantId).catch(() => {});
@@ -937,6 +954,14 @@ export class RepairsService {
       return updated;
     });
 
+    // Post-commit: record payment reversal journals (AFTER $transaction — failure swallowed)
+    // NOTE: Cancellation-gap — REPAIR_DEPOSIT CDT reversal on cancellation is NOT handled here.
+    // The deposit journal from create() is NOT reversed on cancellation. Tracked separately.
+    const reverseTenantId = (repair as any).branch?.tenantId ?? tenantId ?? null;
+    if (reverseTenantId) {
+      await this.repairAccounting.reversePaymentJournal(reversed as any, reverseTenantId, userId);
+    }
+
     await this.auditLog.log({
       actorId: userId,
       action: 'REPAIR_PAYMENT_REVERSED',
@@ -952,7 +977,7 @@ export class RepairsService {
     if (tenantId) addPayWhere.branch = { tenantId };
     const repair = await this.prisma.repair.findFirst({
       where: addPayWhere,
-      select: { id: true, status: true, branchId: true },
+      select: { id: true, status: true, branchId: true, ticketNumber: true, branch: { select: { tenantId: true } } },
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
@@ -997,6 +1022,17 @@ export class RepairsService {
 
       return created;
     });
+
+    // Post-commit: record additional payment journal (AFTER $transaction — failure swallowed)
+    const addPayTenantId = repair.branch?.tenantId ?? null;
+    if (repair.branchId && addPayTenantId) {
+      await this.repairAccounting.recordAdditionalPaymentJournal(
+        { id: payment.id, amount: payment.amount, paymentMethod: payment.paymentMethod as string },
+        { id: repair.id, ticketNumber: repair.ticketNumber, branchId: repair.branchId },
+        addPayTenantId,
+        userId,
+      );
+    }
 
     await this.auditLog.log({
       actorId: userId,

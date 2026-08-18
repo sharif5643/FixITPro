@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
+import { ExpenseAccountingAdapter } from './expense-accounting.adapter';
 import { CreateExpenseCategoryDto } from './dto/create-expense-category.dto';
 import { UpdateExpenseCategoryDto } from './dto/update-expense-category.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -33,6 +34,7 @@ export class ExpensesService implements OnModuleInit {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private accounting: AccountingService,
+    private expenseAccounting: ExpenseAccountingAdapter,
   ) {}
 
   async onModuleInit() {
@@ -160,6 +162,25 @@ export class ExpensesService implements OnModuleInit {
 
       return created;
     });
+
+    // Post-commit: record expense journal (AFTER $transaction — failure swallowed, business unaffected)
+    if (branchId) {
+      const bi = await this.prisma.branch.findUnique({ where: { id: branchId }, select: { tenantId: true } });
+      if (bi?.tenantId) {
+        await this.expenseAccounting.recordExpenseJournal(
+          {
+            id:            expense.id,
+            description:   expense.description,
+            amount:        expense.amount,
+            paymentMethod: expense.paymentMethod as string,
+            branchId:      expense.branchId,
+            category:      expense.category ? { code: expense.category.code } : null,
+          },
+          bi.tenantId,
+          userId,
+        );
+      }
+    }
 
     await this.auditLog.log({
       actorId: userId,
@@ -303,6 +324,22 @@ export class ExpensesService implements OnModuleInit {
 
       return updated;
     });
+
+    // Post-commit: record expense reversal journal (AFTER $transaction — failure swallowed)
+    if (expense.branchId && tenantId) {
+      await this.expenseAccounting.reverseExpenseJournal(
+        {
+          id:            voided.id,
+          description:   voided.description,
+          amount:        voided.amount,
+          paymentMethod: voided.paymentMethod as string,
+          branchId:      voided.branchId,
+          category:      voided.category ? { code: voided.category.code } : null,
+        },
+        tenantId,
+        userId,
+      );
+    }
 
     await this.auditLog.log({
       actorId: userId,

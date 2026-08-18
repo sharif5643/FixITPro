@@ -4,6 +4,7 @@ import { ExpensesService } from './expenses.service';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
+import { ExpenseAccountingAdapter } from './expense-accounting.adapter';
 
 // ── Shared fixtures ────────────────────────────────────────────────────────────
 
@@ -74,12 +75,19 @@ describe('ExpensesService — Workflow tests (RC1)', () => {
     accounting = { record: jest.fn().mockResolvedValue({ id: 'acctx-1' }) };
     auditLog   = { log: jest.fn().mockResolvedValue(undefined) };
 
+    const expenseAccounting = {
+      isEnabledForTenant:    jest.fn().mockReturnValue(false),
+      recordExpenseJournal:  jest.fn().mockResolvedValue(undefined),
+      reverseExpenseJournal: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExpensesService,
-        { provide: PrismaService,     useValue: prisma },
-        { provide: AuditLogService,   useValue: auditLog },
-        { provide: AccountingService, useValue: accounting },
+        { provide: PrismaService,             useValue: prisma },
+        { provide: AuditLogService,           useValue: auditLog },
+        { provide: AccountingService,         useValue: accounting },
+        { provide: ExpenseAccountingAdapter,  useValue: expenseAccounting },
       ],
     }).compile();
 

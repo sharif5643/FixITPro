@@ -472,7 +472,10 @@
       "Bash(ssh -i ~/.ssh/fixitpro_coolify -o StrictHostKeyChecking=no 91.98.151.10 ' *)",
       "Bash(ssh -i *)",
       "Bash(npx tsc *)",
-      "Bash(npx prisma *)"
+      "Bash(npx prisma *)",
+      "Bash(awk '{print $2}')",
+      "Bash(grep -v \"// \\\\|^\\\\s*//\")",
+      "Bash(grep -v \"//\\\\|@index\\\\|@relation\\\\|Tenant\\\\s\")"
     ],
     "additionalDirectories": [
       "D:\\FixITPro\\backend\\node_modules\\.prisma\\client",

@@ -19,7 +19,14 @@ describe('RepairsService.processPayment — P0-1', () => {
     const warranties = { createForRepair: jest.fn().mockResolvedValue({}) };
     const lineMsg = { notifyRepairStatus: jest.fn().mockResolvedValue(null) };
     const accounting = { record: jest.fn().mockResolvedValue(null) };
-    service = new (RepairsService as any)(prisma, auditLog, warranties, lineMsg, accounting);
+    const repairAccounting = {
+      isEnabledForTenant:             jest.fn().mockReturnValue(false),
+      recordDepositJournal:           jest.fn().mockResolvedValue(undefined),
+      recordFinalPaymentJournal:      jest.fn().mockResolvedValue(undefined),
+      reversePaymentJournal:          jest.fn().mockResolvedValue(undefined),
+      recordAdditionalPaymentJournal: jest.fn().mockResolvedValue(undefined),
+    };
+    service = new (RepairsService as any)(prisma, auditLog, warranties, lineMsg, accounting, repairAccounting);
 
     (prisma.shift.findFirst as jest.Mock).mockResolvedValue({ id: 'shift1' });
     (prisma.repair.findFirst as jest.Mock).mockResolvedValue(MOCK_REPAIR);

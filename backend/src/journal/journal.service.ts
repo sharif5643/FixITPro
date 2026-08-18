@@ -58,9 +58,22 @@ export interface CreateJournalResult {
 }
 
 // ── Source type constants for system-generated journals ──────────────────────
+// JournalEntry.sourceType is TEXT (not a DB enum) — these are app-level constants only.
 export const JOURNAL_SOURCE = {
+  // Internal journal management
   REVERSAL: 'JOURNAL_REVERSAL',
   MANUAL:   'JOURNAL_MANUAL',
+  // Repair accounting (Phase 4B.4C — not yet implemented)
+  REPAIR_DEPOSIT:                  'REPAIR_DEPOSIT',
+  REPAIR_FINAL_PAYMENT:            'REPAIR_FINAL_PAYMENT',
+  REPAIR_DEPOSIT_SETTLE:           'REPAIR_DEPOSIT_SETTLE',
+  REPAIR_COGS:                     'REPAIR_COGS',
+  REPAIR_PAYMENT_REVERSAL:         'REPAIR_PAYMENT_REVERSAL',
+  REPAIR_DEPOSIT_SETTLE_REVERSAL:  'REPAIR_DEPOSIT_SETTLE_REVERSAL',
+  REPAIR_ADDITIONAL_PAYMENT:       'REPAIR_ADDITIONAL_PAYMENT',
+  // Expense accounting (Phase 4B.4D — not yet implemented)
+  EXPENSE_PAYMENT:                 'EXPENSE_PAYMENT',
+  EXPENSE_REVERSAL:                'EXPENSE_REVERSAL',
 } as const;
 
 @Injectable()

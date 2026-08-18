@@ -6,6 +6,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
+import { RepairAccountingAdapter } from '../repairs/repair-accounting.adapter';
 
 const BRANCH_ID = 'branch-1';
 const TENANT_ID = 'tenant-1';
@@ -56,13 +57,19 @@ async function build(opts: {
   const notif    = { notify: jest.fn().mockResolvedValue(undefined) };
   const auditLog = { log:    jest.fn() };
 
+  const repairAccounting = {
+    isEnabledForTenant:             jest.fn().mockReturnValue(false),
+    recordAdditionalPaymentJournal: jest.fn().mockResolvedValue(undefined),
+  };
+
   const module: TestingModule = await Test.createTestingModule({
     providers: [
       DebtPaymentsService,
-      { provide: PrismaService,        useValue: prisma     },
-      { provide: AuditLogService,      useValue: auditLog   },
-      { provide: NotificationsService, useValue: notif      },
-      { provide: AccountingService,    useValue: accounting },
+      { provide: PrismaService,             useValue: prisma          },
+      { provide: AuditLogService,           useValue: auditLog        },
+      { provide: NotificationsService,      useValue: notif           },
+      { provide: AccountingService,         useValue: accounting      },
+      { provide: RepairAccountingAdapter,   useValue: repairAccounting },
     ],
   }).compile();
 

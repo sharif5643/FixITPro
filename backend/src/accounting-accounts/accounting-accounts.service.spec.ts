@@ -2,7 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AccountingAccountsService } from './accounting-accounts.service';
 import { PrismaService } from '../database/prisma.service';
-import { COA_TEMPLATE_COUNT } from './constants/chart-of-accounts';
+import { CHART_OF_ACCOUNTS_TEMPLATE, COA_TEMPLATE_COUNT } from './constants/chart-of-accounts';
+import { ACCOUNT_CODES } from './constants/account-codes';
 
 const TENANT_ID  = 'tenant-1';
 const TENANT_ID2 = 'tenant-2';
@@ -302,5 +303,24 @@ describe('AccountingAccountsService', () => {
       data:  { isActive: true },
     });
     expect(result.isActive).toBe(true);
+  });
+
+  // ── 13. Template completeness — all codes used by SalesAccountingAdapter ──
+
+  it('13: CHART_OF_ACCOUNTS_TEMPLATE contains all codes required by SalesAccountingAdapter', () => {
+    const templateCodes = new Set(CHART_OF_ACCOUNTS_TEMPLATE.map(t => t.code));
+    // SalesAccountingAdapter uses: CASH (1100), CLEARING (1120), SALES_REVENUE (4100),
+    // COGS (5100), INVENTORY (1300). If any are missing, the adapter fails at runtime.
+    const required = [
+      ACCOUNT_CODES.CASH,           // 1100 — debit leg for CASH payment
+      ACCOUNT_CODES.CLEARING,       // 1120 — debit leg for TRANSFER/CARD payment
+      ACCOUNT_CODES.SALES_REVENUE,  // 4100 — credit leg for revenue
+      ACCOUNT_CODES.COGS,           // 5100 — debit leg for cost of goods sold
+      ACCOUNT_CODES.INVENTORY,      // 1300 — credit leg for COGS
+    ] as const;
+
+    for (const code of required) {
+      expect(templateCodes).toContain(code);
+    }
   });
 });

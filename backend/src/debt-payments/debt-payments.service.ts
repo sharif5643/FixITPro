@@ -9,6 +9,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
+import { RepairAccountingAdapter } from '../repairs/repair-accounting.adapter';
 import { CreateDebtPaymentDto } from './dto/create-debt-payment.dto';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class DebtPaymentsService {
     private auditLog: AuditLogService,
     private notif: NotificationsService,
     private accounting: AccountingService,
+    private repairAccounting: RepairAccountingAdapter,
   ) {}
 
   private generateReceiptNumber(): string {
@@ -129,6 +131,17 @@ export class DebtPaymentsService {
 
       return pmt;
     });
+
+    // Post-commit: record additional payment journal (AFTER $transaction — failure swallowed)
+    const dpTenantId = repair.branch?.tenantId ?? null;
+    if (dpTenantId && repair.branchId) {
+      await this.repairAccounting.recordAdditionalPaymentJournal(
+        { id: payment.id, amount: payment.amount, paymentMethod: payment.paymentMethod as string },
+        { id: repair.id, ticketNumber: repair.ticketNumber, branchId: repair.branchId },
+        dpTenantId,
+        userId,
+      );
+    }
 
     if (newPaymentStatus === 'PAID') {
       await this.notif.notify({

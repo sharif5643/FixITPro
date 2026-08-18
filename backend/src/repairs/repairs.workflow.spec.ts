@@ -6,6 +6,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { WarrantiesService } from '../warranties/warranties.service';
 import { LineMessagingService } from '../line-messaging/line-messaging.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
+import { RepairAccountingAdapter } from './repair-accounting.adapter';
 
 // ── Shared fixtures ────────────────────────────────────────────────────────────
 
@@ -56,15 +57,23 @@ describe('RepairsService — Workflow tests (RC1)', () => {
 
     const warranties = { createForRepair: jest.fn().mockResolvedValue({}) };
     const lineMsg    = { notifyRepairStatus: jest.fn().mockResolvedValue(null) };
+    const repairAccounting = {
+      isEnabledForTenant:             jest.fn().mockReturnValue(false),
+      recordDepositJournal:           jest.fn().mockResolvedValue(undefined),
+      recordFinalPaymentJournal:      jest.fn().mockResolvedValue(undefined),
+      reversePaymentJournal:          jest.fn().mockResolvedValue(undefined),
+      recordAdditionalPaymentJournal: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RepairsService,
-        { provide: PrismaService,        useValue: prisma },
-        { provide: AuditLogService,      useValue: auditLog },
-        { provide: WarrantiesService,    useValue: warranties },
-        { provide: LineMessagingService, useValue: lineMsg },
-        { provide: AccountingService,    useValue: accounting },
+        { provide: PrismaService,             useValue: prisma },
+        { provide: AuditLogService,           useValue: auditLog },
+        { provide: WarrantiesService,         useValue: warranties },
+        { provide: LineMessagingService,      useValue: lineMsg },
+        { provide: AccountingService,         useValue: accounting },
+        { provide: RepairAccountingAdapter,   useValue: repairAccounting },
       ],
     }).compile();
 
