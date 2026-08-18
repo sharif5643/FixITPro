@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { CreateDebtPaymentDto } from './dto/create-debt-payment.dto';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class DebtPaymentsService {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private notif: NotificationsService,
+    private accounting: AccountingService,
   ) {}
 
   private generateReceiptNumber(): string {
@@ -36,6 +38,7 @@ export class DebtPaymentsService {
       include: {
         customer:           { select: { id: true, name: true, phone: true } },
         additionalPayments: { select: { amount: true } },
+        branch:             { select: { tenantId: true } },
       },
     });
 
@@ -74,8 +77,8 @@ export class DebtPaymentsService {
     const customerName     = repair.customer?.name ?? 'ลูกค้า';
     const remainingAfter   = Math.max(0, newRemaining);
 
-    // Atomic: create payment record + update repair status + write audit log.
-    // All three must commit together — if repair.update fails the payment is rolled back.
+    // Atomic: create payment record + update repair status + write audit log + record in ledger.
+    // All four must commit together — if any step fails, the entire transaction rolls back.
     const payment = await this.prisma.$transaction(async (tx) => {
       const pmt = await tx.repairAdditionalPayment.create({
         data: {
@@ -108,6 +111,21 @@ export class DebtPaymentsService {
           } as any,
         },
       });
+
+      await this.accounting.record(
+        {
+          sourceType:    ACCOUNTING_SOURCE.REPAIR_ADDITIONAL_PAYMENT,
+          sourceId:      pmt.id,
+          paymentMethod: dto.paymentMethod as any,
+          amount:        dto.amount,
+          direction:     'IN',
+          branchId:      repair.branchId,
+          tenantId:      repair.branch?.tenantId ?? null,
+          actorUserId:   userId,
+          note:          dto.note,
+        },
+        tx,
+      );
 
       return pmt;
     });

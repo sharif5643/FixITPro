@@ -9,6 +9,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService, LARGE_REFUND_THRESHOLD } from '../notifications/notifications.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
+import { SalesAccountingAdapter } from './sales-accounting.adapter';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { RefundSaleDto } from './dto/refund-sale.dto';
 import { ExchangeSaleDto } from './dto/exchange-sale.dto';
@@ -20,6 +21,7 @@ export class SalesService {
     private auditLog: AuditLogService,
     private notif: NotificationsService,
     private accounting: AccountingService,
+    private salesAccounting?: SalesAccountingAdapter,
   ) {}
 
   private async syncProductShadowStock(productId: string, tx: any): Promise<void> {
@@ -373,6 +375,9 @@ export class SalesService {
       if (p) await this.notif.notifyLowStock(p.id, p.name, p.stock, p.minStock);
     }
 
+    // Post-transaction: accounting journal (ACCOUNTING_CORE_ENABLED gates this; never throws)
+    await this.salesAccounting?.recordSaleJournal(sale as any, tenantId ?? '', userId);
+
     return sale;
   }
 
@@ -495,7 +500,7 @@ export class SalesService {
 
     const totalRefund = dto.items.reduce((sum, item) => sum + item.refundPrice * item.quantity, 0);
 
-    return this.prisma.$transaction(async (tx) => {
+    const refundResult = await this.prisma.$transaction(async (tx) => {
       const refund = await tx.saleRefund.create({
         data: {
           refundNumber: this.generateRefundNumber(),
@@ -618,6 +623,22 @@ export class SalesService {
 
       return { ...refund, saleStatus: newStatus };
     });
+
+    // Post-transaction: refund accounting journal (ACCOUNTING_CORE_ENABLED gates; never throws)
+    await this.salesAccounting?.recordRefundJournal(
+      {
+        id:            refundResult.id,
+        totalRefund:   refundResult.totalRefund,
+        paymentMethod: refundResult.paymentMethod,
+        saleId:        id,
+      },
+      sale as any,
+      dto.items.map((ri) => ({ saleItemId: ri.saleItemId, quantity: ri.quantity })),
+      tenantId ?? '',
+      userId,
+    );
+
+    return refundResult;
   }
 
   async voidSale(id: string, reason: string, userId: string, tenantId?: string | null) {
@@ -645,7 +666,7 @@ export class SalesService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const voidResult = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.sale.update({
         where: { id },
         data: {
@@ -754,6 +775,11 @@ export class SalesService {
 
       return updated;
     });
+
+    // Post-transaction: reverse accounting journals (ACCOUNTING_CORE_ENABLED gates; never throws)
+    await this.salesAccounting?.reverseSaleJournal(sale as any, tenantId ?? '', userId);
+
+    return voidResult;
   }
 
   async exchangeSaleItems(id: string, dto: ExchangeSaleDto, userId: string, tenantId?: string | null) {

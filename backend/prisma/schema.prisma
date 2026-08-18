@@ -172,14 +172,14 @@ enum RepairPaymentStatus {
 }
 
 model Branch {
-  id           String       @id @default(cuid())
-  name         String
-  address      String?
-  phone        String?
-  isActive     Boolean      @default(true)
-  isDefault    Boolean      @default(false)
-  branchNumber Int?
-  status       BranchStatus @default(ACTIVE)
+  id               String           @id @default(cuid())
+  name             String
+  address          String?
+  phone            String?
+  isActive         Boolean          @default(true)
+  isDefault        Boolean          @default(false)
+  branchNumber     Int?
+  status           BranchStatus     @default(ACTIVE)
   stockCodeSeq     Int              @default(0)
   cashDrawerPolicy CashDrawerPolicy @default(STRICT)
   createdAt        DateTime         @default(now())
@@ -188,14 +188,14 @@ model Branch {
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
-  users          User[]
-  sales          Sale[]
-  repairs        Repair[]
-  expenses       Expense[]
-  shifts         Shift[]
-  notifications  Notification[]
-  stockMovements StockMovement[]
-  branchStocks   BranchStock[]
+  users                  User[]
+  sales                  Sale[]
+  repairs                Repair[]
+  expenses               Expense[]
+  shifts                 Shift[]
+  notifications          Notification[]
+  stockMovements         StockMovement[]
+  branchStocks           BranchStock[]
   transfersFrom          StockTransfer[]         @relation("TransferFrom")
   transfersTo            StockTransfer[]         @relation("TransferTo")
   cashDrawers            CashDrawer[]
@@ -216,8 +216,8 @@ model BranchStock {
   stockCode String?  @unique
   updatedAt DateTime @updatedAt
 
-  branchId  String
-  branch    Branch  @relation(fields: [branchId], references: [id])
+  branchId String
+  branch   Branch @relation(fields: [branchId], references: [id])
 
   productId String
   product   Product @relation(fields: [productId], references: [id])
@@ -257,10 +257,10 @@ model StockTransfer {
   updatedAt       DateTime            @updatedAt
 
   fromBranchId String
-  fromBranch   Branch  @relation("TransferFrom", fields: [fromBranchId], references: [id])
+  fromBranch   Branch @relation("TransferFrom", fields: [fromBranchId], references: [id])
 
   toBranchId String
-  toBranch   Branch  @relation("TransferTo", fields: [toBranchId], references: [id])
+  toBranch   Branch @relation("TransferTo", fields: [toBranchId], references: [id])
 
   productId String
   product   Product @relation(fields: [productId], references: [id])
@@ -273,29 +273,29 @@ model StockTransfer {
 }
 
 model Tenant {
-  id        String       @id @default(cuid())
-  shopName  String
-  ownerName String
-  phone     String?
-  email     String       @unique
-  status    TenantStatus @default(PENDING)
-  plan      TenantPlan   @default(TRIAL)
-  startDate DateTime?
+  id         String       @id @default(cuid())
+  shopName   String
+  ownerName  String
+  phone      String?
+  email      String       @unique
+  status     TenantStatus @default(PENDING)
+  plan       TenantPlan   @default(TRIAL)
+  startDate  DateTime?
   expiryDate DateTime?
-  notes     String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  notes      String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
-  users             User[]
-  renewals          TenantRenewal[]
-  addons            TenantAddon[]
-  payments          TenantPayment[]
-  moduleOverrides   TenantModule[]
-  branches          Branch[]
-  products          Product[]
-  customers         Customer[]
-  categories        Category[]
-  suppliers         Supplier[]
+  users                  User[]
+  renewals               TenantRenewal[]
+  addons                 TenantAddon[]
+  payments               TenantPayment[]
+  moduleOverrides        TenantModule[]
+  branches               Branch[]
+  products               Product[]
+  customers              Customer[]
+  categories             Category[]
+  suppliers              Supplier[]
   shopSettings           ShopSettings?
   notifications          Notification[]
   expenseCategories      ExpenseCategory[]
@@ -325,15 +325,15 @@ model TenantRenewal {
 
 // Phase 13: Add-on purchases — extra storage (99฿/10GB) or extra branches (500฿/branch).
 model TenantAddon {
-  id          String   @id @default(cuid())
-  type        String   // 'STORAGE_GB' | 'BRANCH'
-  quantity    Int      // GB for STORAGE_GB, branch count for BRANCH
-  priceThb    Decimal  @db.Decimal(10, 2)
-  note        String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  type      String // 'STORAGE_GB' | 'BRANCH'
+  quantity  Int // GB for STORAGE_GB, branch count for BRANCH
+  priceThb  Decimal  @db.Decimal(10, 2)
+  note      String?
+  createdAt DateTime @default(now())
 
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
   grantedById String?
 
@@ -341,31 +341,31 @@ model TenantAddon {
 }
 
 model TenantPayment {
-  id               String        @id @default(cuid())
+  id               String     @id @default(cuid())
   plan             TenantPlan
   duration         Int
   customExpiryDate DateTime?
 
   paymentReference String?
   paymentDate      DateTime?
-  paymentAmount    Decimal?      @db.Decimal(10, 2)
+  paymentAmount    Decimal?  @db.Decimal(10, 2)
   paymentNote      String?
 
-  status           PaymentStatus @default(PENDING)
-  adminNote        String?
-  verifiedAt       DateTime?
-  activatedAt      DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  status      PaymentStatus @default(PENDING)
+  adminNote   String?
+  verifiedAt  DateTime?
+  activatedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  tenantId         String
-  tenant           Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
 
-  verifiedById     String?
-  verifiedBy       User?         @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedById String?
+  verifiedBy   User?   @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
 
-  activatedById    String?
-  activatedBy      User?         @relation("PaymentActivatedBy", fields: [activatedById], references: [id])
+  activatedById String?
+  activatedBy   User?   @relation("PaymentActivatedBy", fields: [activatedById], references: [id])
 
   @@index([tenantId, status])
   @@index([status, createdAt])
@@ -401,33 +401,33 @@ model User {
   passwordResetBy User?  @relation("PasswordResets", fields: [passwordResetById], references: [id])
   resetUsers      User[] @relation("PasswordResets")
 
-  refreshTokens            RefreshToken[]
+  refreshTokens RefreshToken[]
 
   shifts                   Shift[]
   sales                    Sale[]
   repairs                  Repair[]
   purchaseOrders           PurchaseOrder[]
-  claims                   Claim[]                  @relation("ClaimCreatedBy")
-  claimHistories           ClaimStatusHistory[]     @relation("ClaimHistoryCreatedBy")
-  verifiedPayments         TenantPayment[]          @relation("PaymentVerifiedBy")
-  activatedPayments        TenantPayment[]          @relation("PaymentActivatedBy")
+  claims                   Claim[]                   @relation("ClaimCreatedBy")
+  claimHistories           ClaimStatusHistory[]      @relation("ClaimHistoryCreatedBy")
+  verifiedPayments         TenantPayment[]           @relation("PaymentVerifiedBy")
+  activatedPayments        TenantPayment[]           @relation("PaymentActivatedBy")
   packageSales             PackageSale[]
-  voidedSales              Sale[]                   @relation("SaleVoidedBy")
+  voidedSales              Sale[]                    @relation("SaleVoidedBy")
   saleRefunds              SaleRefund[]
   repairPaymentReversals   RepairPaymentReversal[]
   repairAdditionalPayments RepairAdditionalPayment[]
-  expenses                 Expense[]               @relation("ExpenseCreatedBy")
-  voidedExpenses           Expense[]               @relation("ExpenseVoidedBy")
+  expenses                 Expense[]                 @relation("ExpenseCreatedBy")
+  voidedExpenses           Expense[]                 @relation("ExpenseVoidedBy")
   reminderSettings         ReminderSettings?
   reminderSnoozes          ReminderSnooze[]
-  sentMessages             RepairMessage[]          @relation("SentMessages")
-  openedDrawerSessions     CashDrawerSession[]      @relation("CashDrawerOpenedBy")
-  closedDrawerSessions     CashDrawerSession[]      @relation("CashDrawerClosedBy")
-  approvedDrawerSessions   CashDrawerSession[]      @relation("CashDrawerApprovedBy")
-  drawerParticipations     CashDrawerParticipant[]  @relation("CashDrawerParticipants")
-  drawerTransactions       CashDrawerTransaction[]  @relation("CashDrawerTransactions")
+  sentMessages             RepairMessage[]           @relation("SentMessages")
+  openedDrawerSessions     CashDrawerSession[]       @relation("CashDrawerOpenedBy")
+  closedDrawerSessions     CashDrawerSession[]       @relation("CashDrawerClosedBy")
+  approvedDrawerSessions   CashDrawerSession[]       @relation("CashDrawerApprovedBy")
+  drawerParticipations     CashDrawerParticipant[]   @relation("CashDrawerParticipants")
+  drawerTransactions       CashDrawerTransaction[]   @relation("CashDrawerTransactions")
   userPermissions          UserPermission[]
-  dailyCloses              DailyClose[]             @relation("DailyCloseClosedBy")
+  dailyCloses              DailyClose[]              @relation("DailyCloseClosedBy")
 
   @@index([role, isActive])
   @@index([tenantId])
@@ -454,7 +454,7 @@ model Shift {
   ntOpeningBalance   Decimal? @db.Decimal(12, 2)
 
   sales          Sale[]
-  repairPayments Repair[] @relation("RepairPayments")
+  repairPayments Repair[]  @relation("RepairPayments")
   expenses       Expense[]
 
   @@index([userId])
@@ -489,23 +489,23 @@ model Category {
 }
 
 model Product {
-  id          String      @id @default(cuid())
-  name        String
-  sku         String
-  barcode     String?
-  type        ProductType
-  price       Decimal     @db.Decimal(10, 2)
-  costPrice   Decimal     @db.Decimal(10, 2)
-  stock       Int         @default(0)
-  minStock    Int         @default(0)
-  description String?
-  imageUrl    String?
-  isActive    Boolean      @default(true)
+  id           String       @id @default(cuid())
+  name         String
+  sku          String
+  barcode      String?
+  type         ProductType
+  price        Decimal      @db.Decimal(10, 2)
+  costPrice    Decimal      @db.Decimal(10, 2)
+  stock        Int          @default(0)
+  minStock     Int          @default(0)
+  description  String?
+  imageUrl     String?
+  isActive     Boolean      @default(true)
   warrantyType WarrantyType @default(NO_WARRANTY)
   warrantyDays Int?
   hasSerial    Boolean      @default(false)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
@@ -553,12 +553,12 @@ model StockMovement {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String?
-  email     String?
-  address   String?
-  note      String?
+  id         String   @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  note       String?
   points     Int      @default(0)
   tags       String[] @default([])
   lineUserId String?
@@ -568,13 +568,13 @@ model Customer {
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
-  sales              Sale[]
-  repairs            Repair[]
-  claims             Claim[]
-  packageSales       PackageSale[]
-  saleRefunds        SaleRefund[]
-  customerNotes      CustomerNote[]
-  warranties         Warranty[]
+  sales               Sale[]
+  repairs             Repair[]
+  claims              Claim[]
+  packageSales        PackageSale[]
+  saleRefunds         SaleRefund[]
+  customerNotes       CustomerNote[]
+  warranties          Warranty[]
   loyaltyTransactions LoyaltyTransaction[]
 
   @@unique([tenantId, phone])
@@ -592,10 +592,10 @@ model LoyaltyTransaction {
   actorName   String?
   createdAt   DateTime @default(now())
 
-  customerId  String
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  tenantId    String?
+  tenantId String?
 
   @@index([customerId, createdAt])
   @@index([tenantId])
@@ -739,34 +739,34 @@ model SaleRefundItem {
 }
 
 model Repair {
-  id           String       @id @default(cuid())
-  ticketNumber String       @unique
-  deviceBrand  String
-  deviceModel  String
-  deviceColor  String?
-  deviceImei   String?
-  issue        String
-  status       RepairStatus @default(RECEIVED)
-  estimateCost Decimal?     @db.Decimal(10, 2)
-  finalCost    Decimal?     @db.Decimal(10, 2)
-  deposit      Decimal      @default(0) @db.Decimal(10, 2)
-  note                String?
-  accessories         String?
-  deviceType          String?
-  deviceConditions    Json?
-  issueTags           Json?
-  discount            Decimal?     @db.Decimal(10, 2)
-  dueDate             DateTime?
-  estimatedLaborCost  Decimal?     @db.Decimal(10, 2)
-  estimatedPartsCost  Decimal?     @db.Decimal(10, 2)
-  estimatedTotal      Decimal?     @db.Decimal(10, 2)
-  actualLaborCost     Decimal?     @db.Decimal(10, 2)
-  approvedAt          DateTime?
-  approvalNote        String?
-  receivedAt          DateTime     @default(now())
-  completedAt         DateTime?
-  deliveredAt         DateTime?
-  updatedAt           DateTime     @updatedAt
+  id                 String       @id @default(cuid())
+  ticketNumber       String       @unique
+  deviceBrand        String
+  deviceModel        String
+  deviceColor        String?
+  deviceImei         String?
+  issue              String
+  status             RepairStatus @default(RECEIVED)
+  estimateCost       Decimal?     @db.Decimal(10, 2)
+  finalCost          Decimal?     @db.Decimal(10, 2)
+  deposit            Decimal      @default(0) @db.Decimal(10, 2)
+  note               String?
+  accessories        String?
+  deviceType         String?
+  deviceConditions   Json?
+  issueTags          Json?
+  discount           Decimal?     @db.Decimal(10, 2)
+  dueDate            DateTime?
+  estimatedLaborCost Decimal?     @db.Decimal(10, 2)
+  estimatedPartsCost Decimal?     @db.Decimal(10, 2)
+  estimatedTotal     Decimal?     @db.Decimal(10, 2)
+  actualLaborCost    Decimal?     @db.Decimal(10, 2)
+  approvedAt         DateTime?
+  approvalNote       String?
+  receivedAt         DateTime     @default(now())
+  completedAt        DateTime?
+  deliveredAt        DateTime?
+  updatedAt          DateTime     @updatedAt
 
   warrantyExpiresAt DateTime?
   warrantyNote      String?
@@ -777,10 +777,10 @@ model Repair {
   technicianId String?
   technician   User?   @relation(fields: [technicianId], references: [id])
 
-  paymentStatus   RepairPaymentStatus @default(PENDING)
-  paymentMethod   PaymentMethod?
-  paidAmount      Decimal?        @db.Decimal(10, 2)
-  paidAt          DateTime?
+  paymentStatus RepairPaymentStatus @default(PENDING)
+  paymentMethod PaymentMethod?
+  paidAmount    Decimal?            @db.Decimal(10, 2)
+  paidAt        DateTime?
 
   paymentShiftId String?
   paymentShift   Shift?  @relation("RepairPayments", fields: [paymentShiftId], references: [id])
@@ -847,24 +847,24 @@ model RepairAdditionalPayment {
 }
 
 model ShopSettings {
-  id              Int      @id @default(autoincrement())
-  shopName        String   @default("FixITPro")
-  shopSubtitle    String?
-  shopPhone       String?
-  shopAddress     String?
-  shopEmail       String?
-  taxId           String?
-  logoUrl         String?
-  receiptFooter   String?
-  paperWidth      String   @default("80mm")
-  vatPercent      Decimal  @default(0) @db.Decimal(5, 2)
-  defaultDeposit  Decimal  @default(0) @db.Decimal(10, 2)
-  autoGenerateSku Boolean  @default(true)
-  autoGenerateBarcode Boolean @default(false)
-  autoPrint       Boolean  @default(false)
-  lowStockAlert   Int      @default(5)
-  repairWarrantyText String?
-  paymentQrUrl       String?
+  id                     Int      @id @default(autoincrement())
+  shopName               String   @default("FixITPro")
+  shopSubtitle           String?
+  shopPhone              String?
+  shopAddress            String?
+  shopEmail              String?
+  taxId                  String?
+  logoUrl                String?
+  receiptFooter          String?
+  paperWidth             String   @default("80mm")
+  vatPercent             Decimal  @default(0) @db.Decimal(5, 2)
+  defaultDeposit         Decimal  @default(0) @db.Decimal(10, 2)
+  autoGenerateSku        Boolean  @default(true)
+  autoGenerateBarcode    Boolean  @default(false)
+  autoPrint              Boolean  @default(false)
+  lowStockAlert          Int      @default(5)
+  repairWarrantyText     String?
+  paymentQrUrl           String?
   showTaxId              Boolean  @default(true)
   showLogo               Boolean  @default(true)
   lineChannelAccessToken String?
@@ -896,12 +896,12 @@ model Subscription {
 }
 
 model SubscriptionRenewal {
-  id             String       @id @default(cuid())
-  action         String
-  expiryDate     DateTime
-  amount         Decimal?     @db.Decimal(10, 2)
-  note           String?
-  createdAt      DateTime     @default(now())
+  id         String   @id @default(cuid())
+  action     String
+  expiryDate DateTime
+  amount     Decimal? @db.Decimal(10, 2)
+  note       String?
+  createdAt  DateTime @default(now())
 
   subscriptionId Int
   subscription   Subscription @relation(fields: [subscriptionId], references: [id])
@@ -913,7 +913,7 @@ model RepairImage {
   repair    Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
   url       String
   category  String?
-  fileSize  Int?     // bytes; null for images uploaded before Phase 10
+  fileSize  Int? // bytes; null for images uploaded before Phase 10
   createdAt DateTime @default(now())
 
   @@index([repairId])
@@ -965,14 +965,14 @@ model RepairReview {
 }
 
 model RepairPart {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   quantity         Int
-  price            Decimal  @db.Decimal(10, 2)   // legacy field = costPrice
-  costPrice        Decimal? @db.Decimal(10, 2)   // COGS snapshot — profit reports use this
-  sellPrice        Decimal? @db.Decimal(10, 2)   // only set when chargeToCustomer=true
-  productName      String?                        // snapshot of product.name at add time
-  chargeToCustomer Boolean  @default(false)       // true = sellPrice billed on top of repair price
-  isVoided         Boolean  @default(false)       // soft delete
+  price            Decimal   @db.Decimal(10, 2) // legacy field = costPrice
+  costPrice        Decimal?  @db.Decimal(10, 2) // COGS snapshot — profit reports use this
+  sellPrice        Decimal?  @db.Decimal(10, 2) // only set when chargeToCustomer=true
+  productName      String? // snapshot of product.name at add time
+  chargeToCustomer Boolean   @default(false) // true = sellPrice billed on top of repair price
+  isVoided         Boolean   @default(false) // soft delete
   voidedAt         DateTime?
 
   repairId String
@@ -1024,16 +1024,16 @@ enum POPaymentStatus {
 }
 
 model PurchaseOrder {
-  id           String    @id @default(cuid())
-  poNumber     String    @unique
-  status       POStatus  @default(DRAFT)
-  orderDate    DateTime  @default(now())
-  expectedDate DateTime?
-  subtotal     Decimal   @db.Decimal(10, 2)
-  discount     Decimal   @default(0) @db.Decimal(10, 2)
-  vatPercent   Decimal   @default(0) @db.Decimal(5, 2)
-  vatAmount    Decimal   @default(0) @db.Decimal(10, 2)
-  total        Decimal   @db.Decimal(10, 2)
+  id            String          @id @default(cuid())
+  poNumber      String          @unique
+  status        POStatus        @default(DRAFT)
+  orderDate     DateTime        @default(now())
+  expectedDate  DateTime?
+  subtotal      Decimal         @db.Decimal(10, 2)
+  discount      Decimal         @default(0) @db.Decimal(10, 2)
+  vatPercent    Decimal         @default(0) @db.Decimal(5, 2)
+  vatAmount     Decimal         @default(0) @db.Decimal(10, 2)
+  total         Decimal         @db.Decimal(10, 2)
   note          String?
   dueDate       DateTime?
   paymentStatus POPaymentStatus @default(UNPAID)
@@ -1041,8 +1041,8 @@ model PurchaseOrder {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  supplierId  String
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
 
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
@@ -1115,8 +1115,8 @@ model SerialNumber {
   purchaseOrderItemId String?
   purchaseOrderItem   PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id])
 
-  claims         Claim[] @relation("OriginalSerial")
-  replacementFor Claim[] @relation("ReplacementSerial")
+  claims         Claim[]    @relation("OriginalSerial")
+  replacementFor Claim[]    @relation("ReplacementSerial")
   warranties     Warranty[]
 
   @@index([productId, status])
@@ -1138,17 +1138,17 @@ model Claim {
   serialNumberId String
   serialNumber   SerialNumber @relation("OriginalSerial", fields: [serialNumberId], references: [id])
 
-  replacementSerialId String? @unique
+  replacementSerialId String?       @unique
   replacementSerial   SerialNumber? @relation("ReplacementSerial", fields: [replacementSerialId], references: [id])
 
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
 
   repairId String?
-  repair   Repair?  @relation(fields: [repairId], references: [id])
+  repair   Repair? @relation(fields: [repairId], references: [id])
 
   createdById String
-  createdBy   User @relation("ClaimCreatedBy", fields: [createdById], references: [id])
+  createdBy   User   @relation("ClaimCreatedBy", fields: [createdById], references: [id])
 
   history ClaimStatusHistory[]
 
@@ -1166,17 +1166,17 @@ model ClaimStatusHistory {
   createdAt DateTime    @default(now())
 
   claimId String
-  claim   Claim @relation(fields: [claimId], references: [id])
+  claim   Claim  @relation(fields: [claimId], references: [id])
 
   createdById String
-  createdBy   User @relation("ClaimHistoryCreatedBy", fields: [createdById], references: [id])
+  createdBy   User   @relation("ClaimHistoryCreatedBy", fields: [createdById], references: [id])
 
   @@index([claimId])
   @@index([createdById])
 }
 
 model RolePermission {
-  id         String   @id @default(cuid())
+  id         String @id @default(cuid())
   role       Role
   permission String
 
@@ -1185,12 +1185,12 @@ model RolePermission {
 }
 
 model UserPermission {
-  id          String   @id @default(cuid())
-  permission  String
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  permission String
+  createdAt  DateTime @default(now())
 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   grantedById String?
 
@@ -1228,17 +1228,17 @@ model CarrierWalletMovement {
 }
 
 model ExpenseCategory {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
   code      String
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
 
   // null = global system default visible to all tenants; non-null = tenant-private category
-  tenantId  String?
-  tenant    Tenant?   @relation(fields: [tenantId], references: [id])
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
-  expenses  Expense[]
+  expenses Expense[]
 
   @@unique([code, tenantId])
 }
@@ -1256,14 +1256,14 @@ model Expense {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  categoryId  String
-  category    ExpenseCategory @relation(fields: [categoryId], references: [id])
+  categoryId String
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id])
 
   createdById String
   createdBy   User   @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
 
   voidedById String?
-  voidedBy   User?  @relation("ExpenseVoidedBy", fields: [voidedById], references: [id])
+  voidedBy   User?   @relation("ExpenseVoidedBy", fields: [voidedById], references: [id])
 
   shiftId String?
   shift   Shift?  @relation(fields: [shiftId], references: [id])
@@ -1296,7 +1296,7 @@ model PackageSale {
 
   shiftId     String?
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
 
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
@@ -1308,32 +1308,32 @@ model PackageSale {
 }
 
 model Warranty {
-  id              String            @id @default(cuid())
-  warrantyNumber  String            @unique
-  sourceType      WarrantySourceType
-  status          WarrantyStatus    @default(ACTIVE)
-  startDate       DateTime
-  endDate         DateTime
-  description     String?
-  notes           String?
-  voidedAt        DateTime?
-  voidedReason    String?
-  createdById     String?
-  createdByName   String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id             String             @id @default(cuid())
+  warrantyNumber String             @unique
+  sourceType     WarrantySourceType
+  status         WarrantyStatus     @default(ACTIVE)
+  startDate      DateTime
+  endDate        DateTime
+  description    String?
+  notes          String?
+  voidedAt       DateTime?
+  voidedReason   String?
+  createdById    String?
+  createdByName  String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
-  customerId      String?
-  customer        Customer?  @relation(fields: [customerId], references: [id])
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
 
-  repairId        String?
-  repair          Repair?    @relation(fields: [repairId], references: [id])
+  repairId String?
+  repair   Repair? @relation(fields: [repairId], references: [id])
 
-  saleItemId      String?
-  saleItem        SaleItem?  @relation(fields: [saleItemId], references: [id])
+  saleItemId String?
+  saleItem   SaleItem? @relation(fields: [saleItemId], references: [id])
 
-  serialNumberId  String?
-  serialNumber    SerialNumber? @relation(fields: [serialNumberId], references: [id])
+  serialNumberId String?
+  serialNumber   SerialNumber? @relation(fields: [serialNumberId], references: [id])
 
   @@index([status, endDate])
   @@index([customerId])
@@ -1362,11 +1362,11 @@ model Notification {
   readAt     DateTime?
   createdAt  DateTime             @default(now())
 
-  branchId   String?
-  branch     Branch?              @relation(fields: [branchId], references: [id])
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id])
 
-  tenantId   String?
-  tenant     Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([isRead, createdAt])
   @@index([type, entityId])
@@ -1409,8 +1409,8 @@ model ReminderSettings {
   partsRequestEnabled    Boolean  @default(true)
   updatedAt              DateTime @updatedAt
 
-  userId  String  @unique
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ReminderSnooze {
@@ -1420,8 +1420,8 @@ model ReminderSnooze {
   snoozeUntil DateTime
   createdAt   DateTime @default(now())
 
-  userId  String
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, entityType, entityId])
   @@index([userId, snoozeUntil])
@@ -1459,7 +1459,7 @@ model PackageModule {
   moduleKey  String
 
   package Package   @relation(fields: [packageKey], references: [key])
-  module  AppModule @relation(fields: [moduleKey],  references: [key])
+  module  AppModule @relation(fields: [moduleKey], references: [key])
 
   @@id([packageKey, moduleKey])
   @@index([packageKey])
@@ -1473,7 +1473,7 @@ model TenantModule {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  tenant Tenant    @relation(fields: [tenantId],  references: [id], onDelete: Cascade)
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   module AppModule @relation(fields: [moduleKey], references: [key])
 
   @@id([tenantId, moduleKey])
@@ -1565,10 +1565,10 @@ model CashDrawerSession {
   openedBy   User   @relation("CashDrawerOpenedBy", fields: [openedById], references: [id])
 
   closedById String?
-  closedBy   User?  @relation("CashDrawerClosedBy", fields: [closedById], references: [id])
+  closedBy   User?   @relation("CashDrawerClosedBy", fields: [closedById], references: [id])
 
   approvedById String?
-  approvedBy   User?  @relation("CashDrawerApprovedBy", fields: [approvedById], references: [id])
+  approvedBy   User?   @relation("CashDrawerApprovedBy", fields: [approvedById], references: [id])
 
   participants CashDrawerParticipant[]
   transactions CashDrawerTransaction[]
@@ -1636,8 +1636,8 @@ model CashDrawerTransaction {
 }
 
 model DailyClose {
-  id        String   @id @default(cuid())
-  date      String   // YYYY-MM-DD
+  id   String @id @default(cuid())
+  date String // YYYY-MM-DD
 
   posRevenue      Decimal @default(0) @db.Decimal(12, 2)
   repairRevenue   Decimal @default(0) @db.Decimal(12, 2)
@@ -1655,10 +1655,10 @@ model DailyClose {
   closedAt DateTime @default(now())
 
   tenantId String?
-  tenant   Tenant?  @relation(fields: [tenantId], references: [id])
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
 
   branchId String?
-  branch   Branch?  @relation(fields: [branchId], references: [id])
+  branch   Branch? @relation(fields: [branchId], references: [id])
 
   closedById String
   closedBy   User   @relation("DailyCloseClosedBy", fields: [closedById], references: [id])
@@ -1666,4 +1666,97 @@ model DailyClose {
   @@unique([date, branchId, tenantId])
   @@index([tenantId, date])
   @@index([branchId, date])
+}
+
+// ── Accounting Core (Phase 2) ─────────────────────────────────────────────────
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+// Chart of Accounts — one row per nominal account per tenant.
+// System accounts have tenantId=NULL and are shared across all tenants.
+// Tenant-private accounts have a non-null tenantId.
+// NOTE: @@unique([code, tenantId]) follows PostgreSQL NULL semantics —
+// NULL != NULL, so multiple system accounts can share a code only if
+// application logic prevents it (enforced in Phase 3 seed + AccountingService).
+model AccountingAccount {
+  id        String      @id @default(cuid())
+  code      String
+  name      String
+  nameTh    String
+  type      AccountType
+  subType   String?
+  isSystem  Boolean     @default(false)
+  isActive  Boolean     @default(true)
+  sortOrder Int         @default(0)
+  tenantId  String?
+  createdAt DateTime    @default(now())
+
+  lines JournalLine[]
+
+  @@unique([code, tenantId])
+  @@index([tenantId])
+  @@index([type])
+}
+
+// Journal entry header — one row per accounting event.
+// Double-entry balance (SUM(debit) == SUM(credit) per entry) is enforced
+// in JournalService, not at the DB layer.
+//
+// PARTIAL UNIQUE INDEX (not representable in Prisma DSL — managed via raw migration):
+//   migration 20260817100000_add_journal_idempotency_index
+//   CREATE UNIQUE INDEX "JournalEntry_sourceType_sourceId_tenantId_unique"
+//     ON "JournalEntry" ("sourceType", "sourceId", "tenantId")
+//     WHERE "sourceType" IS NOT NULL AND "sourceId" IS NOT NULL;
+// DO NOT run 'prisma migrate dev' without awareness of this constraint.
+model JournalEntry {
+  id          String    @id @default(cuid())
+  entryNumber String    @unique
+  entryDate   DateTime
+  description String
+  sourceType  String?
+  sourceId    String?
+  sourceRef   String?
+  isVoided    Boolean   @default(false)
+  voidedAt    DateTime?
+  voidedById  String?
+  voidReason  String?
+  isBackfill  Boolean   @default(false)
+  postedById  String?
+  postedAt    DateTime?
+  tenantId    String?
+  branchId    String?
+  createdAt   DateTime  @default(now())
+
+  lines JournalLine[]
+
+  @@index([tenantId, entryDate])
+  @@index([branchId, entryDate])
+  @@index([sourceType, sourceId])
+  @@index([entryDate])
+  @@index([isVoided])
+}
+
+// Journal entry lines — debit or credit leg attached to an account.
+model JournalLine {
+  id            String  @id @default(cuid())
+  debit         Decimal @default(0) @db.Decimal(12, 2)
+  credit        Decimal @default(0) @db.Decimal(12, 2)
+  paymentMethod String?
+  note          String?
+  sortOrder     Int     @default(0)
+
+  entryId String
+  entry   JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  accountId String
+  account   AccountingAccount @relation(fields: [accountId], references: [id])
+
+  @@index([entryId])
+  @@index([accountId])
 }

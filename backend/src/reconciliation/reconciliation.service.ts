@@ -15,6 +15,7 @@ export interface ReconciliationReport {
     missingSalePaymentLedger:    MissingLedgerItem[];
     missingRepairPaymentLedger:  MissingLedgerItem[];
     missingExpensePaymentLedger: MissingLedgerItem[];
+    missingDebtPaymentLedger:    MissingLedgerItem[];
     orphanLedgerEntries:         OrphanLedgerItem[];
     duplicateReferences:         DuplicateRefItem[];
     postCloseTransactions:       PostCloseItem[];
@@ -76,6 +77,7 @@ export class ReconciliationService {
       missingSalePaymentLedger,
       missingRepairPaymentLedger,
       missingExpensePaymentLedger,
+      missingDebtPaymentLedger,
       orphanLedgerEntries,
       duplicateReferences,
       postCloseTransactions,
@@ -84,6 +86,7 @@ export class ReconciliationService {
       this.findMissingSalePaymentLedger(branchId, tenantId, dateRange),
       this.findMissingRepairPaymentLedger(branchId, tenantId, dateRange),
       this.findMissingExpensePaymentLedger(branchId, tenantId, dateRange),
+      this.findMissingDebtPaymentLedger(branchId, tenantId, dateRange),
       this.findOrphanLedgerEntries(branchId, tenantId, dateRange),
       this.findDuplicateReferences(branchId, tenantId, dateRange),
       this.findPostCloseTransactions(branchId, tenantId, dateRange),
@@ -94,6 +97,7 @@ export class ReconciliationService {
       missingSalePaymentLedger.length +
       missingRepairPaymentLedger.length +
       missingExpensePaymentLedger.length +
+      missingDebtPaymentLedger.length +
       orphanLedgerEntries.length +
       duplicateReferences.length +
       postCloseTransactions.length +
@@ -105,6 +109,7 @@ export class ReconciliationService {
         missingSalePaymentLedger,
         missingRepairPaymentLedger,
         missingExpensePaymentLedger,
+        missingDebtPaymentLedger,
         orphanLedgerEntries,
         duplicateReferences,
         postCloseTransactions,
@@ -234,7 +239,49 @@ export class ReconciliationService {
       }));
   }
 
-  // ── Check 4: Ledger entries whose referenceId no longer has a business record ─
+  // ── Check 4: CASH debt payments (post-delivery) without a ledger entry ───────
+
+  private async findMissingDebtPaymentLedger(
+    branchId: string,
+    tenantId: string | null,
+    dateRange: { gte: Date; lte: Date },
+  ): Promise<MissingLedgerItem[]> {
+    const cashPayments = await this.prisma.repairAdditionalPayment.findMany({
+      where: {
+        paymentMethod: 'CASH' as any,
+        createdAt:     dateRange,
+        repair:        { branchId },
+      },
+      select: {
+        id:        true,
+        amount:    true,
+        createdAt: true,
+        repair:    { select: { ticketNumber: true } },
+      },
+    });
+    if (cashPayments.length === 0) return [];
+
+    const ledgerRefs = await this.prisma.cashDrawerTransaction.findMany({
+      where: {
+        branchId,
+        referenceType: 'REPAIR_ADDITIONAL_PAYMENT',
+        referenceId:   { in: cashPayments.map(p => p.id) },
+      },
+      select: { referenceId: true },
+    });
+    const covered = new Set(ledgerRefs.map(r => r.referenceId).filter(Boolean) as string[]);
+
+    return cashPayments
+      .filter(p => !covered.has(p.id))
+      .map(p => ({
+        sourceId:        p.id,
+        referenceNumber: p.repair.ticketNumber,
+        amount:          Number(p.amount),
+        createdAt:       p.createdAt.toISOString(),
+      }));
+  }
+
+  // ── Check 6: Ledger entries whose referenceId no longer has a business record ─
 
   private async findOrphanLedgerEntries(
     branchId: string,
@@ -288,7 +335,7 @@ export class ReconciliationService {
     return orphans;
   }
 
-  // ── Check 5: Multiple ledger entries referencing the same business record ──
+  // ── Check 7: Multiple ledger entries referencing the same business record ──
 
   private async findDuplicateReferences(
     branchId: string,
@@ -326,7 +373,7 @@ export class ReconciliationService {
     return duplicates;
   }
 
-  // ── Check 6: Ledger entries timestamped after their session's closedAt ───
+  // ── Check 8: Ledger entries timestamped after their session's closedAt ───
 
   private async findPostCloseTransactions(
     branchId: string,
@@ -368,7 +415,7 @@ export class ReconciliationService {
     return results;
   }
 
-  // ── Check 7: CASH ledger entries with no session (ALLOW_UNASSIGNED entries) ─
+  // ── Check 9: CASH ledger entries with no session (ALLOW_UNASSIGNED entries) ─
 
   private async findUnassignedCashEntries(
     branchId: string,

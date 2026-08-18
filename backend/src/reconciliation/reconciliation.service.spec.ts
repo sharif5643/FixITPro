@@ -30,6 +30,10 @@ function makeCdtFindMany(overrides: Record<string, any[]> = {}) {
     if (w.referenceType === 'EXPENSE_PAYMENT' && w.referenceId?.in) {
       return Promise.resolve(overrides['expenseRefs'] ?? []);
     }
+    // Debt payment ledger refs (post-delivery)
+    if (w.referenceType === 'REPAIR_ADDITIONAL_PAYMENT' && w.referenceId?.in) {
+      return Promise.resolve(overrides['debtPaymentRefs'] ?? []);
+    }
     // Orphan check: referenceId NOT null, no `type.not` filter
     if (w.referenceId?.not === null && !w.type) {
       return Promise.resolve(overrides['orphanEntries'] ?? []);
@@ -54,10 +58,12 @@ function makePrisma(opts: {
   salePayments?:      any[];
   repairs?:           any[];
   expenses?:          any[];
+  debtPayments?:      any[];
   sessions?:          any[];
   saleRefs?:          any[];
   repairRefs?:        any[];
   expenseRefs?:       any[];
+  debtPaymentRefs?:   any[];
   orphanEntries?:     any[];
   dupEntries?:        any[];
   postCloseTxs?:      any[];
@@ -79,20 +85,24 @@ function makePrisma(opts: {
     },
     cashDrawerTransaction: {
       findMany: makeCdtFindMany({
-        saleRefs:      opts.saleRefs ?? [],
-        repairRefs:    opts.repairRefs ?? [],
-        expenseRefs:   opts.expenseRefs ?? [],
-        orphanEntries: opts.orphanEntries ?? [],
-        dupEntries:    opts.dupEntries ?? [],
-        postCloseTxs:  opts.postCloseTxs ?? [],
-        unassigned:    opts.unassigned ?? [],
+        saleRefs:        opts.saleRefs ?? [],
+        repairRefs:      opts.repairRefs ?? [],
+        expenseRefs:     opts.expenseRefs ?? [],
+        debtPaymentRefs: opts.debtPaymentRefs ?? [],
+        orphanEntries:   opts.orphanEntries ?? [],
+        dupEntries:      opts.dupEntries ?? [],
+        postCloseTxs:    opts.postCloseTxs ?? [],
+        unassigned:      opts.unassigned ?? [],
       }),
     },
     cashDrawerSession: {
       findMany: jest.fn().mockResolvedValue(opts.sessions ?? []),
     },
     saleRefund:              { findUnique: jest.fn().mockResolvedValue({ id: 'x' }) },
-    repairAdditionalPayment: { findUnique: jest.fn().mockResolvedValue({ id: 'x' }) },
+    repairAdditionalPayment: {
+      findMany:   jest.fn().mockResolvedValue(opts.debtPayments ?? []),
+      findUnique: jest.fn().mockResolvedValue({ id: 'x' }),
+    },
   };
 }
 
@@ -255,6 +265,51 @@ describe('ReconciliationService', () => {
 
     expect(report.checks.unassignedCashEntries).toHaveLength(1);
     expect(report.checks.unassignedCashEntries[0].ledgerId).toBe('tx-unassigned');
+  });
+
+  // ── Check 4: missing debt payment ledger (post-delivery CASH payments) ───
+
+  it('detects CASH debt payment without a ledger entry as missing', async () => {
+    const debtPayment = {
+      id: 'dp-1', amount: '400', createdAt: new Date(),
+      repair: { ticketNumber: 'REP-002' },
+    };
+    const { service } = await build({ debtPayments: [debtPayment], debtPaymentRefs: [] });
+
+    const report = await service.runReport(makeQuery());
+
+    expect(report.checks.missingDebtPaymentLedger).toHaveLength(1);
+    expect(report.checks.missingDebtPaymentLedger[0].sourceId).toBe('dp-1');
+    expect(report.checks.missingDebtPaymentLedger[0].referenceNumber).toBe('REP-002');
+    expect(report.checks.missingDebtPaymentLedger[0].amount).toBe(400);
+  });
+
+  it('does NOT flag debt payment when ledger entry already exists', async () => {
+    const debtPayment = {
+      id: 'dp-1', amount: '400', createdAt: new Date(),
+      repair: { ticketNumber: 'REP-002' },
+    };
+    const { service } = await build({
+      debtPayments:    [debtPayment],
+      debtPaymentRefs: [{ referenceId: 'dp-1' }],
+    });
+
+    const report = await service.runReport(makeQuery());
+
+    expect(report.checks.missingDebtPaymentLedger).toHaveLength(0);
+  });
+
+  it('includes missingDebtPaymentLedger count in totalIssues', async () => {
+    const debtPayment = {
+      id: 'dp-2', amount: '150', createdAt: new Date(),
+      repair: { ticketNumber: 'REP-003' },
+    };
+    const { service } = await build({ debtPayments: [debtPayment], debtPaymentRefs: [] });
+
+    const report = await service.runReport(makeQuery());
+
+    expect(report.summary.totalIssues).toBeGreaterThanOrEqual(1);
+    expect(report.checks.missingDebtPaymentLedger).toHaveLength(1);
   });
 
   // ── Summary ───────────────────────────────────────────────────────────────

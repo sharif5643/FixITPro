@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SalesService } from './sales.service';
+import { SalesAccountingAdapter } from './sales-accounting.adapter';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -99,13 +100,20 @@ describe('SalesService — Workflow tests (RC1)', () => {
       $transaction: jest.fn(),
     };
 
+    const salesAccounting = {
+      recordSaleJournal:   jest.fn().mockResolvedValue(undefined),
+      reverseSaleJournal:  jest.fn().mockResolvedValue(undefined),
+      recordRefundJournal: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SalesService,
-        { provide: PrismaService,        useValue: prisma },
-        { provide: AuditLogService,      useValue: auditLog },
-        { provide: NotificationsService, useValue: notif },
-        { provide: AccountingService,    useValue: accounting },
+        { provide: PrismaService,            useValue: prisma },
+        { provide: AuditLogService,          useValue: auditLog },
+        { provide: NotificationsService,     useValue: notif },
+        { provide: AccountingService,        useValue: accounting },
+        { provide: SalesAccountingAdapter,   useValue: salesAccounting },
       ],
     }).compile();
 
