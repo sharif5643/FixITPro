@@ -1,7 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AccountingReconciliationService, SaleReconciliationItem } from './accounting-reconciliation.service';
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
+// ── Shared fixtures ────────────────────────────────────────────────────────────
 
 const TENANT_ID  = 'tenant-1';
 const BRANCH_ID  = 'branch-1';
@@ -10,6 +10,15 @@ const RECEIPT    = 'RCP-20260818-001';
 const PAYMENT_ID = 'pay-1';
 const ITEM_ID    = 'si-1';
 const REFUND_ID  = 'ref-1';
+
+// Repair fixtures
+const REPAIR_ID    = 'repair-1';
+const TICKET       = 'REP-001';
+const PART_ID      = 'part-1';
+const ADD_PMT_ID   = 'addpmt-1';
+
+// Expense fixtures
+const EXPENSE_ID   = 'expense-1';
 
 function makeSalePrisma(overrides?: Record<string, any>): any {
   return {
@@ -38,13 +47,64 @@ function makeJournalEntry(overrides?: Record<string, any>): any {
   };
 }
 
+// ── Repair helpers ─────────────────────────────────────────────────────────────
+
+function makeRepair(overrides: Record<string, any> = {}): any {
+  return {
+    id:                 REPAIR_ID,
+    ticketNumber:       TICKET,
+    deposit:            0,
+    paidAmount:         null,
+    status:             'RECEIVED',
+    parts:              [],
+    additionalPayments: [],
+    paymentReversals:   [],
+    ...overrides,
+  };
+}
+
+function makeRepairJe(sourceType: string, sourceId: string, debit: number, overrides: Record<string, any> = {}): any {
+  return {
+    id:         `je-${sourceType}-${sourceId}`,
+    sourceType,
+    sourceId,
+    isVoided:   false,
+    lines:      [{ debit, credit: 0 }, { debit: 0, credit: debit }],
+    ...overrides,
+  };
+}
+
+// ── Expense helpers ────────────────────────────────────────────────────────────
+
+function makeExpense(overrides: Record<string, any> = {}): any {
+  return {
+    id:       EXPENSE_ID,
+    amount:   200,
+    voidedAt: null,
+    branchId: BRANCH_ID,
+    ...overrides,
+  };
+}
+
+function makeExpenseJe(sourceType: string, debit: number): any {
+  return {
+    id:         `je-${sourceType}-${EXPENSE_ID}`,
+    sourceType,
+    sourceId:   EXPENSE_ID,
+    isVoided:   false,
+    lines:      [{ debit, credit: 0 }, { debit: 0, credit: debit }],
+  };
+}
+
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 type MockPrisma = {
-  branch:       { findMany: jest.Mock };
-  sale:         { findMany: jest.Mock; findUnique: jest.Mock };
-  journalEntry: { findMany: jest.Mock };
-  tenant:       { findMany: jest.Mock };
+  branch:         { findMany: jest.Mock };
+  sale:           { findMany: jest.Mock; findUnique: jest.Mock };
+  repair:         { findMany: jest.Mock };
+  expense:        { findMany: jest.Mock };
+  journalEntry:   { findMany: jest.Mock };
+  tenant:         { findMany: jest.Mock };
   rolePermission: { createMany: jest.Mock };
 };
 
@@ -57,10 +117,12 @@ type MockAdapter = {
 
 function makePrismaMock(): MockPrisma {
   return {
-    branch:         { findMany: jest.fn().mockResolvedValue([{ id: BRANCH_ID }]) },
-    sale:           { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn() },
-    journalEntry:   { findMany: jest.fn().mockResolvedValue([]) },
-    tenant:         { findMany: jest.fn().mockResolvedValue([{ id: TENANT_ID }]) },
+    branch:         { findMany:   jest.fn().mockResolvedValue([{ id: BRANCH_ID }]) },
+    sale:           { findMany:   jest.fn().mockResolvedValue([]), findUnique: jest.fn() },
+    repair:         { findMany:   jest.fn().mockResolvedValue([]) },
+    expense:        { findMany:   jest.fn().mockResolvedValue([]) },
+    journalEntry:   { findMany:   jest.fn().mockResolvedValue([]) },
+    tenant:         { findMany:   jest.fn().mockResolvedValue([{ id: TENANT_ID }]) },
     rolePermission: { createMany: jest.fn().mockResolvedValue({}) },
   };
 }
@@ -74,7 +136,7 @@ function makeAdapterMock(): MockAdapter {
   };
 }
 
-// ── Test suite ────────────────────────────────────────────────────────────────
+// ── Test suite ─────────────────────────────────────────────────────────────────
 
 describe('AccountingReconciliationService', () => {
   let service: AccountingReconciliationService;
@@ -92,6 +154,10 @@ describe('AccountingReconciliationService', () => {
     process.env.ACCOUNTING_ENABLED_TENANTS      = tenantId;
   }
 
+  // Helper: configure journalEntry.findMany to return specific journals based on query
+  // For tests that need separate sale/repair/expense query returns,
+  // use sequential mockResolvedValueOnce calls.
+
   beforeEach(() => {
     prisma  = makePrismaMock();
     adapter = makeAdapterMock();
@@ -106,6 +172,10 @@ describe('AccountingReconciliationService', () => {
     delete process.env.ACCOUNTING_ACTIVATION_TIMESTAMP;
     delete process.env.ACCOUNTING_ENABLED_TENANTS;
   });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // EXISTING POS TESTS (R01–R32) — must remain green
+  // ════════════════════════════════════════════════════════════════════════════
 
   // ── R01: Fully posted sale ─────────────────────────────────────────────────
 
@@ -702,5 +772,372 @@ describe('AccountingReconciliationService', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('full rollout explicitly enabled'),
     );
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // PHASE 4B.4G TESTS (G01–G20) — Repair + Expense reconciliation
+  // ════════════════════════════════════════════════════════════════════════════
+
+  // ── G01 (Spec A): Repair without payment → NOT_APPLICABLE ─────────────────
+
+  it('G01: repair with no deposit, no paidAmount, no parts → NOT_APPLICABLE', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 0, paidAmount: null, status: 'IN_PROGRESS' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems).toHaveLength(1);
+    expect(result.repairItems[0].status).toBe('NOT_APPLICABLE');
+    expect(result.summary.notApplicable).toBe(1);
+    expect(result.summary.missing).toBe(0);
+    expect(result.summary.posted).toBe(0);
+  });
+
+  // ── G02 (Spec B): Repair deposit journal present → POSTED ─────────────────
+
+  it('G02: repair with deposit=300 and REPAIR_DEPOSIT journal → POSTED', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 300, paidAmount: null, status: 'IN_PROGRESS' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT', REPAIR_ID, 300),
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('POSTED');
+    expect(result.repairItems[0].missingEvents).toHaveLength(0);
+    expect(result.summary.posted).toBe(1);
+  });
+
+  // ── G03 (Spec C): Repair deposit missing → MISSING ────────────────────────
+
+  it('G03: repair with deposit=300 but NO REPAIR_DEPOSIT journal → MISSING', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 300, status: 'IN_PROGRESS' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([]); // no journals
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('MISSING');
+    expect(result.repairItems[0].missingEvents).toContain('REPAIR_DEPOSIT');
+    expect(result.summary.missing).toBe(1);
+  });
+
+  // ── G04 (Spec D): Final payment present → POSTED ──────────────────────────
+
+  it('G04: delivered repair — REPAIR_FINAL_PAYMENT journal present → POSTED', async () => {
+    enableAccounting();
+    const repair = makeRepair({
+      deposit:    0,
+      paidAmount: 1500,
+      status:     'DELIVERED',
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_FINAL_PAYMENT', REPAIR_ID, 1500),
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('POSTED');
+    expect(result.repairItems[0].missingEvents).toHaveLength(0);
+  });
+
+  // ── G05 (Spec E): Deposit settlement present → POSTED ─────────────────────
+
+  it('G05: delivered repair with deposit — REPAIR_DEPOSIT + REPAIR_FINAL_PAYMENT + REPAIR_DEPOSIT_SETTLE all present → POSTED', async () => {
+    enableAccounting();
+    const repair = makeRepair({
+      deposit:    300,
+      paidAmount: 1200,
+      status:     'DELIVERED',
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT',       REPAIR_ID, 300),
+      makeRepairJe('REPAIR_FINAL_PAYMENT', REPAIR_ID, 1200),
+      makeRepairJe('REPAIR_DEPOSIT_SETTLE', REPAIR_ID, 300),
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('POSTED');
+    expect(result.repairItems[0].missingEvents).toHaveLength(0);
+  });
+
+  // ── G06 (Spec F): Additional payment present → POSTED ─────────────────────
+
+  it('G06: repair with additional payment and REPAIR_ADDITIONAL_PAYMENT journal → POSTED', async () => {
+    enableAccounting();
+    const repair = makeRepair({
+      deposit:            300,
+      paidAmount:         0,
+      status:             'RECEIVED',
+      additionalPayments: [{ id: ADD_PMT_ID, amount: 500 }],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT',             REPAIR_ID,  300),
+      makeRepairJe('REPAIR_ADDITIONAL_PAYMENT',  ADD_PMT_ID, 500),
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('POSTED');
+    expect(result.repairItems[0].missingEvents).toHaveLength(0);
+  });
+
+  // ── G07 (Spec G): Repair COGS present → POSTED ────────────────────────────
+
+  it('G07: delivered repair with active part — REPAIR_COGS journal present → POSTED', async () => {
+    enableAccounting();
+    const repair = makeRepair({
+      deposit:    0,
+      paidAmount: 1500,
+      status:     'DELIVERED',
+      parts: [{ id: PART_ID, costPrice: 200, quantity: 2, isVoided: false }],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_FINAL_PAYMENT', REPAIR_ID, 1500),
+      makeRepairJe('REPAIR_COGS',          PART_ID,   400), // 200×2
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('POSTED');
+    expect(result.repairItems[0].missingEvents).toHaveLength(0);
+  });
+
+  // ── G08 (Spec H): Repair COGS missing → MISSING ───────────────────────────
+
+  it('G08: delivered repair with active part but NO REPAIR_COGS journal → MISSING', async () => {
+    enableAccounting();
+    const repair = makeRepair({
+      deposit:    0,
+      paidAmount: 1500,
+      status:     'DELIVERED',
+      parts: [{ id: PART_ID, costPrice: 200, quantity: 2, isVoided: false }],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_FINAL_PAYMENT', REPAIR_ID, 1500),
+      // REPAIR_COGS missing
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('MISSING');
+    expect(result.repairItems[0].missingEvents).toContain(`REPAIR_COGS:${PART_ID}`);
+  });
+
+  // ── G09 (Spec I): Active expense journal present → POSTED ─────────────────
+
+  it('G09: active (not voided) expense with EXPENSE_PAYMENT journal → POSTED', async () => {
+    enableAccounting();
+    const expense = makeExpense({ amount: 200, voidedAt: null });
+    (prisma.expense.findMany as jest.Mock).mockResolvedValue([expense]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeExpenseJe('EXPENSE_PAYMENT', 200),
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.expenseItems).toHaveLength(1);
+    expect(result.expenseItems[0].status).toBe('POSTED');
+    expect(result.expenseItems[0].missingEvents).toHaveLength(0);
+    expect(result.summary.posted).toBe(1);
+  });
+
+  // ── G10 (Spec J): Expense journal missing → MISSING ──────────────────────
+
+  it('G10: active expense with NO EXPENSE_PAYMENT journal → MISSING', async () => {
+    enableAccounting();
+    const expense = makeExpense({ amount: 200, voidedAt: null });
+    (prisma.expense.findMany as jest.Mock).mockResolvedValue([expense]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([]); // no journals
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.expenseItems[0].status).toBe('MISSING');
+    expect(result.expenseItems[0].missingEvents).toContain('EXPENSE_PAYMENT');
+    expect(result.summary.missing).toBe(1);
+  });
+
+  // ── G11 (Spec K): Voided expense missing reversal → MISSING ──────────────
+
+  it('G11: voided expense with EXPENSE_PAYMENT but missing EXPENSE_REVERSAL → MISSING', async () => {
+    enableAccounting();
+    const expense = makeExpense({ amount: 200, voidedAt: new Date() });
+    (prisma.expense.findMany as jest.Mock).mockResolvedValue([expense]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeExpenseJe('EXPENSE_PAYMENT', 200),
+      // EXPENSE_REVERSAL missing
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.expenseItems[0].status).toBe('MISSING');
+    expect(result.expenseItems[0].missingEvents).toContain('EXPENSE_REVERSAL');
+    expect(result.expenseItems[0].missingEvents).not.toContain('EXPENSE_PAYMENT');
+  });
+
+  // ── G12 (Spec L): Amount mismatch → ERROR ─────────────────────────────────
+
+  it('G12: REPAIR_DEPOSIT journal debit differs from repair.deposit → ERROR', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 300, status: 'IN_PROGRESS' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT', REPAIR_ID, 999), // should be 300
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('ERROR');
+    expect(result.repairItems[0].errors[0]).toContain('REPAIR_DEPOSIT amount mismatch');
+  });
+
+  // ── G13 (Spec M): Wrong tenant journals never visible ─────────────────────
+
+  it('G13: repair belonging to different tenant is not returned in reconciliation', async () => {
+    enableAccounting();
+    // Only tenant-1 is in the allowlist; tenant-other repairs are not in branchIds
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([]); // DB returns nothing (branch filter)
+    (prisma.expense.findMany as jest.Mock).mockResolvedValue([]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems).toHaveLength(0);
+    expect(result.expenseItems).toHaveLength(0);
+    // Verify the repair query was scoped to the correct branchIds
+    const repairCall = (prisma.repair.findMany as jest.Mock).mock.calls[0][0];
+    expect(repairCall.where.branchId.in).toEqual([BRANCH_ID]);
+  });
+
+  // ── G14 (Spec N): REPAIR_COGS amount mismatch → ERROR ────────────────────
+
+  it('G14: REPAIR_COGS journal debit differs from costPrice×quantity → ERROR', async () => {
+    enableAccounting();
+    const repair = makeRepair({
+      deposit:    0,
+      paidAmount: 1000,
+      status:     'DELIVERED',
+      parts: [{ id: PART_ID, costPrice: 100, quantity: 3, isVoided: false }], // expected=300
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_FINAL_PAYMENT', REPAIR_ID, 1000),
+      makeRepairJe('REPAIR_COGS',          PART_ID,   999), // should be 300
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('ERROR');
+    expect(result.repairItems[0].errors[0]).toContain('REPAIR_COGS amount mismatch');
+  });
+
+  // ── G15 (Spec O): Activation timestamp missing → blocked ─────────────────
+
+  it('G15: ACCOUNTING_ACTIVATION_TIMESTAMP not set → repair/expense scans blocked (empty report)', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    // ACCOUNTING_ACTIVATION_TIMESTAMP not set
+    jest.spyOn(service['logger'] as any, 'error').mockImplementation(() => {});
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems).toHaveLength(0);
+    expect(result.expenseItems).toHaveLength(0);
+    expect(prisma.repair.findMany).not.toHaveBeenCalled();
+    expect(prisma.expense.findMany).not.toHaveBeenCalled();
+  });
+
+  // ── G16 (Spec P): Activation timestamp too old → blocked ─────────────────
+
+  it('G16: ACCOUNTING_ACTIVATION_TIMESTAMP >24h ago → all scans blocked', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED         = 'true';
+    process.env.ACCOUNTING_ACTIVATION_TIMESTAMP = ACTIVATION_TS_OLD;
+    process.env.ACCOUNTING_ENABLED_TENANTS      = TENANT_ID;
+    jest.spyOn(service['logger'] as any, 'error').mockImplementation(() => {});
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems).toHaveLength(0);
+    expect(result.expenseItems).toHaveLength(0);
+    expect(prisma.repair.findMany).not.toHaveBeenCalled();
+  });
+
+  // ── G17 (Spec Q): No allowlist → zero tenants ─────────────────────────────
+
+  it('G17: ACCOUNTING_ENABLED_TENANTS not set → no repair/expense scans, notApplicable=0', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED         = 'true';
+    process.env.ACCOUNTING_ACTIVATION_TIMESTAMP = ACTIVATION_TS;
+    // ACCOUNTING_ENABLED_TENANTS not set
+    jest.spyOn(service['logger'] as any, 'warn').mockImplementation(() => {});
+
+    const result = await service.runReconciliation();
+
+    expect(result.repairItems).toHaveLength(0);
+    expect(result.expenseItems).toHaveLength(0);
+    expect(result.summary.scanned).toBe(0);
+    expect(result.summary.notApplicable).toBe(0);
+  });
+
+  // ── G18 (Spec R): Pilot tenant is scanned ─────────────────────────────────
+
+  it('G18: pilot tenant in allowlist → repair.findMany called with correct branchIds', async () => {
+    enableAccounting(TENANT_ID);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(prisma.repair.findMany).toHaveBeenCalled();
+    expect(prisma.expense.findMany).toHaveBeenCalled();
+    const repairCall = (prisma.repair.findMany as jest.Mock).mock.calls[0][0];
+    expect(repairCall.where.branchId.in).toContain(BRANCH_ID);
+  });
+
+  // ── G19 (Spec S): Historical repair before activation → not scanned ────────
+
+  it('G19: repair.receivedAt before activationTs → excluded (DB query uses receivedAt.gte)', async () => {
+    enableAccounting();
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([]); // simulates DB filter
+
+    await service.runReconciliation({ tenantId: TENANT_ID });
+
+    const repairCall = (prisma.repair.findMany as jest.Mock).mock.calls[0][0];
+    expect(repairCall.where.receivedAt.gte).toEqual(new Date(ACTIVATION_TS));
+  });
+
+  // ── G20 (Spec T): Existing POS reconciliation still green ─────────────────
+
+  it('G20: adding repair/expense scans does not break existing POS reconciliation', async () => {
+    enableAccounting();
+    const sale = makeSalePrisma({ items: [] }); // no COGS
+    (prisma.sale.findMany as jest.Mock).mockResolvedValue([sale]);
+    // Sale journals returned first, then empty for repair journal query
+    (prisma.journalEntry.findMany as jest.Mock)
+      .mockResolvedValueOnce([
+        makeJournalEntry({ id: 'je-pay', sourceType: 'SALE_PAYMENT', sourceId: PAYMENT_ID,
+                           lines: [{ debit: 500, credit: 0 }] }),
+      ])
+      .mockResolvedValueOnce([])  // sale reversals
+      .mockResolvedValueOnce([]); // repair journals (no repairs returned)
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    // POS sale is POSTED
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].status).toBe('POSTED');
+    // Repair/expense results are empty
+    expect(result.repairItems).toHaveLength(0);
+    expect(result.expenseItems).toHaveLength(0);
+    // Summary is still sensible
+    expect(result.summary.scanned).toBe(1);
+    expect(result.summary.posted).toBe(1);
+    expect(result.summary.missing).toBe(0);
   });
 });

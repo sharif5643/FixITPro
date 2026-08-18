@@ -32,12 +32,38 @@ export interface SaleReconciliationItem {
   recovered:      boolean;    // true if auto-recovery was attempted and succeeded
 }
 
+// ── Phase 4B.4G: Repair reconciliation ───────────────────────────────────────
+
+export type RepairJournalStatus = 'POSTED' | 'MISSING' | 'ERROR' | 'NOT_APPLICABLE';
+
+export interface RepairReconciliationItem {
+  repairId:      string;
+  ticketNumber:  string;
+  status:        RepairJournalStatus;
+  missingEvents: string[];   // e.g. 'REPAIR_DEPOSIT', 'REPAIR_FINAL_PAYMENT:partId'
+  errors:        string[];   // amount-mismatch descriptions
+}
+
+// ── Phase 4B.4G: Expense reconciliation ──────────────────────────────────────
+
+export type ExpenseJournalStatus = 'POSTED' | 'MISSING' | 'ERROR' | 'NOT_APPLICABLE';
+
+export interface ExpenseReconciliationItem {
+  expenseId:     string;
+  status:        ExpenseJournalStatus;
+  missingEvents: string[];   // 'EXPENSE_PAYMENT' | 'EXPENSE_REVERSAL'
+  errors:        string[];
+}
+
+// ── Summary + Report ──────────────────────────────────────────────────────────
+
 export interface ReconciliationSummary {
-  scanned:   number;
-  posted:    number;
-  missing:   number;
-  recovered: number;
-  errors:    number;
+  scanned:       number;
+  posted:        number;
+  missing:       number;
+  recovered:     number;
+  errors:        number;
+  notApplicable: number;  // scanned items where no journals were expected
 }
 
 export interface ReconciliationReport {
@@ -45,7 +71,9 @@ export interface ReconciliationReport {
   tenantId:     string | null;
   activationTs: string;
   summary:      ReconciliationSummary;
-  items:        SaleReconciliationItem[];
+  items:        SaleReconciliationItem[];      // POS sales
+  repairItems:  RepairReconciliationItem[];    // Phase 4B.4G
+  expenseItems: ExpenseReconciliationItem[];   // Phase 4B.4G
 }
 
 // Fail-closed allowlist result — no ambiguous null semantics.
@@ -61,11 +89,20 @@ type ActivationCheck =
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 // Reconciliation scan is blocked if the activation timestamp is older than this.
-// Prevents an accidentally far-past timestamp from backfilling all historical sales.
+// Prevents an accidentally far-past timestamp from backfilling all historical transactions.
 const ACTIVATION_MAX_AGE_HOURS = 24;
 const ACTIVATION_MAX_AGE_MS    = ACTIVATION_MAX_AGE_HOURS * 60 * 60 * 1000;
 
-const BATCH_SIZE = 100; // max sales to scan per tenant per cron run
+const BATCH_SIZE = 100; // max records to scan per tenant per cron run
+
+// ── Repair source types that use Repair.id as sourceId ───────────────────────
+const REPAIR_ID_SOURCE_TYPES = [
+  'REPAIR_DEPOSIT',
+  'REPAIR_FINAL_PAYMENT',
+  'REPAIR_DEPOSIT_SETTLE',
+  'REPAIR_PAYMENT_REVERSAL',
+  'REPAIR_DEPOSIT_SETTLE_REVERSAL',
+];
 
 // ── Service ───────────────────────────────────────────────────────────────────
 
@@ -243,7 +280,7 @@ export class AccountingReconciliationService implements OnModuleInit {
 
   // Validates ACCOUNTING_ACTIVATION_TIMESTAMP.
   // Returns ok=false if missing, unparseable, or older than ACTIVATION_MAX_AGE_HOURS.
-  // The 24-hour guard prevents an accidentally far-past date from backfilling historical sales.
+  // The 24-hour guard prevents an accidentally far-past date from backfilling historical transactions.
   private validateActivationTimestamp(): ActivationCheck {
     const ts = process.env.ACCOUNTING_ACTIVATION_TIMESTAMP;
     if (!ts) {
@@ -277,7 +314,9 @@ export class AccountingReconciliationService implements OnModuleInit {
     activationTs:   Date,
     scopedTenantId: string | null,
   ): Promise<ReconciliationReport> {
-    const allItems: SaleReconciliationItem[] = [];
+    const allSaleItems:    SaleReconciliationItem[]    = [];
+    const allRepairItems:  RepairReconciliationItem[]  = [];
+    const allExpenseItems: ExpenseReconciliationItem[] = [];
 
     for (const tenantId of tenantIds) {
       const branches = await this.prisma.branch.findMany({
@@ -287,6 +326,8 @@ export class AccountingReconciliationService implements OnModuleInit {
       if (branches.length === 0) continue;
 
       const branchIds = branches.map((b) => b.id);
+
+      // ── POS sale scan (unchanged) ────────────────────────────────────────
       const sales = await this.prisma.sale.findMany({
         where: {
           branchId:  { in: branchIds },
@@ -301,61 +342,78 @@ export class AccountingReconciliationService implements OnModuleInit {
         orderBy: { createdAt: 'asc' },
       });
 
-      if (sales.length === 0) continue;
+      if (sales.length > 0) {
+        const paymentIds    = sales.flatMap((s) => s.payments.map((p) => p.id));
+        const itemIds       = sales.flatMap((s) =>
+          s.items.filter((i) => Number(i.costPrice) > 0).map((i) => i.id),
+        );
+        const refundIds     = sales.flatMap((s) => s.refunds.map((r) => r.id));
+        const refundCogsIds = sales.flatMap((s) =>
+          s.refunds.flatMap((r) => r.items.map((ri) => `${r.id}:${ri.saleItemId}`)),
+        );
 
-      // Batch-fetch all relevant journals in two queries
-      const paymentIds    = sales.flatMap((s) => s.payments.map((p) => p.id));
-      const itemIds       = sales.flatMap((s) =>
-        s.items.filter((i) => Number(i.costPrice) > 0).map((i) => i.id),
-      );
-      const refundIds     = sales.flatMap((s) => s.refunds.map((r) => r.id));
-      const refundCogsIds = sales.flatMap((s) =>
-        s.refunds.flatMap((r) => r.items.map((ri) => `${r.id}:${ri.saleItemId}`)),
-      );
+        const saleOrClauses = [
+          ...(paymentIds.length    ? [{ sourceType: 'SALE_PAYMENT',    sourceId: { in: paymentIds    } }] : []),
+          ...(itemIds.length       ? [{ sourceType: 'SALE_COGS',        sourceId: { in: itemIds       } }] : []),
+          ...(refundIds.length     ? [{ sourceType: 'SALE_REFUND',      sourceId: { in: refundIds     } }] : []),
+          ...(refundCogsIds.length ? [{ sourceType: 'SALE_REFUND_COGS', sourceId: { in: refundCogsIds } }] : []),
+        ];
 
-      const orClauses = [
-        ...(paymentIds.length    ? [{ sourceType: 'SALE_PAYMENT',    sourceId: { in: paymentIds    } }] : []),
-        ...(itemIds.length       ? [{ sourceType: 'SALE_COGS',        sourceId: { in: itemIds       } }] : []),
-        ...(refundIds.length     ? [{ sourceType: 'SALE_REFUND',      sourceId: { in: refundIds     } }] : []),
-        ...(refundCogsIds.length ? [{ sourceType: 'SALE_REFUND_COGS', sourceId: { in: refundCogsIds } }] : []),
-      ];
+        const saleJournals = saleOrClauses.length > 0
+          ? await this.prisma.journalEntry.findMany({
+              where:   { tenantId, OR: saleOrClauses },
+              include: { lines: true },
+            })
+          : [];
 
-      const journals = orClauses.length > 0
-        ? await this.prisma.journalEntry.findMany({
-            where:   { tenantId, OR: orClauses },
-            include: { lines: true },
-          })
-        : [];
+        const saleJournalIds = saleJournals.map((j) => j.id);
+        const saleReversals = saleJournalIds.length > 0
+          ? await this.prisma.journalEntry.findMany({
+              where: {
+                tenantId,
+                sourceType: 'JOURNAL_REVERSAL',
+                sourceId:   { in: saleJournalIds },
+              },
+            })
+          : [];
 
-      const allJournalIds = journals.map((j) => j.id);
-      const reversals = allJournalIds.length > 0
-        ? await this.prisma.journalEntry.findMany({
-            where: {
-              tenantId,
-              sourceType: 'JOURNAL_REVERSAL',
-              sourceId:   { in: allJournalIds },
-            },
-          })
-        : [];
+        const saleIndex = this.buildIndex([...saleJournals, ...saleReversals]);
 
-      const journalIndex = this.buildIndex([...journals, ...reversals]);
+        for (const sale of sales) {
+          const item = this.classifySale(sale, saleIndex);
+          allSaleItems.push(item);
 
-      for (const sale of sales) {
-        const item = this.classifySale(sale, journalIndex);
-        allItems.push(item);
-
-        if (item.status !== 'POSTED' && item.status !== 'ERROR') {
-          await this.recoverSale(sale, tenantId, item);
+          if (item.status !== 'POSTED' && item.status !== 'ERROR') {
+            await this.recoverSale(sale, tenantId, item);
+          }
         }
       }
+
+      // ── Repair scan (Phase 4B.4G) ────────────────────────────────────────
+      const repairItems = await this.scanRepairs(branchIds, tenantId, activationTs);
+      allRepairItems.push(...repairItems);
+
+      // ── Expense scan (Phase 4B.4G) ───────────────────────────────────────
+      const expenseItems = await this.scanExpenses(branchIds, tenantId, activationTs);
+      allExpenseItems.push(...expenseItems);
     }
 
+    // ── Summary (aggregated across all transaction types) ─────────────────
+    const allItems = [...allSaleItems, ...allRepairItems, ...allExpenseItems];
     const summary: ReconciliationSummary = {
-      scanned:   allItems.length,
-      posted:    allItems.filter((i) => i.status === 'POSTED').length,
-      missing:   allItems.filter((i) => i.status !== 'POSTED' && i.status !== 'ERROR').length,
-      recovered: allItems.filter((i) => i.recovered).length,
-      errors:    allItems.filter((i) => i.status === 'ERROR').length,
+      scanned:       allItems.length,
+      posted:        allSaleItems.filter((i) => i.status === 'POSTED').length
+                   + allRepairItems.filter((i)  => i.status === 'POSTED').length
+                   + allExpenseItems.filter((i) => i.status === 'POSTED').length,
+      missing:       allSaleItems.filter((i) => i.status !== 'POSTED' && i.status !== 'ERROR').length
+                   + allRepairItems.filter((i)  => i.status === 'MISSING').length
+                   + allExpenseItems.filter((i) => i.status === 'MISSING').length,
+      recovered:     allSaleItems.filter((i) => i.recovered).length,
+      errors:        allSaleItems.filter((i) => i.status === 'ERROR').length
+                   + allRepairItems.filter((i)  => i.status === 'ERROR').length
+                   + allExpenseItems.filter((i) => i.status === 'ERROR').length,
+      notApplicable: allRepairItems.filter((i)  => i.status === 'NOT_APPLICABLE').length
+                   + allExpenseItems.filter((i) => i.status === 'NOT_APPLICABLE').length,
     };
 
     return {
@@ -363,9 +421,268 @@ export class AccountingReconciliationService implements OnModuleInit {
       tenantId:     scopedTenantId,
       activationTs: activationTs.toISOString(),
       summary,
-      items:        allItems,
+      items:        allSaleItems,
+      repairItems:  allRepairItems,
+      expenseItems: allExpenseItems,
     };
   }
+
+  // ── Repair scan ───────────────────────────────────────────────────────────
+
+  private async scanRepairs(
+    branchIds:    string[],
+    tenantId:     string,
+    activationTs: Date,
+  ): Promise<RepairReconciliationItem[]> {
+    const repairs = await this.prisma.repair.findMany({
+      where: {
+        branchId:   { in: branchIds },
+        receivedAt: { gte: activationTs },
+      },
+      select: {
+        id:            true,
+        ticketNumber:  true,
+        deposit:       true,
+        paidAmount:    true,
+        status:        true,
+        parts: {
+          select: { id: true, costPrice: true, quantity: true, isVoided: true },
+        },
+        additionalPayments: {
+          select: { id: true, amount: true },
+        },
+        paymentReversals: {
+          select: { id: true },
+        },
+      },
+      take:    BATCH_SIZE,
+      orderBy: { receivedAt: 'asc' },
+    });
+
+    if (repairs.length === 0) return [];
+
+    // Collect all sourceIds that might have journals for these repairs
+    const repairIds  = repairs.map((r) => r.id);
+    const partIds    = repairs.flatMap((r) =>
+      r.parts.filter((p) => !p.isVoided && Number(p.costPrice ?? 0) > 0).map((p) => p.id),
+    );
+    const paymentIds = repairs.flatMap((r) => r.additionalPayments.map((p) => p.id));
+
+    const orClauses: any[] = [
+      { sourceType: { in: REPAIR_ID_SOURCE_TYPES }, sourceId: { in: repairIds } },
+      ...(partIds.length    > 0 ? [{ sourceType: 'REPAIR_COGS',               sourceId: { in: partIds    } }] : []),
+      ...(paymentIds.length > 0 ? [{ sourceType: 'REPAIR_ADDITIONAL_PAYMENT', sourceId: { in: paymentIds } }] : []),
+    ];
+
+    const journals = await this.prisma.journalEntry.findMany({
+      where:   { tenantId, OR: orClauses },
+      include: { lines: true },
+    });
+
+    const journalIndex = this.buildIndex(journals);
+
+    return repairs.map((repair) => this.classifyRepair(repair as any, journalIndex));
+  }
+
+  private classifyRepair(repair: any, journalIndex: Map<string, any>): RepairReconciliationItem {
+    const deposit     = Number(repair.deposit ?? 0);
+    const paidAmount  = Number(repair.paidAmount ?? 0);
+    const isDelivered = repair.status === 'DELIVERED';
+    const hasReversal = (repair.paymentReversals ?? []).length > 0;
+    const activeParts = (repair.parts ?? []).filter(
+      (p: any) => !p.isVoided && Number(p.costPrice ?? 0) > 0,
+    );
+
+    const missingEvents: string[] = [];
+    const errors:        string[] = [];
+    let anyExpected = false;
+
+    // REPAIR_DEPOSIT — expected whenever a deposit was taken
+    if (deposit > 0) {
+      anyExpected = true;
+      const j = journalIndex.get(`REPAIR_DEPOSIT:${repair.id}`);
+      if (!j) {
+        missingEvents.push('REPAIR_DEPOSIT');
+      } else {
+        const debitSum = this.sumDebit(j);
+        if (Math.abs(debitSum - deposit) > 0.01) {
+          errors.push(`REPAIR_DEPOSIT amount mismatch for repair ${repair.id}: expected ${deposit}, got ${debitSum}`);
+        }
+      }
+    }
+
+    // REPAIR_FINAL_PAYMENT — expected when repair is DELIVERED and paidAmount > 0
+    if (isDelivered && paidAmount > 0) {
+      anyExpected = true;
+      const j = journalIndex.get(`REPAIR_FINAL_PAYMENT:${repair.id}`);
+      if (!j) {
+        missingEvents.push('REPAIR_FINAL_PAYMENT');
+      } else {
+        const debitSum = this.sumDebit(j);
+        if (Math.abs(debitSum - paidAmount) > 0.01) {
+          errors.push(`REPAIR_FINAL_PAYMENT amount mismatch for repair ${repair.id}: expected ${paidAmount}, got ${debitSum}`);
+        }
+      }
+    }
+
+    // REPAIR_DEPOSIT_SETTLE — expected when delivered AND deposit > 0
+    if (isDelivered && deposit > 0) {
+      anyExpected = true;
+      const j = journalIndex.get(`REPAIR_DEPOSIT_SETTLE:${repair.id}`);
+      if (!j) {
+        missingEvents.push('REPAIR_DEPOSIT_SETTLE');
+      } else {
+        const debitSum = this.sumDebit(j);
+        if (Math.abs(debitSum - deposit) > 0.01) {
+          errors.push(`REPAIR_DEPOSIT_SETTLE amount mismatch for repair ${repair.id}: expected ${deposit}, got ${debitSum}`);
+        }
+      }
+    }
+
+    // REPAIR_COGS — expected per active part when repair is DELIVERED
+    if (isDelivered) {
+      for (const part of activeParts) {
+        anyExpected = true;
+        const expected = Number(part.costPrice ?? 0) * part.quantity;
+        const j = journalIndex.get(`REPAIR_COGS:${part.id}`);
+        if (!j) {
+          missingEvents.push(`REPAIR_COGS:${part.id}`);
+        } else {
+          const debitSum = this.sumDebit(j);
+          if (Math.abs(debitSum - expected) > 0.01) {
+            errors.push(`REPAIR_COGS amount mismatch for part ${part.id}: expected ${expected}, got ${debitSum}`);
+          }
+        }
+      }
+    }
+
+    // REPAIR_ADDITIONAL_PAYMENT — expected per additional payment record
+    for (const payment of (repair.additionalPayments ?? [])) {
+      anyExpected = true;
+      const expected = Number(payment.amount ?? 0);
+      const j = journalIndex.get(`REPAIR_ADDITIONAL_PAYMENT:${payment.id}`);
+      if (!j) {
+        missingEvents.push(`REPAIR_ADDITIONAL_PAYMENT:${payment.id}`);
+      } else {
+        const debitSum = this.sumDebit(j);
+        if (Math.abs(debitSum - expected) > 0.01) {
+          errors.push(`REPAIR_ADDITIONAL_PAYMENT amount mismatch for payment ${payment.id}: expected ${expected}, got ${debitSum}`);
+        }
+      }
+    }
+
+    // REPAIR_PAYMENT_REVERSAL — expected when a payment reversal exists
+    if (hasReversal) {
+      anyExpected = true;
+      if (!journalIndex.get(`REPAIR_PAYMENT_REVERSAL:${repair.id}`)) {
+        missingEvents.push('REPAIR_PAYMENT_REVERSAL');
+      }
+    }
+
+    // REPAIR_DEPOSIT_SETTLE_REVERSAL — expected when reversal exists AND deposit settle was posted
+    if (hasReversal && deposit > 0 && journalIndex.get(`REPAIR_DEPOSIT_SETTLE:${repair.id}`)) {
+      anyExpected = true;
+      if (!journalIndex.get(`REPAIR_DEPOSIT_SETTLE_REVERSAL:${repair.id}`)) {
+        missingEvents.push('REPAIR_DEPOSIT_SETTLE_REVERSAL');
+      }
+    }
+
+    if (!anyExpected) {
+      return { repairId: repair.id, ticketNumber: repair.ticketNumber, status: 'NOT_APPLICABLE', missingEvents: [], errors: [] };
+    }
+    if (errors.length > 0) {
+      return { repairId: repair.id, ticketNumber: repair.ticketNumber, status: 'ERROR', missingEvents, errors };
+    }
+    if (missingEvents.length > 0) {
+      return { repairId: repair.id, ticketNumber: repair.ticketNumber, status: 'MISSING', missingEvents, errors: [] };
+    }
+    return { repairId: repair.id, ticketNumber: repair.ticketNumber, status: 'POSTED', missingEvents: [], errors: [] };
+  }
+
+  // ── Expense scan ──────────────────────────────────────────────────────────
+
+  private async scanExpenses(
+    branchIds:    string[],
+    tenantId:     string,
+    activationTs: Date,
+  ): Promise<ExpenseReconciliationItem[]> {
+    const expenses = await this.prisma.expense.findMany({
+      where: {
+        branchId:  { in: branchIds },
+        createdAt: { gte: activationTs },
+      },
+      select: {
+        id:       true,
+        amount:   true,
+        voidedAt: true,
+        branchId: true,
+      },
+      take:    BATCH_SIZE,
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (expenses.length === 0) return [];
+
+    const expenseIds = expenses.map((e) => e.id);
+    const journals   = await this.prisma.journalEntry.findMany({
+      where: {
+        tenantId,
+        sourceType: { in: ['EXPENSE_PAYMENT', 'EXPENSE_REVERSAL'] },
+        sourceId:   { in: expenseIds },
+      },
+      include: { lines: true },
+    });
+
+    const journalIndex = this.buildIndex(journals);
+
+    return expenses.map((expense) => this.classifyExpense(expense as any, journalIndex));
+  }
+
+  private classifyExpense(expense: any, journalIndex: Map<string, any>): ExpenseReconciliationItem {
+    // An expense with no branchId could not have a tenantId resolved — not applicable
+    if (!expense.branchId) {
+      return { expenseId: expense.id, status: 'NOT_APPLICABLE', missingEvents: [], errors: [] };
+    }
+
+    const amount       = Number(expense.amount ?? 0);
+    const isVoided     = !!expense.voidedAt;
+    const missingEvents: string[] = [];
+    const errors:        string[] = [];
+
+    // EXPENSE_PAYMENT — always expected for a branchId-scoped expense
+    const paymentJe = journalIndex.get(`EXPENSE_PAYMENT:${expense.id}`);
+    if (!paymentJe) {
+      missingEvents.push('EXPENSE_PAYMENT');
+    } else {
+      const debitSum = this.sumDebit(paymentJe);
+      if (Math.abs(debitSum - amount) > 0.01) {
+        errors.push(`EXPENSE_PAYMENT amount mismatch for expense ${expense.id}: expected ${amount}, got ${debitSum}`);
+      }
+    }
+
+    // EXPENSE_REVERSAL — expected only for voided expenses
+    if (isVoided) {
+      const reversalJe = journalIndex.get(`EXPENSE_REVERSAL:${expense.id}`);
+      if (!reversalJe) {
+        missingEvents.push('EXPENSE_REVERSAL');
+      } else {
+        const debitSum = this.sumDebit(reversalJe);
+        if (Math.abs(debitSum - amount) > 0.01) {
+          errors.push(`EXPENSE_REVERSAL amount mismatch for expense ${expense.id}: expected ${amount}, got ${debitSum}`);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      return { expenseId: expense.id, status: 'ERROR', missingEvents, errors };
+    }
+    if (missingEvents.length > 0) {
+      return { expenseId: expense.id, status: 'MISSING', missingEvents, errors: [] };
+    }
+    return { expenseId: expense.id, status: 'POSTED', missingEvents: [], errors: [] };
+  }
+
+  // ── POS classification (unchanged) ────────────────────────────────────────
 
   private buildIndex(journals: any[]): Map<string, any> {
     const index = new Map<string, any>();
@@ -373,6 +690,12 @@ export class AccountingReconciliationService implements OnModuleInit {
       index.set(`${j.sourceType}:${j.sourceId}`, j);
     }
     return index;
+  }
+
+  private sumDebit(journal: any): number {
+    return (journal.lines ?? [])
+      .filter((l: any) => Number(l.debit) > 0)
+      .reduce((s: number, l: any) => s + Number(l.debit), 0);
   }
 
   private classifySale(sale: any, journalIndex: Map<string, any>): SaleReconciliationItem {
@@ -531,8 +854,10 @@ export class AccountingReconciliationService implements OnModuleInit {
       scannedAt:    new Date().toISOString(),
       tenantId,
       activationTs: '',
-      summary:      { scanned: 0, posted: 0, missing: 0, recovered: 0, errors: 0 },
+      summary:      { scanned: 0, posted: 0, missing: 0, recovered: 0, errors: 0, notApplicable: 0 },
       items:        [],
+      repairItems:  [],
+      expenseItems: [],
     };
   }
 }
