@@ -467,12 +467,16 @@ export class AccountingReconciliationService implements OnModuleInit {
     const partIds    = repairs.flatMap((r) =>
       r.parts.filter((p) => !p.isVoided && Number(p.costPrice ?? 0) > 0).map((p) => p.id),
     );
+    // All parts (including voided) needed for REPAIR_COGS_REVERSAL lookup
+    const allPartIds = repairs.flatMap((r) => r.parts.map((p) => p.id));
     const paymentIds = repairs.flatMap((r) => r.additionalPayments.map((p) => p.id));
 
     const orClauses: any[] = [
       { sourceType: { in: REPAIR_ID_SOURCE_TYPES }, sourceId: { in: repairIds } },
-      ...(partIds.length    > 0 ? [{ sourceType: 'REPAIR_COGS',               sourceId: { in: partIds    } }] : []),
-      ...(paymentIds.length > 0 ? [{ sourceType: 'REPAIR_ADDITIONAL_PAYMENT', sourceId: { in: paymentIds } }] : []),
+      ...(partIds.length    > 0 ? [{ sourceType: 'REPAIR_COGS',                          sourceId: { in: partIds    } }] : []),
+      ...(allPartIds.length > 0 ? [{ sourceType: 'REPAIR_COGS_REVERSAL',                 sourceId: { in: allPartIds } }] : []),
+      ...(paymentIds.length > 0 ? [{ sourceType: 'REPAIR_ADDITIONAL_PAYMENT',             sourceId: { in: paymentIds } }] : []),
+      ...(paymentIds.length > 0 ? [{ sourceType: 'REPAIR_ADDITIONAL_PAYMENT_REVERSAL',    sourceId: { in: paymentIds } }] : []),
     ];
 
     const journals = await this.prisma.journalEntry.findMany({
@@ -600,6 +604,29 @@ export class AccountingReconciliationService implements OnModuleInit {
         const debitSum = this.sumDebit(refundJe);
         if (Math.abs(debitSum - deposit) > 0.01) {
           errors.push(`REPAIR_DEPOSIT_REFUND amount mismatch for repair ${repair.id}: expected ${deposit}, got ${debitSum}`);
+        }
+      }
+    }
+
+    // REPAIR_COGS_REVERSAL + REPAIR_ADDITIONAL_PAYMENT_REVERSAL — expected only when a repair that
+    // was previously DELIVERED/PAID was cancelled via refund-and-cancel.
+    // Inferred by: isCancelled AND REPAIR_FINAL_PAYMENT journal exists for this repair.
+    const hadFinalPayment = isCancelled && !!journalIndex.get(`REPAIR_FINAL_PAYMENT:${repair.id}`);
+    if (hadFinalPayment) {
+      // COGS reversal — one per part that had a REPAIR_COGS journal (includes voided parts)
+      for (const part of (repair.parts ?? [])) {
+        if (!journalIndex.get(`REPAIR_COGS:${part.id}`)) continue;
+        anyExpected = true;
+        if (!journalIndex.get(`REPAIR_COGS_REVERSAL:${part.id}`)) {
+          missingEvents.push(`REPAIR_COGS_REVERSAL:${part.id}`);
+        }
+      }
+      // Additional payment reversal — one per payment that had a REPAIR_ADDITIONAL_PAYMENT journal
+      for (const payment of (repair.additionalPayments ?? [])) {
+        if (!journalIndex.get(`REPAIR_ADDITIONAL_PAYMENT:${payment.id}`)) continue;
+        anyExpected = true;
+        if (!journalIndex.get(`REPAIR_ADDITIONAL_PAYMENT_REVERSAL:${payment.id}`)) {
+          missingEvents.push(`REPAIR_ADDITIONAL_PAYMENT_REVERSAL:${payment.id}`);
         }
       }
     }

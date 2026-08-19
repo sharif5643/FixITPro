@@ -282,3 +282,297 @@ describe('RepairsService.update — cancellation deposit refund (Phase 4B.4K)', 
     expect(txFn).toBeDefined(); // transaction was invoked — stock upsert/SM create verified by K10 behavior
   });
 });
+
+// ── Phase 4B.4M: RepairsService.refundAndCancel ───────────────────────────────
+
+const DELIVERED_REPAIR = {
+  id: 'r-delivered', ticketNumber: 'REP-DEL-001',
+  status: 'DELIVERED', paymentStatus: 'PAID',
+  paymentMethod: 'CASH', paidAmount: 800, deposit: 200,
+  branchId: 'branch-1',
+  branch: { id: 'branch-1', name: 'Main', tenantId: 'tenant-1' },
+  parts: [
+    { id: 'part-1', productId: 'prod-1', quantity: 1, costPrice: 100, isVoided: false },
+  ],
+  additionalPayments: [],
+  paymentReversals: [],
+};
+
+const UPDATED_DELIVERED_CANCELLED = {
+  ...DELIVERED_REPAIR,
+  status: 'CANCELLED', paymentStatus: 'PENDING',
+  paymentMethod: null, paidAmount: null,
+  parts: [], // REPAIR_INCLUDE returns isVoided=false; after voiding all parts → empty
+};
+
+function makeRefundCancelService() {
+  const prisma = mockPrisma();
+  (prisma as any).cashDrawerTransaction = {
+    findFirst:  jest.fn().mockResolvedValue({ paymentMethod: 'CASH' }),
+    findUnique: jest.fn().mockResolvedValue(null),
+    create:     jest.fn().mockResolvedValue({ id: 'cdt-refund' }),
+  };
+  (prisma as any).repairPaymentReversal = {
+    create: jest.fn().mockResolvedValue({ id: 'rev-1' }),
+  };
+
+  const auditLog = { log: jest.fn(), logWithTx: jest.fn() };
+  const warranties = { createForRepair: jest.fn() };
+  const lineMsg = { notifyRepairStatus: jest.fn() };
+  const accounting = { record: jest.fn().mockResolvedValue(null) };
+  const repairAccounting = {
+    isEnabledForTenant:                          jest.fn().mockReturnValue(true),
+    recordDepositJournal:                        jest.fn().mockResolvedValue(undefined),
+    recordFinalPaymentJournal:                   jest.fn().mockResolvedValue(undefined),
+    reversePaymentJournal:                       jest.fn().mockResolvedValue(undefined),
+    recordDepositRefundJournal:                  jest.fn().mockResolvedValue(undefined),
+    recordAdditionalPaymentJournal:              jest.fn().mockResolvedValue(undefined),
+    recordCogsReversalJournal:                   jest.fn().mockResolvedValue(undefined),
+    recordAdditionalPaymentReversalJournal:      jest.fn().mockResolvedValue(undefined),
+  };
+  const service: RepairsService = new (RepairsService as any)(
+    prisma, auditLog, warranties, lineMsg, accounting, repairAccounting,
+  );
+
+  (prisma.repair.findFirst as jest.Mock).mockResolvedValue(DELIVERED_REPAIR);
+
+  (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
+    const tx: any = {
+      repairPart: {
+        findMany: jest.fn().mockResolvedValue([]),
+        update:   jest.fn().mockResolvedValue({}),
+      },
+      branchStock: {
+        upsert:    jest.fn().mockResolvedValue({}),
+        aggregate: jest.fn().mockResolvedValue({ _sum: { quantity: 0 } }),
+      },
+      stockMovement:        { create: jest.fn().mockResolvedValue({}) },
+      product:              { update: jest.fn().mockResolvedValue({}) },
+      repairPaymentReversal:{ create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+      repair:               { update: jest.fn().mockResolvedValue(UPDATED_DELIVERED_CANCELLED) },
+      auditLog:             { create: jest.fn() },
+      cashDrawerTransaction: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create:     jest.fn().mockResolvedValue({ id: 'cdt-out' }),
+      },
+      branch:            { findUnique: jest.fn().mockResolvedValue({ cashDrawerPolicy: 'ALLOW_UNASSIGNED' }) },
+      cashDrawerSession: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    return fn(tx);
+  });
+
+  return { service, prisma, accounting, repairAccounting, auditLog };
+}
+
+describe('RepairsService.refundAndCancel — Phase 4B.4M', () => {
+  const DTO = { reason: 'Customer request', note: 'Refund approved' };
+
+  it('M01: throws BadRequestException for non-DELIVERED repair', async () => {
+    const { service, prisma } = makeRefundCancelService();
+    (prisma.repair.findFirst as jest.Mock).mockResolvedValue({
+      ...DELIVERED_REPAIR, status: 'COMPLETED',
+    });
+    await expect(service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1'))
+      .rejects.toThrow(BadRequestException);
+  });
+
+  it('M02: throws BadRequestException for DELIVERED but not PAID repair', async () => {
+    const { service, prisma } = makeRefundCancelService();
+    (prisma.repair.findFirst as jest.Mock).mockResolvedValue({
+      ...DELIVERED_REPAIR, paymentStatus: 'PENDING',
+    });
+    await expect(service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1'))
+      .rejects.toThrow(BadRequestException);
+  });
+
+  it('M03: final payment CDT OUT issued with REPAIR_FINAL_PAYMENT_REFUND + repair amount + paymentMethod', async () => {
+    const { service, accounting } = makeRefundCancelService();
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    expect(accounting.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType:    ACCOUNTING_SOURCE.REPAIR_FINAL_PAYMENT_REFUND,
+        sourceId:      'r-delivered',
+        paymentMethod: 'CASH',
+        amount:        800,
+        direction:     'OUT',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('M04: deposit CDT OUT issued with REPAIR_DEPOSIT_REFUND when deposit > 0 and depositPaymentMethod found', async () => {
+    const { service, accounting } = makeRefundCancelService();
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    expect(accounting.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType:    ACCOUNTING_SOURCE.REPAIR_DEPOSIT_REFUND,
+        sourceId:      'r-delivered',
+        paymentMethod: 'CASH',
+        amount:        200,
+        direction:     'OUT',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('M05: deposit CDT skipped when no deposit CDT found (accounting was off at deposit time)', async () => {
+    const { service, prisma, accounting } = makeRefundCancelService();
+    (prisma as any).cashDrawerTransaction.findFirst.mockResolvedValue(null);
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    const depositRefundCalls = accounting.record.mock.calls.filter(
+      ([entry]: any[]) => entry.sourceType === ACCOUNTING_SOURCE.REPAIR_DEPOSIT_REFUND,
+    );
+    expect(depositRefundCalls).toHaveLength(0);
+  });
+
+  it('M06: reversePaymentJournal called post-commit', async () => {
+    const { service, repairAccounting } = makeRefundCancelService();
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    expect(repairAccounting.reversePaymentJournal).toHaveBeenCalledTimes(1);
+  });
+
+  it('M07: recordDepositRefundJournal called post-commit when deposit > 0 and depositPaymentMethod found', async () => {
+    const { service, repairAccounting } = makeRefundCancelService();
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    expect(repairAccounting.recordDepositRefundJournal).toHaveBeenCalledTimes(1);
+  });
+
+  it('M08: recordCogsReversalJournal called with allParts (not updated.parts which is empty after void)', async () => {
+    const { service, repairAccounting } = makeRefundCancelService();
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    expect(repairAccounting.recordCogsReversalJournal).toHaveBeenCalledTimes(1);
+    // The first argument to recordCogsReversalJournal must have parts array = allParts (pre-loaded)
+    const [repairArg] = repairAccounting.recordCogsReversalJournal.mock.calls[0];
+    // allParts = DELIVERED_REPAIR.parts (pre-loaded before $transaction)
+    expect(repairArg.parts).toEqual(DELIVERED_REPAIR.parts);
+    // NOT the empty UPDATED_DELIVERED_CANCELLED.parts
+    expect(repairArg.parts).not.toEqual([]);
+  });
+
+  it('M09: additional payment CDT OUT and journal reversal called per payment', async () => {
+    const { service, prisma, accounting, repairAccounting } = makeRefundCancelService();
+    const payment = { id: 'pmt-1', amount: 150, paymentMethod: 'TRANSFER' };
+    (prisma.repair.findFirst as jest.Mock).mockResolvedValue({
+      ...DELIVERED_REPAIR,
+      additionalPayments: [payment],
+    });
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    expect(accounting.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType:    ACCOUNTING_SOURCE.REPAIR_ADDITIONAL_PAYMENT_REFUND,
+        sourceId:      'pmt-1',
+        paymentMethod: 'TRANSFER',
+        amount:        150,
+        direction:     'OUT',
+      }),
+      expect.anything(),
+    );
+    expect(repairAccounting.recordAdditionalPaymentReversalJournal).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'pmt-1' }),
+      expect.objectContaining({ id: 'r-delivered' }),
+      'tenant-1',
+      'user-1',
+    );
+  });
+
+  it('M10: returns updated repair from $transaction', async () => {
+    const { service } = makeRefundCancelService();
+    const result = await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    expect(result).toEqual(UPDATED_DELIVERED_CANCELLED);
+  });
+
+  it('M11: TRANSFER payment method propagated to final payment CDT', async () => {
+    const { service, prisma, accounting } = makeRefundCancelService();
+    (prisma.repair.findFirst as jest.Mock).mockResolvedValue({
+      ...DELIVERED_REPAIR, paymentMethod: 'TRANSFER',
+    });
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    expect(accounting.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceType:    ACCOUNTING_SOURCE.REPAIR_FINAL_PAYMENT_REFUND,
+        paymentMethod: 'TRANSFER',
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('M12: deposit=0 → no REPAIR_DEPOSIT_REFUND CDT and no recordDepositRefundJournal', async () => {
+    const { service, prisma, accounting, repairAccounting } = makeRefundCancelService();
+    (prisma.repair.findFirst as jest.Mock).mockResolvedValue({
+      ...DELIVERED_REPAIR, deposit: 0,
+    });
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+    const depositRefundCalls = accounting.record.mock.calls.filter(
+      ([entry]: any[]) => entry.sourceType === ACCOUNTING_SOURCE.REPAIR_DEPOSIT_REFUND,
+    );
+    expect(depositRefundCalls).toHaveLength(0);
+    expect(repairAccounting.recordDepositRefundJournal).not.toHaveBeenCalled();
+  });
+
+  it('M13: repair belongs to different tenant (not found) → NotFoundException', async () => {
+    const { service, prisma } = makeRefundCancelService();
+    // Tenant filter excludes this repair — findFirst returns null
+    (prisma.repair.findFirst as jest.Mock).mockResolvedValue(null);
+    const { NotFoundException } = await import('@nestjs/common');
+    await expect(service.refundAndCancel('r-other-tenant', DTO, 'user-1', 'tenant-2'))
+      .rejects.toThrow(NotFoundException);
+  });
+
+  it('M14: already CANCELLED repair → BadRequestException (DELIVERED check)', async () => {
+    const { service, prisma } = makeRefundCancelService();
+    (prisma.repair.findFirst as jest.Mock).mockResolvedValue({
+      ...DELIVERED_REPAIR, status: 'CANCELLED',
+    });
+    await expect(service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1'))
+      .rejects.toThrow(BadRequestException);
+  });
+
+  it('M15: stock returned exactly once per active part with REPAIR_USE movement', async () => {
+    const { service, prisma } = makeRefundCancelService();
+    const activePart = {
+      id: 'part-active', productId: 'prod-1', quantity: 3, isVoided: false,
+      stockMovements: [{ id: 'sm-1' }],
+    };
+
+    let branchStockUpsertCount = 0;
+    let stockMovementCreateCount = 0;
+
+    (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
+      const tx: any = {
+        repairPart: {
+          findMany: jest.fn().mockResolvedValue([activePart]),
+          update: jest.fn().mockResolvedValue({}),
+        },
+        branchStock: {
+          upsert: jest.fn().mockImplementation(() => {
+            branchStockUpsertCount++;
+            return Promise.resolve({});
+          }),
+          aggregate: jest.fn().mockResolvedValue({ _sum: { quantity: 3 } }),
+        },
+        stockMovement: {
+          create: jest.fn().mockImplementation(() => {
+            stockMovementCreateCount++;
+            return Promise.resolve({});
+          }),
+        },
+        product: { update: jest.fn().mockResolvedValue({}) },
+        repairPaymentReversal: { create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+        repair: { update: jest.fn().mockResolvedValue(UPDATED_DELIVERED_CANCELLED) },
+        auditLog: { create: jest.fn() },
+        cashDrawerTransaction: {
+          findUnique: jest.fn().mockResolvedValue(null),
+          create: jest.fn().mockResolvedValue({ id: 'cdt-out' }),
+        },
+        branch: { findUnique: jest.fn().mockResolvedValue({ cashDrawerPolicy: 'ALLOW_UNASSIGNED' }) },
+        cashDrawerSession: { findFirst: jest.fn().mockResolvedValue(null) },
+      };
+      return fn(tx);
+    });
+
+    await service.refundAndCancel('r-delivered', DTO, 'user-1', 'tenant-1');
+
+    expect(branchStockUpsertCount).toBe(1);
+    expect(stockMovementCreateCount).toBe(1);
+  });
+});

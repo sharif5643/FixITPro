@@ -20,7 +20,9 @@ export const ACCOUNTING_SOURCE = {
   BANK_DEPOSIT:              'BANK_DEPOSIT',
   REVERSAL:                  'REVERSAL',
   MANUAL:                    'MANUAL',
-  REPAIR_DEPOSIT_REFUND:     'REPAIR_DEPOSIT_REFUND',
+  REPAIR_DEPOSIT_REFUND:               'REPAIR_DEPOSIT_REFUND',
+  REPAIR_FINAL_PAYMENT_REFUND:         'REPAIR_FINAL_PAYMENT_REFUND',
+  REPAIR_ADDITIONAL_PAYMENT_REFUND:    'REPAIR_ADDITIONAL_PAYMENT_REFUND',
 } as const;
 
 export type AccountingSource = (typeof ACCOUNTING_SOURCE)[keyof typeof ACCOUNTING_SOURCE];
@@ -62,7 +64,9 @@ const SOURCE_TO_DB_TYPE: Record<
   BANK_DEPOSIT:              'BANK_DEPOSIT',
   REVERSAL:                  'REVERSAL',
   MANUAL:                    'DEPOSIT',
-  REPAIR_DEPOSIT_REFUND:     'REVERSAL',
+  REPAIR_DEPOSIT_REFUND:               'REVERSAL',
+  REPAIR_FINAL_PAYMENT_REFUND:         'REVERSAL',
+  REPAIR_ADDITIONAL_PAYMENT_REFUND:    'REVERSAL',
 };
 
 const SOURCE_TO_REASON: Record<AccountingSource, string> = {
@@ -79,7 +83,9 @@ const SOURCE_TO_REASON: Record<AccountingSource, string> = {
   BANK_DEPOSIT:              'ฝากธนาคาร',
   REVERSAL:                  'ยกเลิกรายการ',
   MANUAL:                    'รายการเงินสด',
-  REPAIR_DEPOSIT_REFUND:     'คืนมัดจำงานซ่อม',
+  REPAIR_DEPOSIT_REFUND:               'คืนมัดจำงานซ่อม',
+  REPAIR_FINAL_PAYMENT_REFUND:         'คืนเงินค่าซ่อม',
+  REPAIR_ADDITIONAL_PAYMENT_REFUND:    'คืนเงินชำระเพิ่มเติมงานซ่อม',
 };
 
 @Injectable()

@@ -1232,4 +1232,120 @@ describe('AccountingReconciliationService', () => {
     // Active repair should NOT require REPAIR_DEPOSIT_REFUND
     expect(result.repairItems[0].missingEvents).not.toContain('REPAIR_DEPOSIT_REFUND');
   });
+
+  // ── G27-G31: Cancelled DELIVERED repair — COGS reversal + addl payment reversal (Phase 4B.4M) ──
+
+  it('G27: refund-cancelled repair with COGS JE present → expects REPAIR_COGS_REVERSAL', async () => {
+    enableAccounting();
+    const part  = { id: PART_ID, costPrice: 100, quantity: 1, isVoided: false };
+    const repair = makeRepair({
+      status:          'CANCELLED',
+      paidAmount:      500,
+      paymentReversals: [{ id: 'rev-1' }],
+      parts:           [part],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      // REPAIR_FINAL_PAYMENT present — signals was-delivered-before-cancel
+      makeRepairJe('REPAIR_FINAL_PAYMENT',   REPAIR_ID, 500),
+      makeRepairJe('REPAIR_PAYMENT_REVERSAL', REPAIR_ID, 500),
+      makeRepairJe('REPAIR_COGS',            PART_ID,   100),
+      // REPAIR_COGS_REVERSAL is MISSING
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('MISSING');
+    expect(result.repairItems[0].missingEvents).toContain(`REPAIR_COGS_REVERSAL:${PART_ID}`);
+  });
+
+  it('G28: refund-cancelled repair with all journals present → POSTED', async () => {
+    enableAccounting();
+    const part  = { id: PART_ID, costPrice: 100, quantity: 1, isVoided: false };
+    const repair = makeRepair({
+      status:           'CANCELLED',
+      paidAmount:       500,
+      paymentReversals: [{ id: 'rev-1' }],
+      parts:            [part],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_FINAL_PAYMENT',           REPAIR_ID, 500),
+      makeRepairJe('REPAIR_PAYMENT_REVERSAL',         REPAIR_ID, 500),
+      makeRepairJe('REPAIR_COGS',                    PART_ID,   100),
+      makeRepairJe('REPAIR_COGS_REVERSAL',            PART_ID,   100),
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('POSTED');
+    expect(result.repairItems[0].missingEvents).toHaveLength(0);
+  });
+
+  it('G29: voided part still counted for REPAIR_COGS_REVERSAL if REPAIR_COGS JE exists', async () => {
+    enableAccounting();
+    const voidedPart = { id: PART_ID, costPrice: 50, quantity: 1, isVoided: true };
+    const repair = makeRepair({
+      status:           'CANCELLED',
+      paidAmount:       400,
+      paymentReversals: [{ id: 'rev-1' }],
+      parts:            [voidedPart],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_FINAL_PAYMENT',   REPAIR_ID, 400),
+      makeRepairJe('REPAIR_PAYMENT_REVERSAL', REPAIR_ID, 400),
+      makeRepairJe('REPAIR_COGS',            PART_ID,   50),
+      // REPAIR_COGS_REVERSAL missing
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('MISSING');
+    expect(result.repairItems[0].missingEvents).toContain(`REPAIR_COGS_REVERSAL:${PART_ID}`);
+  });
+
+  it('G30: refund-cancelled repair with additional payment — expects REPAIR_ADDITIONAL_PAYMENT_REVERSAL', async () => {
+    enableAccounting();
+    const payment = { id: ADD_PMT_ID, amount: 150 };
+    const repair  = makeRepair({
+      status:             'CANCELLED',
+      paidAmount:         500,
+      paymentReversals:   [{ id: 'rev-1' }],
+      additionalPayments: [payment],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_FINAL_PAYMENT',           REPAIR_ID,  500),
+      makeRepairJe('REPAIR_PAYMENT_REVERSAL',         REPAIR_ID,  500),
+      makeRepairJe('REPAIR_ADDITIONAL_PAYMENT',       ADD_PMT_ID, 150),
+      // REPAIR_ADDITIONAL_PAYMENT_REVERSAL is MISSING
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('MISSING');
+    expect(result.repairItems[0].missingEvents).toContain(`REPAIR_ADDITIONAL_PAYMENT_REVERSAL:${ADD_PMT_ID}`);
+  });
+
+  it('G31: non-delivered cancelled repair (plain cancel) — no COGS/addl-payment reversals expected', async () => {
+    enableAccounting();
+    const part  = { id: PART_ID, costPrice: 100, quantity: 1, isVoided: false };
+    const repair = makeRepair({
+      status:  'CANCELLED',
+      deposit: 300,
+      parts:   [part],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    // REPAIR_DEPOSIT + REPAIR_DEPOSIT_REFUND present; no REPAIR_FINAL_PAYMENT → not a delivered repair
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT',       REPAIR_ID, 300),
+      makeRepairJe('REPAIR_DEPOSIT_REFUND', REPAIR_ID, 300),
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('POSTED');
+    expect(result.repairItems[0].missingEvents).not.toContain(`REPAIR_COGS_REVERSAL:${PART_ID}`);
+  });
 });

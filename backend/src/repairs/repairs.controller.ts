@@ -27,6 +27,7 @@ import { UpdateRepairDto } from './dto/update-repair.dto';
 import { AddRepairPartDto } from './dto/add-repair-part.dto';
 import { RepairPaymentDto } from './dto/repair-payment.dto';
 import { ReversePaymentDto } from './dto/reverse-payment.dto';
+import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -276,6 +277,18 @@ export class RepairsController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.repairsService.reversePayment(id, dto, userId, tenantId);
+  }
+
+  @Post(':id/refund-and-cancel')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.close')
+  refundAndCancel(
+    @Param('id') id: string,
+    @Body() dto: RefundAndCancelDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.refundAndCancel(id, dto, userId, tenantId);
   }
 
   @Post(':id/additional-payment')

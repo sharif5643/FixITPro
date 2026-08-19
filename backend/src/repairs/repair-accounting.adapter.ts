@@ -423,6 +423,63 @@ export class RepairAccountingAdapter {
     });
   }
 
+  /**
+   * Record COGS reversal journals when a DELIVERED repair is cancelled.
+   * Called AFTER the "Refund & Cancel" operation commits (Phase 4B.4L design).
+   *
+   * For each part that has a REPAIR_COGS journal, swaps debit ↔ credit:
+   *   Original:  DR 5200 (Repair COGS)     / CR 1310 (Parts Inventory)
+   *   Reversal:  DR 1310 (Parts Inventory) / CR 5200 (Repair COGS)
+   *
+   * Parts that never had a REPAIR_COGS JE (accounting was off, zero-cost, or voided
+   * before payment) are silently skipped. Idempotent via JournalService.create().
+   *
+   * sourceType: REPAIR_COGS_REVERSAL, sourceId: repairPart.id (one journal per part)
+   */
+  async recordCogsReversalJournal(
+    repair:   RepairWithPartsForAccounting,
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
+    if (!this.isEnabledForTenant(tenantId)) return;
+    try {
+      await this._recordCogsReversalJournal(repair, tenantId, actorId);
+    } catch (err) {
+      this.logger.error(
+        `RepairAccountingAdapter.recordCogsReversalJournal failed: repairId=${repair.id} ticket=${repair.ticketNumber}`,
+        err,
+      );
+    }
+  }
+
+  /**
+   * Record a reversal journal for one additional/debt payment on repair cancellation.
+   * Called AFTER the "Refund & Cancel" operation commits (Phase 4B.4L design).
+   *
+   * Finds the original REPAIR_ADDITIONAL_PAYMENT journal and swaps debit ↔ credit:
+   *   Original:  DR 1100/1120 (Cash/Clearing) / CR 1200 (Repair A/R)
+   *   Reversal:  DR 1200 (Repair A/R)         / CR 1100/1120 (Cash/Clearing)
+   *
+   * Idempotent via JournalService.create().
+   * sourceType: REPAIR_ADDITIONAL_PAYMENT_REVERSAL, sourceId: payment.id
+   */
+  async recordAdditionalPaymentReversalJournal(
+    payment:  AdditionalPaymentForAccounting,
+    repair:   { id: string; ticketNumber: string; branchId: string | null },
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
+    if (!this.isEnabledForTenant(tenantId)) return;
+    try {
+      await this._recordAdditionalPaymentReversalJournal(payment, repair, tenantId, actorId);
+    } catch (err) {
+      this.logger.error(
+        `RepairAccountingAdapter.recordAdditionalPaymentReversalJournal failed: paymentId=${payment.id} repairId=${repair.id}`,
+        err,
+      );
+    }
+  }
+
   async _recordDepositRefundJournal(
     repair:   RepairForAccounting,
     tenantId: string,
@@ -475,6 +532,83 @@ export class RepairAccountingAdapter {
         { accountCode: ACCOUNT_CODES.CUSTOMER_DEPOSIT, debit:  deposit.toString() },
         { accountCode: originalDrAccount,               credit: deposit.toString() },
       ],
+    });
+  }
+
+  async _recordCogsReversalJournal(
+    repair:   RepairWithPartsForAccounting,
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
+    // Process all parts (including voided — COGS was posted before parts were voided on cancel).
+    // Skip parts that never had a REPAIR_COGS journal (no-op, logged at debug level).
+    for (const part of (repair.parts ?? [])) {
+      const cogsJe = await this.journal.findBySource(
+        JOURNAL_SOURCE.REPAIR_COGS, part.id, tenantId,
+      );
+      if (!cogsJe) {
+        this.logger.debug(
+          `RepairAccountingAdapter: no REPAIR_COGS journal for part ${part.id} (repair ${repair.id}) — skipping COGS reversal`,
+        );
+        continue;
+      }
+
+      // Swap all lines: debit → credit and credit → debit
+      const reversedLines = (cogsJe.lines as any[]).map((line) => {
+        const d = new Prisma.Decimal(String(line.debit ?? 0));
+        return d.gt(0)
+          ? { accountCode: line.account.code, credit: d.toString() }
+          : { accountCode: line.account.code, debit: new Prisma.Decimal(String(line.credit ?? 0)).toString() };
+      });
+
+      await this.journal.create({
+        tenantId,
+        branchId:    repair.branchId,
+        entryDate:   new Date(),
+        description: `COGS Reversal — Repair ${repair.ticketNumber}`,
+        sourceType:  JOURNAL_SOURCE.REPAIR_COGS_REVERSAL,
+        sourceId:    part.id,
+        sourceRef:   repair.ticketNumber,
+        postedById:  actorId ?? null,
+        lines:       reversedLines,
+      });
+    }
+  }
+
+  async _recordAdditionalPaymentReversalJournal(
+    payment:  AdditionalPaymentForAccounting,
+    repair:   { id: string; ticketNumber: string; branchId: string | null },
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
+    const addlJe = await this.journal.findBySource(
+      JOURNAL_SOURCE.REPAIR_ADDITIONAL_PAYMENT, payment.id, tenantId,
+    );
+    if (!addlJe) {
+      this.logger.warn(
+        `RepairAccountingAdapter: no REPAIR_ADDITIONAL_PAYMENT journal for payment ${payment.id} (repair ${repair.id}) — skipping reversal`,
+      );
+      return;
+    }
+
+    // Swap all lines: original DR 1100/1120 / CR 1200 → reversal DR 1200 / CR 1100/1120
+    const reversedLines = (addlJe.lines as any[]).map((line) => {
+      const d = new Prisma.Decimal(String(line.debit ?? 0));
+      return d.gt(0)
+        ? { accountCode: line.account.code, credit: d.toString() }
+        : { accountCode: line.account.code, debit: new Prisma.Decimal(String(line.credit ?? 0)).toString() };
+    });
+
+    await this.journal.create({
+      tenantId,
+      branchId:    repair.branchId,
+      entryDate:   new Date(),
+      description: `Additional Payment Reversal — Repair ${repair.ticketNumber}`,
+      sourceType:  JOURNAL_SOURCE.REPAIR_ADDITIONAL_PAYMENT_REVERSAL,
+      sourceId:    payment.id,
+      sourceRef:   repair.ticketNumber,
+      postedById:  actorId ?? null,
+      lines:       reversedLines,
     });
   }
 }

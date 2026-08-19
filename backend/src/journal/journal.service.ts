@@ -76,6 +76,9 @@ export const JOURNAL_SOURCE = {
   EXPENSE_REVERSAL:                'EXPENSE_REVERSAL',
   // Repair cancellation deposit refund (Phase 4B.4J)
   REPAIR_DEPOSIT_REFUND:           'REPAIR_DEPOSIT_REFUND',
+  // Repair cancellation of DELIVERED repairs — reversals (Phase 4B.4L)
+  REPAIR_COGS_REVERSAL:                 'REPAIR_COGS_REVERSAL',
+  REPAIR_ADDITIONAL_PAYMENT_REVERSAL:   'REPAIR_ADDITIONAL_PAYMENT_REVERSAL',
 } as const;
 
 @Injectable()

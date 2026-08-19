@@ -335,6 +335,10 @@ describe('RepairAccountingAdapter', () => {
     await adapter.recordAdditionalPaymentJournal(
       makePayment(), { id: REPAIR_ID, ticketNumber: TICKET, branchId: BRANCH_ID }, TENANT_ID,
     );
+    await adapter.recordCogsReversalJournal(makeRepair(), TENANT_ID);
+    await adapter.recordAdditionalPaymentReversalJournal(
+      makePayment(), { id: REPAIR_ID, ticketNumber: TICKET, branchId: BRANCH_ID }, TENANT_ID,
+    );
 
     expect(jMock.create).not.toHaveBeenCalled();
     expect(jMock.findBySource).not.toHaveBeenCalled();
@@ -795,6 +799,228 @@ describe('RepairAccountingAdapter', () => {
     const call = jMock.create.mock.calls[0][0];
     expect(call.description).toContain(TICKET);
     expect(call.sourceRef).toBe(TICKET);
+  });
+
+  // ── L: COGS reversal (Phase 4B.4L) ──────────────────────────────────────────
+
+  it('L01: COGS reversal — single part with REPAIR_COGS JE → DR 1310 / CR 5200, sourceType=REPAIR_COGS_REVERSAL, sourceId=part.id', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const cogsJe = makeJournalWithLines('je-cogs', ACCOUNT_CODES.REPAIR_COGS, ACCOUNT_CODES.PARTS_INVENTORY, '150');
+    jMock.findBySource.mockImplementation(async (sourceType: string, sourceId: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_COGS && sourceId === PART_ID_1) return cogsJe;
+      return null;
+    });
+
+    const repair = makeRepair({
+      parts: [makePart({ id: PART_ID_1, costPrice: new Prisma.Decimal('150'), quantity: 1, isVoided: false })],
+    });
+    await adapter._recordCogsReversalJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).toHaveBeenCalledTimes(1);
+    const call = jMock.create.mock.calls[0][0];
+    expect(call.sourceType).toBe(JOURNAL_SOURCE.REPAIR_COGS_REVERSAL);
+    expect(call.sourceId).toBe(PART_ID_1);
+    expect(call.tenantId).toBe(TENANT_ID);
+    // Original DR 5200 / CR 1310 → reversed: CR 5200 / DR 1310
+    expect(call.lines).toMatchObject([
+      { accountCode: ACCOUNT_CODES.REPAIR_COGS,     credit: '150' },
+      { accountCode: ACCOUNT_CODES.PARTS_INVENTORY, debit:  '150' },
+    ]);
+  });
+
+  it('L02: COGS reversal — multiple parts → one REPAIR_COGS_REVERSAL journal per part with a COGS JE', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const cogsJe1 = makeJournalWithLines('je-cogs-1', ACCOUNT_CODES.REPAIR_COGS, ACCOUNT_CODES.PARTS_INVENTORY, '200');
+    const cogsJe2 = makeJournalWithLines('je-cogs-2', ACCOUNT_CODES.REPAIR_COGS, ACCOUNT_CODES.PARTS_INVENTORY, '75');
+    jMock.findBySource.mockImplementation(async (sourceType: string, sourceId: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_COGS && sourceId === PART_ID_1) return cogsJe1;
+      if (sourceType === JOURNAL_SOURCE.REPAIR_COGS && sourceId === PART_ID_2) return cogsJe2;
+      return null;
+    });
+
+    const repair = makeRepair({
+      parts: [
+        makePart({ id: PART_ID_1, costPrice: new Prisma.Decimal('100'), quantity: 2, isVoided: false }),
+        makePart({ id: PART_ID_2, costPrice: new Prisma.Decimal('75'),  quantity: 1, isVoided: false }),
+      ],
+    });
+    await adapter._recordCogsReversalJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).toHaveBeenCalledTimes(2);
+    const sourceIds = jMock.create.mock.calls.map((c) => c[0].sourceId);
+    expect(sourceIds).toContain(PART_ID_1);
+    expect(sourceIds).toContain(PART_ID_2);
+    const sourceTypes = jMock.create.mock.calls.map((c) => c[0].sourceType);
+    sourceTypes.forEach((t) => expect(t).toBe(JOURNAL_SOURCE.REPAIR_COGS_REVERSAL));
+  });
+
+  it('L03: COGS reversal — no REPAIR_COGS JE found for a part → skip without creating reversal journal', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    jMock.findBySource.mockResolvedValue(null);
+
+    const repair = makeRepair({
+      parts: [makePart({ id: PART_ID_1, costPrice: new Prisma.Decimal('150'), quantity: 1 })],
+    });
+    await adapter._recordCogsReversalJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).not.toHaveBeenCalled();
+  });
+
+  it('L04: COGS reversal — voided part (isVoided=true) with existing REPAIR_COGS JE → still reverses', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const cogsJe = makeJournalWithLines('je-cogs', ACCOUNT_CODES.REPAIR_COGS, ACCOUNT_CODES.PARTS_INVENTORY, '120');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_COGS) return cogsJe;
+      return null;
+    });
+
+    const repair = makeRepair({
+      parts: [makePart({ id: PART_ID_1, costPrice: new Prisma.Decimal('120'), quantity: 1, isVoided: true })],
+    });
+    await adapter._recordCogsReversalJournal(repair, TENANT_ID, USER_ID);
+
+    // Voided parts are NOT skipped — their historical COGS must still be reversed
+    expect(jMock.create).toHaveBeenCalledTimes(1);
+    expect(jMock.create.mock.calls[0][0].sourceType).toBe(JOURNAL_SOURCE.REPAIR_COGS_REVERSAL);
+    expect(jMock.create.mock.calls[0][0].sourceId).toBe(PART_ID_1);
+  });
+
+  it('L05: COGS reversal — no parts → no journals created', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+
+    const repair = makeRepair({ parts: [] });
+    await adapter._recordCogsReversalJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.findBySource).not.toHaveBeenCalled();
+    expect(jMock.create).not.toHaveBeenCalled();
+  });
+
+  it('L06: COGS reversal — public wrapper swallows errors, does not rethrow', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
+    process.env.ACCOUNTING_ENABLED_TENANTS = TENANT_ID;
+    jMock.findBySource.mockRejectedValue(new Error('DB timeout'));
+
+    const repair = makeRepair({
+      parts: [makePart({ id: PART_ID_1 })],
+    });
+    await expect(
+      adapter.recordCogsReversalJournal(repair, TENANT_ID, USER_ID),
+    ).resolves.toBeUndefined();
+  });
+
+  it('L07: COGS reversal — tenant not in allowlist → no-op', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
+    process.env.ACCOUNTING_ENABLED_TENANTS = 'other-tenant';
+
+    const repair = makeRepair({ parts: [makePart({ id: PART_ID_1 })] });
+    await adapter.recordCogsReversalJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.findBySource).not.toHaveBeenCalled();
+    expect(jMock.create).not.toHaveBeenCalled();
+  });
+
+  it('L08: COGS reversal — idempotent: JournalService returns {created:false}, no error', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const cogsJe = makeJournalWithLines('je-cogs', ACCOUNT_CODES.REPAIR_COGS, ACCOUNT_CODES.PARTS_INVENTORY, '150');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_COGS) return cogsJe;
+      return null;
+    });
+    jMock.create.mockResolvedValue({ journal: makeJournal('je-rev'), created: false });
+
+    const repair = makeRepair({ parts: [makePart({ id: PART_ID_1 })] });
+
+    await expect(adapter._recordCogsReversalJournal(repair, TENANT_ID)).resolves.toBeUndefined();
+    await expect(adapter._recordCogsReversalJournal(repair, TENANT_ID)).resolves.toBeUndefined();
+    expect(jMock.create).toHaveBeenCalledTimes(2);  // both calls hit create; idempotency inside JournalService
+  });
+
+  // ── L: Additional payment reversal (Phase 4B.4L) ─────────────────────────────
+
+  it('L09: additional payment reversal — CASH → DR 1200 / CR 1100 (swapped from original DR 1100 / CR 1200)', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    // Original REPAIR_ADDITIONAL_PAYMENT: DR 1100 / CR 1200
+    const addlJe = makeJournalWithLines('je-addl', ACCOUNT_CODES.CASH, ACCOUNT_CODES.REPAIR_AR, '300');
+    jMock.findBySource.mockImplementation(async (sourceType: string, sourceId: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_ADDITIONAL_PAYMENT && sourceId === PMT_ID) return addlJe;
+      return null;
+    });
+
+    const payment = makePayment({ id: PMT_ID, amount: new Prisma.Decimal('300'), paymentMethod: 'CASH' });
+    const repair  = { id: REPAIR_ID, ticketNumber: TICKET, branchId: BRANCH_ID };
+    await adapter._recordAdditionalPaymentReversalJournal(payment, repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).toHaveBeenCalledTimes(1);
+    const call = jMock.create.mock.calls[0][0];
+    expect(call.sourceType).toBe(JOURNAL_SOURCE.REPAIR_ADDITIONAL_PAYMENT_REVERSAL);
+    expect(call.sourceId).toBe(PMT_ID);
+    expect(call.tenantId).toBe(TENANT_ID);
+    // Original DR 1100 / CR 1200 → reversed: CR 1100 / DR 1200
+    expect(call.lines).toMatchObject([
+      { accountCode: ACCOUNT_CODES.CASH,      credit: '300' },
+      { accountCode: ACCOUNT_CODES.REPAIR_AR, debit:  '300' },
+    ]);
+  });
+
+  it('L10: additional payment reversal — TRANSFER → CR 1120 / DR 1200', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const addlJe = makeJournalWithLines('je-addl', ACCOUNT_CODES.CLEARING, ACCOUNT_CODES.REPAIR_AR, '500');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_ADDITIONAL_PAYMENT) return addlJe;
+      return null;
+    });
+
+    const payment = makePayment({ id: PMT_ID, amount: new Prisma.Decimal('500'), paymentMethod: 'TRANSFER' });
+    const repair  = { id: REPAIR_ID, ticketNumber: TICKET, branchId: BRANCH_ID };
+    await adapter._recordAdditionalPaymentReversalJournal(payment, repair, TENANT_ID, USER_ID);
+
+    const call = jMock.create.mock.calls[0][0];
+    expect(call.lines).toMatchObject([
+      { accountCode: ACCOUNT_CODES.CLEARING,  credit: '500' },
+      { accountCode: ACCOUNT_CODES.REPAIR_AR, debit:  '500' },
+    ]);
+  });
+
+  it('L11: additional payment reversal — no REPAIR_ADDITIONAL_PAYMENT JE found → warns, no reversal', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const warnSpy = jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => {});
+    jMock.findBySource.mockResolvedValue(null);
+
+    const payment = makePayment({ id: PMT_ID });
+    const repair  = { id: REPAIR_ID, ticketNumber: TICKET, branchId: BRANCH_ID };
+    await adapter._recordAdditionalPaymentReversalJournal(payment, repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('no REPAIR_ADDITIONAL_PAYMENT journal'));
+  });
+
+  it('L12: additional payment reversal — public wrapper swallows errors, does not rethrow', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
+    process.env.ACCOUNTING_ENABLED_TENANTS = TENANT_ID;
+    jMock.findBySource.mockRejectedValue(new Error('DB timeout'));
+
+    const payment = makePayment({ id: PMT_ID });
+    const repair  = { id: REPAIR_ID, ticketNumber: TICKET, branchId: BRANCH_ID };
+    await expect(
+      adapter.recordAdditionalPaymentReversalJournal(payment, repair, TENANT_ID, USER_ID),
+    ).resolves.toBeUndefined();
+  });
+
+  it('L13: additional payment reversal — idempotent: JournalService returns {created:false}, no error', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const addlJe = makeJournalWithLines('je-addl', ACCOUNT_CODES.CASH, ACCOUNT_CODES.REPAIR_AR, '300');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_ADDITIONAL_PAYMENT) return addlJe;
+      return null;
+    });
+    jMock.create.mockResolvedValue({ journal: makeJournal('je-rev'), created: false });
+
+    const payment = makePayment({ id: PMT_ID });
+    const repair  = { id: REPAIR_ID, ticketNumber: TICKET, branchId: BRANCH_ID };
+
+    await expect(adapter._recordAdditionalPaymentReversalJournal(payment, repair, TENANT_ID)).resolves.toBeUndefined();
+    await expect(adapter._recordAdditionalPaymentReversalJournal(payment, repair, TENANT_ID)).resolves.toBeUndefined();
+    expect(jMock.create).toHaveBeenCalledTimes(2);
   });
 
   it('all create calls carry the correct tenantId', async () => {

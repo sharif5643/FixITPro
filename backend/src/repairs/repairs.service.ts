@@ -19,6 +19,7 @@ import { ReversePaymentDto } from './dto/reverse-payment.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
 import { RepairAccountingAdapter } from './repair-accounting.adapter';
+import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
 
 const REPAIR_INCLUDE = {
   customer: true,
@@ -1080,6 +1081,246 @@ export class RepairsService {
       afterData: { amount: Number(dto.amount), paymentMethod: dto.paymentMethod },
     });
     return payment;
+  }
+
+  /**
+   * Atomically refund all payments (final + deposit + additional) and cancel a DELIVERED repair.
+   * This is the ONLY authorized path to cancel a DELIVERED/PAID repair.
+   *
+   * The existing DELIVERED guard in update() remains in place — direct PATCH to CANCELLED
+   * continues to be blocked. This endpoint is the explicit, authorized escape hatch.
+   *
+   * $transaction:
+   *   1. Void active parts + return stock
+   *   2. CDT OUT for final payment refund
+   *   3. CDT OUT for deposit refund (if deposit > 0 and original CDT exists)
+   *   4. CDT OUT per additional payment
+   *   5. Create RepairPaymentReversal record (audit trail)
+   *   6. Update repair → status=CANCELLED, paymentStatus=PENDING, clear payment fields
+   *
+   * Post-commit (all no-throw):
+   *   7. REPAIR_PAYMENT_REVERSAL + REPAIR_DEPOSIT_SETTLE_REVERSAL journals
+   *   8. REPAIR_DEPOSIT_REFUND journal (if deposit > 0)
+   *   9. REPAIR_COGS_REVERSAL per part (all parts including voided)
+   *  10. REPAIR_ADDITIONAL_PAYMENT_REVERSAL per additional payment
+   */
+  async refundAndCancel(
+    repairId: string,
+    dto:      RefundAndCancelDto,
+    userId:   string,
+    tenantId?: string | null,
+  ) {
+    const where: any = { id: repairId };
+    if (tenantId) where.branch = { tenantId };
+
+    const repair = await this.prisma.repair.findFirst({
+      where,
+      select: {
+        id:            true,
+        ticketNumber:  true,
+        status:        true,
+        paymentStatus: true,
+        paymentMethod: true,
+        paidAmount:    true,
+        deposit:       true,
+        branchId:      true,
+        branch:        { select: { tenantId: true } },
+        parts:         {
+          select: { id: true, productId: true, quantity: true, costPrice: true, isVoided: true },
+        },
+        additionalPayments: {
+          select: { id: true, amount: true, paymentMethod: true },
+        },
+      },
+    });
+
+    if (!repair) throw new NotFoundException('Repair not found');
+    if (repair.status !== 'DELIVERED') {
+      throw new BadRequestException(
+        'สามารถยกเลิกและคืนเงินได้เฉพาะงานซ่อมที่ส่งมอบแล้ว (status=DELIVERED)',
+      );
+    }
+    if (repair.paymentStatus !== 'PAID') {
+      throw new BadRequestException('งานซ่อมนี้ยังไม่ได้ชำระเงิน');
+    }
+
+    const repairBranchId  = repair.branchId;
+    const deposit         = Number(repair.deposit ?? 0);
+    const paidAmount      = Number(repair.paidAmount ?? 0);
+    const repairTenantId  = (repair as any).branch?.tenantId ?? tenantId ?? null;
+
+    // Save part list before the transaction (REPAIR_INCLUDE only returns isVoided=false;
+    // here we pre-load ALL parts including already-voided ones for COGS reversal post-commit).
+    const allParts = repair.parts;
+
+    // Look up original deposit CDT payment method before the transaction.
+    let depositPaymentMethod: string | null = null;
+    if (deposit > 0 && repairTenantId) {
+      try {
+        const depositCdt = await this.prisma.cashDrawerTransaction.findFirst({
+          where: {
+            referenceId: repairId,
+            sourceType:  ACCOUNTING_SOURCE.REPAIR_DEPOSIT,
+            tenantId:    repairTenantId,
+          },
+          select: { paymentMethod: true },
+        });
+        depositPaymentMethod = depositCdt?.paymentMethod ?? null;
+      } catch (err) {
+        this.logger.warn(
+          `RepairsService.refundAndCancel: failed to look up deposit CDT for repair ${repairId}: ${err}`,
+        );
+      }
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // 1. Void all currently-active parts + return stock
+      const activeParts = await tx.repairPart.findMany({
+        where:   { repairId, isVoided: false },
+        include: { stockMovements: { where: { type: 'REPAIR_USE' }, select: { id: true } } },
+      });
+      for (const part of activeParts) {
+        await tx.repairPart.update({
+          where: { id: part.id },
+          data:  { isVoided: true, voidedAt: new Date() },
+        });
+        if ((part as any).stockMovements.length > 0 && repairBranchId) {
+          await (tx as any).branchStock.upsert({
+            where:  { branchId_productId: { branchId: repairBranchId, productId: part.productId } },
+            create: { branchId: repairBranchId, productId: part.productId, quantity: part.quantity, minStock: 0 },
+            update: { quantity: { increment: part.quantity } },
+          });
+          await tx.stockMovement.create({
+            data: {
+              productId:    part.productId,
+              type:         'REPAIR_RETURN',
+              quantity:     part.quantity,
+              repairPartId: part.id,
+              branchId:     repairBranchId,
+              note:         `คืนอะไหล่ — ยกเลิก+คืนเงินงานซ่อม ${repair.ticketNumber}`,
+            },
+          });
+          await this.syncShadowStock(tx, part.productId);
+        }
+      }
+
+      // 2. CDT OUT for final payment refund
+      if (paidAmount > 0 && repairBranchId && repairTenantId && repair.paymentMethod) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.REPAIR_FINAL_PAYMENT_REFUND,
+          sourceId:      repairId,
+          paymentMethod: repair.paymentMethod as any,
+          amount:        paidAmount,
+          direction:     'OUT',
+          branchId:      repairBranchId,
+          tenantId:      repairTenantId,
+          actorUserId:   userId,
+          note:          repair.ticketNumber,
+        }, tx);
+      }
+
+      // 3. CDT OUT for deposit refund (only if original deposit CDT found)
+      if (deposit > 0 && repairBranchId && repairTenantId && depositPaymentMethod) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.REPAIR_DEPOSIT_REFUND,
+          sourceId:      repairId,
+          paymentMethod: depositPaymentMethod as any,
+          amount:        deposit,
+          direction:     'OUT',
+          branchId:      repairBranchId,
+          tenantId:      repairTenantId,
+          actorUserId:   userId,
+          note:          repair.ticketNumber,
+        }, tx);
+      }
+
+      // 4. CDT OUT per additional payment
+      for (const payment of (repair.additionalPayments ?? [])) {
+        const pmtAmount = Number(payment.amount ?? 0);
+        if (pmtAmount > 0 && repairBranchId && repairTenantId) {
+          await this.accounting.record({
+            sourceType:    ACCOUNTING_SOURCE.REPAIR_ADDITIONAL_PAYMENT_REFUND,
+            sourceId:      payment.id,
+            paymentMethod: payment.paymentMethod as any,
+            amount:        pmtAmount,
+            direction:     'OUT',
+            branchId:      repairBranchId,
+            tenantId:      repairTenantId,
+            actorUserId:   userId,
+            note:          repair.ticketNumber,
+          }, tx);
+        }
+      }
+
+      // 5. Audit trail record (mirrors reversePayment)
+      await tx.repairPaymentReversal.create({
+        data: {
+          repairId,
+          amount:        repair.paidAmount ?? 0,
+          paymentMethod: (repair.paymentMethod ?? 'CASH') as any,
+          reason:        dto.reason,
+          note:          dto.note,
+          createdById:   userId,
+        },
+      });
+
+      // 6. Update repair to CANCELLED, clear payment fields
+      const updatedRepair = await tx.repair.update({
+        where: { id: repairId },
+        data:  {
+          status:         'CANCELLED',
+          paymentStatus:  'PENDING',
+          paymentMethod:  null,
+          paidAmount:     null,
+          paidAt:         null,
+          deliveredAt:    null,
+          paymentShiftId: null,
+        },
+        include: REPAIR_INCLUDE,
+      });
+
+      await this.auditLog.logWithTx(tx, {
+        actorId:    userId,
+        action:     'REPAIR_REFUND_AND_CANCEL',
+        entityType: 'Repair',
+        entityId:   repairId,
+        afterData:  { status: 'CANCELLED', reason: dto.reason, paidAmount, deposit },
+      });
+
+      return updatedRepair;
+    });
+
+    // Post-commit accounting journals (all no-throw — business TX already committed)
+    if (repairTenantId) {
+      // 7. Reverse final payment JEs: REPAIR_PAYMENT_REVERSAL + REPAIR_DEPOSIT_SETTLE_REVERSAL
+      await this.repairAccounting.reversePaymentJournal(updated as any, repairTenantId, userId);
+
+      // 8. Deposit refund JE: REPAIR_DEPOSIT_REFUND (DR 2110 / CR 1100/1120)
+      if (deposit > 0 && depositPaymentMethod) {
+        await this.repairAccounting.recordDepositRefundJournal(updated as any, repairTenantId, userId);
+      }
+
+      // 9. COGS reversal JEs — pass ALL pre-loaded parts (including voided-before-payment ones).
+      //    REPAIR_INCLUDE only returns isVoided=false so we use the pre-loaded allParts here.
+      //    The adapter silently skips parts with no REPAIR_COGS journal.
+      await this.repairAccounting.recordCogsReversalJournal(
+        { ...updated as any, parts: allParts } as any,
+        repairTenantId,
+        userId,
+      );
+
+      // 10. Reverse each additional payment JE
+      for (const payment of (repair.additionalPayments ?? [])) {
+        await this.repairAccounting.recordAdditionalPaymentReversalJournal(
+          { id: payment.id, amount: payment.amount, paymentMethod: payment.paymentMethod as string },
+          { id: repairId, ticketNumber: repair.ticketNumber, branchId: repairBranchId },
+          repairTenantId,
+          userId,
+        );
+      }
+    }
+
+    return updated;
   }
 
   async submitQc(
