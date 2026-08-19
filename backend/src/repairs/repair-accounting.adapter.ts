@@ -160,6 +160,38 @@ export class RepairAccountingAdapter {
   }
 
   /**
+   * Record a deposit refund journal on repair cancellation.
+   * Called AFTER RepairsService.update() cancellation $transaction commits.
+   *
+   * Looks up the original REPAIR_DEPOSIT journal to determine which cash/clearing account
+   * was originally debited (1100 CASH or 1120 CLEARING), then creates the reversal:
+   *
+   * DR 2110  deposit  (Customer Deposit — close the liability)
+   * CR 1100  deposit  (Cash on Hand)    ← if original deposit was CASH
+   *   OR
+   * CR 1120  deposit  (Clearing)        ← if original deposit was TRANSFER/CARD
+   *
+   * sourceType: REPAIR_DEPOSIT_REFUND, sourceId: repair.id
+   * Idempotent: JournalService returns {created:false} if already posted.
+   * No-op if deposit=0 or if the original REPAIR_DEPOSIT journal was never posted.
+   */
+  async recordDepositRefundJournal(
+    repair:   RepairForAccounting,
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
+    if (!this.isEnabledForTenant(tenantId)) return;
+    try {
+      await this._recordDepositRefundJournal(repair, tenantId, actorId);
+    } catch (err) {
+      this.logger.error(
+        `RepairAccountingAdapter.recordDepositRefundJournal failed: repairId=${repair.id} ticket=${repair.ticketNumber}`,
+        err,
+      );
+    }
+  }
+
+  /**
    * Record an additional / debt payment journal.
    * Called AFTER RepairsService.addAdditionalPayment() OR DebtPaymentsService.create() commits.
    *
@@ -387,6 +419,61 @@ export class RepairAccountingAdapter {
       lines: [
         { accountCode: this.drAccount(payment.paymentMethod), debit:  amount.toString() },
         { accountCode: ACCOUNT_CODES.REPAIR_AR,               credit: amount.toString() },
+      ],
+    });
+  }
+
+  async _recordDepositRefundJournal(
+    repair:   RepairForAccounting,
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
+    const deposit = this.toDecimal(repair.deposit);
+    if (!deposit.gt(0)) {
+      this.logger.warn(
+        `RepairAccountingAdapter: skipping deposit refund journal for repair ${repair.id} — deposit=${deposit}`,
+      );
+      return;
+    }
+
+    // Look up the original REPAIR_DEPOSIT journal to determine which cash/clearing account
+    // was originally debited (1100 for CASH, 1120 for non-CASH).
+    // If no REPAIR_DEPOSIT journal exists (accounting was off at create time), skip refund.
+    const depositJe = await this.journal.findBySource(
+      JOURNAL_SOURCE.REPAIR_DEPOSIT, repair.id, tenantId,
+    );
+    if (!depositJe) {
+      this.logger.warn(
+        `RepairAccountingAdapter: no REPAIR_DEPOSIT journal for repair ${repair.id} — skipping deposit refund`,
+      );
+      return;
+    }
+
+    // Find the debit line in the original deposit journal to get the original DR account (1100 or 1120)
+    const drLine = (depositJe.lines as any[]).find(
+      (l: any) => new Prisma.Decimal(String(l.debit ?? 0)).gt(0),
+    );
+    if (!drLine) {
+      this.logger.warn(
+        `RepairAccountingAdapter: REPAIR_DEPOSIT journal ${depositJe.id} has no debit line — skipping refund`,
+      );
+      return;
+    }
+    const originalDrAccount: string = drLine.account.code;  // '1100' or '1120'
+
+    // Reversal: DR 2110 (close liability) / CR {original DR account} (return cash or clearing)
+    await this.journal.create({
+      tenantId,
+      branchId:    repair.branchId,
+      entryDate:   new Date(),
+      description: `Deposit Refund — Repair ${repair.ticketNumber}`,
+      sourceType:  JOURNAL_SOURCE.REPAIR_DEPOSIT_REFUND,
+      sourceId:    repair.id,
+      sourceRef:   repair.ticketNumber,
+      postedById:  actorId ?? null,
+      lines: [
+        { accountCode: ACCOUNT_CODES.CUSTOMER_DEPOSIT, debit:  deposit.toString() },
+        { accountCode: originalDrAccount,               credit: deposit.toString() },
       ],
     });
   }

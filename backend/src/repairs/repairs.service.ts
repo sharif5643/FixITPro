@@ -407,7 +407,25 @@ export class RepairsService {
     // Without this, every cancellation permanently consumes inventory with no recovery path.
     if (dto.status === 'CANCELLED') {
       const repairBranchId = (repair as any).branchId ?? null;
-      return this.prisma.$transaction(async (tx) => {
+      const deposit = Number((repair as any).deposit ?? 0);
+
+      // Look up original deposit CDT payment method BEFORE the transaction so the refund CDT
+      // uses the same payment method (CASH → 1100, non-CASH → 1120).
+      // If no CDT found, accounting was off at create time → skip CDT + journal.
+      let depositPaymentMethod: string | null = null;
+      if (deposit > 0 && tenantId) {
+        try {
+          const depositCdt = await this.prisma.cashDrawerTransaction.findFirst({
+            where: { referenceId: repair.id, sourceType: ACCOUNTING_SOURCE.REPAIR_DEPOSIT, tenantId },
+            select: { paymentMethod: true },
+          });
+          depositPaymentMethod = depositCdt?.paymentMethod ?? null;
+        } catch (err) {
+          this.logger.warn(`RepairsService: failed to look up deposit CDT for repair ${repair.id}: ${err}`);
+        }
+      }
+
+      const updated = await this.prisma.$transaction(async (tx) => {
         const activeParts = await tx.repairPart.findMany({
           where: { repairId: id, isVoided: false },
           include: { stockMovements: { where: { type: 'REPAIR_USE' }, select: { id: true } } },
@@ -435,8 +453,23 @@ export class RepairsService {
           }
         }
 
+        // Refund deposit CDT — atomic with the status update so ledger and repair stay in sync.
+        if (deposit > 0 && tenantId && depositPaymentMethod) {
+          await this.accounting.record({
+            sourceType:    ACCOUNTING_SOURCE.REPAIR_DEPOSIT_REFUND,
+            sourceId:      repair.id,
+            paymentMethod: depositPaymentMethod as any,
+            amount:        deposit,
+            direction:     'OUT',
+            branchId:      repairBranchId,
+            tenantId,
+            actorUserId:   actorId ?? '',
+            note:          repair.ticketNumber,
+          }, tx);
+        }
+
         updateData.status = 'CANCELLED';
-        const updated = await tx.repair.update({ where: { id }, data: updateData, include: REPAIR_INCLUDE });
+        const updatedRepair = await tx.repair.update({ where: { id }, data: updateData, include: REPAIR_INCLUDE });
         await this.auditLog.logWithTx(tx, {
           actorId, actorName,
           action: 'REPAIR_CANCELLED',
@@ -444,8 +477,15 @@ export class RepairsService {
           entityId: id,
           afterData: { status: 'CANCELLED', partsVoided: activeParts.length },
         });
-        return updated;
+        return updatedRepair;
       });
+
+      // Post-commit: deposit refund journal (failure swallowed — business transaction already committed)
+      if (deposit > 0 && tenantId && depositPaymentMethod) {
+        await this.repairAccounting.recordDepositRefundJournal(updated as any, tenantId, actorId);
+      }
+
+      return updated;
     }
 
     // Safety-net deduction for legacy parts (added before immediate-deduction migration).
@@ -955,8 +995,6 @@ export class RepairsService {
     });
 
     // Post-commit: record payment reversal journals (AFTER $transaction — failure swallowed)
-    // NOTE: Cancellation-gap — REPAIR_DEPOSIT CDT reversal on cancellation is NOT handled here.
-    // The deposit journal from create() is NOT reversed on cancellation. Tracked separately.
     const reverseTenantId = (repair as any).branch?.tenantId ?? tenantId ?? null;
     if (reverseTenantId) {
       await this.repairAccounting.reversePaymentJournal(reversed as any, reverseTenantId, userId);

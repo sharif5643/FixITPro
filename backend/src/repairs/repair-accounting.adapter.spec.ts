@@ -565,6 +565,238 @@ describe('RepairAccountingAdapter', () => {
 
   // ── tenantId propagation ──────────────────────────────────────────────────
 
+  // ── H: Deposit refund on cancellation ────────────────────────────────────
+
+  it('H01: CASH deposit refund → DR 2110 / CR 1100, sourceType=REPAIR_DEPOSIT_REFUND, sourceId=repair.id', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    // Original REPAIR_DEPOSIT journal with DR 1100 (CASH)
+    const depositJe = makeJournalWithLines('je-dep', ACCOUNT_CODES.CASH, ACCOUNT_CODES.CUSTOMER_DEPOSIT, '200');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return depositJe;
+      return null;
+    });
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('200') });
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).toHaveBeenCalledTimes(1);
+    const call = jMock.create.mock.calls[0][0];
+    expect(call.sourceType).toBe(JOURNAL_SOURCE.REPAIR_DEPOSIT_REFUND);
+    expect(call.sourceId).toBe(REPAIR_ID);
+    expect(call.tenantId).toBe(TENANT_ID);
+    expect(call.lines[0]).toMatchObject({ accountCode: ACCOUNT_CODES.CUSTOMER_DEPOSIT, debit:  '200' });
+    expect(call.lines[1]).toMatchObject({ accountCode: ACCOUNT_CODES.CASH,             credit: '200' });
+  });
+
+  it('H02: TRANSFER deposit refund → DR 2110 / CR 1120 (Clearing)', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    // Original REPAIR_DEPOSIT journal with DR 1120 (TRANSFER/CARD)
+    const depositJe = makeJournalWithLines('je-dep', ACCOUNT_CODES.CLEARING, ACCOUNT_CODES.CUSTOMER_DEPOSIT, '300');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return depositJe;
+      return null;
+    });
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('300') });
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    const call = jMock.create.mock.calls[0][0];
+    expect(call.sourceType).toBe(JOURNAL_SOURCE.REPAIR_DEPOSIT_REFUND);
+    expect(call.lines[0]).toMatchObject({ accountCode: ACCOUNT_CODES.CUSTOMER_DEPOSIT, debit:  '300' });
+    expect(call.lines[1]).toMatchObject({ accountCode: ACCOUNT_CODES.CLEARING,         credit: '300' });
+  });
+
+  it('H03: deposit=0 → warns, no journal created', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const warnSpy = jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => {});
+    const repair = makeRepair({ deposit: new Prisma.Decimal('0') });
+
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('deposit=0'));
+  });
+
+  it('H04: no REPAIR_DEPOSIT journal found → warns, no refund journal created', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const warnSpy = jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => {});
+    jMock.findBySource.mockResolvedValue(null);  // no deposit JE in DB
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('200') });
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('no REPAIR_DEPOSIT journal'));
+  });
+
+  it('H05: idempotency — JournalService returns {created:false} on duplicate, no error', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const depositJe = makeJournalWithLines('je-dep', ACCOUNT_CODES.CASH, ACCOUNT_CODES.CUSTOMER_DEPOSIT, '200');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return depositJe;
+      return null;
+    });
+    // Second call: JournalService signals idempotent hit
+    jMock.create.mockResolvedValue({ journal: makeJournal('je-refund'), created: false });
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('200') });
+
+    // Call twice — both should resolve without error
+    await expect(adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID)).resolves.toBeUndefined();
+    await expect(adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID)).resolves.toBeUndefined();
+    expect(jMock.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('H06: public method swallows internal errors — no rethrow to caller', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
+    process.env.ACCOUNTING_ENABLED_TENANTS = TENANT_ID;
+    jMock.findBySource.mockRejectedValue(new Error('DB connection lost'));
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('200') });
+
+    await expect(
+      adapter.recordDepositRefundJournal(repair, TENANT_ID, USER_ID),
+    ).resolves.toBeUndefined();
+  });
+
+  it('H07: tenant not in allowlist → no-op, no journal created', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
+    process.env.ACCOUNTING_ENABLED_TENANTS = 'other-tenant';
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('200') });
+    await adapter.recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).not.toHaveBeenCalled();
+    expect(jMock.findBySource).not.toHaveBeenCalled();
+  });
+
+  it('H08: feature flag OFF → complete no-op', async () => {
+    // No env vars set
+    const repair = makeRepair({ deposit: new Prisma.Decimal('200') });
+    await adapter.recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).not.toHaveBeenCalled();
+  });
+
+  it('H09: sourceId is repair.id (not part.id or payment.id)', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const depositJe = makeJournalWithLines('je-dep', ACCOUNT_CODES.CASH, ACCOUNT_CODES.CUSTOMER_DEPOSIT, '150');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return depositJe;
+      return null;
+    });
+
+    const repair = makeRepair({ id: 'repair-xyz', deposit: new Prisma.Decimal('150') });
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    const call = jMock.create.mock.calls[0][0];
+    expect(call.sourceId).toBe('repair-xyz');
+  });
+
+  it('H10: tenantId propagated to journal.create', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const depositJe = makeJournalWithLines('je-dep', ACCOUNT_CODES.CASH, ACCOUNT_CODES.CUSTOMER_DEPOSIT, '100');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return depositJe;
+      return null;
+    });
+
+    const OTHER_TENANT = 'other-t';
+    const repair = makeRepair({ deposit: new Prisma.Decimal('100') });
+    await adapter._recordDepositRefundJournal(repair, OTHER_TENANT, USER_ID);
+
+    const call = jMock.create.mock.calls[0][0];
+    expect(call.tenantId).toBe(OTHER_TENANT);
+  });
+
+  it('H11: findBySource called with REPAIR_DEPOSIT + repair.id + tenantId', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const depositJe = makeJournalWithLines('je-dep', ACCOUNT_CODES.CASH, ACCOUNT_CODES.CUSTOMER_DEPOSIT, '200');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return depositJe;
+      return null;
+    });
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('200') });
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.findBySource).toHaveBeenCalledWith(
+      JOURNAL_SOURCE.REPAIR_DEPOSIT, REPAIR_ID, TENANT_ID,
+    );
+  });
+
+  it('H12: journal balanced — debit = credit = deposit amount', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const depositJe = makeJournalWithLines('je-dep', ACCOUNT_CODES.CASH, ACCOUNT_CODES.CUSTOMER_DEPOSIT, '500');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return depositJe;
+      return null;
+    });
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('500') });
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    const call = jMock.create.mock.calls[0][0];
+    const totalDebit  = call.lines.reduce((s: number, l: any) => s + Number(l.debit  ?? 0), 0);
+    const totalCredit = call.lines.reduce((s: number, l: any) => s + Number(l.credit ?? 0), 0);
+    expect(totalDebit).toBe(500);
+    expect(totalCredit).toBe(500);
+    expect(totalDebit).toBe(totalCredit);
+  });
+
+  it('H13: deposit with parts — refund journal still only DR 2110 / CR 1100, no COGS in refund', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const depositJe = makeJournalWithLines('je-dep', ACCOUNT_CODES.CASH, ACCOUNT_CODES.CUSTOMER_DEPOSIT, '200');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return depositJe;
+      return null;
+    });
+
+    // Repair with parts — parts do NOT affect deposit refund journal
+    const repair = makeRepair({
+      deposit: new Prisma.Decimal('200'),
+      parts:   [{ id: 'p-111', costPrice: new Prisma.Decimal('80'), quantity: 1, isVoided: false }],
+    });
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    // Only ONE journal created (the refund) — no COGS reversal
+    expect(jMock.create).toHaveBeenCalledTimes(1);
+    expect(jMock.create.mock.calls[0][0].sourceType).toBe(JOURNAL_SOURCE.REPAIR_DEPOSIT_REFUND);
+  });
+
+  it('H14: deposit journal with no debit line → warns, no refund created', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const warnSpy = jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => {});
+    // Malformed deposit JE with no debit line (should never happen in practice)
+    const badDepositJe = { id: 'je-bad', entryNumber: 'JE-BAD', isVoided: false, lines: [] };
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return badDepositJe;
+      return null;
+    });
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('200') });
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    expect(jMock.create).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('no debit line'));
+  });
+
+  it('H15: description contains ticket number', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    const depositJe = makeJournalWithLines('je-dep', ACCOUNT_CODES.CASH, ACCOUNT_CODES.CUSTOMER_DEPOSIT, '200');
+    jMock.findBySource.mockImplementation(async (sourceType: string) => {
+      if (sourceType === JOURNAL_SOURCE.REPAIR_DEPOSIT) return depositJe;
+      return null;
+    });
+
+    const repair = makeRepair({ deposit: new Prisma.Decimal('200') });
+    await adapter._recordDepositRefundJournal(repair, TENANT_ID, USER_ID);
+
+    const call = jMock.create.mock.calls[0][0];
+    expect(call.description).toContain(TICKET);
+    expect(call.sourceRef).toBe(TICKET);
+  });
+
   it('all create calls carry the correct tenantId', async () => {
     process.env.ACCOUNTING_CORE_ENABLED = 'true';
     const depositJe = makeJournal('je-dep');

@@ -74,6 +74,8 @@ export const JOURNAL_SOURCE = {
   // Expense accounting (Phase 4B.4D — not yet implemented)
   EXPENSE_PAYMENT:                 'EXPENSE_PAYMENT',
   EXPENSE_REVERSAL:                'EXPENSE_REVERSAL',
+  // Repair cancellation deposit refund (Phase 4B.4J)
+  REPAIR_DEPOSIT_REFUND:           'REPAIR_DEPOSIT_REFUND',
 } as const;
 
 @Injectable()

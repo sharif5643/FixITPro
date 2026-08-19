@@ -102,6 +102,7 @@ const REPAIR_ID_SOURCE_TYPES = [
   'REPAIR_DEPOSIT_SETTLE',
   'REPAIR_PAYMENT_REVERSAL',
   'REPAIR_DEPOSIT_SETTLE_REVERSAL',
+  'REPAIR_DEPOSIT_REFUND',  // Phase 4B.4J — deposit refund on cancellation
 ];
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -485,11 +486,12 @@ export class AccountingReconciliationService implements OnModuleInit {
   }
 
   private classifyRepair(repair: any, journalIndex: Map<string, any>): RepairReconciliationItem {
-    const deposit     = Number(repair.deposit ?? 0);
-    const paidAmount  = Number(repair.paidAmount ?? 0);
-    const isDelivered = repair.status === 'DELIVERED';
-    const hasReversal = (repair.paymentReversals ?? []).length > 0;
-    const activeParts = (repair.parts ?? []).filter(
+    const deposit      = Number(repair.deposit ?? 0);
+    const paidAmount   = Number(repair.paidAmount ?? 0);
+    const isDelivered  = repair.status === 'DELIVERED';
+    const isCancelled  = repair.status === 'CANCELLED';
+    const hasReversal  = (repair.paymentReversals ?? []).length > 0;
+    const activeParts  = (repair.parts ?? []).filter(
       (p: any) => !p.isVoided && Number(p.costPrice ?? 0) > 0,
     );
 
@@ -584,6 +586,21 @@ export class AccountingReconciliationService implements OnModuleInit {
       anyExpected = true;
       if (!journalIndex.get(`REPAIR_DEPOSIT_SETTLE_REVERSAL:${repair.id}`)) {
         missingEvents.push('REPAIR_DEPOSIT_SETTLE_REVERSAL');
+      }
+    }
+
+    // REPAIR_DEPOSIT_REFUND — expected when CANCELLED, deposit > 0, and original REPAIR_DEPOSIT was posted.
+    // (If REPAIR_DEPOSIT was never posted, there is no liability to reverse — skip refund expectation.)
+    if (isCancelled && deposit > 0 && journalIndex.get(`REPAIR_DEPOSIT:${repair.id}`)) {
+      anyExpected = true;
+      const refundJe = journalIndex.get(`REPAIR_DEPOSIT_REFUND:${repair.id}`);
+      if (!refundJe) {
+        missingEvents.push('REPAIR_DEPOSIT_REFUND');
+      } else {
+        const debitSum = this.sumDebit(refundJe);
+        if (Math.abs(debitSum - deposit) > 0.01) {
+          errors.push(`REPAIR_DEPOSIT_REFUND amount mismatch for repair ${repair.id}: expected ${deposit}, got ${debitSum}`);
+        }
       }
     }
 

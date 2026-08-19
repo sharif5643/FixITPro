@@ -1140,4 +1140,96 @@ describe('AccountingReconciliationService', () => {
     expect(result.summary.posted).toBe(1);
     expect(result.summary.missing).toBe(0);
   });
+
+  // ── G21-G26: Cancelled repair deposit refund (Phase 4B.4J) ────────────────
+
+  it('G21: cancelled repair, deposit>0, REPAIR_DEPOSIT posted, REPAIR_DEPOSIT_REFUND posted → POSTED', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 200, status: 'CANCELLED' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT',        REPAIR_ID, 200),
+      makeRepairJe('REPAIR_DEPOSIT_REFUND', REPAIR_ID, 200),
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('POSTED');
+    expect(result.repairItems[0].missingEvents).toHaveLength(0);
+    expect(result.summary.posted).toBe(1);
+  });
+
+  it('G22: cancelled repair, deposit>0, REPAIR_DEPOSIT posted, no REPAIR_DEPOSIT_REFUND → MISSING', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 200, status: 'CANCELLED' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT', REPAIR_ID, 200),
+      // no REPAIR_DEPOSIT_REFUND
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('MISSING');
+    expect(result.repairItems[0].missingEvents).toContain('REPAIR_DEPOSIT_REFUND');
+    expect(result.summary.missing).toBe(1);
+  });
+
+  it('G23: cancelled repair, REPAIR_DEPOSIT_REFUND amount mismatch → ERROR', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 200, status: 'CANCELLED' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT',        REPAIR_ID, 200),
+      makeRepairJe('REPAIR_DEPOSIT_REFUND', REPAIR_ID, 150), // wrong amount
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('ERROR');
+    expect(result.repairItems[0].errors.some((e: string) => e.includes('REPAIR_DEPOSIT_REFUND'))).toBe(true);
+  });
+
+  it('G24: cancelled repair with no deposit → NOT_APPLICABLE (no refund expected)', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 0, paidAmount: null, status: 'CANCELLED' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('NOT_APPLICABLE');
+    expect(result.summary.notApplicable).toBe(1);
+    expect(result.summary.missing).toBe(0);
+  });
+
+  it('G25: cancelled repair, deposit>0 but REPAIR_DEPOSIT journal also missing → MISSING REPAIR_DEPOSIT only, no refund expected', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 200, status: 'CANCELLED' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([]); // no journals at all
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('MISSING');
+    expect(result.repairItems[0].missingEvents).toContain('REPAIR_DEPOSIT');
+    // No refund expected when original deposit JE is also missing
+    expect(result.repairItems[0].missingEvents).not.toContain('REPAIR_DEPOSIT_REFUND');
+  });
+
+  it('G26: non-cancelled repair with deposit → POSTED without needing REPAIR_DEPOSIT_REFUND', async () => {
+    enableAccounting();
+    const repair = makeRepair({ deposit: 200, status: 'IN_PROGRESS' });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT', REPAIR_ID, 200),
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('POSTED');
+    expect(result.repairItems[0].missingEvents).toHaveLength(0);
+    // Active repair should NOT require REPAIR_DEPOSIT_REFUND
+    expect(result.repairItems[0].missingEvents).not.toContain('REPAIR_DEPOSIT_REFUND');
+  });
 });
