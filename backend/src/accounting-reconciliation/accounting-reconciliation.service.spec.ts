@@ -891,6 +891,52 @@ describe('AccountingReconciliationService', () => {
     expect(result.repairItems[0].missingEvents).toHaveLength(0);
   });
 
+  // ── G06b: Additional payment with NO journal → MISSING ───────────────────
+
+  it('G06b: repair with additional payment but NO REPAIR_ADDITIONAL_PAYMENT journal → MISSING', async () => {
+    enableAccounting();
+    const repair = makeRepair({
+      deposit:            300,
+      paidAmount:         0,
+      status:             'RECEIVED',
+      additionalPayments: [{ id: ADD_PMT_ID, amount: 500 }],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT', REPAIR_ID, 300),
+      // REPAIR_ADDITIONAL_PAYMENT journal intentionally absent
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('MISSING');
+    expect(result.repairItems[0].missingEvents).toContain(`REPAIR_ADDITIONAL_PAYMENT:${ADD_PMT_ID}`);
+  });
+
+  // ── G06c: Additional payment journal debit mismatch → ERROR ──────────────
+
+  it('G06c: repair with additional payment journal — debit amount differs from payment.amount → ERROR', async () => {
+    enableAccounting();
+    const repair = makeRepair({
+      deposit:            300,
+      paidAmount:         0,
+      status:             'RECEIVED',
+      additionalPayments: [{ id: ADD_PMT_ID, amount: 500 }],
+    });
+    (prisma.repair.findMany as jest.Mock).mockResolvedValue([repair]);
+    (prisma.journalEntry.findMany as jest.Mock).mockResolvedValue([
+      makeRepairJe('REPAIR_DEPOSIT',            REPAIR_ID,  300),
+      makeRepairJe('REPAIR_ADDITIONAL_PAYMENT', ADD_PMT_ID, 999), // wrong amount: 999 ≠ 500
+    ]);
+
+    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+
+    expect(result.repairItems[0].status).toBe('ERROR');
+    expect(result.repairItems[0].errors.some(
+      (e: string) => e.includes(ADD_PMT_ID) && e.includes('amount mismatch'),
+    )).toBe(true);
+  });
+
   // ── G07 (Spec G): Repair COGS present → POSTED ────────────────────────────
 
   it('G07: delivered repair with active part — REPAIR_COGS journal present → POSTED', async () => {
