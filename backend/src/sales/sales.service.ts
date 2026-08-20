@@ -859,7 +859,7 @@ export class SalesService {
     const refundTotal = dto.returnItems.reduce((sum, ri) => sum + ri.refundPrice * ri.quantity, 0);
     const newTotal    = dto.newItems.reduce((sum, ni) => sum + ni.price * ni.quantity, 0);
 
-    return this.prisma.$transaction(async (tx) => {
+    const txResult = await this.prisma.$transaction(async (tx) => {
       // A. Record returned items as a SaleRefund
       const refundNumber = this.generateRefundNumber();
       const refund = await tx.saleRefund.create({
@@ -936,7 +936,7 @@ export class SalesService {
       const newSaleStatus = allItemsFullyRefunded ? 'REFUNDED' : 'PARTIAL_REFUND';
       await tx.sale.update({ where: { id }, data: { status: newSaleStatus } });
 
-      // B. Create new Sale for replacement items
+      // B. Create new Sale for replacement items — include payments + items for post-commit accounting
       const newReceiptNumber = this.generateReceiptNumber();
       const newSale = await tx.sale.create({
         data: {
@@ -971,26 +971,62 @@ export class SalesService {
             create: [{ paymentMethod: dto.paymentMethod as any, amount: newTotal, sortOrder: 0 }],
           },
         },
+        // FIX BUG-2 + BUG-3: fetch created SaleItems and SalePayments so we can
+        // link StockMovements and use SalePayment.id for the CDT sourceId.
+        include: { items: true, payments: true },
       });
+
+      // Build a per-productId queue so duplicate products map to distinct SaleItems
+      const newSaleItemQueue = new Map<string, string[]>();
+      for (const si of newSale.items) {
+        const q = newSaleItemQueue.get(si.productId) ?? [];
+        q.push(si.id);
+        newSaleItemQueue.set(si.productId, q);
+      }
 
       for (const ni of dto.newItems) {
         if (sale.branchId) {
-          await (tx as any).branchStock.update({
-            where: { branchId_productId: { branchId: sale.branchId, productId: ni.productId } },
+          // FIX BUG-1: atomic conditional decrement — prevents concurrent oversell.
+          // updateMany with quantity >= demand only writes if stock remains sufficient.
+          const bsResult = await (tx as any).branchStock.updateMany({
+            where: { branchId: sale.branchId, productId: ni.productId, quantity: { gte: ni.quantity } },
             data: { quantity: { decrement: ni.quantity } },
           });
+          if (bsResult.count === 0) {
+            const bs = await (tx as any).branchStock.findUnique({
+              where: { branchId_productId: { branchId: sale.branchId, productId: ni.productId } },
+              select: { quantity: true },
+            });
+            const product = products.find((p) => p.id === ni.productId)!;
+            throw new BadRequestException(
+              `สต็อกไม่พอสำหรับ "${product.name}" คงเหลือ: ${bs?.quantity ?? 0} ชิ้น (ต้องการ: ${ni.quantity})`,
+            );
+          }
           await this.syncProductShadowStock(ni.productId, tx);
         } else {
-          await tx.product.update({ where: { id: ni.productId }, data: { stock: { decrement: ni.quantity } } });
+          // FIX BUG-1 (no-branch path): atomic conditional decrement
+          const prodResult = await tx.product.updateMany({
+            where: { id: ni.productId, stock: { gte: ni.quantity } },
+            data: { stock: { decrement: ni.quantity } },
+          });
+          if (prodResult.count === 0) {
+            const product = products.find((p) => p.id === ni.productId)!;
+            throw new BadRequestException(
+              `สต็อกไม่พอสำหรับ "${product.name}" (สต็อกถูกอัพเดทโดย request อื่น)`,
+            );
+          }
         }
 
+        // FIX BUG-2: link saleItemId to the replacement SaleItem
+        const saleItemId = newSaleItemQueue.get(ni.productId)?.shift();
         await tx.stockMovement.create({
           data: {
-            productId: ni.productId,
-            type:      'SALE',
-            quantity:  ni.quantity,
-            branchId:  sale.branchId ?? null,
-            note:      `เปลี่ยนสินค้าจาก ${sale.receiptNumber}`,
+            productId:  ni.productId,
+            type:       'SALE',
+            quantity:   ni.quantity,
+            saleItemId: saleItemId ?? undefined,
+            branchId:   sale.branchId ?? null,
+            note:       `เปลี่ยนสินค้าจาก ${sale.receiptNumber}`,
           },
         });
       }
@@ -1009,9 +1045,10 @@ export class SalesService {
           note:          refundNumber,
         }, tx);
 
+        // FIX BUG-3: use SalePayment.id (not newSale.id) for idempotency consistency
         await this.accounting.record({
           sourceType:    ACCOUNTING_SOURCE.SALE_PAYMENT,
-          sourceId:      newSale.id,
+          sourceId:      newSale.payments[0].id,
           paymentMethod: dto.paymentMethod as any,
           amount:        newTotal,
           direction:     'IN',
@@ -1022,7 +1059,8 @@ export class SalesService {
         }, tx);
       }
 
-      await this.auditLog.log({
+      // FIX BUG-5: use logWithTx so audit row rolls back if $transaction rolls back
+      await this.auditLog.logWithTx(tx, {
         actorId: userId,
         action: 'SALE_EXCHANGED',
         entityType: 'Sale',
@@ -1039,13 +1077,50 @@ export class SalesService {
       });
 
       return {
-        originalSaleStatus: newSaleStatus,
-        refundNumber,
-        refundTotal,
-        newReceiptNumber,
-        newTotal,
-        netAmount: newTotal - refundTotal,
+        txData: {
+          originalSaleStatus: newSaleStatus,
+          refundNumber,
+          refundTotal,
+          newReceiptNumber,
+          newTotal,
+          netAmount: newTotal - refundTotal,
+        },
+        newSale,
+        refundId: refund.id,
       };
     });
+
+    // FIX BUG-4: post-commit double-entry journals (no-throw; never affects Exchange result)
+    // Return leg: revenue reversal + COGS reversal per returned item
+    await this.salesAccounting?.recordRefundJournal(
+      {
+        id:            txResult.refundId,
+        totalRefund:   refundTotal,
+        paymentMethod: dto.paymentMethod,
+        saleId:        id,
+      },
+      sale as any,
+      dto.returnItems.map((ri) => ({ saleItemId: ri.saleItemId, quantity: ri.quantity })),
+      tenantId ?? '',
+      userId,
+    );
+    // Replacement leg: revenue + COGS per new SaleItem
+    await this.salesAccounting?.recordSaleJournal(txResult.newSale as any, tenantId ?? '', userId);
+
+    // FIX BUG-7: low-stock notifications for replacement products.
+    // Wrapped in try/catch so notification failures never affect Exchange business result.
+    try {
+      for (const ni of dto.newItems) {
+        const p = await this.prisma.product.findUnique({
+          where: { id: ni.productId },
+          select: { id: true, name: true, stock: true, minStock: true },
+        });
+        if (p) await this.notif.notifyLowStock(p.id, p.name, p.stock, p.minStock);
+      }
+    } catch {
+      // Notification failure is non-fatal — Exchange is already committed
+    }
+
+    return txResult.txData;
   }
 }
