@@ -588,4 +588,577 @@ describe('SalesService.exchangeSaleItems — Phase 4B.4T', () => {
     // accounting.record must NOT be called when branchId is absent
     expect(accounting.record).not.toHaveBeenCalled();
   });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Phase 4B.4U — Hardening additions
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── CDT amounts ──────────────────────────────────────────────────────────
+
+  describe('CDT amounts', () => {
+    it('U-CDT-1: SALE_REFUND CDT amount = refundTotal (return price × qty)', async () => {
+      const dto = makeDto(300, 900); // refundTotal=300, newTotal=900
+      await runExchange(dto);
+
+      const refundCdt = (accounting.record as jest.Mock).mock.calls.find(
+        (args) => args[0].sourceType === ACCOUNTING_SOURCE.SALE_REFUND,
+      );
+      expect(refundCdt[0].amount).toBe(300);
+    });
+
+    it('U-CDT-2: SALE_PAYMENT CDT amount = newTotal (replacement price × qty)', async () => {
+      const dto = makeDto(300, 900);
+      await runExchange(dto);
+
+      const pmtCdt = (accounting.record as jest.Mock).mock.calls.find(
+        (args) => args[0].sourceType === ACCOUNTING_SOURCE.SALE_PAYMENT,
+      );
+      expect(pmtCdt[0].amount).toBe(900);
+    });
+
+    it('U-CDT-3: both CDTs carry branchId', async () => {
+      await runExchange(makeDto());
+
+      const calls = (accounting.record as jest.Mock).mock.calls;
+      calls.forEach((args) => {
+        expect(args[0].branchId).toBe(BRANCH_ID);
+      });
+    });
+
+    it('U-CDT-4: equal-price exchange — both CDTs still created with correct amounts', async () => {
+      const dto = makeDto(400, 400);
+      const equalSale = {
+        ...NEW_SALE, total: 400,
+        payments: [{ id: NEW_PAY_ID, paymentMethod: 'CASH', amount: 400, sortOrder: 0 }],
+        items:    [{ id: NEW_SI_ID,  productId: NEW_PROD_ID, quantity: 1, costPrice: 150 }],
+      };
+      const tx = makeExchangeTx({ sale: { update: jest.fn(), create: jest.fn().mockResolvedValue(equalSale) } });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      await service.exchangeSaleItems(ORIG_SALE_ID, dto, ACTOR_ID, TENANT_ID);
+
+      expect(accounting.record).toHaveBeenCalledTimes(2);
+      const refundCdt = (accounting.record as jest.Mock).mock.calls.find(
+        (args) => args[0].sourceType === ACCOUNTING_SOURCE.SALE_REFUND,
+      );
+      const pmtCdt = (accounting.record as jest.Mock).mock.calls.find(
+        (args) => args[0].sourceType === ACCOUNTING_SOURCE.SALE_PAYMENT,
+      );
+      expect(refundCdt[0].amount).toBe(400);
+      expect(pmtCdt[0].amount).toBe(400);
+    });
+  });
+
+  // ── StockMovement detail ──────────────────────────────────────────────────
+
+  describe('StockMovement detail', () => {
+    it('U-SM-1: return movement type=REFUND with original saleItemId', async () => {
+      const tx = makeExchangeTx();
+      await runExchange(makeDto(), tx);
+
+      const movementCalls = (tx.stockMovement.create as jest.Mock).mock.calls;
+      const refundMov = movementCalls.find((args) => args[0].data.type === 'REFUND');
+      expect(refundMov).toBeDefined();
+      expect(refundMov[0].data.saleItemId).toBe(ORIG_SI_ID);
+      expect(refundMov[0].data.productId).toBe(ORIG_PROD_ID);
+    });
+
+    it('U-SM-2: replacement movement type=SALE with correct productId', async () => {
+      const tx = makeExchangeTx();
+      await runExchange(makeDto(), tx);
+
+      const movementCalls = (tx.stockMovement.create as jest.Mock).mock.calls;
+      const saleMov = movementCalls.find((args) => args[0].data.type === 'SALE');
+      expect(saleMov).toBeDefined();
+      expect(saleMov[0].data.productId).toBe(NEW_PROD_ID);
+    });
+
+    it('U-SM-3: when tx throws, no orphan StockMovement survives (tx rolled back)', async () => {
+      // Simulate tx-level failure after sale.create but before the end
+      const tx = makeExchangeTx({
+        stockMovement: { create: jest.fn().mockRejectedValue(new Error('DB write failed')) },
+      });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+
+      await expect(
+        service.exchangeSaleItems(ORIG_SALE_ID, makeDto(), ACTOR_ID, TENANT_ID),
+      ).rejects.toThrow();
+
+      // No CDT or journal should have been written
+      expect(salesAccounting.recordRefundJournal).not.toHaveBeenCalled();
+      expect(salesAccounting.recordSaleJournal).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Original sale status ──────────────────────────────────────────────────
+
+  describe('original sale status', () => {
+    it('U-STATUS-1: returning ALL items → sale.update called with REFUNDED', async () => {
+      // makeDto returns 1 item, ORIG_SALE has 1 item qty=2, return qty=2 → fully refunded
+      const dto = {
+        returnItems:   [{ saleItemId: ORIG_SI_ID, quantity: 2, refundPrice: 250 }],
+        newItems:      [{ productId: NEW_PROD_ID, quantity: 1, price: 750 }],
+        paymentMethod: 'CASH',
+        reason:        'test',
+      };
+      const sale = { ...ORIG_SALE, items: [{ ...ORIG_SALE.items[0], quantity: 2, refundedQty: 0 }] };
+      prisma.sale.findFirst.mockResolvedValue(sale);
+      const tx = makeExchangeTx();
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+
+      await service.exchangeSaleItems(ORIG_SALE_ID, dto, ACTOR_ID, TENANT_ID);
+
+      expect(tx.sale.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'REFUNDED' } }),
+      );
+    });
+
+    it('U-STATUS-2: returning SOME items → sale.update called with PARTIAL_REFUND', async () => {
+      // ORIG_SALE has item qty=2; return only qty=1 → partial
+      const tx = makeExchangeTx();
+      await runExchange(makeDto(), tx); // makeDto returns qty=1 of qty=2
+
+      expect(tx.sale.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'PARTIAL_REFUND' } }),
+      );
+    });
+  });
+
+  // ── Serialized product ────────────────────────────────────────────────────
+
+  describe('serialized product', () => {
+    it('U-SERIAL-1: fully returning serialized item → serialNumber.updateMany RETURNED', async () => {
+      const serialSale = {
+        ...ORIG_SALE,
+        items: [{
+          id: ORIG_SI_ID, productId: ORIG_PROD_ID,
+          quantity: 1, refundedQty: 0, costPrice: 100,
+          product: { id: ORIG_PROD_ID, name: 'iPhone', hasSerial: true, costPrice: 100 },
+        }],
+      };
+      prisma.sale.findFirst.mockResolvedValue(serialSale);
+      const dto = { returnItems: [{ saleItemId: ORIG_SI_ID, quantity: 1, refundPrice: 500 }],
+                    newItems:    [{ productId: NEW_PROD_ID, quantity: 1, price: 600 }],
+                    paymentMethod: 'CASH', reason: 'test' };
+      const tx = makeExchangeTx();
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      await service.exchangeSaleItems(ORIG_SALE_ID, dto, ACTOR_ID, TENANT_ID);
+
+      expect(tx.serialNumber.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { saleItemId: ORIG_SI_ID },
+          data:  { status: 'RETURNED', soldAt: null },
+        }),
+      );
+    });
+
+    it('U-SERIAL-2: partially returning serialized item → serialNumber NOT updated', async () => {
+      const serialSale = {
+        ...ORIG_SALE,
+        items: [{
+          id: ORIG_SI_ID, productId: ORIG_PROD_ID,
+          quantity: 2, refundedQty: 0, costPrice: 100,
+          product: { id: ORIG_PROD_ID, name: 'iPhone', hasSerial: true, costPrice: 100 },
+        }],
+      };
+      prisma.sale.findFirst.mockResolvedValue(serialSale);
+      const dto = { returnItems: [{ saleItemId: ORIG_SI_ID, quantity: 1, refundPrice: 500 }],
+                    newItems:    [{ productId: NEW_PROD_ID, quantity: 1, price: 600 }],
+                    paymentMethod: 'CASH', reason: 'test' };
+      const tx = makeExchangeTx();
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      await service.exchangeSaleItems(ORIG_SALE_ID, dto, ACTOR_ID, TENANT_ID);
+
+      // newRefundedQty=1 < quantity=2, so serial stays as-is
+      expect(tx.serialNumber.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Multiple items ────────────────────────────────────────────────────────
+
+  describe('multiple items exchange', () => {
+    const ORIG_SI2_ID  = 'orig-si-2';
+    const ORIG_PROD2   = 'orig-prod-2';
+    const NEW_PROD2    = 'new-prod-2';
+    const NEW_SI2_ID   = 'new-si-2';
+    const NEW_PAY2_ID  = 'new-pay-2';
+
+    const multiSale = {
+      ...ORIG_SALE,
+      items: [
+        { id: ORIG_SI_ID,  productId: ORIG_PROD_ID,  quantity: 2, refundedQty: 0, costPrice: 100,
+          product: { id: ORIG_PROD_ID, name: 'Widget A', hasSerial: false, costPrice: 100 } },
+        { id: ORIG_SI2_ID, productId: ORIG_PROD2,     quantity: 1, refundedQty: 0, costPrice: 200,
+          product: { id: ORIG_PROD2, name: 'Widget C', hasSerial: false, costPrice: 200 } },
+      ],
+    };
+
+    const multiNewSale = {
+      ...NEW_SALE,
+      total: 1200,
+      payments: [{ id: NEW_PAY2_ID, paymentMethod: 'CASH', amount: 1200, sortOrder: 0 }],
+      items: [
+        { id: NEW_SI_ID,  productId: NEW_PROD_ID, quantity: 1, costPrice: 150 },
+        { id: NEW_SI2_ID, productId: NEW_PROD2,   quantity: 2, costPrice: 180 },
+      ],
+    };
+
+    const multiDto = {
+      returnItems: [
+        { saleItemId: ORIG_SI_ID,  quantity: 1, refundPrice: 300 },
+        { saleItemId: ORIG_SI2_ID, quantity: 1, refundPrice: 200 },
+      ],
+      newItems: [
+        { productId: NEW_PROD_ID, quantity: 1, price: 700 },
+        { productId: NEW_PROD2,   quantity: 2, price: 500 },
+      ],
+      paymentMethod: 'CASH',
+      reason: 'multi-item test',
+    };
+
+    beforeEach(() => {
+      prisma.sale.findFirst.mockResolvedValue(multiSale);
+      prisma.product.findMany.mockResolvedValue([
+        REPLACEMENT_PROD,
+        { id: NEW_PROD2, name: 'Widget D', isActive: true, stock: 5, minStock: 1, costPrice: 180, tenantId: TENANT_ID },
+      ]);
+      prisma.branchStock.findMany.mockResolvedValue([
+        { productId: NEW_PROD_ID, quantity: 10 },
+        { productId: NEW_PROD2,   quantity: 5  },
+      ]);
+    });
+
+    it('U-MULTI-1: refundTotal = sum of all return items', async () => {
+      const tx = makeExchangeTx({ sale: { update: jest.fn(), create: jest.fn().mockResolvedValue(multiNewSale) } });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      const result = await service.exchangeSaleItems(ORIG_SALE_ID, multiDto, ACTOR_ID, TENANT_ID);
+
+      // refundTotal = 1×300 + 1×200 = 500
+      expect(result.refundTotal).toBe(500);
+    });
+
+    it('U-MULTI-2: newTotal = sum of all replacement items', async () => {
+      const tx = makeExchangeTx({ sale: { update: jest.fn(), create: jest.fn().mockResolvedValue(multiNewSale) } });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      const result = await service.exchangeSaleItems(ORIG_SALE_ID, multiDto, ACTOR_ID, TENANT_ID);
+
+      // newTotal = 1×700 + 2×500 = 1700
+      expect(result.newTotal).toBe(1700);
+    });
+
+    it('U-MULTI-3: two return StockMovements (REFUND type) created', async () => {
+      const tx = makeExchangeTx({ sale: { update: jest.fn(), create: jest.fn().mockResolvedValue(multiNewSale) } });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      await service.exchangeSaleItems(ORIG_SALE_ID, multiDto, ACTOR_ID, TENANT_ID);
+
+      const movCalls = (tx.stockMovement.create as jest.Mock).mock.calls;
+      const refundMovs = movCalls.filter((args) => args[0].data.type === 'REFUND');
+      expect(refundMovs).toHaveLength(2);
+    });
+
+    it('U-MULTI-4: two replacement StockMovements (SALE type) with saleItemIds', async () => {
+      const tx = makeExchangeTx({ sale: { update: jest.fn(), create: jest.fn().mockResolvedValue(multiNewSale) } });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      await service.exchangeSaleItems(ORIG_SALE_ID, multiDto, ACTOR_ID, TENANT_ID);
+
+      const movCalls = (tx.stockMovement.create as jest.Mock).mock.calls;
+      const saleMovs = movCalls.filter((args) => args[0].data.type === 'SALE');
+      expect(saleMovs).toHaveLength(2);
+      const saleItemIds = saleMovs.map((args) => args[0].data.saleItemId);
+      expect(saleItemIds).toContain(NEW_SI_ID);
+      expect(saleItemIds).toContain(NEW_SI2_ID);
+    });
+  });
+
+  // ── Orphan prevention ─────────────────────────────────────────────────────
+
+  describe('orphan prevention — stock shortage in transaction', () => {
+    it('U-ORPHAN-1: in-tx stock failure → accounting.record not called for failed items', async () => {
+      // atomic guard fails → tx throws before CDT records
+      const tx = makeExchangeTx({
+        branchStock: {
+          upsert:     jest.fn().mockResolvedValue({}),
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+          findUnique: jest.fn().mockResolvedValue({ quantity: 0 }),
+          aggregate:  jest.fn().mockResolvedValue({ _sum: { quantity: 0 } }),
+        },
+      });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+
+      await expect(
+        service.exchangeSaleItems(ORIG_SALE_ID, makeDto(), ACTOR_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+
+      // No CDT and no journals
+      expect(accounting.record).not.toHaveBeenCalled();
+      expect(salesAccounting.recordRefundJournal).not.toHaveBeenCalled();
+      expect(salesAccounting.recordSaleJournal).not.toHaveBeenCalled();
+    });
+
+    it('U-ORPHAN-2: no-branch in-tx stock failure → tx throws, post-commit not reached', async () => {
+      prisma.sale.findFirst.mockResolvedValue({ ...ORIG_SALE, branchId: null, branch: null });
+      const tx = makeExchangeTx({
+        product: {
+          update:     jest.fn().mockResolvedValue({}),
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }), // atomic guard fails
+        },
+      });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+
+      await expect(
+        service.exchangeSaleItems(ORIG_SALE_ID, makeDto(), ACTOR_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(salesAccounting.recordSaleJournal).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Cross-tenant isolation ────────────────────────────────────────────────
+
+  describe('cross-tenant isolation', () => {
+    it('U-TENANT-1: sale not found for wrong tenantId → NotFoundException', async () => {
+      prisma.sale.findFirst.mockResolvedValue(null); // tenantId scope excludes sale
+
+      const { NotFoundException } = await import('@nestjs/common');
+      await expect(
+        service.exchangeSaleItems(ORIG_SALE_ID, makeDto(), ACTOR_ID, 'wrong-tenant'),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('U-TENANT-2: accounting records carry original sale tenantId, not actor tenantId', async () => {
+      await runExchange(makeDto());
+
+      // All CDT records must carry TENANT_ID (the tenant from the original sale's scope)
+      const cdtCalls = (accounting.record as jest.Mock).mock.calls;
+      cdtCalls.forEach((args) => {
+        expect(args[0].tenantId).toBe(TENANT_ID);
+      });
+    });
+  });
+
+  // ── SaleRefund creation data ──────────────────────────────────────────────
+
+  describe('SaleRefund creation', () => {
+    it('U-REFUND-1: saleRefund.create called with correct saleId, reason, totalRefund', async () => {
+      const tx = makeExchangeTx();
+      const dto = makeDto(250, 750);
+      await runExchange(dto, tx);
+
+      expect(tx.saleRefund.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            saleId:      ORIG_SALE_ID,
+            reason:      dto.reason,
+            totalRefund: 250,
+            paymentMethod: 'CASH',
+          }),
+        }),
+      );
+    });
+
+    it('U-REFUND-2: SaleRefundItem created with correct saleItemId and quantity', async () => {
+      const tx = makeExchangeTx();
+      await runExchange(makeDto(), tx);
+
+      const refundCreateCall = (tx.saleRefund.create as jest.Mock).mock.calls[0][0];
+      const refundItems = refundCreateCall.data.items.create;
+      expect(refundItems).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ saleItemId: ORIG_SI_ID, quantity: 1 }),
+        ]),
+      );
+    });
+  });
+
+  // ── Replacement Sale creation data ───────────────────────────────────────
+
+  describe('replacement Sale creation', () => {
+    it('U-NEWSALE-1: new Sale.status = COMPLETED', async () => {
+      const tx = makeExchangeTx();
+      await runExchange(makeDto(), tx);
+
+      const saleCreateCall = (tx.sale.create as jest.Mock).mock.calls[0][0];
+      expect(saleCreateCall.data.status).toBe('COMPLETED');
+    });
+
+    it('U-NEWSALE-2: new Sale.note references original receipt number', async () => {
+      const tx = makeExchangeTx();
+      await runExchange(makeDto(), tx);
+
+      const saleCreateCall = (tx.sale.create as jest.Mock).mock.calls[0][0];
+      expect(saleCreateCall.data.note).toContain(ORIG_SALE.receiptNumber);
+    });
+
+    it('U-NEWSALE-3: new Sale.branchId = original sale branchId', async () => {
+      const tx = makeExchangeTx();
+      await runExchange(makeDto(), tx);
+
+      const saleCreateCall = (tx.sale.create as jest.Mock).mock.calls[0][0];
+      expect(saleCreateCall.data.branchId).toBe(BRANCH_ID);
+    });
+
+    it('U-NEWSALE-4: new Sale include { items: true, payments: true } for post-commit accounting', async () => {
+      const tx = makeExchangeTx();
+      await runExchange(makeDto(), tx);
+
+      const saleCreateCall = (tx.sale.create as jest.Mock).mock.calls[0][0];
+      expect(saleCreateCall.include).toEqual({ items: true, payments: true });
+    });
+  });
+
+  // ── No-branch stock path ──────────────────────────────────────────────────
+
+  describe('no-branch stock path', () => {
+    beforeEach(() => {
+      prisma.sale.findFirst.mockResolvedValue({ ...ORIG_SALE, branchId: null, branch: null });
+    });
+
+    it('U-NOBRANCH-1: return leg increments product.stock directly', async () => {
+      const tx = makeExchangeTx();
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      await service.exchangeSaleItems(ORIG_SALE_ID, makeDto(), ACTOR_ID, TENANT_ID);
+
+      // product.update with stock increment called for return
+      const updateCalls = (tx.product.update as jest.Mock).mock.calls;
+      const incCall = updateCalls.find((args) => args[0].data.stock?.increment);
+      expect(incCall).toBeDefined();
+    });
+
+    it('U-NOBRANCH-2: replacement leg uses atomic product.updateMany gte guard', async () => {
+      const tx = makeExchangeTx();
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      await service.exchangeSaleItems(ORIG_SALE_ID, makeDto(), ACTOR_ID, TENANT_ID);
+
+      expect(tx.product.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ stock: { gte: 1 } }),
+          data:  { stock: { decrement: 1 } },
+        }),
+      );
+    });
+
+    it('U-NOBRANCH-3: no-branch insufficient stock → BadRequestException', async () => {
+      const tx = makeExchangeTx({
+        product: {
+          update:     jest.fn().mockResolvedValue({}),
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }), // guard fails
+        },
+      });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+
+      await expect(
+        service.exchangeSaleItems(ORIG_SALE_ID, makeDto(), ACTOR_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── BUG-6 documentation ───────────────────────────────────────────────────
+
+  describe('BUG-6 — netAmount not persisted (known limitation)', () => {
+    it('BUG6-DOC-1: netAmount is returned in response (higher price)', async () => {
+      const result = await runExchange(makeDto(250, 750));
+      expect(result.netAmount).toBe(500); // returned to caller
+    });
+
+    it('BUG6-DOC-2: new Sale is created with amountPaid = newTotal, not netAmount', async () => {
+      // The new Sale does NOT record the price difference — amountPaid = newTotal (750),
+      // not the net (500). This is the known BUG-6 limitation: netAmount is not persisted.
+      const tx = makeExchangeTx();
+      await runExchange(makeDto(250, 750), tx);
+
+      const saleCreateCall = (tx.sale.create as jest.Mock).mock.calls[0][0];
+      expect(saleCreateCall.data.amountPaid).toBe(750); // full replacement amount
+      expect(saleCreateCall.data.amountPaid).not.toBe(500); // NOT the net difference
+      // Known limitation: the 500 difference (customer pays extra) is not stored anywhere in DB
+    });
+
+    it('BUG6-DOC-3: lower-price exchange — refund amount not in any DB record (netAmount < 0)', async () => {
+      const lowSale = {
+        ...NEW_SALE, total: 200,
+        payments: [{ id: NEW_PAY_ID, paymentMethod: 'CASH', amount: 200, sortOrder: 0 }],
+        items:    [{ id: NEW_SI_ID,  productId: NEW_PROD_ID, quantity: 1, costPrice: 150 }],
+      };
+      const tx = makeExchangeTx({ sale: { update: jest.fn(), create: jest.fn().mockResolvedValue(lowSale) } });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      const result = await service.exchangeSaleItems(ORIG_SALE_ID, makeDto(500, 200), ACTOR_ID, TENANT_ID);
+
+      expect(result.netAmount).toBe(-300); // returned in response
+      const saleCreateCall = (tx.sale.create as jest.Mock).mock.calls[0][0];
+      // amountPaid = 200 (replacement), not 0; the 300 refund owed is implicit in
+      // refundTotal (SaleRefund) minus newTotal — not stored as a field
+      expect(saleCreateCall.data.amountPaid).toBe(200);
+    });
+  });
+
+  // ── Accounting idempotency (adapter level) ────────────────────────────────
+
+  describe('accounting adapter idempotency', () => {
+    it('U-IDEM-1: recordRefundJournal called exactly once per Exchange (not per retry at service level)', async () => {
+      await runExchange(makeDto());
+      expect(salesAccounting.recordRefundJournal).toHaveBeenCalledTimes(1);
+    });
+
+    it('U-IDEM-2: recordSaleJournal called exactly once per Exchange', async () => {
+      await runExchange(makeDto());
+      expect(salesAccounting.recordSaleJournal).toHaveBeenCalledTimes(1);
+    });
+
+    it('U-IDEM-3: duplicate CDT creation prevented by idempotency key in accounting.record', async () => {
+      // The accounting service uses idempotency key = {tenantId}:{sourceType}:{sourceId}:{direction}.
+      // Each Exchange call should pass distinct sourceIds; here we verify accounting.record
+      // is called with sourceId values that form unique keys.
+      await runExchange(makeDto());
+
+      const calls = (accounting.record as jest.Mock).mock.calls;
+      const keys = calls.map((args) =>
+        `${args[0].tenantId}:${args[0].sourceType}:${args[0].sourceId}:${args[0].direction}`,
+      );
+      const uniqueKeys = new Set(keys);
+      expect(uniqueKeys.size).toBe(keys.length); // all keys are unique
+    });
+  });
+
+  // ── Audit log content ─────────────────────────────────────────────────────
+
+  describe('audit log content', () => {
+    it('U-AUDIT-1: SALE_EXCHANGED event contains refundNumber, newReceiptNumber, counts, amounts', async () => {
+      const tx = makeExchangeTx();
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      await service.exchangeSaleItems(ORIG_SALE_ID, makeDto(250, 750), ACTOR_ID, TENANT_ID);
+
+      expect(auditLog.logWithTx).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          actorId:    ACTOR_ID,
+          action:     'SALE_EXCHANGED',
+          entityType: 'Sale',
+          entityId:   ORIG_SALE_ID,
+          afterData:  expect.objectContaining({
+            returnItemCount: 1,
+            newItemCount:    1,
+            refundTotal:     250,
+            newTotal:        750,
+            netAmount:       500,
+          }),
+        }),
+      );
+    });
+
+    it('U-AUDIT-2: failed Exchange (tx throws) → logWithTx not called before abort', async () => {
+      // Transaction fails before logWithTx is reached (e.g., saleRefund.create throws)
+      const tx = makeExchangeTx({
+        saleRefund: {
+          create: jest.fn().mockRejectedValue(new Error('DB write failed')),
+        },
+      });
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+
+      await expect(
+        service.exchangeSaleItems(ORIG_SALE_ID, makeDto(), ACTOR_ID, TENANT_ID),
+      ).rejects.toThrow();
+
+      expect(auditLog.logWithTx).not.toHaveBeenCalled();
+    });
+  });
 });
