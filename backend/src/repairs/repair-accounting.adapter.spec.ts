@@ -89,19 +89,27 @@ function makeJournalMock(): JMock {
   };
 }
 
-function makeAdapter(jMock: JMock): RepairAccountingAdapter {
-  return new RepairAccountingAdapter(jMock as any);
+type MockModules = { isAccountingEnabled: jest.Mock };
+
+function makeModulesMock(enabled = false): MockModules {
+  return { isAccountingEnabled: jest.fn().mockResolvedValue(enabled) };
+}
+
+function makeAdapter(jMock: JMock, modulesMock: MockModules): RepairAccountingAdapter {
+  return new RepairAccountingAdapter(jMock as any, modulesMock as any);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('RepairAccountingAdapter', () => {
-  let jMock:   JMock;
-  let adapter: RepairAccountingAdapter;
+  let jMock:       JMock;
+  let modulesMock: MockModules;
+  let adapter:     RepairAccountingAdapter;
 
   beforeEach(() => {
-    jMock   = makeJournalMock();
-    adapter = makeAdapter(jMock);
+    jMock       = makeJournalMock();
+    modulesMock = makeModulesMock();
+    adapter     = makeAdapter(jMock, modulesMock);
     delete process.env.ACCOUNTING_CORE_ENABLED;
     delete process.env.ACCOUNTING_ENABLED_TENANTS;
   });
@@ -344,19 +352,17 @@ describe('RepairAccountingAdapter', () => {
     expect(jMock.findBySource).not.toHaveBeenCalled();
   });
 
-  it('K3: "*" sentinel → enabled for any tenant', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = '*';
+  it('K3: isEnabledForTenant enabled (mock=true) → returns true for any tenant', async () => {
+    modulesMock.isAccountingEnabled.mockResolvedValue(true);
 
-    expect(adapter.isEnabledForTenant('any-tenant')).toBe(true);
-    expect(adapter.isEnabledForTenant(TENANT_ID)).toBe(true);
+    expect(await adapter.isEnabledForTenant('any-tenant')).toBe(true);
+    expect(await adapter.isEnabledForTenant(TENANT_ID)).toBe(true);
   });
 
   // ── L: Inactive account rejection ────────────────────────────────────────
 
   it('L: inactive account — journal.create throws ConflictException → caught by public method', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = TENANT_ID;
+    modulesMock.isAccountingEnabled.mockResolvedValue(true);
     jMock.create.mockRejectedValue(new Error('account "1100" is inactive'));
 
     await expect(

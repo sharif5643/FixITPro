@@ -42,19 +42,27 @@ function makeJournalMock(): JMock {
   };
 }
 
-function makeAdapter(jMock: JMock): ExpenseAccountingAdapter {
-  return new ExpenseAccountingAdapter(jMock as any);
+type MockModules = { isAccountingEnabled: jest.Mock };
+
+function makeModulesMock(enabled = false): MockModules {
+  return { isAccountingEnabled: jest.fn().mockResolvedValue(enabled) };
+}
+
+function makeAdapter(jMock: JMock, modulesMock: MockModules): ExpenseAccountingAdapter {
+  return new ExpenseAccountingAdapter(jMock as any, modulesMock as any);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('ExpenseAccountingAdapter', () => {
-  let jMock:   JMock;
-  let adapter: ExpenseAccountingAdapter;
+  let jMock:       JMock;
+  let modulesMock: MockModules;
+  let adapter:     ExpenseAccountingAdapter;
 
   beforeEach(() => {
-    jMock   = makeJournalMock();
-    adapter = makeAdapter(jMock);
+    jMock       = makeJournalMock();
+    modulesMock = makeModulesMock();
+    adapter     = makeAdapter(jMock, modulesMock);
     delete process.env.ACCOUNTING_CORE_ENABLED;
     delete process.env.ACCOUNTING_ENABLED_TENANTS;
   });
@@ -228,12 +236,11 @@ describe('ExpenseAccountingAdapter', () => {
     expect(jMock.create.mock.calls[0][0].tenantId).toBe(customTenant);
   });
 
-  it('J2: "*" sentinel → all tenants enabled', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = '*';
+  it('J2: isEnabledForTenant enabled (mock=true) → all tenants enabled', async () => {
+    modulesMock.isAccountingEnabled.mockResolvedValue(true);
 
-    expect(adapter.isEnabledForTenant(TENANT_ID)).toBe(true);
-    expect(adapter.isEnabledForTenant('any-other-tenant')).toBe(true);
+    expect(await adapter.isEnabledForTenant(TENANT_ID)).toBe(true);
+    expect(await adapter.isEnabledForTenant('any-other-tenant')).toBe(true);
   });
 
   // ── K: Zero amount ────────────────────────────────────────────────────────

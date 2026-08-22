@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import {
   Loader2, Save, Store, Receipt, DollarSign, Settings2, Bell, Image, BellRing, ChevronRight,
-  MessageSquare, Database, AlertTriangle, Trash2, Upload, X,
+  MessageSquare, Database, AlertTriangle, Trash2, Upload, X, Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -692,6 +692,24 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                  </Link>
+                </SectionCard>
+
+                <SectionCard title="พาร์ทเนอร์" description="จัดการความสัมพันธ์กับร้านซ่อมพาร์ทเนอร์" icon={Users}>
+                  <Link
+                    href="/settings/partners"
+                    className="flex items-center justify-between p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800/40 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 shadow-[0_4px_8px_rgba(79,70,229,0.25)]">
+                        <Users className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">ร้านพาร์ทเนอร์</p>
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">ส่งงานซ่อมให้ร้านพาร์ทเนอร์ · รับงานซ่อมต่อ · จัดการความสัมพันธ์</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-indigo-400 dark:text-indigo-500 shrink-0" />
                   </Link>
                 </SectionCard>
               </>

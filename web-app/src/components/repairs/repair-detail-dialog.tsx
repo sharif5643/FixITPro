@@ -12,6 +12,7 @@ import {
   Camera, ChevronLeft, ChevronRight, ArrowRightLeft, History, ChevronDown,
   Pencil, Check,
 } from 'lucide-react'
+import { PartnerTransferPanel } from '@/components/partner-repair/PartnerTransferPanel'
 import {
   Dialog,
   DialogContent,
@@ -1176,6 +1177,18 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                   </div>
                 </div>
               )}
+
+              <PartnerTransferPanel repair={{
+                id:          repair.id,
+                ticketNumber: repair.ticketNumber,
+                deviceBrand:  repair.deviceBrand,
+                deviceModel:  repair.deviceModel,
+                deviceColor:  repair.deviceColor  ?? null,
+                deviceImei:   repair.deviceImei   ?? null,
+                issue:        repair.issue,
+                note:         repair.note         ?? null,
+                status:       repair.status,
+              }} />
 
               <Button variant="outline" onClick={onClose} className="w-full">ปิด</Button>
             </div>

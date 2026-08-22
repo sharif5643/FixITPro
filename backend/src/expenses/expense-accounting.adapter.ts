@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { JournalService, JOURNAL_SOURCE } from '../journal/journal.service';
+import { ModulesService } from '../modules/modules.service';
 import { ACCOUNT_CODES } from '../accounting-accounts/constants/account-codes';
 
 // ── Minimal types for the Expense data the adapter needs ─────────────────────
@@ -55,23 +56,18 @@ export function expenseAccountCode(categoryCode: string | null | undefined): str
 export class ExpenseAccountingAdapter {
   private readonly logger = new Logger(ExpenseAccountingAdapter.name);
 
-  constructor(private readonly journal: JournalService) {}
+  constructor(
+    private readonly journal: JournalService,
+    private readonly modules: ModulesService,
+  ) {}
 
   // ── Feature flag + tenant allowlist ──────────────────────────────────────
   //
-  // Fail-closed design (mirrors SalesAccountingAdapter):
-  // ACCOUNTING_CORE_ENABLED != 'true'           → disabled (everyone)
-  // ACCOUNTING_CORE_ENABLED = 'true' + no list  → disabled (fail-closed; nobody enabled)
-  // ACCOUNTING_CORE_ENABLED = 'true' + '*'      → all tenants enabled (explicit sentinel)
-  // ACCOUNTING_CORE_ENABLED = 'true' + 't1,t2' → only listed tenants enabled
+  // Checks env var (legacy pilot list) OR DB TenantModule override.
+  // Fail-closed: no record and no env var → false.
 
-  isEnabledForTenant(tenantId: string): boolean {
-    if (process.env.ACCOUNTING_CORE_ENABLED !== 'true') return false;
-    const raw = (process.env.ACCOUNTING_ENABLED_TENANTS ?? '').trim();
-    if (!raw) return false;
-    if (raw === '*') return true;
-    const allowed = raw.split(',').map((s) => s.trim()).filter(Boolean);
-    return allowed.includes(tenantId);
+  async isEnabledForTenant(tenantId: string): Promise<boolean> {
+    return this.modules.isAccountingEnabled(tenantId);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -100,7 +96,7 @@ export class ExpenseAccountingAdapter {
     tenantId: string,
     actorId?: string | null,
   ): Promise<void> {
-    if (!this.isEnabledForTenant(tenantId)) return;
+    if (!await this.isEnabledForTenant(tenantId)) return;
     try {
       await this._recordExpenseJournal(expense, tenantId, actorId);
     } catch (err) {
@@ -128,7 +124,7 @@ export class ExpenseAccountingAdapter {
     tenantId: string,
     actorId?: string | null,
   ): Promise<void> {
-    if (!this.isEnabledForTenant(tenantId)) return;
+    if (!await this.isEnabledForTenant(tenantId)) return;
     try {
       await this._reverseExpenseJournal(expense, tenantId, actorId);
     } catch (err) {

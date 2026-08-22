@@ -118,6 +118,12 @@ async function main() {
     });
   }
 
+  await prisma.appModule.upsert({
+    where:  { key: 'accounting' },
+    update: { name: 'Accounting (บัญชี)', description: 'ระบบบัญชีคู่ (Double-Entry Journal)' },
+    create: { key: 'accounting', name: 'Accounting (บัญชี)', description: 'ระบบบัญชีคู่ (Double-Entry Journal)', isActive: true },
+  });
+
   console.log('Seed completed:');
   console.log('Users:', { owner: owner.email, admin: admin.email, staff: staff.email });
   console.log('Categories:', categories.map(c => c.name));

@@ -204,6 +204,9 @@ model Branch {
   purchaseOrders         PurchaseOrder[]
   dailyCloses            DailyClose[]
 
+  ownerPartnerTransfers   PartnerRepairTransfer[] @relation("OwnerBranchTransfers")
+  partnerPartnerTransfers PartnerRepairTransfer[] @relation("PartnerBranchTransfers")
+
   @@index([tenantId])
   @@index([isActive])
   @@index([status])
@@ -303,6 +306,14 @@ model Tenant {
   cashDrawerSessions     CashDrawerSession[]
   cashDrawerTransactions CashDrawerTransaction[]
   dailyCloses            DailyClose[]
+
+  initiatedRelationships PartnerRelationship[] @relation("InitiatorRelationships")
+  receivedRelationships  PartnerRelationship[] @relation("PartnerRelationships")
+
+  ownerPartnerTransfers   PartnerRepairTransfer[] @relation("OwnerTenantTransfers")
+  partnerPartnerTransfers PartnerRepairTransfer[] @relation("PartnerTenantTransfers")
+
+  quotationsProposed PartnerRepairQuotation[] @relation("QuotationsProposedByTenant")
 
   @@index([status])
   @@index([expiryDate])
@@ -428,6 +439,23 @@ model User {
   drawerTransactions       CashDrawerTransaction[]   @relation("CashDrawerTransactions")
   userPermissions          UserPermission[]
   dailyCloses              DailyClose[]              @relation("DailyCloseClosedBy")
+
+  partnerRequestsInitiated PartnerRelationship[] @relation("PartnerRequestedBy")
+  partnerRequestsResponded PartnerRelationship[] @relation("PartnerRespondedBy")
+
+  transfersSent          PartnerRepairTransfer[] @relation("TransferSentBy")
+  transfersAccepted      PartnerRepairTransfer[] @relation("TransferAcceptedBy")
+  transfersRejected      PartnerRepairTransfer[] @relation("TransferRejectedBy")
+  transfersReceived      PartnerRepairTransfer[] @relation("TransferReceivedBy")
+  transfersStarted       PartnerRepairTransfer[] @relation("TransferStartedBy")
+  transfersCompleted     PartnerRepairTransfer[] @relation("TransferCompletedBy")
+  transfersReturned      PartnerRepairTransfer[] @relation("TransferReturnedBy")
+  transfersOwnerReceived PartnerRepairTransfer[] @relation("TransferOwnerReceivedBy")
+  transfersCancelled     PartnerRepairTransfer[] @relation("TransferCancelledBy")
+  transfersRecalled      PartnerRepairTransfer[] @relation("TransferRecalledBy")
+
+  quotationsProposed  PartnerRepairQuotation[] @relation("QuotationsProposedByUser")
+  quotationsResponded PartnerRepairQuotation[] @relation("QuotationsRespondedByUser")
 
   @@index([role, isActive])
   @@index([tenantId])
@@ -797,6 +825,7 @@ model Repair {
   qc                 RepairQc?
   messages           RepairMessage[]
   review             RepairReview?
+  partnerTransfers   PartnerRepairTransfer[]
 
   @@index([status, receivedAt])
   @@index([customerId])
@@ -1759,4 +1788,216 @@ model JournalLine {
 
   @@index([entryId])
   @@index([accountId])
+}
+
+// ── Partner Repair System (Phase 4C) ─────────────────────────────────────────
+
+enum PartnerRelationshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  SUSPENDED
+}
+
+model PartnerRelationship {
+  id          String                    @id @default(cuid())
+  status      PartnerRelationshipStatus @default(PENDING)
+  note        String?
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  respondedAt DateTime?
+
+  initiatorTenantId String
+  initiatorTenant   Tenant @relation("InitiatorRelationships", fields: [initiatorTenantId], references: [id])
+
+  partnerTenantId String
+  partnerTenant   Tenant @relation("PartnerRelationships", fields: [partnerTenantId], references: [id])
+
+  requestedById String
+  requestedBy   User   @relation("PartnerRequestedBy", fields: [requestedById], references: [id])
+
+  respondedById String?
+  respondedBy   User?   @relation("PartnerRespondedBy", fields: [respondedById], references: [id])
+
+  transfers PartnerRepairTransfer[]
+
+  @@unique([initiatorTenantId, partnerTenantId])
+  @@index([initiatorTenantId, status])
+  @@index([partnerTenantId, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum PartnerRepairTransferStatus {
+  PENDING_ACCEPTANCE
+  ACCEPTED
+  REJECTED
+  DEVICE_RECEIVED
+  IN_PROGRESS
+  COMPLETED
+  DEVICE_RETURNED
+  OWNER_RECEIVED
+  CANCELLED
+  RECALLED
+}
+
+model PartnerRepairTransfer {
+  id                 String                      @id @default(cuid())
+  status             PartnerRepairTransferStatus @default(PENDING_ACCEPTANCE)
+  agreedPartnerPrice Decimal?                    @db.Decimal(10, 2)
+  pricingNote        String?
+  sharedDeviceInfo   Json?
+  sharedImageUrls    Json?
+  partnerWorkNote    String?
+  partnerPartsNote   String?
+  sentAt             DateTime                    @default(now())
+  acceptedAt         DateTime?
+  rejectedAt         DateTime?
+  rejectionNote      String?
+  deviceReceivedAt   DateTime?
+  partnerStartedAt   DateTime?
+  completedAt        DateTime?
+  completionNote     String?
+  returnedAt         DateTime?
+  ownerReceivedAt    DateTime?
+  cancelledAt        DateTime?
+  cancellationNote   String?
+  recalledAt         DateTime?
+  recallNote         String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  repairId String
+  repair   Repair @relation(fields: [repairId], references: [id])
+
+  relationshipId String
+  relationship   PartnerRelationship @relation(fields: [relationshipId], references: [id])
+
+  ownerTenantId String
+  ownerTenant   Tenant @relation("OwnerTenantTransfers", fields: [ownerTenantId], references: [id])
+
+  ownerBranchId String?
+  ownerBranch   Branch? @relation("OwnerBranchTransfers", fields: [ownerBranchId], references: [id])
+
+  partnerTenantId String
+  partnerTenant   Tenant @relation("PartnerTenantTransfers", fields: [partnerTenantId], references: [id])
+
+  partnerBranchId String?
+  partnerBranch   Branch? @relation("PartnerBranchTransfers", fields: [partnerBranchId], references: [id])
+
+  sentById String
+  sentBy   User @relation("TransferSentBy", fields: [sentById], references: [id])
+
+  acceptedById String?
+  acceptedBy   User? @relation("TransferAcceptedBy", fields: [acceptedById], references: [id])
+
+  rejectedById String?
+  rejectedBy   User? @relation("TransferRejectedBy", fields: [rejectedById], references: [id])
+
+  receivedById String?
+  receivedBy   User? @relation("TransferReceivedBy", fields: [receivedById], references: [id])
+
+  partnerStartedById String?
+  partnerStartedBy   User? @relation("TransferStartedBy", fields: [partnerStartedById], references: [id])
+
+  completedById String?
+  completedBy   User? @relation("TransferCompletedBy", fields: [completedById], references: [id])
+
+  returnedById String?
+  returnedBy   User? @relation("TransferReturnedBy", fields: [returnedById], references: [id])
+
+  ownerReceivedById String?
+  ownerReceivedBy   User? @relation("TransferOwnerReceivedBy", fields: [ownerReceivedById], references: [id])
+
+  cancelledById String?
+  cancelledBy   User? @relation("TransferCancelledBy", fields: [cancelledById], references: [id])
+
+  recalledById String?
+  recalledBy   User? @relation("TransferRecalledBy", fields: [recalledById], references: [id])
+
+  events     PartnerRepairTransferEvent[]
+  quotations PartnerRepairQuotation[]
+
+  @@index([repairId])
+  @@index([ownerTenantId, status])
+  @@index([partnerTenantId, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PartnerRepairTransferEvent {
+  id        String   @id @default(cuid())
+  event     String
+  note      String?
+  actorId   String?
+  actorName String?
+  actorRole String?
+  tenantId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  transferId String
+  transfer   PartnerRepairTransfer @relation(fields: [transferId], references: [id])
+
+  @@index([transferId])
+  @@index([createdAt])
+}
+
+// ── Partner Repair Quotation (Phase 4C.5) ─────────────────────────────────────
+
+enum PartnerRepairQuotationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COUNTER_OFFER
+  EXPIRED
+  CANCELLED
+}
+
+model PartnerRepairQuotation {
+  id                 String                       @id @default(cuid())
+  version            Int
+  status             PartnerRepairQuotationStatus @default(PENDING)
+  proposedAmount     Decimal                      @db.Decimal(12, 2)
+  currency           String                       @default("THB")
+  note               String?
+  respondedAt        DateTime?
+  expiresAt          DateTime?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+
+  transferId         String
+  transfer           PartnerRepairTransfer @relation(fields: [transferId], references: [id])
+
+  proposedByTenantId String
+  proposedByTenant   Tenant @relation("QuotationsProposedByTenant", fields: [proposedByTenantId], references: [id])
+
+  proposedByUserId   String
+  proposedByUser     User   @relation("QuotationsProposedByUser", fields: [proposedByUserId], references: [id])
+
+  respondedByUserId  String?
+  respondedByUser    User?  @relation("QuotationsRespondedByUser", fields: [respondedByUserId], references: [id])
+
+  events             PartnerRepairQuotationEvent[]
+
+  @@unique([transferId, version])
+  @@index([transferId])
+  @@index([proposedByTenantId])
+}
+
+model PartnerRepairQuotationEvent {
+  id          String   @id @default(cuid())
+  event       String
+  amount      Decimal? @db.Decimal(12, 2)
+  note        String?
+  actorId     String?
+  actorName   String?
+  tenantId    String?
+  createdAt   DateTime @default(now())
+
+  quotationId String
+  quotation   PartnerRepairQuotation @relation(fields: [quotationId], references: [id])
+
+  @@index([quotationId])
 }

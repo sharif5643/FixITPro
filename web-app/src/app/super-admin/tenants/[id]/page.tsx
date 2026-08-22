@@ -577,10 +577,12 @@ const MODULE_LABEL: Record<string, string> = {
   line_notify:     'แจ้งเตือน LINE',
   report:          'รายงาน',
   user_management: 'จัดการผู้ใช้',
+  accounting:      'Accounting (บัญชี)',
 }
 
-function ModulesTab({ tenantId }: { tenantId: string }) {
+function ModulesTab({ tenantId, shopName }: { tenantId: string; shopName: string }) {
   const qc = useQueryClient()
+  const [accountingConfirm, setAccountingConfirm] = useState<{ open: boolean } | null>(null)
 
   const { data, isLoading } = useQuery<TenantModuleStatus[]>({
     queryKey: ['sa-tenant-modules', tenantId],
@@ -691,7 +693,13 @@ function ModulesTab({ tenantId }: { tenantId: string }) {
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => setOverride.mutate({ key: mod.key, enabled: true })}
+                        onClick={() => {
+                          if (mod.key === 'accounting') {
+                            setAccountingConfirm({ open: true })
+                          } else {
+                            setOverride.mutate({ key: mod.key, enabled: true })
+                          }
+                        }}
                         className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-700/40 hover:border-emerald-600 px-2 py-1 rounded-lg transition-colors disabled:opacity-40"
                       >
                         เปิด
@@ -716,6 +724,44 @@ function ModulesTab({ tenantId }: { tenantId: string }) {
       <p className="text-slate-600 text-xs text-center">
         Override จะแทนที่การตั้งค่าจากแพ็กเกจ — ลบ override เพื่อกลับไปใช้แพ็กเกจ
       </p>
+
+      {/* Accounting enable confirmation dialog */}
+      <Dialog open={!!accountingConfirm?.open} onOpenChange={(open) => !open && setAccountingConfirm(null)}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">เปิด Accounting (บัญชี)</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <p className="text-slate-300 text-sm">
+              คุณกำลังเปิด <span className="font-semibold text-white">Accounting</span> ให้ร้าน{' '}
+              <span className="font-semibold text-amber-400">{shopName}</span>
+            </p>
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 text-amber-300 text-xs space-y-1">
+              <p className="font-semibold">หลังเปิด:</p>
+              <p>• ธุรกรรมใหม่จะเริ่มสร้าง Accounting Journal อัตโนมัติ</p>
+              <p>• ต้องมี Chart of Accounts ก่อนใช้งาน</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="border-slate-600 text-slate-300 hover:text-white"
+              onClick={() => setAccountingConfirm(null)}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-500 text-white"
+              onClick={() => {
+                setAccountingConfirm(null)
+                setOverride.mutate({ key: 'accounting', enabled: true })
+              }}
+            >
+              ยืนยัน — เปิด Accounting
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -867,7 +913,7 @@ export default function TenantDetailPage() {
       {tab === 'subscription' && <SubscriptionTab tenant={tenant} />}
       {tab === 'payments'     && <PaymentsTab tenantId={tenant.id} />}
       {tab === 'activity'     && <ActivityTab tenantId={tenant.id} />}
-      {tab === 'modules'      && <ModulesTab tenantId={tenant.id} />}
+      {tab === 'modules'      && <ModulesTab tenantId={tenant.id} shopName={tenant.shopName} />}
       {tab === 'settings'     && <TenantSettingsTab tenant={tenant} />}
 
       {/* Plan dialog */}

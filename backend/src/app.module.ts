@@ -53,6 +53,9 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
 import { FinanceModule } from './finance/finance.module';
 import { AccountingReconciliationModule } from './accounting-reconciliation/accounting-reconciliation.module';
 import { RedisModule } from './redis/redis.module';
+import { PartnerRelationshipsModule }      from './partner-relationships/partner-relationships.module';
+import { PartnerRepairTransfersModule }    from './partner-repair-transfers/partner-repair-transfers.module';
+import { PartnerRepairQuotationsModule }   from './partner-repair-quotations/partner-repair-quotations.module';
 
 @Module({
   controllers: [HealthController],
@@ -126,6 +129,9 @@ import { RedisModule } from './redis/redis.module';
     ReconciliationModule,
     FinanceModule,
     AccountingReconciliationModule,
+    PartnerRelationshipsModule,
+    PartnerRepairTransfersModule,
+    PartnerRepairQuotationsModule,
   ],
 })
 export class AppModule {}

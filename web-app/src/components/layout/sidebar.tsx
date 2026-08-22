@@ -45,8 +45,9 @@ const OWNER_PRIMARY: NavSection[] = [
   {
     label: 'งานซ่อม',
     items: [
-      { href: '/repairs',   icon: Wrench,       label: 'งานซ่อม',  permission: 'repair.create', module: 'repair' },
-      { href: '/reminders', icon: CalendarDays, label: 'นัดหมาย',  permission: 'repair.create', module: 'repair' },
+      { href: '/repairs',         icon: Wrench,       label: 'งานซ่อม',         permission: 'repair.create',       module: 'repair' },
+      { href: '/reminders',       icon: CalendarDays, label: 'นัดหมาย',         permission: 'repair.create',       module: 'repair' },
+      { href: '/partner-repairs', icon: Users,        label: 'งานพาร์ทเนอร์',   permission: 'partner_repair.work', module: 'repair' },
     ],
   },
   {
@@ -144,10 +145,11 @@ const MANAGER_SECTIONS: NavSection[] = [
   {
     label: 'งานซ่อม',
     items: [
-      { href: '/repairs',    icon: Wrench,       label: 'งานซ่อม',       permission: 'repair.create',  module: 'repair' },
-      { href: '/reminders',  icon: CalendarDays, label: 'นัดหมาย',       permission: 'repair.create',  module: 'repair' },
-      { href: '/warranties', icon: BadgeCheck,   label: 'การรับประกัน',  permission: 'warranty.view',  module: 'repair' },
-      { href: '/claims',     icon: FileWarning,  label: 'จัดการเคลม',    permission: 'claims.manage',  module: 'repair' },
+      { href: '/repairs',         icon: Wrench,       label: 'งานซ่อม',         permission: 'repair.create',       module: 'repair' },
+      { href: '/reminders',       icon: CalendarDays, label: 'นัดหมาย',         permission: 'repair.create',       module: 'repair' },
+      { href: '/partner-repairs', icon: Users,        label: 'งานพาร์ทเนอร์',   permission: 'partner_repair.work', module: 'repair' },
+      { href: '/warranties',      icon: BadgeCheck,   label: 'การรับประกัน',    permission: 'warranty.view',       module: 'repair' },
+      { href: '/claims',          icon: FileWarning,  label: 'จัดการเคลม',      permission: 'claims.manage',       module: 'repair' },
     ],
   },
   {

@@ -76,9 +76,10 @@ export class SAModulesController {
     @Param('id') tenantId: string,
     @Param('moduleKey') moduleKey: string,
     @Body() body: { enabled: boolean; expiresAt?: string },
+    @CurrentUser() user: { id: string; name: string },
   ) {
     return this.modulesService.setTenantModuleOverride(
-      tenantId, moduleKey, body.enabled, body.expiresAt,
+      tenantId, moduleKey, body.enabled, body.expiresAt, user?.id, user?.name,
     );
   }
 
@@ -87,8 +88,9 @@ export class SAModulesController {
   removeTenantOverride(
     @Param('id') tenantId: string,
     @Param('moduleKey') moduleKey: string,
+    @CurrentUser() user: { id: string; name: string },
   ) {
-    return this.modulesService.removeTenantModuleOverride(tenantId, moduleKey);
+    return this.modulesService.removeTenantModuleOverride(tenantId, moduleKey, user?.id, user?.name);
   }
 
   // ── AppModule CRUD (generic :key last to avoid shadowing named routes) ───────

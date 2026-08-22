@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { JournalService, JOURNAL_SOURCE } from '../journal/journal.service';
+import { ModulesService } from '../modules/modules.service';
 import { ACCOUNT_CODES } from '../accounting-accounts/constants/account-codes';
 
 // ── Minimal types for the Repair data the adapter needs ──────────────────────
@@ -50,23 +51,18 @@ export interface AdditionalPaymentForAccounting {
 export class RepairAccountingAdapter {
   private readonly logger = new Logger(RepairAccountingAdapter.name);
 
-  constructor(private readonly journal: JournalService) {}
+  constructor(
+    private readonly journal: JournalService,
+    private readonly modules: ModulesService,
+  ) {}
 
   // ── Feature flag + tenant allowlist ──────────────────────────────────────
   //
-  // Fail-closed design (mirrors SalesAccountingAdapter):
-  // ACCOUNTING_CORE_ENABLED != 'true'           → disabled (everyone)
-  // ACCOUNTING_CORE_ENABLED = 'true' + no list  → disabled (fail-closed; nobody enabled)
-  // ACCOUNTING_CORE_ENABLED = 'true' + '*'      → all tenants enabled (explicit sentinel)
-  // ACCOUNTING_CORE_ENABLED = 'true' + 't1,t2' → only t1 and t2 enabled (pilot mode)
+  // Checks env var (legacy pilot list) OR DB TenantModule override.
+  // Fail-closed: no record and no env var → false.
 
-  isEnabledForTenant(tenantId: string): boolean {
-    if (process.env.ACCOUNTING_CORE_ENABLED !== 'true') return false;
-    const raw = (process.env.ACCOUNTING_ENABLED_TENANTS ?? '').trim();
-    if (!raw) return false;
-    if (raw === '*') return true;
-    const allowed = raw.split(',').map((s) => s.trim()).filter(Boolean);
-    return allowed.includes(tenantId);
+  async isEnabledForTenant(tenantId: string): Promise<boolean> {
+    return this.modules.isAccountingEnabled(tenantId);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -96,7 +92,7 @@ export class RepairAccountingAdapter {
     tenantId:             string,
     actorId?:             string | null,
   ): Promise<void> {
-    if (!this.isEnabledForTenant(tenantId)) return;
+    if (!await this.isEnabledForTenant(tenantId)) return;
     try {
       await this._recordDepositJournal(repair, depositPaymentMethod, tenantId, actorId);
     } catch (err) {
@@ -121,7 +117,7 @@ export class RepairAccountingAdapter {
     tenantId: string,
     actorId?: string | null,
   ): Promise<void> {
-    if (!this.isEnabledForTenant(tenantId)) return;
+    if (!await this.isEnabledForTenant(tenantId)) return;
     try {
       await this._recordFinalPaymentJournal(repair, tenantId, actorId);
     } catch (err) {
@@ -148,7 +144,7 @@ export class RepairAccountingAdapter {
     tenantId: string,
     actorId?: string | null,
   ): Promise<void> {
-    if (!this.isEnabledForTenant(tenantId)) return;
+    if (!await this.isEnabledForTenant(tenantId)) return;
     try {
       await this._reversePaymentJournal(repair, tenantId, actorId);
     } catch (err) {
@@ -180,7 +176,7 @@ export class RepairAccountingAdapter {
     tenantId: string,
     actorId?: string | null,
   ): Promise<void> {
-    if (!this.isEnabledForTenant(tenantId)) return;
+    if (!await this.isEnabledForTenant(tenantId)) return;
     try {
       await this._recordDepositRefundJournal(repair, tenantId, actorId);
     } catch (err) {
@@ -206,7 +202,7 @@ export class RepairAccountingAdapter {
     tenantId: string,
     actorId?: string | null,
   ): Promise<void> {
-    if (!this.isEnabledForTenant(tenantId)) return;
+    if (!await this.isEnabledForTenant(tenantId)) return;
     try {
       await this._recordAdditionalPaymentJournal(payment, repair, tenantId, actorId);
     } catch (err) {
@@ -441,7 +437,7 @@ export class RepairAccountingAdapter {
     tenantId: string,
     actorId?: string | null,
   ): Promise<void> {
-    if (!this.isEnabledForTenant(tenantId)) return;
+    if (!await this.isEnabledForTenant(tenantId)) return;
     try {
       await this._recordCogsReversalJournal(repair, tenantId, actorId);
     } catch (err) {
@@ -469,7 +465,7 @@ export class RepairAccountingAdapter {
     tenantId: string,
     actorId?: string | null,
   ): Promise<void> {
-    if (!this.isEnabledForTenant(tenantId)) return;
+    if (!await this.isEnabledForTenant(tenantId)) return;
     try {
       await this._recordAdditionalPaymentReversalJournal(payment, repair, tenantId, actorId);
     } catch (err) {

@@ -36,6 +36,11 @@ export const ALL_PERMISSIONS = [
   'cash_drawer.close_session',
   'cash_drawer.approve_difference',
   'cash_drawer.manual_open',
+  // Partner Repair
+  'partner_relationship.manage',
+  'partner_repair.send',
+  'partner_repair.work',
+  'partner_repair.quote',
 ];
 
 @Injectable()

@@ -7,6 +7,7 @@ export const MODULE_KEYS = {
   LINE_NOTIFY:     'line_notify',
   REPORT:          'report',
   USER_MANAGEMENT: 'user_management',
+  ACCOUNTING:      'accounting',
 } as const
 
 export type ModuleKey = typeof MODULE_KEYS[keyof typeof MODULE_KEYS]

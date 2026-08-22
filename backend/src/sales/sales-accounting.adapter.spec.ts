@@ -78,19 +78,27 @@ function makeJournalMock(): MockJournal {
   };
 }
 
-function makeAdapter(journalMock: MockJournal): SalesAccountingAdapter {
-  return new SalesAccountingAdapter(journalMock as any);
+type MockModules = { isAccountingEnabled: jest.Mock };
+
+function makeModulesMock(enabled = false): MockModules {
+  return { isAccountingEnabled: jest.fn().mockResolvedValue(enabled) };
+}
+
+function makeAdapter(journalMock: MockJournal, modulesMock: MockModules): SalesAccountingAdapter {
+  return new SalesAccountingAdapter(journalMock as any, modulesMock as any);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('SalesAccountingAdapter', () => {
-  let jMock: MockJournal;
-  let adapter: SalesAccountingAdapter;
+  let jMock:       MockJournal;
+  let modulesMock: MockModules;
+  let adapter:     SalesAccountingAdapter;
 
   beforeEach(() => {
-    jMock   = makeJournalMock();
-    adapter = makeAdapter(jMock);
+    jMock       = makeJournalMock();
+    modulesMock = makeModulesMock();
+    adapter     = makeAdapter(jMock, modulesMock);
     delete process.env.ACCOUNTING_CORE_ENABLED;
     delete process.env.ACCOUNTING_ENABLED_TENANTS;
   });
@@ -521,11 +529,10 @@ describe('SalesAccountingAdapter', () => {
   // '*' sentinel → all tenants enabled (only explicit full-rollout mechanism).
   // Explicit list → only listed tenants enabled.
 
-  it('T-A: flag ON + ACCOUNTING_ENABLED_TENANTS absent → nobody enabled (fail-closed)', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED = 'true';
-    // No allowlist configured → fail-closed: isEnabledForTenant returns false for any tenant
-    expect(adapter.isEnabledForTenant(TENANT_ID)).toBe(false);
-    expect(adapter.isEnabledForTenant('any-other-tenant')).toBe(false);
+  it('T-A: isEnabledForTenant disabled (mock returns false) → fail-closed', async () => {
+    // modulesMock returns false by default — adapter delegates entirely to ModulesService
+    expect(await adapter.isEnabledForTenant(TENANT_ID)).toBe(false);
+    expect(await adapter.isEnabledForTenant('any-other-tenant')).toBe(false);
   });
 
   it('T-B: flag ON + tenant not in allowlist → no journal created', async () => {
@@ -537,27 +544,24 @@ describe('SalesAccountingAdapter', () => {
     expect(jMock.create).not.toHaveBeenCalled();
   });
 
-  it('T-C: flag ON + tenant in allowlist → journal created', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = TENANT_ID;
+  it('T-C: isEnabledForTenant enabled (mock returns true) → journal created', async () => {
+    modulesMock.isAccountingEnabled.mockResolvedValue(true);
 
     await adapter.recordSaleJournal(makeSale({ items: [] }), TENANT_ID, USER_ID);
 
     expect(jMock.create).toHaveBeenCalledTimes(1);
   });
 
-  it('T-D: flag ON + allowlist with multiple tenants including mine → enabled', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = `other-tenant-1,${TENANT_ID},other-tenant-2`;
+  it('T-D: isEnabledForTenant enabled → journal created regardless of other tenants', async () => {
+    modulesMock.isAccountingEnabled.mockResolvedValue(true);
 
     await adapter.recordSaleJournal(makeSale({ items: [] }), TENANT_ID, USER_ID);
 
     expect(jMock.create).toHaveBeenCalledTimes(1);
   });
 
-  it('T-E: flag ON + allowlist with surrounding whitespace → whitespace trimmed', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = `  ${TENANT_ID}  ,  other-tenant  `;
+  it('T-E: isEnabledForTenant enabled → journal created (whitespace trimming now in ModulesService)', async () => {
+    modulesMock.isAccountingEnabled.mockResolvedValue(true);
 
     await adapter.recordSaleJournal(makeSale({ items: [] }), TENANT_ID, USER_ID);
 
@@ -592,32 +596,25 @@ describe('SalesAccountingAdapter', () => {
     expect(jMock.create).not.toHaveBeenCalled();
   });
 
-  it('T-I: flag ON + empty string allowlist → nobody enabled (fail-closed)', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = '';
-
-    expect(adapter.isEnabledForTenant(TENANT_ID)).toBe(false);
-    expect(adapter.isEnabledForTenant('any-tenant')).toBe(false);
+  it('T-I: isEnabledForTenant disabled → fail-closed (no journal)', async () => {
+    // mock returns false by default
+    expect(await adapter.isEnabledForTenant(TENANT_ID)).toBe(false);
+    expect(await adapter.isEnabledForTenant('any-tenant')).toBe(false);
   });
 
-  it('T-J: flag ON + whitespace-only allowlist → nobody enabled (fail-closed)', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = '   ';
-
-    expect(adapter.isEnabledForTenant(TENANT_ID)).toBe(false);
+  it('T-J: isEnabledForTenant disabled → no journal for any tenant', async () => {
+    expect(await adapter.isEnabledForTenant(TENANT_ID)).toBe(false);
   });
 
-  it('T-K: flag ON + "*" sentinel → all tenants enabled (explicit full-rollout)', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = '*';
+  it('T-K: isEnabledForTenant enabled → returns true', async () => {
+    modulesMock.isAccountingEnabled.mockResolvedValue(true);
 
-    expect(adapter.isEnabledForTenant(TENANT_ID)).toBe(true);
-    expect(adapter.isEnabledForTenant('any-other-tenant')).toBe(true);
+    expect(await adapter.isEnabledForTenant(TENANT_ID)).toBe(true);
+    expect(await adapter.isEnabledForTenant('any-other-tenant')).toBe(true);
   });
 
-  it('T-L: flag ON + "*" sentinel → journal created for any tenant', async () => {
-    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
-    process.env.ACCOUNTING_ENABLED_TENANTS = '*';
+  it('T-L: isEnabledForTenant enabled → journal created for any tenant', async () => {
+    modulesMock.isAccountingEnabled.mockResolvedValue(true);
 
     await adapter.recordSaleJournal(makeSale({ items: [] }), TENANT_ID, USER_ID);
 

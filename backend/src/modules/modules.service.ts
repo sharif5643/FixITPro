@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { ALL_MODULE_KEYS } from './modules.const';
+import { ALL_MODULE_KEYS, MODULE_KEYS } from './modules.const';
 
 const CACHE_TTL_SEC = 5 * 60; // 5 minutes
 const cacheKey = (tenantId: string) => `module_cache:${tenantId}`;
@@ -55,6 +55,26 @@ export class ModulesService {
 
   async invalidateCache(tenantId: string) {
     await this.redis.del(cacheKey(tenantId));
+  }
+
+  // ── Accounting module check (used by accounting adapters) ───────────────────
+
+  async isAccountingEnabled(tenantId: string): Promise<boolean> {
+    if (this.legacyEnvEnabled(tenantId)) return true;
+    try {
+      const modules = await this.getEnabledModules(tenantId);
+      return modules.includes(MODULE_KEYS.ACCOUNTING);
+    } catch {
+      return false; // fail-closed
+    }
+  }
+
+  private legacyEnvEnabled(tenantId: string): boolean {
+    if (process.env.ACCOUNTING_CORE_ENABLED !== 'true') return false;
+    const raw = (process.env.ACCOUNTING_ENABLED_TENANTS ?? '').trim();
+    if (!raw) return false;
+    if (raw === '*') return true;
+    return raw.split(',').map((s) => s.trim()).filter(Boolean).includes(tenantId);
   }
 
   // ── Super Admin: Module Registry ────────────────────────────────────────────
@@ -145,6 +165,8 @@ export class ModulesService {
     moduleKey: string,
     enabled: boolean,
     expiresAt?: string,
+    actorId?: string,
+    actorName?: string,
   ) {
     const [tenant, module_] = await Promise.all([
       this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } }),
@@ -159,10 +181,27 @@ export class ModulesService {
       update: { enabled, expiresAt: expiresAt ? new Date(expiresAt) : null, updatedAt: new Date() },
     });
     await this.invalidateCache(tenantId);
+
+    this.prisma.auditLog.create({
+      data: {
+        actorId:    actorId  ?? null,
+        actorName:  actorName ?? null,
+        action:     enabled ? 'MODULE_ENABLED' : 'MODULE_DISABLED',
+        entityType: 'TenantModule',
+        entityId:   tenantId,
+        afterData:  { moduleKey, enabled },
+      },
+    }).catch(() => undefined);
+
     return result;
   }
 
-  async removeTenantModuleOverride(tenantId: string, moduleKey: string) {
+  async removeTenantModuleOverride(
+    tenantId: string,
+    moduleKey: string,
+    actorId?: string,
+    actorName?: string,
+  ) {
     const existing = await this.prisma.tenantModule.findUnique({
       where: { tenantId_moduleKey: { tenantId, moduleKey } },
     });
@@ -171,6 +210,18 @@ export class ModulesService {
       where: { tenantId_moduleKey: { tenantId, moduleKey } },
     });
     await this.invalidateCache(tenantId);
+
+    this.prisma.auditLog.create({
+      data: {
+        actorId:    actorId  ?? null,
+        actorName:  actorName ?? null,
+        action:     'MODULE_OVERRIDE_REMOVED',
+        entityType: 'TenantModule',
+        entityId:   tenantId,
+        afterData:  { moduleKey },
+      },
+    }).catch(() => undefined);
+
     return { deleted: true };
   }
 
