@@ -433,6 +433,160 @@ describe('ModulesService — accounting integration (Phase 4B.6D)', () => {
   });
 });
 
+// ── P1–P6: getTenantModules / getAllModules / safety tests ───────────────────
+
+describe('ModulesService — getTenantModules + getAllModules + safety (Phase 4E.6)', () => {
+  let redis: RedisMock;
+
+  beforeEach(() => {
+    redis = makeRedisMock();
+    delete process.env.ACCOUNTING_CORE_ENABLED;
+    delete process.env.ACCOUNTING_ENABLED_TENANTS;
+  });
+
+  afterEach(() => {
+    delete process.env.ACCOUNTING_CORE_ENABLED;
+    delete process.env.ACCOUNTING_ENABLED_TENANTS;
+  });
+
+  // Helper: build an extended prisma mock with findMany on tenantModule and appModule
+  function makeExtendedPrisma(opts: {
+    tenantPlan?: string;
+    packageModules?: string[];
+    tenantModuleOverrides?: { moduleKey: string; enabled: boolean; expiresAt: null; createdAt: Date }[];
+    appModules?: { key: string; name: string }[];
+    appModuleFindUnique?: any;
+  }) {
+    return {
+      tenant:        { findUnique: jest.fn().mockResolvedValue({ id: 'tenant-1', plan: opts.tenantPlan ?? 'BUSINESS' }) },
+      appModule:     {
+        findUnique: jest.fn().mockResolvedValue('appModuleFindUnique' in opts ? opts.appModuleFindUnique : makeModule()),
+        findMany:   jest.fn().mockResolvedValue(opts.appModules ?? [makeModule('accounting')]),
+      },
+      tenantModule:  {
+        upsert:   jest.fn().mockResolvedValue(makeOverride('tenant-1', 'accounting', true)),
+        delete:   jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue(opts.tenantModuleOverrides ?? []),
+      },
+      packageModule: { findMany: jest.fn().mockResolvedValue(
+        (opts.packageModules ?? []).map((k) => ({ moduleKey: k })),
+      ) },
+      auditLog:      { create: jest.fn().mockResolvedValue({}) },
+    };
+  }
+
+  // ── P1: getTenantModules — accounting OFF by default (no package, no override) ──
+
+  it('P1: getTenantModules() with accounting AppModule → effectiveEnabled=false when no package and no override', async () => {
+    const prismaExt = makeExtendedPrisma({ appModules: [makeModule('accounting')] });
+    const svc = new ModulesService(prismaExt as any, redis as any);
+
+    const result = await svc.getTenantModules('tenant-1');
+
+    const accounting = result.find((m) => m.key === 'accounting');
+    expect(accounting).toBeDefined();
+    expect(accounting!.effectiveEnabled).toBe(false);
+    expect(accounting!.fromPackage).toBe(false);
+    expect(accounting!.override).toBeNull();
+  });
+
+  // ── P2: getTenantModules — accounting ON via TenantModule override ────────────
+
+  it('P2: getTenantModules() with TenantModule override enabled=true → effectiveEnabled=true', async () => {
+    const prismaExt = makeExtendedPrisma({
+      appModules: [makeModule('accounting')],
+      tenantModuleOverrides: [
+        { moduleKey: 'accounting', enabled: true, expiresAt: null, createdAt: new Date() },
+      ],
+    });
+    const svc = new ModulesService(prismaExt as any, redis as any);
+
+    const result = await svc.getTenantModules('tenant-1');
+
+    const accounting = result.find((m) => m.key === 'accounting');
+    expect(accounting!.effectiveEnabled).toBe(true);
+    expect(accounting!.override).toMatchObject({ enabled: true, moduleKey: 'accounting' });
+  });
+
+  // ── P3: getAllModules — returns accounting when AppModule record exists ─────────
+
+  it('P3: getAllModules() returns accounting in list when AppModule record present', async () => {
+    const prismaExt = makeExtendedPrisma({
+      appModules: [
+        { key: 'accounting', name: 'Accounting (บัญชี)' },
+        { key: 'repair',     name: 'งานซ่อม' },
+      ],
+    });
+    const svc = new ModulesService(prismaExt as any, redis as any);
+
+    const result = await svc.getAllModules();
+
+    expect(result.some((m) => m.key === 'accounting')).toBe(true);
+    expect(result.find((m) => m.key === 'accounting')).toMatchObject({ name: 'Accounting (บัญชี)' });
+  });
+
+  // ── P4: setTenantModuleOverride — NotFoundException when AppModule missing ──────
+
+  it('P4: setTenantModuleOverride() with accounting key when AppModule missing → NotFoundException', async () => {
+    const prismaExt = makeExtendedPrisma({ appModuleFindUnique: null });
+    const svc = new ModulesService(prismaExt as any, redis as any);
+
+    await expect(
+      svc.setTenantModuleOverride('tenant-1', 'accounting', true),
+    ).rejects.toThrow("Module 'accounting' not found");
+  });
+
+  // ── P5: Cross-tenant — enabling owner does not affect pilot (env var path) ──────
+
+  it('P5: enabling owner tenant accounting does not affect pilot tenant state', async () => {
+    process.env.ACCOUNTING_CORE_ENABLED    = 'true';
+    process.env.ACCOUNTING_ENABLED_TENANTS = 'pilot-tenant';
+
+    const prismaExt = makeExtendedPrisma({});
+    (prismaExt.tenant.findUnique as jest.Mock).mockResolvedValue(makeTenant('owner-tenant'));
+    const svc = new ModulesService(prismaExt as any, redis as any);
+
+    // Enable accounting for owner tenant
+    await svc.setTenantModuleOverride('owner-tenant', 'accounting', true);
+
+    // Pilot tenant is still enabled via env var (DB not called for pilot)
+    const pilotEnabled = await svc.isAccountingEnabled('pilot-tenant');
+    expect(pilotEnabled).toBe(true);
+
+    // Owner tenant upsert targeted only owner-tenant
+    expect(prismaExt.tenantModule.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId_moduleKey: { tenantId: 'owner-tenant', moduleKey: 'accounting' } },
+      }),
+    );
+    // Redis cache invalidated for owner-tenant only — NOT pilot
+    expect(redis.del).not.toHaveBeenCalledWith('module_cache:pilot-tenant');
+    expect(redis.del).toHaveBeenCalledWith('module_cache:owner-tenant');
+  });
+
+  // ── P6: disabling accounting does not touch JE/JL models (journals preserved) ──
+
+  it('P6: setTenantModuleOverride() with enabled=false → no journalEntry / journalLine / cashDrawerTransaction access', async () => {
+    const prismaExt = makeExtendedPrisma({});
+    const svc = new ModulesService(prismaExt as any, redis as any);
+
+    await svc.setTenantModuleOverride('tenant-1', 'accounting', false);
+
+    // Service must not access any accounting journal models when disabling a module
+    expect(prismaExt).not.toHaveProperty('journalEntry');
+    expect(prismaExt).not.toHaveProperty('journalLine');
+    expect(prismaExt).not.toHaveProperty('cashDrawerTransaction');
+    // Only allowed models were touched
+    expect(prismaExt.tenantModule.upsert).toHaveBeenCalledTimes(1);
+    expect(prismaExt.tenantModule.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ enabled: false, moduleKey: 'accounting' }),
+      }),
+    );
+  });
+});
+
 // ── N1-N2: RolesGuard unit tests — non-SUPER_ADMIN blocked ──────────────────
 
 describe('RolesGuard — accounting module access control', () => {

@@ -18,6 +18,7 @@ const MODULE_META: Record<string, {
   finance:         { label: 'การเงิน',               description: 'ค่าใช้จ่าย, ซัพพลายเออร์, สั่งซื้อ',    plan: 'PRO',        planLabel: 'โปร'              },
   line_notify:     { label: 'แจ้งเตือน LINE',        description: 'ส่งแจ้งเตือนอัตโนมัติผ่าน LINE',         plan: 'PRO',        planLabel: 'โปร'              },
   user_management: { label: 'จัดการผู้ใช้',          description: 'พนักงาน, บทบาท, สาขา, สิทธิ์',          plan: 'ENTERPRISE', planLabel: 'เอ็นเตอร์ไพรส์'  },
+  accounting:      { label: 'Accounting (บัญชี)',     description: 'ระบบบัญชีคู่ (Double-Entry Journal)',     plan: 'BUSINESS',   planLabel: 'บิสิเนส'          },
 }
 
 interface ModuleGateProps {
