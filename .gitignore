@@ -10,8 +10,9 @@ out/
 logs/
 *.log
 
-# Backups
+# Backups (exclude backup data dirs, but NOT the super-admin/backups UI route)
 backups/
+!web-app/src/app/super-admin/backups/
 
 # Environment secrets — NEVER commit
 .env

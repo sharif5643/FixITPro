@@ -2,6 +2,7 @@
 import {
   LayoutDashboard, Building2, GitBranch, Users, Package, Puzzle,
   CreditCard, Banknote, BarChart3, ScrollText, Settings, Wrench, ShieldCheck,
+  DatabaseBackup,
 } from 'lucide-react'
 
 export interface SANavItem {
@@ -44,6 +45,7 @@ export const SA_NAV_GROUPS: SANavGroup[] = [
       { href: '/super-admin/settings',   label: 'Settings',    icon: Settings },
       { href: '/super-admin/data-repair', label: 'Data Repair', icon: Wrench },
       { href: '/super-admin/production',  label: 'Production',  icon: ShieldCheck },
+      { href: '/super-admin/backups',     label: 'Backup Center', icon: DatabaseBackup },
     ],
   },
 ]

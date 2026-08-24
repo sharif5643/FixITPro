@@ -56,6 +56,7 @@ import { RedisModule } from './redis/redis.module';
 import { PartnerRelationshipsModule }      from './partner-relationships/partner-relationships.module';
 import { PartnerRepairTransfersModule }    from './partner-repair-transfers/partner-repair-transfers.module';
 import { PartnerRepairQuotationsModule }   from './partner-repair-quotations/partner-repair-quotations.module';
+import { TenantBackupModule }             from './tenant-backup/tenant-backup.module';
 
 @Module({
   controllers: [HealthController],
@@ -132,6 +133,7 @@ import { PartnerRepairQuotationsModule }   from './partner-repair-quotations/par
     PartnerRelationshipsModule,
     PartnerRepairTransfersModule,
     PartnerRepairQuotationsModule,
+    TenantBackupModule,
   ],
 })
 export class AppModule {}
