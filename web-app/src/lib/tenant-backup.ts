@@ -3,7 +3,7 @@
  * Calls /super-admin/backups/* endpoints on the backend.
  */
 
-const BASE = '/api/super-admin/backups'
+const BASE = '/api/v1/super-admin/backups'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
