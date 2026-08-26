@@ -1,9 +1,12 @@
 /**
  * Tenant Backup & Restore API client
  * Calls /super-admin/backups/* endpoints on the backend.
+ * Uses the shared api axios instance so 401/refresh is handled automatically.
  */
 
-const BASE = '/api/v1/super-admin/backups'
+import api from '@/lib/api'
+
+const BASE = '/super-admin/backups'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,57 +65,43 @@ export interface ValidationResult {
   counts?: Record<string, unknown>
 }
 
-// ── Helper ────────────────────────────────────────────────────────────────────
-
-async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    credentials: 'include',
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => res.statusText)
-    throw new Error(body || res.statusText)
-  }
-  return res.json() as Promise<T>
-}
-
 // ── Tenant listing ────────────────────────────────────────────────────────────
 
 export function listTenants(): Promise<TenantInfo[]> {
-  return apiFetch(`${BASE}/tenants`)
+  return api.get<TenantInfo[]>(`${BASE}/tenants`).then(r => r.data)
 }
 
 // ── Backup jobs ───────────────────────────────────────────────────────────────
 
 export function listBackupJobs(): Promise<BackupJob[]> {
-  return apiFetch(BASE)
+  return api.get<BackupJob[]>(BASE).then(r => r.data)
 }
 
 export function getBackupJob(id: string): Promise<BackupJob> {
-  return apiFetch(`${BASE}/${id}`)
+  return api.get<BackupJob>(`${BASE}/${id}`).then(r => r.data)
 }
 
 export function startBackup(tenantIds: string[]): Promise<BackupJob> {
-  return apiFetch(BASE, { method: 'POST', body: JSON.stringify({ tenantIds }) })
+  return api.post<BackupJob>(BASE, { tenantIds }).then(r => r.data)
 }
 
 export function validateBackup(id: string): Promise<ValidationResult> {
-  return apiFetch(`${BASE}/${id}/validate`, { method: 'POST' })
+  return api.post<ValidationResult>(`${BASE}/${id}/validate`).then(r => r.data)
 }
 
 export function downloadUrl(id: string): string {
-  return `${BASE}/${id}/download`
+  // Returns a full absolute path for use as <a href> — not routed through axios.
+  return `/api/v1${BASE}/${id}/download`
 }
 
 // ── Restore jobs ──────────────────────────────────────────────────────────────
 
 export function listRestoreJobs(): Promise<RestoreJob[]> {
-  return apiFetch(`${BASE}/restores/list`)
+  return api.get<RestoreJob[]>(`${BASE}/restores/list`).then(r => r.data)
 }
 
 export function getRestoreJob(id: string): Promise<RestoreJob> {
-  return apiFetch(`${BASE}/restores/${id}`)
+  return api.get<RestoreJob>(`${BASE}/restores/${id}`).then(r => r.data)
 }
 
 export function startRestore(
@@ -120,8 +109,10 @@ export function startRestore(
   destination: RestoreDestination,
   destinationTenantId: string,
 ): Promise<RestoreJob> {
-  return apiFetch(`${BASE}/restores`, {
-    method: 'POST',
-    body: JSON.stringify({ backupJobId, destination, destinationTenantId, confirmed: true }),
-  })
+  return api.post<RestoreJob>(`${BASE}/restores`, {
+    backupJobId,
+    destination,
+    destinationTenantId,
+    confirmed: true,
+  }).then(r => r.data)
 }
