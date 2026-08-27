@@ -8,6 +8,8 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
+import { validate, IsArray, ArrayNotEmpty, IsString, IsNotEmpty, IsBoolean, IsIn } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 import { TenantBackupService } from './tenant-backup.service';
 import { TenantRestoreService } from './tenant-restore.service';
 import { PrismaService } from '../database/prisma.service';
@@ -888,6 +890,101 @@ describe('RESTORE-18: File checksum validation', () => {
     const hash1 = crypto.createHash('sha256').update(content).digest('hex');
     const hash2 = crypto.createHash('sha256').update(content).digest('hex');
     expect(hash1).toBe(hash2);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DTO VALIDATION TESTS (controller-layer guard — FIX.4)
+// Mirrors the decorators added in tenant-backup.controller.ts
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class StartBackupDtoTest {
+  @IsArray() @ArrayNotEmpty() @IsString({ each: true })
+  tenantIds!: string[];
+}
+
+class StartRestoreDtoTest {
+  @IsString() @IsNotEmpty() backupJobId!: string;
+  @IsIn(['SAME_TENANT', 'NEW_TENANT']) destination!: string;
+  @IsString() @IsNotEmpty() destinationTenantId!: string;
+  @IsBoolean() confirmed!: boolean;
+}
+
+describe('DTO-01: StartBackupDto — ValidationPipe guard', () => {
+  it('passes with valid tenantIds array', async () => {
+    const dto = plainToInstance(StartBackupDtoTest, { tenantIds: ['tenant-A'] });
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('fails when tenantIds is missing', async () => {
+    const dto = plainToInstance(StartBackupDtoTest, {});
+    const errors = await validate(dto);
+    expect(errors.some(e => e.property === 'tenantIds')).toBe(true);
+  });
+
+  it('fails when tenantIds is an empty array', async () => {
+    const dto = plainToInstance(StartBackupDtoTest, { tenantIds: [] });
+    const errors = await validate(dto);
+    expect(errors.some(e => e.property === 'tenantIds')).toBe(true);
+  });
+
+  it('fails when tenantIds is not an array', async () => {
+    const dto = plainToInstance(StartBackupDtoTest, { tenantIds: 'not-array' });
+    const errors = await validate(dto);
+    expect(errors.some(e => e.property === 'tenantIds')).toBe(true);
+  });
+
+  it('fails when tenantIds contains a non-string element', async () => {
+    const dto = plainToInstance(StartBackupDtoTest, { tenantIds: [123] });
+    const errors = await validate(dto);
+    expect(errors.some(e => e.property === 'tenantIds')).toBe(true);
+  });
+});
+
+describe('DTO-02: StartRestoreDto — ValidationPipe guard', () => {
+  const valid = {
+    backupJobId: 'job-abc',
+    destination: 'SAME_TENANT',
+    destinationTenantId: 'tenant-A',
+    confirmed: true,
+  };
+
+  it('passes with all valid fields', async () => {
+    const dto = plainToInstance(StartRestoreDtoTest, valid);
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('fails when backupJobId is missing', async () => {
+    const dto = plainToInstance(StartRestoreDtoTest, { ...valid, backupJobId: undefined });
+    const errors = await validate(dto);
+    expect(errors.some(e => e.property === 'backupJobId')).toBe(true);
+  });
+
+  it('fails when destination is invalid value', async () => {
+    const dto = plainToInstance(StartRestoreDtoTest, { ...valid, destination: 'INVALID' });
+    const errors = await validate(dto);
+    expect(errors.some(e => e.property === 'destination')).toBe(true);
+  });
+
+  it('passes for SAME_TENANT destination', async () => {
+    const dto = plainToInstance(StartRestoreDtoTest, { ...valid, destination: 'SAME_TENANT' });
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+
+  it('fails when confirmed is false', async () => {
+    // confirmed=false is a valid boolean — the service rejects it, not the DTO
+    const dto = plainToInstance(StartRestoreDtoTest, { ...valid, confirmed: false });
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0); // DTO passes, service layer enforces confirmed=true
+  });
+
+  it('fails when confirmed is not a boolean', async () => {
+    const dto = plainToInstance(StartRestoreDtoTest, { ...valid, confirmed: 'yes' });
+    const errors = await validate(dto);
+    expect(errors.some(e => e.property === 'confirmed')).toBe(true);
   });
 });
 

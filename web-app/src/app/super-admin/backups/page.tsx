@@ -94,6 +94,9 @@ function RestoreWizard({ backupJob, tenants, onClose }: RestoreWizardProps) {
       qc.invalidateQueries({ queryKey: ['restore-jobs'] })
       setStep(5)
     },
+    onError: (err) => {
+      console.error('[RestoreWizard] startRestore failed:', err)
+    },
   })
 
   const { data: restoreJob } = useQuery({
@@ -363,6 +366,9 @@ export default function BackupCenterPage() {
       qc.invalidateQueries({ queryKey: ['backup-tenants'] })
       setSelected(new Set())
     },
+    onError: (err) => {
+      console.error('[BackupCenter] startBackup failed:', err)
+    },
   })
 
   const toggleAll = useCallback(() => {
@@ -417,6 +423,11 @@ export default function BackupCenterPage() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
           <span className="text-sm font-medium text-slate-300">ร้านค้าทั้งหมด</span>
           <div className="flex items-center gap-2">
+            {backupMut.isError && (
+              <p className="text-xs text-red-400 max-w-xs truncate">
+                Backup ล้มเหลว: {String((backupMut.error as { message?: string })?.message ?? backupMut.error)}
+              </p>
+            )}
             {selected.size > 0 && (
               <Button
                 size="sm"

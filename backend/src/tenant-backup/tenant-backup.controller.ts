@@ -9,6 +9,7 @@ import {
   HttpCode,
   ForbiddenException,
 } from '@nestjs/common';
+import { IsArray, ArrayNotEmpty, IsString, IsNotEmpty, IsBoolean, IsIn } from 'class-validator';
 import { Response } from 'express';
 import { TenantBackupService } from './tenant-backup.service';
 import { TenantRestoreService } from './tenant-restore.service';
@@ -23,14 +24,26 @@ function assertSuperAdmin(role: string) {
 }
 
 class StartBackupDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
   tenantIds!: string[];
 }
 
 class StartRestoreDto {
+  @IsString()
+  @IsNotEmpty()
   backupJobId!: string;
+
+  @IsIn(['SAME_TENANT', 'NEW_TENANT'])
   destination!: RestoreDestination;
+
+  @IsString()
+  @IsNotEmpty()
   destinationTenantId!: string;
-  confirmed!: boolean; // must be true
+
+  @IsBoolean()
+  confirmed!: boolean;
 }
 
 @Controller('super-admin/backups')
