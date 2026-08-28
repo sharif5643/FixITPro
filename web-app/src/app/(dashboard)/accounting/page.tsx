@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2 } from 'lucide-react'
+import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Ban } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -246,6 +246,72 @@ function ManualJournalDialog({ open, onClose, onSuccess }: {
   )
 }
 
+// ── Void Dialog ───────────────────────────────────────────────────────────────
+
+function VoidDialog({ entry, onClose, onSuccess }: {
+  entry:     { id: string; entryNumber?: string; description: string } | null
+  onClose:   () => void
+  onSuccess: () => void
+}) {
+  const [reason, setReason] = useState('')
+  const [error,  setError]  = useState('')
+
+  const mutation = useMutation({
+    mutationFn: (body: { reason: string }) =>
+      api.patch(`/accounting/journals/${entry!.id}/void`, body).then(r => r.data),
+    onSuccess: () => { onSuccess(); onClose(); setReason(''); setError('') },
+    onError:   (e: any) => setError(apiErrorMessage(e)),
+  })
+
+  const open = entry !== null
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Ban className="h-4 w-4 text-red-500" />
+            ยืนยันการยกเลิกรายการ
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-1">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            ยกเลิกรายการ <span className="font-medium text-foreground">{entry?.description}</span>
+            <br />
+            การดำเนินการนี้ไม่สามารถย้อนกลับได้
+          </p>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">เหตุผลการยกเลิก</label>
+            <Input
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="ระบุเหตุผล (อย่างน้อย 3 ตัวอักษร)"
+              className="h-9 text-sm"
+              autoFocus
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} className="flex-1">ยกเลิก</Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              disabled={reason.trim().length < 3 || mutation.isPending}
+              onClick={() => mutation.mutate({ reason: reason.trim() })}
+            >
+              {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ยืนยันยกเลิก'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 interface JournalLine {
   id: string
   accountCode: string
@@ -348,6 +414,7 @@ function JournalListContent() {
   const [viewMonth,   setViewMonth]   = useState(() => startOfMonth(new Date()))
   const [expandedId,  setExpandedId]  = useState<string | null>(null)
   const [dialogOpen,  setDialogOpen]  = useState(false)
+  const [voidTarget,  setVoidTarget]  = useState<{ id: string; description: string } | null>(null)
 
   const startDate = format(viewMonth, 'yyyy-MM-dd')
   const endDate   = format(endOfMonth(viewMonth), 'yyyy-MM-dd')
@@ -375,6 +442,11 @@ function JournalListContent() {
       <ManualJournalDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
+        onSuccess={handleJournalCreated}
+      />
+      <VoidDialog
+        entry={voidTarget}
+        onClose={() => setVoidTarget(null)}
         onSuccess={handleJournalCreated}
       />
 
@@ -470,9 +542,20 @@ function JournalListContent() {
                       </span>
                     </DataTableCell>
                     <DataTableCell>
-                      <span className="text-xs text-slate-400">
-                        {expandedId === je.id ? '▲' : '▼'}
-                      </span>
+                      <div className="flex items-center gap-1 justify-end">
+                        {je.sourceType === 'JOURNAL_MANUAL' && !je.isVoided && (
+                          <button
+                            title="ยกเลิกรายการ"
+                            onClick={e => { e.stopPropagation(); setVoidTarget({ id: je.id, description: je.description }) }}
+                            className="h-6 w-6 flex items-center justify-center rounded text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <span className="text-xs text-slate-400">
+                          {expandedId === je.id ? '▲' : '▼'}
+                        </span>
+                      </div>
                     </DataTableCell>
                   </DataTableRow>
                   {expandedId === je.id && je.lines?.length > 0 && (
