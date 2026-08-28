@@ -89,6 +89,22 @@ export class AccountingReportsController {
     });
   }
 
+  // ── GET /api/v1/accounting/reports/monthly-trend ─────────────────────────
+
+  @Get('monthly-trend')
+  monthlyTrend(
+    @CurrentUser('tenantId') callerTenantId: string,
+    @CurrentUser('role')     role:            string,
+    @Query('tenantId') tenantIdParam?: string,
+    @Query('months')   months?:        string,
+  ) {
+    const tenantId = role === 'SUPER_ADMIN' && tenantIdParam ? tenantIdParam : callerTenantId;
+    return this.reports.monthlyTrend({
+      tenantId,
+      months: months ? parseInt(months, 10) : 12,
+    });
+  }
+
   // ── GET /api/v1/accounting/reports/ledger/:accountId ─────────────────────
 
   @Get('ledger/:accountId')

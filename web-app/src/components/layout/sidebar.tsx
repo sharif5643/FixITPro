@@ -130,6 +130,7 @@ const OWNER_SECONDARY: NavSection[] = [
       { href: '/accounting/balance-sheet',        icon: Scale,         label: 'งบดุล',             ownerOnly: true, module: 'accounting' },
       { href: '/accounting/trial-balance',        icon: FileSpreadsheet, label: 'งบทดลอง',         ownerOnly: true, module: 'accounting' },
       { href: '/accounting/cash-flow',           icon: ArrowUpDown,   label: 'งบกระแสเงินสด',    ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/trends',              icon: BarChart2,     label: 'แนวโน้มกำไร',       ownerOnly: true, module: 'accounting' },
       { href: '/accounting/accounts',            icon: BookOpen,      label: 'ผังบัญชี',          ownerOnly: true, module: 'accounting' },
     ],
   },

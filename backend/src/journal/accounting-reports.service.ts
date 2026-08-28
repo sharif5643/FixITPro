@@ -339,4 +339,51 @@ export class AccountingReportsService {
 
     return { items, totalInflow, totalOutflow, netCashFlow };
   }
+
+  // ── Monthly P&L Trend ─────────────────────────────────────────────────────
+  // Returns last N months of revenue/expense/netIncome aggregated from journal
+  // lines — single query, month-bucketed in-process.
+
+  async monthlyTrend({ tenantId, months = 12 }: { tenantId: string; months?: number }) {
+    const now       = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    const endDate   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    const lines = await this.prisma.journalLine.findMany({
+      where: {
+        entry:   buildEntryWhere(tenantId, startDate, endDate, undefined),
+        account: { type: { in: ['REVENUE', 'EXPENSE'] } },
+      },
+      include: {
+        account: { select: { type: true } },
+        entry:   { select: { entryDate: true } },
+      },
+    });
+
+    // Initialise all month slots in chronological order
+    const buckets: Record<string, { revenue: Prisma.Decimal; expense: Prisma.Decimal }> = {};
+    for (let i = months - 1; i >= 0; i--) {
+      const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      buckets[key] = { revenue: new Prisma.Decimal(0), expense: new Prisma.Decimal(0) };
+    }
+
+    for (const l of lines) {
+      const d   = new Date(l.entry.entryDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!buckets[key]) continue;
+      if (l.account.type === 'REVENUE') {
+        buckets[key].revenue = buckets[key].revenue.add(l.credit).minus(l.debit);
+      } else {
+        buckets[key].expense = buckets[key].expense.add(l.debit).minus(l.credit);
+      }
+    }
+
+    return Object.entries(buckets).map(([month, v]) => ({
+      month,
+      totalRevenue: v.revenue.toNumber(),
+      totalExpense: v.expense.toNumber(),
+      netIncome:    v.revenue.minus(v.expense).toNumber(),
+    }));
+  }
 }
