@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Ban } from 'lucide-react'
+import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Ban, Download } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -437,6 +437,29 @@ function JournalListContent() {
     queryClient.invalidateQueries({ queryKey: ['accounting-journals'] })
   }
 
+  function handleExportCsv() {
+    if (!data) return
+    const rows: string[][] = [['วันที่', 'เลขที่', 'ประเภท', 'รายการ', 'เดบิต', 'สถานะ']]
+    for (const je of data.items) {
+      rows.push([
+        format(new Date(je.entryDate), 'dd/MM/yyyy'),
+        '',
+        sourceLabel(je.sourceType),
+        je.description,
+        Number(je.totalDebit ?? 0).toFixed(2),
+        je.isVoided ? 'ยกเลิก' : 'ปกติ',
+      ])
+    }
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `journal-${format(viewMonth, 'yyyy-MM')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-4 sm:space-y-5">
       <ManualJournalDialog
@@ -462,7 +485,8 @@ function JournalListContent() {
         }
       />
 
-      {/* Month navigation */}
+      {/* Month navigation + export */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
       <div className="flex items-center gap-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-lg px-1 py-1 w-fit">
         <button
           onClick={() => setViewMonth((m) => subMonths(m, 1))}
@@ -480,6 +504,11 @@ function JournalListContent() {
         >
           <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
         </button>
+      </div>
+      <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExportCsv} disabled={!data}>
+        <Download className="h-4 w-4" />
+        Export CSV
+      </Button>
       </div>
 
       <SectionCard noPadding>
