@@ -19,7 +19,7 @@ export class ModuleGuard implements CanActivate {
     if (!moduleKey) return true;
 
     const { user } = context.switchToHttp().getRequest();
-    if (!user || user.role === 'SUPER_ADMIN') return true;
+    if (!user || user.role === 'SUPER_ADMIN' || user.role === 'OWNER') return true;
 
     const enabled = await this.modulesService.getEnabledModules(user.tenantId ?? null);
     if (!enabled.includes(moduleKey)) {
