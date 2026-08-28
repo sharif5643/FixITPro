@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Wrench, Users,
   Clock, Smartphone, Tag, Barcode, Settings, CreditCard, Building2,
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
-  BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
+  BookOpen, BookMarked, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
   BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Scale,
   ListChecks, Wallet,
 } from 'lucide-react'
@@ -120,6 +120,16 @@ const OWNER_SECONDARY: NavSection[] = [
     items: [
       { href: '/categories',    icon: Tag,    label: 'หมวดหมู่',      permission: 'products.view', module: 'stock' },
       { href: '/barcode-print', icon: Barcode, label: 'พิมพ์ Barcode', permission: 'products.view', module: 'stock' },
+    ],
+  },
+  {
+    label: 'บัญชี (Accounting)',
+    items: [
+      { href: '/accounting',                      icon: BookMarked,    label: 'สมุดบัญชี',        ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/income-statement',     icon: TrendingUp,    label: 'งบกำไรขาดทุน',     ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/balance-sheet',        icon: Scale,         label: 'งบดุล',             ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/trial-balance',        icon: FileSpreadsheet, label: 'งบทดลอง',         ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/accounts',             icon: BookOpen,      label: 'ผังบัญชี',          ownerOnly: true, module: 'accounting' },
     ],
   },
   {
