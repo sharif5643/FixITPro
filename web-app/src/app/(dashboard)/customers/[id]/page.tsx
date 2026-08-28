@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Gift, Plus, Minus, RefreshCw, Wrench, ShoppingBag,
-  Phone, Mail, MapPin, Tag, FileText, Clock,
+  Phone, Mail, MapPin, Tag, FileText, Clock, Printer,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -222,13 +222,24 @@ export default function CustomerDetailPage() {
 
   return (
     <div className="space-y-5">
-      {/* Back button */}
-      <button
-        onClick={() => router.push('/customers')}
-        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" /> กลับไปรายการลูกค้า
-      </button>
+      {/* Back button + actions */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => router.push('/customers')}
+          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" /> กลับไปรายการลูกค้า
+        </button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => window.open(`/print/customer-statement/${id}`, '_blank')}
+        >
+          <Printer className="h-4 w-4" />
+          พิมพ์ Statement
+        </Button>
+      </div>
 
       {/* Customer info */}
       <SectionCard title={customer.name}>
