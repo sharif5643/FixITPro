@@ -426,8 +426,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   return (
     <>
       <Dialog open={!!repairId} onOpenChange={(v) => { if (!v) onClose() }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="sticky top-0 bg-background z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-3 mb-1 border-b">
             <DialogTitle className="flex items-center justify-between">
               {isLoading || !repair ? (
                 <span className="flex items-center gap-2 text-muted-foreground">
@@ -1190,6 +1190,10 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 status:       repair.status,
               }} />
 
+            </div>
+          )}
+          {repair && (
+            <div className="sticky bottom-0 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 mt-2 border-t">
               <Button variant="outline" onClick={onClose} className="w-full">ปิด</Button>
             </div>
           )}
