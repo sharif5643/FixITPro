@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Ban, Download, TrendingUp, TrendingDown, DollarSign, Search } from 'lucide-react'
+import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Ban, Download, TrendingUp, TrendingDown, DollarSign, Search, Printer } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -693,6 +693,13 @@ function JournalListContent() {
                     </DataTableCell>
                     <DataTableCell>
                       <div className="flex items-center gap-1 justify-end">
+                        <button
+                          title="พิมพ์รายการบัญชี"
+                          onClick={e => { e.stopPropagation(); window.open(`/print/journal/${je.id}`, '_blank') }}
+                          className="h-6 w-6 flex items-center justify-center rounded text-slate-300 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                        </button>
                         {je.sourceType === 'JOURNAL_MANUAL' && !je.isVoided && (
                           <button
                             title="ยกเลิกรายการ"
