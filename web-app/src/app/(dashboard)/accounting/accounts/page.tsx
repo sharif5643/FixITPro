@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { BookOpen, Plus, Loader2, AlertTriangle } from 'lucide-react'
+import { BookOpen, Plus, Loader2, AlertTriangle, ScrollText } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -156,6 +157,7 @@ function AccountsContent() {
             <DataTableHeadCell hidden>ประเภทย่อย</DataTableHeadCell>
             <DataTableHeadCell hidden>ระบบ</DataTableHeadCell>
             <DataTableHeadCell>สถานะ</DataTableHeadCell>
+            <DataTableHeadCell></DataTableHeadCell>
           </DataTableHead>
           <DataTableBody>
             {isLoading ? (
@@ -203,6 +205,15 @@ function AccountsContent() {
                     }`}>
                       {acct.isActive ? 'ใช้งาน' : 'ปิด'}
                     </span>
+                  </DataTableCell>
+                  <DataTableCell>
+                    <Link
+                      href={`/accounting/accounts/${acct.id}`}
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                    >
+                      <ScrollText className="h-3.5 w-3.5" />
+                      Ledger
+                    </Link>
                   </DataTableCell>
                 </DataTableRow>
               ))
