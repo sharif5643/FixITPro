@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Ban, Download } from 'lucide-react'
+import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Ban, Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -324,6 +324,7 @@ interface JournalLine {
 interface JournalEntry {
   id: string
   entryDate: string
+  entryNumber?: string | null
   description: string
   sourceType?: string | null
   sourceId?: string | null
@@ -333,6 +334,12 @@ interface JournalEntry {
   totalDebit: string | number
   totalCredit?: string | number
   lines: JournalLine[]
+}
+
+interface IncomeStatement {
+  totalRevenue: number
+  totalExpense: number
+  netIncome:    number
 }
 
 interface JournalPage {
@@ -371,7 +378,7 @@ function sourceLabel(type?: string | null) {
 function JournalLinesRow({ lines }: { lines: JournalLine[] }) {
   return (
     <tr>
-      <td colSpan={6} className="px-4 pb-3 pt-0">
+      <td colSpan={7} className="px-4 pb-3 pt-0">
         <div className="rounded-lg border border-slate-100 dark:border-slate-700/50 overflow-hidden">
           <table className="w-full text-xs">
             <thead>
@@ -423,8 +430,15 @@ function JournalListContent() {
     queryKey: ['accounting-journals', startDate, endDate],
     queryFn: () =>
       api.get('/accounting/journals', {
-        params: { startDate, endDate, limit: '200' },
+        params: { startDate, endDate, limit: '100' },
       }).then((r) => r.data),
+  })
+
+  const { data: pnl } = useQuery<IncomeStatement>({
+    queryKey: ['accounting-income-statement', startDate, endDate],
+    queryFn: () =>
+      api.get(`/accounting/reports/income-statement?startDate=${startDate}&endDate=${endDate}`)
+        .then(r => r.data),
   })
 
   const entries = data?.items ?? []
@@ -443,7 +457,7 @@ function JournalListContent() {
     for (const je of data.items) {
       rows.push([
         format(new Date(je.entryDate), 'dd/MM/yyyy'),
-        '',
+        je.entryNumber ?? '',
         sourceLabel(je.sourceType),
         je.description,
         Number(je.totalDebit ?? 0).toFixed(2),
@@ -485,6 +499,58 @@ function JournalListContent() {
         }
       />
 
+      {/* P&L summary cards */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Revenue */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] px-4 py-3.5 flex items-start gap-3">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+            <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground truncate">รายได้</p>
+            <p className="mt-0.5 tabular-nums font-bold text-emerald-700 dark:text-emerald-400 text-lg leading-tight">
+              {pnl ? formatThaiMoney(pnl.totalRevenue) : '—'}
+            </p>
+          </div>
+        </div>
+        {/* Expense */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] px-4 py-3.5 flex items-start gap-3">
+          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+            <TrendingDown className="h-4 w-4 text-red-500 dark:text-red-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground truncate">ค่าใช้จ่าย</p>
+            <p className="mt-0.5 tabular-nums font-bold text-red-600 dark:text-red-400 text-lg leading-tight">
+              {pnl ? formatThaiMoney(pnl.totalExpense) : '—'}
+            </p>
+          </div>
+        </div>
+        {/* Net income */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] px-4 py-3.5 flex items-start gap-3">
+          <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+            !pnl || pnl.netIncome >= 0
+              ? 'bg-blue-100 dark:bg-blue-900/30'
+              : 'bg-amber-100 dark:bg-amber-900/30'
+          }`}>
+            <DollarSign className={`h-4 w-4 ${
+              !pnl || pnl.netIncome >= 0
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-amber-600 dark:text-amber-400'
+            }`} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground truncate">กำไรสุทธิ</p>
+            <p className={`mt-0.5 tabular-nums font-bold text-lg leading-tight ${
+              !pnl || pnl.netIncome >= 0
+                ? 'text-blue-700 dark:text-blue-400'
+                : 'text-amber-600 dark:text-amber-400'
+            }`}>
+              {pnl ? formatThaiMoney(pnl.netIncome) : '—'}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Month navigation + export */}
       <div className="flex items-center justify-between flex-wrap gap-3">
       <div className="flex items-center gap-1 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-lg px-1 py-1 w-fit">
@@ -515,6 +581,7 @@ function JournalListContent() {
         <DataTable>
           <DataTableHead>
             <DataTableHeadCell>วันที่</DataTableHeadCell>
+            <DataTableHeadCell hidden>เลขที่</DataTableHeadCell>
             <DataTableHeadCell>ประเภท</DataTableHeadCell>
             <DataTableHeadCell>รายการ</DataTableHeadCell>
             <DataTableHeadCell right hidden>เดบิต</DataTableHeadCell>
@@ -523,10 +590,10 @@ function JournalListContent() {
           </DataTableHead>
           <DataTableBody>
             {isLoading ? (
-              <DataTableLoadingRows rows={8} cols={6} />
+              <DataTableLoadingRows rows={8} cols={7} />
             ) : entries.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-0">
+                <td colSpan={7} className="py-0">
                   <EmptyState
                     preset="default"
                     size="md"
@@ -546,6 +613,9 @@ function JournalListContent() {
                       <span className="text-xs whitespace-nowrap">
                         {format(new Date(je.entryDate), 'dd MMM yy', { locale: th })}
                       </span>
+                    </DataTableCell>
+                    <DataTableCell hidden muted>
+                      <span className="font-mono text-xs">{je.entryNumber ?? '—'}</span>
                     </DataTableCell>
                     <DataTableCell>
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 whitespace-nowrap">
