@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { BookMarked, ChevronLeft, ChevronRight } from 'lucide-react'
+import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -13,10 +13,238 @@ import {
   DataTableRow, DataTableCell, DataTableLoadingRows,
 } from '@/components/ui/data-table'
 import { ModuleGate } from '@/components/auth/module-gate'
-import { formatThaiMoney } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+interface AccountOption {
+  id:     string
+  code:   string
+  nameTh: string
+  type:   string
+}
+
+interface DraftLine {
+  id:          number   // local key
+  accountCode: string
+  side:        'DR' | 'CR'
+  amount:      string
+  note:        string
+}
+
+// ── Manual Journal Dialog ─────────────────────────────────────────────────────
+
+let _lineKey = 0
+function newLine(): DraftLine {
+  return { id: ++_lineKey, accountCode: '', side: 'DR', amount: '', note: '' }
+}
+
+function ManualJournalDialog({ open, onClose, onSuccess }: {
+  open:      boolean
+  onClose:   () => void
+  onSuccess: () => void
+}) {
+  const [entryDate,   setEntryDate]   = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [description, setDescription] = useState('')
+  const [lines,       setLines]       = useState<DraftLine[]>(() => [newLine(), newLine()])
+  const [error,       setError]       = useState('')
+
+  const { data: accounts = [] } = useQuery<AccountOption[]>({
+    queryKey: ['accounting-accounts'],
+    queryFn:  () => api.get('/accounting/accounts').then(r => r.data),
+    enabled:  open,
+  })
+
+  const mutation = useMutation({
+    mutationFn: (body: object) => api.post('/accounting/journals/manual', body).then(r => r.data),
+    onSuccess: () => {
+      onSuccess()
+      onClose()
+      setDescription('')
+      setLines([newLine(), newLine()])
+      setError('')
+    },
+    onError: (e: any) => setError(apiErrorMessage(e)),
+  })
+
+  const totalDR = lines.reduce((s, l) => s + (l.side === 'DR' ? parseFloat(l.amount) || 0 : 0), 0)
+  const totalCR = lines.reduce((s, l) => s + (l.side === 'CR' ? parseFloat(l.amount) || 0 : 0), 0)
+  const balanced = Math.abs(totalDR - totalCR) < 0.005 && totalDR > 0
+
+  function updateLine(id: number, patch: Partial<DraftLine>) {
+    setLines(ls => ls.map(l => l.id === id ? { ...l, ...patch } : l))
+  }
+  function removeLine(id: number) {
+    setLines(ls => ls.filter(l => l.id !== id))
+  }
+
+  function handleSubmit() {
+    setError('')
+    if (!description.trim()) { setError('กรุณากรอกคำอธิบายรายการ'); return }
+    if (lines.length < 2)    { setError('ต้องมีอย่างน้อย 2 บรรทัด'); return }
+    if (!balanced)           { setError(`เดบิต (${formatThaiMoney(totalDR)}) ≠ เครดิต (${formatThaiMoney(totalCR)})`); return }
+
+    const apiLines = lines.map(l => ({
+      accountCode: l.accountCode,
+      debit:  l.side === 'DR' ? parseFloat(l.amount) || 0 : 0,
+      credit: l.side === 'CR' ? parseFloat(l.amount) || 0 : 0,
+      note:   l.note || undefined,
+    }))
+
+    mutation.mutate({ entryDate, description: description.trim(), lines: apiLines })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
+      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>สร้างรายการปรับปรุงบัญชี</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-1">
+          {/* Header fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">วันที่</label>
+              <input
+                type="date"
+                value={entryDate}
+                onChange={e => setEntryDate(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="space-y-1 col-span-2 sm:col-span-1">
+              <label className="text-xs font-medium text-muted-foreground">คำอธิบายรายการ</label>
+              <Input
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="เช่น ปรับปรุงค่าเสื่อมราคา เดือน สิงหาคม"
+                className="h-9 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Lines */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-[1fr_80px_110px_1fr_32px] gap-2 px-1">
+              <p className="text-xs font-medium text-muted-foreground">บัญชี</p>
+              <p className="text-xs font-medium text-muted-foreground">Dr/Cr</p>
+              <p className="text-xs font-medium text-muted-foreground text-right">จำนวน</p>
+              <p className="text-xs font-medium text-muted-foreground">หมายเหตุ</p>
+              <div />
+            </div>
+
+            {lines.map((line, idx) => (
+              <div key={line.id} className="grid grid-cols-[1fr_80px_110px_1fr_32px] gap-2 items-center">
+                <select
+                  value={line.accountCode}
+                  onChange={e => updateLine(line.id, { accountCode: e.target.value })}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">เลือกบัญชี</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.code}>
+                      {a.code} {a.nameTh}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={line.side}
+                  onChange={e => updateLine(line.id, { side: e.target.value as 'DR' | 'CR' })}
+                  className={`h-9 rounded-md border px-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-ring ${
+                    line.side === 'DR'
+                      ? 'border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
+                  }`}
+                >
+                  <option value="DR">เดบิต</option>
+                  <option value="CR">เครดิต</option>
+                </select>
+
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  value={line.amount}
+                  onChange={e => updateLine(line.id, { amount: e.target.value })}
+                  className="h-9 text-sm text-right tabular-nums"
+                />
+
+                <Input
+                  placeholder="หมายเหตุ"
+                  value={line.note}
+                  onChange={e => updateLine(line.id, { note: e.target.value })}
+                  className="h-9 text-sm"
+                />
+
+                <button
+                  onClick={() => removeLine(line.id)}
+                  disabled={lines.length <= 2}
+                  className="h-8 w-8 flex items-center justify-center rounded text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-25 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 w-full border-dashed"
+              onClick={() => setLines(ls => [...ls, newLine()])}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              เพิ่มบรรทัด
+            </Button>
+          </div>
+
+          {/* Balance indicator */}
+          <div className={`rounded-lg px-4 py-2.5 flex items-center justify-between text-sm ${
+            balanced
+              ? 'bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-700/40'
+              : 'bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700/40'
+          }`}>
+            <span className="text-muted-foreground">เดบิต</span>
+            <span className={`tabular-nums font-semibold ${balanced ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
+              {formatThaiMoney(totalDR)}
+            </span>
+            <span className="text-muted-foreground mx-2">vs</span>
+            <span className="text-muted-foreground">เครดิต</span>
+            <span className={`tabular-nums font-semibold ${balanced ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
+              {formatThaiMoney(totalCR)}
+            </span>
+            <span className={`ml-auto text-xs font-bold ${balanced ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              {balanced ? '✓ สมดุล' : 'ไม่สมดุล'}
+            </span>
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" onClick={onClose} className="flex-1">ยกเลิก</Button>
+            <Button
+              className="flex-1"
+              disabled={!balanced || !description.trim() || mutation.isPending}
+              onClick={handleSubmit}
+            >
+              {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'บันทึก'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 interface JournalLine {
   id: string
@@ -116,8 +344,10 @@ function JournalLinesRow({ lines }: { lines: JournalLine[] }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function JournalListContent() {
-  const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()))
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const [viewMonth,   setViewMonth]   = useState(() => startOfMonth(new Date()))
+  const [expandedId,  setExpandedId]  = useState<string | null>(null)
+  const [dialogOpen,  setDialogOpen]  = useState(false)
 
   const startDate = format(viewMonth, 'yyyy-MM-dd')
   const endDate   = format(endOfMonth(viewMonth), 'yyyy-MM-dd')
@@ -136,12 +366,28 @@ function JournalListContent() {
     setExpandedId((prev) => (prev === id ? null : id))
   }
 
+  function handleJournalCreated() {
+    queryClient.invalidateQueries({ queryKey: ['accounting-journals'] })
+  }
+
   return (
     <div className="space-y-4 sm:space-y-5">
+      <ManualJournalDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSuccess={handleJournalCreated}
+      />
+
       <PageHeader
         title="สมุดบัญชี"
         icon={BookMarked}
         subtitle={`${format(viewMonth, 'MMMM yyyy', { locale: th })} · ${entries.length} รายการ`}
+        primaryAction={
+          <Button size="sm" className="gap-1.5" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4" />
+            สร้างรายการ
+          </Button>
+        }
       />
 
       {/* Month navigation */}
