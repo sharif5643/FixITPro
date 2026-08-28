@@ -10,7 +10,7 @@ import {
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
   BookOpen, BookMarked, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
   BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Scale,
-  ListChecks, Wallet,
+  ListChecks, Wallet, ArrowUpDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
@@ -129,7 +129,8 @@ const OWNER_SECONDARY: NavSection[] = [
       { href: '/accounting/income-statement',     icon: TrendingUp,    label: 'งบกำไรขาดทุน',     ownerOnly: true, module: 'accounting' },
       { href: '/accounting/balance-sheet',        icon: Scale,         label: 'งบดุล',             ownerOnly: true, module: 'accounting' },
       { href: '/accounting/trial-balance',        icon: FileSpreadsheet, label: 'งบทดลอง',         ownerOnly: true, module: 'accounting' },
-      { href: '/accounting/accounts',             icon: BookOpen,      label: 'ผังบัญชี',          ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/cash-flow',           icon: ArrowUpDown,   label: 'งบกระแสเงินสด',    ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/accounts',            icon: BookOpen,      label: 'ผังบัญชี',          ownerOnly: true, module: 'accounting' },
     ],
   },
   {

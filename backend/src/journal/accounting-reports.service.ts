@@ -264,4 +264,79 @@ export class AccountingReportsService {
       limit,
     };
   }
+
+  // ── Cash Flow Statement ───────────────────────────────────────────────────
+  // Simplified direct method using journal lines grouped by source category.
+  // Operating: REVENUE credit-normal → inflows; EXPENSE debit-normal → outflows.
+  // Investing / Financing: excluded (no bank/loan accounts in current CoA).
+
+  async cashFlow({ tenantId, startDate, endDate, branchId }: PeriodInput) {
+    // Fetch all lines for the period, including source info
+    const lines = await this.prisma.journalLine.findMany({
+      where: {
+        entry:   buildEntryWhere(tenantId, startDate, endDate, branchId),
+        account: { type: { in: ['REVENUE', 'EXPENSE'] } },
+      },
+      include: {
+        account: { select: { code: true, nameTh: true, type: true } },
+        entry:   { select: { sourceType: true } },
+      },
+    });
+
+    // Group by sourceType → sum net cash
+    const bySource = new Map<string, { label: string; inflow: Prisma.Decimal; outflow: Prisma.Decimal }>();
+
+    const sourceLabel = (t: string | null): string => {
+      const map: Record<string, string> = {
+        REPAIR_DEPOSIT:               'มัดจำซ่อม',
+        REPAIR_FINAL_PAYMENT:         'รับเงินซ่อม',
+        REPAIR_DEPOSIT_SETTLE:        'หักมัดจำ',
+        REPAIR_DEPOSIT_REFUND:        'คืนมัดจำ',
+        REPAIR_COGS:                  'ต้นทุนซ่อม',
+        REPAIR_PAYMENT_REVERSAL:      'ยกเลิกรับเงิน',
+        REPAIR_COGS_REVERSAL:         'ยกเลิกต้นทุน',
+        EXPENSE_PAYMENT:              'จ่ายค่าใช้จ่าย',
+        EXPENSE_REVERSAL:             'ยกเลิกค่าใช้จ่าย',
+        SALE_REVENUE:                 'รายได้ขาย',
+        SALE_COGS:                    'ต้นทุนขาย',
+        SALE_EXCHANGE:                'แลกสินค้า',
+        JOURNAL_MANUAL:               'บันทึกทั่วไป',
+        JOURNAL_REVERSAL:             'กลับรายการ',
+      };
+      return t ? (map[t] ?? t) : 'อื่นๆ';
+    };
+
+    for (const l of lines) {
+      const src = l.entry.sourceType ?? 'OTHER';
+      if (!bySource.has(src)) {
+        bySource.set(src, {
+          label:   sourceLabel(l.entry.sourceType),
+          inflow:  new Prisma.Decimal(0),
+          outflow: new Prisma.Decimal(0),
+        });
+      }
+      const row = bySource.get(src)!;
+      if (l.account.type === 'REVENUE') {
+        // REVENUE credit-normal: cr = inflow, dr = negative
+        row.inflow = row.inflow.add(l.credit).minus(l.debit);
+      } else {
+        // EXPENSE debit-normal: dr = outflow, cr = refund
+        row.outflow = row.outflow.add(l.debit).minus(l.credit);
+      }
+    }
+
+    const items = Array.from(bySource.entries()).map(([sourceType, r]) => ({
+      sourceType,
+      label:   r.label,
+      inflow:  r.inflow.toNumber(),
+      outflow: r.outflow.toNumber(),
+      net:     r.inflow.minus(r.outflow).toNumber(),
+    })).sort((a, b) => b.inflow - a.inflow);
+
+    const totalInflow  = items.reduce((s, i) => s + i.inflow,  0);
+    const totalOutflow = items.reduce((s, i) => s + i.outflow, 0);
+    const netCashFlow  = totalInflow - totalOutflow;
+
+    return { items, totalInflow, totalOutflow, netCashFlow };
+  }
 }

@@ -69,6 +69,26 @@ export class AccountingReportsController {
     });
   }
 
+  // ── GET /api/v1/accounting/reports/cash-flow ──────────────────────────────
+
+  @Get('cash-flow')
+  cashFlow(
+    @CurrentUser('tenantId') callerTenantId: string,
+    @CurrentUser('role')     role:            string,
+    @Query('tenantId')  tenantIdParam?: string,
+    @Query('startDate') startDate?:     string,
+    @Query('endDate')   endDate?:       string,
+    @Query('branchId')  branchId?:      string,
+  ) {
+    const tenantId = role === 'SUPER_ADMIN' && tenantIdParam ? tenantIdParam : callerTenantId;
+    return this.reports.cashFlow({
+      tenantId,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate:   endDate   ? new Date(endDate)   : undefined,
+      branchId:  branchId  ?? undefined,
+    });
+  }
+
   // ── GET /api/v1/accounting/reports/ledger/:accountId ─────────────────────
 
   @Get('ledger/:accountId')
