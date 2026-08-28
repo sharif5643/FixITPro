@@ -7,9 +7,9 @@ import { useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
   Plus, Wrench, X, Camera, LayoutGrid, LayoutList,
-  AlertCircle, RefreshCw, Search, ScanBarcode, Clock, ChevronRight,
+  AlertCircle, RefreshCw, Search, ScanBarcode, Clock, ChevronRight, Download,
 } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow, format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { RepairFormDialog } from '@/components/repairs/repair-form-dialog'
@@ -57,6 +57,25 @@ const STAT_CARDS = [
 ]
 
 const VIEW_MODE_KEY = 'repairViewMode'
+
+const STATUS_LABEL: Record<string, string> = {
+  RECEIVED:         'รับงานใหม่',
+  DIAGNOSING:       'ตรวจวินิจฉัย',
+  IN_PROGRESS:      'กำลังซ่อม',
+  WAITING_PARTS:    'รออะไหล่',
+  WAITING_APPROVAL: 'รออนุมัติ',
+  QC_PENDING:       'รอ QC',
+  COMPLETED:        'ซ่อมเสร็จ',
+  READY_PICKUP:     'รอลูกค้ารับ',
+  DELIVERED:        'ส่งมอบแล้ว',
+  CANCELLED:        'ยกเลิก',
+}
+
+const PAY_STATUS_LABEL: Record<string, string> = {
+  PENDING: 'ค้างชำระ',
+  PARTIAL: 'ชำระบางส่วน',
+  PAID:    'ชำระแล้ว',
+}
 
 // ── Page (inner — uses useSearchParams, must be inside Suspense) ──────────────
 
@@ -156,6 +175,36 @@ function RepairsContent() {
     queryClient.invalidateQueries({ queryKey: ['repairs'] })
   }
 
+  function exportCsv() {
+    const BOM = '﻿'
+    const headers = ['เลขงาน', 'วันรับ', 'ลูกค้า', 'เบอร์', 'อุปกรณ์', 'IMEI', 'อาการ', 'ช่าง', 'สถานะ', 'ค่าซ่อม', 'มัดจำ', 'ชำระแล้ว', 'สถานะชำระ']
+    const rows = filtered.map(r => [
+      r.ticketNumber,
+      r.receivedAt ? format(new Date(r.receivedAt), 'dd/MM/yyyy') : '',
+      r.customer?.name ?? '',
+      r.customer?.phone ?? '',
+      `${r.deviceBrand} ${r.deviceModel}`,
+      r.deviceImei ?? '',
+      r.issue ?? '',
+      r.technician?.name ?? '',
+      STATUS_LABEL[r.status] ?? r.status,
+      r.finalCost   != null ? Number(r.finalCost).toFixed(2)   : '',
+      r.deposit     != null ? Number(r.deposit).toFixed(2)     : '',
+      r.paidAmount  != null ? Number(r.paidAmount).toFixed(2)  : '',
+      PAY_STATUS_LABEL[r.paymentStatus] ?? r.paymentStatus,
+    ])
+    const csv = BOM + [headers, ...rows]
+      .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `repairs_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (!hasModule('repair')) return <ModuleGate module="repair">{null}</ModuleGate>
 
   if (isError) {
@@ -248,6 +297,14 @@ function RepairsContent() {
             title="สแกน QR"
           >
             <ScanBarcode className="h-5 w-5" />
+          </button>
+          <button
+            onClick={exportCsv}
+            disabled={filtered.length === 0}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F8F9FB] text-slate-500 shrink-0 disabled:opacity-40"
+            title={`ส่งออก CSV (${filtered.length} รายการ)`}
+          >
+            <Download className="h-5 w-5" />
           </button>
           <ViewToggle viewMode={viewMode} onSwitch={switchView} />
           <button
