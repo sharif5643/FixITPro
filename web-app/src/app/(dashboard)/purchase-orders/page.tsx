@@ -8,7 +8,7 @@ import {
   Plus, Search, Loader2, ClipboardList, Eye, Ban,
   CheckCircle2, AlertTriangle, Package, X, CalendarDays, Percent,
   PackageCheck, History, ChevronRight, Banknote, CreditCard, ArrowUpFromLine,
-  MapPin,
+  MapPin, Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -472,6 +472,9 @@ export default function PurchaseOrdersPage() {
                       <div className="flex items-center justify-center gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" title="ดูรายละเอียด" onClick={() => setDetailId(po.id)}>
                           <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-500 hover:text-slate-700" title="พิมพ์ใบ PO" onClick={() => window.open(`/print/purchase-order/${po.id}`, '_blank')}>
+                          <Printer className="h-3.5 w-3.5" />
                         </Button>
                         {canReceive && (
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" title="รับสินค้าเข้า" onClick={() => openReceive(po)}>
