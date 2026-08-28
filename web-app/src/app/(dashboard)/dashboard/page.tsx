@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
-  TrendingUp, TrendingDown, Wrench, Package, AlertTriangle, Clock,
+  TrendingUp, TrendingDown, Wrench, Package, AlertTriangle, Clock, BookMarked,
   CheckCircle, ShoppingCart, Banknote, ArrowRight, RefreshCw,
   AlertCircle, Wallet, Send, Building2, Shield,
   Bell, Activity, Filter, BarChart2, ArrowRightLeft, Settings2,
@@ -692,6 +692,13 @@ export default function DashboardPage() {
     refetchInterval: 5 * 60 * 1000,
   })
 
+  const { data: acctPnl } = useQuery<{ totalRevenue: number; totalExpense: number; netIncome: number }>({
+    queryKey: ['dashboard-accounting-pnl', startDate, endDate],
+    queryFn:  () => api.get(`/accounting/reports/income-statement?startDate=${startDate}&endDate=${endDate}`).then(r => r.data),
+    enabled:  hasModule('accounting') && isOwner,
+    staleTime: 5 * 60 * 1000,
+  })
+
   const f      = data?.finance
   const ops    = data?.repairOps
   const alerts = data?.alerts
@@ -1105,6 +1112,41 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+        </div>
+      )}
+
+      {/* ── Accounting P&L widget ────────────────────────────────────────────── */}
+      {isOwner && hasModule('accounting') && (
+        <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <BookMarked className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">บัญชี — กำไรขาดทุน (วันนี้)</h3>
+            </div>
+            <Link href="/accounting/income-statement" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+              ดูรายงาน →
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-xs text-slate-400 dark:text-slate-500">รายได้</p>
+              <p className="text-lg font-bold mt-0.5 text-emerald-700 dark:text-emerald-400 tabular-nums">
+                {acctPnl ? formatThaiMoney(acctPnl.totalRevenue) : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 dark:text-slate-500">ค่าใช้จ่าย</p>
+              <p className="text-lg font-bold mt-0.5 text-red-600 dark:text-red-400 tabular-nums">
+                {acctPnl ? formatThaiMoney(acctPnl.totalExpense) : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 dark:text-slate-500">กำไรสุทธิ</p>
+              <p className={cn('text-lg font-bold mt-0.5 tabular-nums', !acctPnl || acctPnl.netIncome >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400')}>
+                {acctPnl ? formatThaiMoney(acctPnl.netIncome) : '—'}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

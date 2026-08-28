@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Ban, Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
+import { BookMarked, ChevronLeft, ChevronRight, Plus, Trash2, Loader2, Ban, Download, TrendingUp, TrendingDown, DollarSign, Search } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -422,6 +422,8 @@ function JournalListContent() {
   const [expandedId,  setExpandedId]  = useState<string | null>(null)
   const [dialogOpen,  setDialogOpen]  = useState(false)
   const [voidTarget,  setVoidTarget]  = useState<{ id: string; description: string } | null>(null)
+  const [filterType,  setFilterType]  = useState('')
+  const [searchText,  setSearchText]  = useState('')
 
   const startDate = format(viewMonth, 'yyyy-MM-dd')
   const endDate   = format(endOfMonth(viewMonth), 'yyyy-MM-dd')
@@ -441,7 +443,19 @@ function JournalListContent() {
         .then(r => r.data),
   })
 
-  const entries = data?.items ?? []
+  const allEntries = data?.items ?? []
+  const entries = allEntries.filter(je => {
+    if (filterType && je.sourceType !== filterType) return false
+    if (searchText) {
+      const q = searchText.toLowerCase()
+      if (!je.description.toLowerCase().includes(q) &&
+          !(je.entryNumber ?? '').toLowerCase().includes(q)) return false
+    }
+    return true
+  })
+
+  // Unique source types in current month for the filter dropdown
+  const sourceTypes = Array.from(new Set(allEntries.map(je => je.sourceType).filter(Boolean) as string[]))
 
   function toggleExpand(id: string) {
     setExpandedId((prev) => (prev === id ? null : id))
@@ -490,7 +504,7 @@ function JournalListContent() {
       <PageHeader
         title="สมุดบัญชี"
         icon={BookMarked}
-        subtitle={`${format(viewMonth, 'MMMM yyyy', { locale: th })} · ${entries.length} รายการ`}
+        subtitle={`${format(viewMonth, 'MMMM yyyy', { locale: th })} · ${entries.length}${entries.length !== allEntries.length ? `/${allEntries.length}` : ''} รายการ`}
         primaryAction={
           <Button size="sm" className="gap-1.5" onClick={() => setDialogOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -577,6 +591,37 @@ function JournalListContent() {
       </Button>
       </div>
 
+      {/* Search + type filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="ค้นหารายการ / เลขที่"
+            className="h-8 pl-8 text-sm"
+          />
+        </div>
+        <select
+          value={filterType}
+          onChange={e => { setFilterType(e.target.value); setExpandedId(null) }}
+          className="h-8 px-2 border border-input rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="">ทุกประเภท</option>
+          {sourceTypes.map(t => (
+            <option key={t} value={t}>{SOURCE_LABEL[t] ?? t}</option>
+          ))}
+        </select>
+        {(filterType || searchText) && (
+          <button
+            onClick={() => { setFilterType(''); setSearchText(''); setExpandedId(null) }}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            ล้างตัวกรอง
+          </button>
+        )}
+      </div>
+
       <SectionCard noPadding>
         <DataTable>
           <DataTableHead>
@@ -591,7 +636,7 @@ function JournalListContent() {
           <DataTableBody>
             {isLoading ? (
               <DataTableLoadingRows rows={8} cols={7} />
-            ) : entries.length === 0 ? (
+            ) : allEntries.length === 0 ? (
               <tr>
                 <td colSpan={7} className="py-0">
                   <EmptyState
@@ -599,6 +644,12 @@ function JournalListContent() {
                     size="md"
                     title="ไม่มีรายการบัญชีในเดือนนี้"
                   />
+                </td>
+              </tr>
+            ) : entries.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-0">
+                  <EmptyState preset="default" size="md" title="ไม่มีรายการที่ตรงกับตัวกรอง" />
                 </td>
               </tr>
             ) : (
