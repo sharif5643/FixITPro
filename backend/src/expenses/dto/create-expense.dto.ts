@@ -42,4 +42,8 @@ export class CreateExpenseDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  branchId?: string;
 }

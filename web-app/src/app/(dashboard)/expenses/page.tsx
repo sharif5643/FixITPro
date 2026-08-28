@@ -45,11 +45,12 @@ function todayStr() {
 
 interface CreateDialogProps {
   categories: ExpenseCategory[]
+  branchId?: string
   onClose: () => void
   onSuccess: () => void
 }
 
-function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogProps) {
+function CreateExpenseDialog({ categories, branchId, onClose, onSuccess }: CreateDialogProps) {
   const [form, setForm] = useState({
     expenseDate:   todayStr(),
     categoryId:    categories[0]?.id ?? '',
@@ -63,7 +64,7 @@ function CreateExpenseDialog({ categories, onClose, onSuccess }: CreateDialogPro
 
   const mutation = useMutation({
     mutationFn: (data: typeof form) =>
-      api.post('/expenses', { ...data, amount: parseFloat(data.amount) }).then((r) => r.data),
+      api.post('/expenses', { ...data, amount: parseFloat(data.amount), branchId }).then((r) => r.data),
     onSuccess: () => { onSuccess(); onClose() },
     onError: (e: any) => setError(apiErrorMessage(e)),
   })
@@ -530,6 +531,7 @@ export default function ExpensesPage() {
       {createOpen && (
         <CreateExpenseDialog
           categories={categories}
+          branchId={branchId}
           onClose={() => setCreateOpen(false)}
           onSuccess={invalidate}
         />

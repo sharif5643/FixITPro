@@ -88,9 +88,11 @@ export class ExpensesController {
     @Body() dto: CreateExpenseDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: string,
-    @CurrentUser('branchId') branchId: string | null,
+    @CurrentUser('branchId') jwtBranchId: string | null,
   ) {
-    return this.expensesService.create(dto, userId, role, branchId ?? undefined);
+    const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
+    const branchId = isElevated ? (dto.branchId ?? jwtBranchId ?? undefined) : (jwtBranchId ?? undefined);
+    return this.expensesService.create(dto, userId, role, branchId);
   }
 
   @Get()
