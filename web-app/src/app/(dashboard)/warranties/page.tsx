@@ -509,7 +509,7 @@ export default function WarrantiesPage() {
                     <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400" />
                   )}
                   {repairResults.length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] shadow-lg overflow-hidden">
+                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] shadow-lg overflow-y-auto max-h-52">
                       {repairResults.map((r) => (
                         <button
                           key={r.id}
