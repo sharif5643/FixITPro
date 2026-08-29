@@ -2,6 +2,8 @@ import {
   Controller, Get, Post, Patch, Body, Param, Query,
   UseGuards, HttpCode, HttpStatus,
 } from '@nestjs/common';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
@@ -12,25 +14,43 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { WarrantiesService } from './warranties.service';
 
 class CreateRepairWarrantyDto {
-  repairId!:      string;
-  warrantyDays!:  number;
-  description?:   string;
+  @IsString() @IsNotEmpty()
+  repairId!: string;
+
+  @IsNumber() @Min(1) @Type(() => Number)
+  warrantyDays!: number;
+
+  @IsString() @IsOptional()
+  description?: string;
 }
 
 class CreateProductWarrantyDto {
-  saleItemId!:      string;
-  warrantyDays!:    number;
-  serialNumberId?:  string;
-  description?:     string;
+  @IsString() @IsNotEmpty()
+  saleItemId!: string;
+
+  @IsNumber() @Min(1) @Type(() => Number)
+  warrantyDays!: number;
+
+  @IsString() @IsOptional()
+  serialNumberId?: string;
+
+  @IsString() @IsOptional()
+  description?: string;
 }
 
 class UpdateWarrantyDto {
-  notes?:       string;
-  endDate?:     string;
+  @IsString() @IsOptional()
+  notes?: string;
+
+  @IsString() @IsOptional()
+  endDate?: string;
+
+  @IsString() @IsOptional()
   description?: string;
 }
 
 class VoidWarrantyDto {
+  @IsString() @IsNotEmpty()
   reason!: string;
 }
 
