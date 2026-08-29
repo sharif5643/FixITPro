@@ -81,6 +81,18 @@ const OWNER_PRIMARY: NavSection[] = [
       { href: '/analytics',             icon: BarChart2,  label: 'วิเคราะห์เชิงลึก', permission: 'reports.view', module: 'report' },
     ],
   },
+  {
+    label: 'บัญชี (Accounting)',
+    items: [
+      { href: '/accounting',                    icon: BookMarked,      label: 'สมุดบัญชี',        ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/income-statement',   icon: TrendingUp,      label: 'งบกำไรขาดทุน',     ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/balance-sheet',      icon: Scale,           label: 'งบดุล',             ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/trial-balance',      icon: FileSpreadsheet, label: 'งบทดลอง',           ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/cash-flow',          icon: ArrowUpDown,     label: 'งบกระแสเงินสด',    ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/trends',             icon: BarChart2,       label: 'แนวโน้มกำไร',       ownerOnly: true, module: 'accounting' },
+      { href: '/accounting/accounts',           icon: BookOpen,        label: 'ผังบัญชี',          ownerOnly: true, module: 'accounting' },
+    ],
+  },
 ]
 
 const OWNER_SECONDARY: NavSection[] = [
@@ -120,18 +132,6 @@ const OWNER_SECONDARY: NavSection[] = [
     items: [
       { href: '/categories',    icon: Tag,    label: 'หมวดหมู่',      permission: 'products.view', module: 'stock' },
       { href: '/barcode-print', icon: Barcode, label: 'พิมพ์ Barcode', permission: 'products.view', module: 'stock' },
-    ],
-  },
-  {
-    label: 'บัญชี (Accounting)',
-    items: [
-      { href: '/accounting',                      icon: BookMarked,    label: 'สมุดบัญชี',        ownerOnly: true, module: 'accounting' },
-      { href: '/accounting/income-statement',     icon: TrendingUp,    label: 'งบกำไรขาดทุน',     ownerOnly: true, module: 'accounting' },
-      { href: '/accounting/balance-sheet',        icon: Scale,         label: 'งบดุล',             ownerOnly: true, module: 'accounting' },
-      { href: '/accounting/trial-balance',        icon: FileSpreadsheet, label: 'งบทดลอง',         ownerOnly: true, module: 'accounting' },
-      { href: '/accounting/cash-flow',           icon: ArrowUpDown,   label: 'งบกระแสเงินสด',    ownerOnly: true, module: 'accounting' },
-      { href: '/accounting/trends',              icon: BarChart2,     label: 'แนวโน้มกำไร',       ownerOnly: true, module: 'accounting' },
-      { href: '/accounting/accounts',            icon: BookOpen,      label: 'ผังบัญชี',          ownerOnly: true, module: 'accounting' },
     ],
   },
   {
