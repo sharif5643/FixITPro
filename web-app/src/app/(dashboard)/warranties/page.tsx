@@ -1,14 +1,16 @@
 ﻿'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { formatDistanceToNow, format, isPast } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
   BadgeCheck, Loader2, ShieldOff, ShieldAlert,
-  ShieldCheck, ChevronLeft, ChevronRight,
+  ShieldCheck, ChevronLeft, ChevronRight, Plus, Search, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { PageHeader } from '@/components/ui/page-header'
 import { FilterBar } from '@/components/ui/filter-bar'
 import { SectionCard } from '@/components/ui/section-card'
@@ -62,6 +64,15 @@ function EndDateCell({ endDate, status }: { endDate: string; status: WarrantySta
   )
 }
 
+interface RepairSummary {
+  id: string
+  ticketNumber: string
+  deviceBrand: string
+  deviceModel: string
+  customer?: { name: string; phone?: string }
+  warrantyExpiresAt?: string
+}
+
 export default function WarrantiesPage() {
   const queryClient = useQueryClient()
   const [search, setSearch]         = useState('')
@@ -72,6 +83,18 @@ export default function WarrantiesPage() {
   const [voidReason, setVoidReason] = useState('')
   const [claimId, setClaimId]       = useState<string | null>(null)
   const [actionLoading, setLoading] = useState(false)
+
+  // Create warranty dialog
+  const [createOpen, setCreateOpen]           = useState(false)
+  const [repairSearch, setRepairSearch]       = useState('')
+  const [selectedRepair, setSelectedRepair]   = useState<RepairSummary | null>(null)
+  const [createDays, setCreateDays]           = useState('30')
+  const [createDesc, setCreateDesc]           = useState('')
+  const [createLoading, setCreateLoading]     = useState(false)
+  const [createError, setCreateError]         = useState('')
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [repairResults, setRepairResults]     = useState<RepairSummary[]>([])
+  const [repairSearching, setRepairSearching] = useState(false)
 
   const limit = 20
 
@@ -131,12 +154,61 @@ export default function WarrantiesPage() {
     setLoading(false)
   }
 
+  const searchRepairs = (q: string) => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (!q.trim()) { setRepairResults([]); return }
+    searchTimerRef.current = setTimeout(async () => {
+      setRepairSearching(true)
+      try {
+        const res = await api.get('/repairs', { params: { search: q, limit: 8 } })
+        setRepairResults(res.data.items ?? res.data ?? [])
+      } catch { /* ignore */ }
+      setRepairSearching(false)
+    }, 300)
+  }
+
+  const openCreate = () => {
+    setSelectedRepair(null)
+    setRepairSearch('')
+    setRepairResults([])
+    setCreateDays('30')
+    setCreateDesc('')
+    setCreateError('')
+    setCreateOpen(true)
+  }
+
+  const handleCreate = async () => {
+    if (!selectedRepair) { setCreateError('กรุณาเลือกงานซ่อม'); return }
+    const days = parseInt(createDays)
+    if (!days || days <= 0) { setCreateError('กรุณาระบุจำนวนวันประกัน'); return }
+    setCreateLoading(true)
+    setCreateError('')
+    try {
+      await api.post('/warranties/repair', {
+        repairId: selectedRepair.id,
+        warrantyDays: days,
+        description: createDesc.trim() || undefined,
+      })
+      invalidate()
+      setCreateOpen(false)
+    } catch (e: any) {
+      setCreateError(e?.response?.data?.message ?? 'เกิดข้อผิดพลาด')
+    }
+    setCreateLoading(false)
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="การรับประกัน"
         icon={BadgeCheck}
         subtitle={`ทั้งหมด ${total} รายการ`}
+        primaryAction={
+          <Button size="sm" className="gap-1.5 h-8" onClick={openCreate}>
+            <Plus className="h-3.5 w-3.5" />
+            สร้างประกัน
+          </Button>
+        }
       />
 
       {/* KPI cards */}
@@ -379,6 +451,147 @@ export default function WarrantiesPage() {
                 onClick={handleVoid}
               >
                 {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'ยืนยันยกเลิก'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create warranty modal */}
+      {createOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-[#1E293B] rounded-xl shadow-xl w-full max-w-md p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white">สร้างใบรับประกันงานซ่อม</h2>
+              <button onClick={() => setCreateOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Repair search */}
+            <div className="space-y-2">
+              <Label>ค้นหางานซ่อม (เลข ticket / ชื่อลูกค้า / เบอร์)</Label>
+              {selectedRepair ? (
+                <div className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-700/60 bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">{selectedRepair.ticketNumber}</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 truncate">
+                      {selectedRepair.deviceBrand} {selectedRepair.deviceModel}
+                      {selectedRepair.customer ? ` · ${selectedRepair.customer.name}` : ''}
+                    </p>
+                    {selectedRepair.warrantyExpiresAt && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                        มีประกันอยู่แล้ว — จะสร้างใหม่ทับ
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => { setSelectedRepair(null); setRepairSearch(''); setRepairResults([]) }}
+                    className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                  <Input
+                    className="pl-9"
+                    placeholder="เช่น R-001, สมชาย, 081..."
+                    value={repairSearch}
+                    onChange={(e) => {
+                      setRepairSearch(e.target.value)
+                      searchRepairs(e.target.value)
+                    }}
+                    autoFocus
+                  />
+                  {repairSearching && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400" />
+                  )}
+                  {repairResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] shadow-lg overflow-hidden">
+                      {repairResults.map((r) => (
+                        <button
+                          key={r.id}
+                          className="w-full text-left px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 border-b border-slate-100 dark:border-slate-700/40 last:border-0"
+                          onClick={() => {
+                            setSelectedRepair(r)
+                            setRepairSearch('')
+                            setRepairResults([])
+                          }}
+                        >
+                          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{r.ticketNumber}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            {r.deviceBrand} {r.deviceModel}
+                            {r.customer ? ` · ${r.customer.name} ${r.customer.phone ?? ''}` : ''}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Warranty days */}
+            <div className="space-y-2">
+              <Label>ระยะเวลารับประกัน (วัน)</Label>
+              <div className="flex gap-2">
+                {[7, 30, 90, 180].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setCreateDays(String(d))}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors
+                      ${createDays === String(d)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400'}`}
+                  >
+                    {d} วัน
+                  </button>
+                ))}
+                <Input
+                  type="number"
+                  min={1}
+                  value={createDays}
+                  onChange={(e) => setCreateDays(e.target.value)}
+                  className="w-20 text-sm text-center"
+                  placeholder="วัน"
+                />
+              </div>
+              {parseInt(createDays) > 0 && (
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  ประกันถึง {new Date(Date.now() + parseInt(createDays) * 86_400_000).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label>รายละเอียด <span className="text-xs font-normal text-slate-400">(ไม่บังคับ)</span></Label>
+              <Input
+                placeholder="เช่น ประกันการเปลี่ยนจอ LCD 30 วัน"
+                value={createDesc}
+                onChange={(e) => setCreateDesc(e.target.value)}
+              />
+            </div>
+
+            {createError && (
+              <p className="text-sm text-red-600 dark:text-red-400">{createError}</p>
+            )}
+
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)} disabled={createLoading}>
+                ยกเลิก
+              </Button>
+              <Button
+                size="sm"
+                disabled={!selectedRepair || createLoading}
+                onClick={handleCreate}
+                className="gap-1.5"
+              >
+                {createLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                ออกใบประกัน
               </Button>
             </div>
           </div>
