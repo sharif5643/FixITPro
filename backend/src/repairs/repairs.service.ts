@@ -245,36 +245,44 @@ export class RepairsService {
     return repair;
   }
 
-  async findAll(query: { status?: string; customerId?: string; date?: string; branchId?: string; activeOnly?: boolean }, tenantId?: string | null) {
+  async findAll(query: { status?: string; customerId?: string; date?: string; branchId?: string; activeOnly?: boolean; search?: string; limit?: string }, tenantId?: string | null) {
     const where: any = {};
 
     if (query.status)     where.status     = query.status;
     if (query.customerId) where.customerId = query.customerId;
 
+    const andClauses: any[] = [];
+
+    if (query.search) {
+      const s = query.search.trim();
+      andClauses.push({ OR: [
+        { ticketNumber: { contains: s, mode: 'insensitive' } },
+        { customer: { name:  { contains: s, mode: 'insensitive' } } },
+        { customer: { phone: { contains: s, mode: 'insensitive' } } },
+        { deviceBrand: { contains: s, mode: 'insensitive' } },
+        { deviceModel: { contains: s, mode: 'insensitive' } },
+        { deviceImei:  { contains: s, mode: 'insensitive' } },
+      ]});
+    }
+
     // Branch / tenant scoping
     if (query.branchId && tenantId) {
-      // Specific branch: branchId must match AND (branch belongs to tenant OR branch is orphan
-      // but customer belongs to tenant — covers legacy data created before tenant assignment).
-      where.AND = [
-        { branchId: query.branchId },
-        {
-          OR: [
-            { branch: { tenantId } },
-            { branch: { tenantId: null }, customer: { tenantId } },
-          ],
-        },
-      ];
+      andClauses.push({ branchId: query.branchId });
+      andClauses.push({ OR: [
+        { branch: { tenantId } },
+        { branch: { tenantId: null }, customer: { tenantId } },
+      ]});
     } else if (query.branchId) {
       where.branchId = query.branchId;
     } else if (tenantId) {
-      // Global view (all branches): repairs from this tenant's branches, OR orphan repairs
-      // (branchId=null / branch.tenantId=null) whose customer belongs to this tenant.
-      where.OR = [
+      andClauses.push({ OR: [
         { branch: { tenantId } },
         { branchId: null, customer: { tenantId } },
         { branch: { tenantId: null }, customer: { tenantId } },
-      ];
+      ]});
     }
+
+    if (andClauses.length > 0) where.AND = andClauses;
 
     if (query.date) {
       const start = new Date(query.date);
@@ -289,6 +297,8 @@ export class RepairsService {
       where.status = { notIn: ['DELIVERED', 'CANCELLED'] };
     }
 
+    const take = query.limit ? Math.min(100, parseInt(query.limit)) : (query.activeOnly ? 2000 : 500);
+
     return this.prisma.repair.findMany({
       where,
       include: {
@@ -298,7 +308,7 @@ export class RepairsService {
         parts: { include: { product: { select: { name: true } } } },
       },
       orderBy: { receivedAt: 'desc' },
-      take: query.activeOnly ? 2000 : 500,
+      take,
     });
   }
 
