@@ -172,6 +172,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [showDeliveryPrint, setShowDeliveryPrint] = useState(false)
   const [payMethod, setPayMethod] = useState<'CASH' | 'TRANSFER' | 'CARD'>('CASH')
   const [payAmount, setPayAmount] = useState('')
+  const [payWarrantyDays, setPayWarrantyDays] = useState('30')
   // Reverse payment dialog
   const [reverseOpen, setReverseOpen] = useState(false)
   const [reverseReason, setReverseReason] = useState('')
@@ -216,6 +217,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       const balance = Math.max(0, total - deposit)
       setPayMethod('CASH')
       setPayAmount(String(balance))
+      setPayWarrantyDays('30')
     }
   }, [payOpen, repair])
 
@@ -305,7 +307,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   })
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { paymentMethod: string; amountPaid: number }) =>
+    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays?: number }) =>
       api.post(`/repairs/${repairId}/payment`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
@@ -411,7 +413,12 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       toast.error('กรุณาระบุจำนวนเงิน')
       return
     }
-    paymentMutation.mutate({ paymentMethod: payMethod, amountPaid: amount })
+    const wDays = parseInt(payWarrantyDays)
+    paymentMutation.mutate({
+      paymentMethod: payMethod,
+      amountPaid: amount,
+      warrantyDays: wDays > 0 ? wDays : 0,
+    })
   }
 
   if (!repairId) return null
@@ -1295,6 +1302,42 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 </span>
               </div>
             )}
+
+            {/* Warranty days */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                ระยะเวลารับประกัน (วัน)
+                <span className="text-xs font-normal text-muted-foreground">— ใส่ 0 ถ้าไม่มีประกัน</span>
+              </Label>
+              <div className="flex gap-2">
+                {[0, 7, 30, 90].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setPayWarrantyDays(String(d))}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors
+                      ${payWarrantyDays === String(d)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-blue-400'}`}
+                  >
+                    {d === 0 ? 'ไม่มี' : `${d} วัน`}
+                  </button>
+                ))}
+                <Input
+                  type="number"
+                  min={0}
+                  value={payWarrantyDays}
+                  onChange={(e) => setPayWarrantyDays(e.target.value)}
+                  className="w-20 text-sm text-center"
+                  placeholder="วัน"
+                />
+              </div>
+              {parseInt(payWarrantyDays) > 0 && (
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  ประกันถึง {new Date(Date.now() + parseInt(payWarrantyDays) * 86_400_000).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              )}
+            </div>
           </div>
 
           <DialogFooter className="pt-1">
