@@ -104,20 +104,41 @@ export default function DailyClosePrintPage({ params }: { params: Promise<{ date
     staleTime: 60_000,
   })
 
-  // Inject @page CSS
+  const paper = searchParams.get('paper') ?? 'A4'
+  const isThermal = paper === '80mm' || paper === '58mm'
+
+  // Inject @page CSS based on paper size
   useEffect(() => {
     const style = document.createElement('style')
     style.id = 'print-page-size'
-    style.textContent = `
-      @page { size: A4 portrait; margin: 14mm 14mm 16mm 14mm; }
-      @media print {
-        html, body { background: #fff !important; }
-        .no-print  { display: none !important; }
-      }
-    `
+    if (paper === '80mm') {
+      style.textContent = `
+        @page { size: 80mm auto; margin: 2mm 3mm; }
+        @media print {
+          html, body { background: #fff !important; }
+          .no-print  { display: none !important; }
+        }
+      `
+    } else if (paper === '58mm') {
+      style.textContent = `
+        @page { size: 58mm auto; margin: 1mm 2mm; }
+        @media print {
+          html, body { background: #fff !important; }
+          .no-print  { display: none !important; }
+        }
+      `
+    } else {
+      style.textContent = `
+        @page { size: A4 portrait; margin: 14mm 14mm 16mm 14mm; }
+        @media print {
+          html, body { background: #fff !important; }
+          .no-print  { display: none !important; }
+        }
+      `
+    }
     document.head.appendChild(style)
     return () => { style.remove() }
-  }, [])
+  }, [paper])
 
   // Auto-print
   useEffect(() => {
@@ -161,6 +182,80 @@ export default function DailyClosePrintPage({ params }: { params: Promise<{ date
 
   // Repair status summary
   const repairStatuses = Object.entries(report.repairs.byStatus).filter(([, v]) => v > 0)
+
+  if (isThermal) {
+    return (
+      <div style={{ background: '#fff', color: '#000', minHeight: '100vh', fontFamily: 'monospace' }}>
+        {/* Action bar */}
+        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: '#1e293b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', zIndex: 50 }}>
+          <span style={{ fontSize: 13 }}>รายงานปิดกะ ({paper}) — {fmtDateThai(date)}</span>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button onClick={() => window.print()} style={{ background: '#fff', color: '#1e293b', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Printer size={14} /> พิมพ์
+            </button>
+            <button onClick={() => window.close()} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Thermal content */}
+        <div style={{ maxWidth: paper === '58mm' ? '54mm' : '76mm', margin: '0 auto', paddingTop: 50, paddingBottom: 8 }} className="print:pt-0">
+          <div style={{ textAlign: 'center', marginBottom: 6, borderBottom: '1px dashed #000', paddingBottom: 6 }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{settings?.shopName ?? 'FixITPro'}</div>
+            {settings?.shopAddress && <div style={{ fontSize: 10 }}>{settings.shopAddress}</div>}
+            {settings?.shopPhone   && <div style={{ fontSize: 10 }}>{settings.shopPhone}</div>}
+            <div style={{ fontWeight: 700, marginTop: 4, fontSize: 12 }}>รายงานปิดกะ</div>
+            <div style={{ fontSize: 11 }}>{fmtDateThai(date)}</div>
+            {staffName && <div style={{ fontSize: 10 }}>พนักงาน: {staffName}</div>}
+            {openedAt  && <div style={{ fontSize: 10 }}>เปิด: {fmtTime(openedAt)} {closedAt ? `ปิด: ${fmtTime(closedAt)}` : ''}</div>}
+          </div>
+
+          {/* Revenue rows */}
+          {[
+            { label: `ยอดขาย (${report.sales.count} บิล)`, val: report.sales.totalRevenue },
+            { label: `ค่าซ่อม (${report.repairPayments.count} งาน)`, val: report.repairPayments.totalRevenue, show: report.repairPayments.count > 0 },
+            { label: `Package (${report.packageSales.count})`, val: report.packageSales.totalProfit, show: report.packageSales.count > 0 },
+          ].filter(r => r.show !== false).map(r => (
+            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+              <span>{r.label}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(r.val)}</span>
+            </div>
+          ))}
+          {totalExpenses > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+              <span>รายจ่าย</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>({fmt(totalExpenses)})</span>
+            </div>
+          )}
+          <div style={{ borderTop: '1px solid #000', marginTop: 4, paddingTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 13 }}>
+            <span>กำไรสุทธิ</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(netIncome)}</span>
+          </div>
+
+          {/* Cash check */}
+          <div style={{ borderTop: '1px dashed #000', marginTop: 8, paddingTop: 6 }}>
+            <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>ตรวจนับเงินสด</div>
+            {expectedBalance > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                <span>ยอดที่ควรมี</span><span>{fmt(expectedBalance)}</span>
+              </div>
+            )}
+            {closeBalance > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                <span>นับจริง</span><span>{fmt(closeBalance)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, borderTop: '1px solid #000', marginTop: 4, paddingTop: 3 }}>
+              <span>ส่วนต่าง</span>
+              <span>{difference === 0 ? 'ถูกต้อง ✓' : `${difference > 0 ? '+' : ''}${fmt(difference)}`}</span>
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: 10, borderTop: '1px dashed #000', paddingTop: 6, fontSize: 10, color: '#666' }}>
+            พิมพ์เมื่อ {format(new Date(), 'dd/MM/yyyy HH:mm', { locale: th })}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900">

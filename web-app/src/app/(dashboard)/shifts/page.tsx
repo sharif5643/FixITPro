@@ -128,6 +128,8 @@ export default function ShiftsPage() {
   const queryClient = useQueryClient()
   const [closeOpen, setCloseOpen] = useState(false)
   const [closeResult, setCloseResult] = useState<CloseShiftResult | null>(null)
+  const [hasPrinted, setHasPrinted] = useState(false)
+  const [paperSize, setPaperSize] = useState<'A4' | '80mm' | '58mm'>('80mm')
   const { isGlobalMode } = useBranchContext()
 
   // ── Queries ──
@@ -200,9 +202,12 @@ export default function ShiftsPage() {
   // ── Balance mismatch guard ──
   const closeBalanceWatch = closeForm.watch('closeBalance')
   const closeNoteWatch = closeForm.watch('note')
+  const closeBalanceNum = Number(closeBalanceWatch) || 0
+  const expectedCash = Number(currentShift?.expectedCashBalance ?? 0)
+  const balanceDiff = closeBalanceNum - expectedCash
   const balanceMismatch =
     currentShift?.expectedCashBalance !== undefined &&
-    Number(closeBalanceWatch) !== Number(currentShift.expectedCashBalance)
+    closeBalanceNum !== expectedCash
   const noteRequired = balanceMismatch && !closeNoteWatch?.trim()
 
   // ── Helpers ──
@@ -317,7 +322,7 @@ export default function ShiftsPage() {
             <div className="flex justify-end pt-1">
               <Button
                 variant="destructive"
-                onClick={() => { closeForm.reset(); setCloseOpen(true) }}
+                onClick={() => { closeForm.reset(); setHasPrinted(false); setCloseOpen(true) }}
                 className="gap-2"
               >
                 <Clock className="h-4 w-4" />
@@ -538,7 +543,7 @@ export default function ShiftsPage() {
       <Dialog
         open={closeOpen}
         onOpenChange={(v) => {
-          if (!v && !closeMutation.isPending) setCloseOpen(false)
+          if (!v && !closeMutation.isPending) { setCloseOpen(false); setHasPrinted(false) }
         }}
       >
         <DialogContent className="max-w-sm">
@@ -651,29 +656,106 @@ export default function ShiftsPage() {
               )}
             </div>
 
-            <DialogFooter className="gap-2">
+            {/* ── Cash count summary ── */}
+            {currentShift && (
+              <div className="rounded-lg border border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 space-y-1.5 text-sm">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">สรุปยอดเงิน</p>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">ยอดคาดหวัง</span>
+                  <span className="font-semibold tabular-nums">{formatThaiMoney(expectedCash)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">นับจริง</span>
+                  <span className="font-semibold tabular-nums">{formatThaiMoney(closeBalanceNum)}</span>
+                </div>
+                <div className={`flex justify-between border-t pt-1.5 mt-0.5 ${balanceDiff > 0 ? 'text-blue-700' : balanceDiff < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                  <span className="font-semibold">{balanceDiff > 0 ? 'เงินเกิน' : balanceDiff < 0 ? 'เงินขาด' : 'ยอดตรง'}</span>
+                  <span className="font-bold tabular-nums">
+                    {balanceDiff === 0 ? '—' : formatThaiMoney(Math.abs(balanceDiff))}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* ── Paper size selector ── */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground">ขนาดกระดาษสำหรับพิมพ์</p>
+              <div className="flex gap-2">
+                {(['A4', '80mm', '58mm'] as const).map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => { setPaperSize(size); setHasPrinted(false) }}
+                    className={`flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-colors ${
+                      paperSize === size
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:border-blue-400 dark:text-blue-300'
+                        : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Print + Confirm footer ── */}
+            <div className="space-y-2">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setCloseOpen(false)}
-                disabled={closeMutation.isPending}
+                className="w-full gap-2 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                onClick={() => {
+                  const date = format(new Date(), 'yyyy-MM-dd')
+                  const p = new URLSearchParams({
+                    staffName: currentShift?.user.name ?? '',
+                    openedAt: currentShift?.openedAt ?? '',
+                    closedAt: new Date().toISOString(),
+                    openBalance: String(currentShift?.openBalance ?? 0),
+                    closeBalance: String(closeBalanceNum),
+                    expectedBalance: String(expectedCash),
+                    difference: String(balanceDiff),
+                    paper: paperSize,
+                  })
+                  window.open(`/print/daily-close/${date}?${p.toString()}`, '_blank')
+                  setHasPrinted(true)
+                }}
               >
-                ยกเลิก
+                <Printer className="h-4 w-4" />
+                พิมพ์รายงาน ({paperSize})
               </Button>
-              <Button
-                type="submit"
-                variant="destructive"
-                disabled={closeMutation.isPending}
-                className="gap-2"
-              >
-                {closeMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Clock className="h-4 w-4" />
-                )}
-                ยืนยันปิดกะ
-              </Button>
-            </DialogFooter>
+
+              {!hasPrinted && (
+                <p className="text-center text-xs text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  กรุณาพิมพ์รายงานก่อนยืนยันปิดกะ
+                </p>
+              )}
+
+              <DialogFooter className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => { setCloseOpen(false); setHasPrinted(false) }}
+                  disabled={closeMutation.isPending}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={closeMutation.isPending || !hasPrinted}
+                  className="gap-2"
+                  title={!hasPrinted ? 'กรุณาพิมพ์รายงานก่อน' : undefined}
+                >
+                  {closeMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Clock className="h-4 w-4" />
+                  )}
+                  ยืนยันปิดกะ
+                </Button>
+              </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
