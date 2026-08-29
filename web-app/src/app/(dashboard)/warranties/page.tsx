@@ -6,7 +6,7 @@ import { formatDistanceToNow, format, isPast } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
   BadgeCheck, Loader2, ShieldOff, ShieldAlert,
-  ShieldCheck, ChevronLeft, ChevronRight, Plus, Search, X,
+  ShieldCheck, ChevronLeft, ChevronRight, Plus, Search, X, Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -345,12 +345,19 @@ export default function WarrantiesPage() {
                   <WarrantyStatusBadge status={w.status} />
                 </DataTableCell>
                 <DataTableCell className="text-right">
-                  {w.status === 'ACTIVE' && (
-                    <div className="flex items-center gap-1 justify-end">
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์</Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1 justify-end">
+                    {w.repair?.id && (
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100" onClick={() => window.open(`/print/warranty-card/${w.repair!.id}`, '_blank')}>
+                        <Printer className="h-3 w-3 mr-1" />พิมพ์
+                      </Button>
+                    )}
+                    {w.status === 'ACTIVE' && (
+                      <>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์</Button>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
+                      </>
+                    )}
+                  </div>
                 </DataTableCell>
               </DataTableRow>
             ))}
@@ -389,12 +396,19 @@ export default function WarrantiesPage() {
                 <p className="font-medium text-xs">{format(new Date(w.endDate), 'dd/MM/yy', { locale: th })}</p>
               </div>
             </div>
-            {w.status === 'ACTIVE' && (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์รับประกัน</Button>
-                <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-red-500 dark:text-red-400 border-red-200 dark:border-red-800/60" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
-              </div>
-            )}
+            <div className="flex gap-2">
+              {w.repair?.id && (
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => window.open(`/print/warranty-card/${w.repair!.id}`, '_blank')}>
+                  <Printer className="h-3 w-3" />พิมพ์
+                </Button>
+              )}
+              {w.status === 'ACTIVE' && (
+                <>
+                  <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/60" onClick={() => setClaimId(w.id)}>ใช้สิทธิ์</Button>
+                  <Button variant="outline" size="sm" className="flex-1 h-8 text-xs text-red-500 dark:text-red-400 border-red-200 dark:border-red-800/60" onClick={() => setVoidId(w.id)}>ยกเลิก</Button>
+                </>
+              )}
+            </div>
           </div>
         ))}
       </div>
