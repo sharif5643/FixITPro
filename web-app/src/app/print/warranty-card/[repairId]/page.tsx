@@ -1,6 +1,7 @@
 'use client'
 
-import { use, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
+import { useParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -24,8 +25,8 @@ function fmtDate(d: string) {
   return format(new Date(d), 'd MMM yyyy', { locale: th })
 }
 
-export default function WarrantyCardPage({ params }: { params: Promise<{ repairId: string }> }) {
-  const { repairId } = use(params)
+export default function WarrantyCardPage() {
+  const { repairId } = useParams<{ repairId: string }>()
   const printedRef   = useRef(false)
 
   const { data: repair } = useQuery<Repair>({
