@@ -22,6 +22,7 @@ import {
   CalendarDays,
   TrendingUp,
   X,
+  Printer,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -405,9 +406,32 @@ export default function ShiftsPage() {
               <CheckCircle2 className="h-4 w-4" />
               ผลการปิดกะ
             </div>
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-900" onClick={() => setCloseResult(null)}>
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 h-8 text-xs"
+                onClick={() => {
+                  const date = closeResult.closedAt.slice(0, 10)
+                  const p = new URLSearchParams({
+                    staffName:       closeResult.user.name,
+                    openedAt:        closeResult.openedAt,
+                    closedAt:        closeResult.closedAt,
+                    openBalance:     String(closeResult.openBalance),
+                    closeBalance:    String(closeResult.summary.actualBalance),
+                    expectedBalance: String(closeResult.summary.expectedBalance),
+                    difference:      String(closeResult.summary.difference),
+                  })
+                  window.open(`/print/daily-close/${date}?${p.toString()}`, '_blank')
+                }}
+              >
+                <Printer className="h-3.5 w-3.5" />
+                พิมพ์รายงาน
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-900" onClick={() => setCloseResult(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <p className="text-xs text-slate-500">
             ปิดเมื่อ {fmtDateTime(closeResult.closedAt)} · พนักงาน: {closeResult.user.name}
