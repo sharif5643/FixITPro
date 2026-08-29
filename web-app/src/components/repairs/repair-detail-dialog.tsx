@@ -1084,7 +1084,16 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               {/* Warranty display */}
               {repair.warrantyExpiresAt && (
                 <div className="rounded-xl border border-green-200 dark:border-green-700/40 bg-green-50 dark:bg-green-900/10 p-3 text-sm space-y-0.5">
-                  <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">การรับประกัน</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase tracking-wide">การรับประกัน</p>
+                    <button
+                      onClick={() => window.open(`/print/warranty-card/${repair.id}`, '_blank')}
+                      className="flex items-center gap-1 text-[11px] font-medium text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors"
+                    >
+                      <Printer className="h-3 w-3" />
+                      พิมพ์ใบประกัน
+                    </button>
+                  </div>
                   <p className="font-medium text-green-800 dark:text-green-300">หมดประกัน: {fmtDate(repair.warrantyExpiresAt)}</p>
                   {repair.warrantyNote && <p className="text-xs text-green-600 dark:text-green-400">{repair.warrantyNote}</p>}
                 </div>

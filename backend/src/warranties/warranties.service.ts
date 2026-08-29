@@ -143,6 +143,7 @@ export class WarrantiesService {
     status?: string;
     sourceType?: string;
     customerId?: string;
+    repairId?: string;
     page?: string;
     limit?: string;
   }, tenantId?: string | null) {
@@ -154,6 +155,7 @@ export class WarrantiesService {
     if (query.status)     where.status     = query.status;
     if (query.sourceType) where.sourceType = query.sourceType;
     if (query.customerId) where.customerId = query.customerId;
+    if (query.repairId)   where.repairId   = query.repairId;
 
     if (query.search) {
       const s = query.search.trim();
