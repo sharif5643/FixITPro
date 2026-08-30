@@ -7,13 +7,11 @@ ALTER TABLE "PackageSale"
   ADD COLUMN IF NOT EXISTS "saleType" "PackageSaleType" NOT NULL DEFAULT 'PROMO';
 
 -- Register package_sales module in AppModule table
-INSERT INTO "AppModule" ("key", "name", "description", "isActive", "createdAt", "updatedAt")
+INSERT INTO "AppModule" ("key", "name", "description", "isActive")
 VALUES (
   'package_sales',
   'ขายซิม / แพ็กเกจ',
   'ระบบบันทึกการขายซิมการ์ดและแพ็กเกจอินเทอร์เน็ต',
-  true,
-  NOW(),
-  NOW()
+  true
 )
 ON CONFLICT ("key") DO NOTHING;
