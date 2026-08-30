@@ -367,7 +367,8 @@ export class RepairsService {
         'WAITING_APPROVAL': ['APPROVED'],
         'APPROVED':         ['WAITING_PARTS', 'IN_PROGRESS'],
         'WAITING_PARTS':    ['IN_PROGRESS'],
-        'IN_PROGRESS':      ['QC_PENDING', 'WAITING_PARTS', 'COMPLETED'],
+        'IN_PROGRESS':      ['WAITING_APPROVAL', 'QC_PENDING', 'WAITING_PARTS', 'COMPLETED'],
+        // IN_PROGRESS→WAITING_APPROVAL: re-estimate mid-repair (changed repair approach)
         // IN_PROGRESS→QC_PENDING: tech marks done, QC officer must verify
         // IN_PROGRESS→COMPLETED: fallback for shops not enforcing QC workflow
         'QC_PENDING':       ['IN_PROGRESS'],

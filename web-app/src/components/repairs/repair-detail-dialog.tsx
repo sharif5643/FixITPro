@@ -173,6 +173,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [payMethod, setPayMethod] = useState<'CASH' | 'TRANSFER' | 'CARD'>('CASH')
   const [payAmount, setPayAmount] = useState('')
   const [payWarrantyDays, setPayWarrantyDays] = useState('30')
+  const [payFinalCost, setPayFinalCost] = useState('')
   // Reverse payment dialog
   const [reverseOpen, setReverseOpen] = useState(false)
   const [reverseReason, setReverseReason] = useState('')
@@ -216,6 +217,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       const deposit = Number(repair.deposit ?? 0)
       const balance = Math.max(0, total - deposit)
       setPayMethod('CASH')
+      setPayFinalCost(total > 0 ? String(total) : '')
       setPayAmount(String(balance))
       setPayWarrantyDays('30')
     }
@@ -307,7 +309,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   })
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays?: number; allowPartial?: boolean }) =>
+    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays?: number; allowPartial?: boolean; finalCost?: number }) =>
       api.post(`/repairs/${repairId}/payment`, data),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
@@ -409,6 +411,17 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
     })
   }
 
+  if (!repairId) return null
+
+  // Payment calculation — payFinalCost overrides estimatedTotal when set
+  const repairEstimate = repair ? Number(repair.estimatedTotal ?? repair.estimateCost ?? 0) : 0
+  const payFinalCostNum = Number(payFinalCost) || repairEstimate
+  const repairTotal = payFinalCostNum
+  const repairDeposit = repair ? Number(repair.deposit ?? 0) : 0
+  const repairBalance = Math.max(0, repairTotal - repairDeposit)
+  const payAmountNum = Number(payAmount) || 0
+  const payChange = payAmountNum - repairBalance
+
   const handlePayment = (allowPartial = false) => {
     const amount = Number(payAmount)
     if (!amount || amount < 0) {
@@ -421,17 +434,9 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       amountPaid: amount,
       warrantyDays: wDays > 0 ? wDays : 0,
       allowPartial,
+      ...(payFinalCostNum !== repairEstimate ? { finalCost: payFinalCostNum } : {}),
     })
   }
-
-  if (!repairId) return null
-
-  // Payment calculation
-  const repairTotal = repair ? Number(repair.estimatedTotal ?? repair.estimateCost ?? 0) : 0
-  const repairDeposit = repair ? Number(repair.deposit ?? 0) : 0
-  const repairBalance = Math.max(0, repairTotal - repairDeposit)
-  const payAmountNum = Number(payAmount) || 0
-  const payChange = payAmountNum - repairBalance
 
   return (
     <>
@@ -1284,10 +1289,37 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Final cost override */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                ค่าซ่อมจริง (บาท)
+                <span className="text-xs font-normal text-muted-foreground">— แก้ไขราคาได้ก่อนรับเงิน</span>
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={payFinalCost}
+                onChange={(e) => {
+                  setPayFinalCost(e.target.value)
+                  const newTotal = Number(e.target.value) || repairEstimate
+                  const newBalance = Math.max(0, newTotal - repairDeposit)
+                  setPayAmount(String(newBalance))
+                }}
+                className="h-12 text-xl font-bold text-center tabular-nums"
+              />
+              {repairEstimate > 0 && Number(payFinalCost) !== repairEstimate && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  ราคาประเมินเดิม {formatThaiMoney(repairEstimate)} — ราคานี้จะบันทึกแทน
+                </p>
+              )}
+            </div>
+
             {/* Cost breakdown */}
             <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 p-4 space-y-2 text-sm">
               <div className="flex justify-between text-muted-foreground">
-                <span>ค่าซ่อมรวม</span>
+                <span>ค่าซ่อมจริง</span>
                 <span className="tabular-nums">{formatThaiMoney(repairTotal)}</span>
               </div>
               {repairDeposit > 0 && (
