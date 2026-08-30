@@ -1,7 +1,7 @@
 'use client'
 
-import { use, useEffect, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useEffect, useRef } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -77,9 +77,9 @@ function Row({ label, value, bold, sub, red }: {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function DailyClosePrintPage({ params }: { params: Promise<{ date: string }> }) {
-  const { date }       = use(params)
-  const searchParams   = useSearchParams()
+export default function DailyClosePrintPage() {
+  const { date }     = useParams<{ date: string }>()
+  const searchParams = useSearchParams()
   const autoPrintFired = useRef(false)
 
   // Shift data from query params (passed by shifts page on close)
