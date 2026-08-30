@@ -30,9 +30,10 @@ export class CarrierWalletService {
 
   // ── Package sale ──────────────────────────────────────────────────────────────
 
-  async createPackageSale(dto: PackageSaleDto, userId: string) {
+  async createPackageSale(dto: PackageSaleDto & { saleType?: string }, userId: string) {
     const walletDeduction = Math.round(dto.packageAmount * DEDUCTION_RATE * 100) / 100;
     const profit          = Math.round(dto.packageAmount * PROFIT_RATE * 100) / 100;
+    const saleType        = (dto.saleType as any) ?? 'PROMO';
     const change          = dto.paymentMethod === 'CASH'
       ? Math.max(0, dto.amountPaid - dto.packageAmount)
       : 0;
@@ -91,6 +92,7 @@ export class CarrierWalletService {
         data: {
           receiptNumber,
           carrier:         dto.carrier as any,
+          saleType,
           packageAmount:   dto.packageAmount,
           walletDeduction,
           profit,
@@ -161,6 +163,98 @@ export class CarrierWalletService {
 
       return { carrier: dto.carrier, balance: newBalance };
     });
+  }
+
+  // ── SIM card sale (no carrier wallet deduction) ───────────────────────────────
+
+  async createSimSale(
+    dto: {
+      carrier: string;
+      packageAmount: number; // selling price
+      costPrice: number;     // what shop paid (walletDeduction field)
+      paymentMethod: string;
+      amountPaid: number;
+      phoneNumber?: string;
+      note?: string;
+      shiftId?: string;
+      cashierName: string;
+    },
+    userId: string,
+  ) {
+    const profit = Math.round((dto.packageAmount - dto.costPrice) * 100) / 100;
+    const change = dto.paymentMethod === 'CASH'
+      ? Math.max(0, dto.amountPaid - dto.packageAmount)
+      : 0;
+
+    return this.prisma.$transaction(async (tx) => {
+      const receiptNumber = await this.generateReceiptNumber(tx);
+      const sale = await tx.packageSale.create({
+        data: {
+          receiptNumber,
+          carrier:         dto.carrier as any,
+          saleType:        'SIM_SALE' as any,
+          packageAmount:   dto.packageAmount,
+          walletDeduction: dto.costPrice,
+          profit,
+          phoneNumber:     dto.phoneNumber ?? null,
+          note:            dto.note ?? null,
+          paymentMethod:   dto.paymentMethod as any,
+          amountPaid:      dto.amountPaid,
+          change,
+          cashierName:     dto.cashierName,
+          shiftId:         dto.shiftId ?? null,
+          createdById:     userId,
+        },
+      });
+
+      this.logger.log(
+        `SimSale carrier=${dto.carrier} sellPrice=${dto.packageAmount} cost=${dto.costPrice} profit=${profit} receipt=${receiptNumber}`,
+      );
+
+      return {
+        ...sale,
+        packageAmount:   Number(sale.packageAmount),
+        walletDeduction: Number(sale.walletDeduction),
+        profit:          Number(sale.profit),
+        amountPaid:      Number(sale.amountPaid),
+        change:          Number(sale.change),
+      };
+    });
+  }
+
+  // ── Package sales listing with filter ─────────────────────────────────────────
+
+  async listPackageSales(opts: {
+    startDate?: string;
+    endDate?: string;
+    carrier?: string;
+    saleType?: string;
+    take?: number;
+  }) {
+    const where: any = {};
+    if (opts.carrier) where.carrier = opts.carrier;
+    if (opts.saleType) where.saleType = opts.saleType;
+    if (opts.startDate || opts.endDate) {
+      where.createdAt = {};
+      if (opts.startDate) where.createdAt.gte = new Date(`${opts.startDate}T00:00:00+07:00`);
+      if (opts.endDate)   where.createdAt.lt  = new Date(`${opts.endDate}T00:00:00+07:00`);
+    }
+
+    const rows = await this.prisma.packageSale.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: opts.take ?? 200,
+      include: { createdBy: { select: { name: true } } },
+    });
+
+    return rows.map((r) => ({
+      ...r,
+      packageAmount:   Number(r.packageAmount),
+      walletDeduction: Number(r.walletDeduction),
+      profit:          Number(r.profit),
+      amountPaid:      Number(r.amountPaid),
+      change:          Number(r.change),
+    }));
   }
 
   // ── Opening balance (called by ShiftsService on openShift) ───────────────────

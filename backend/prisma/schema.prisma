@@ -146,6 +146,13 @@ enum Carrier {
   NT
 }
 
+enum PackageSaleType {
+  SIM_SALE
+  PROMO
+  TOPUP
+  BUNDLE
+}
+
 enum WalletMovementType {
   OPENING
   TOPUP
@@ -1309,11 +1316,12 @@ model Expense {
 }
 
 model PackageSale {
-  id              String        @id @default(cuid())
-  receiptNumber   String        @unique
+  id              String          @id @default(cuid())
+  receiptNumber   String          @unique
   carrier         Carrier
-  packageAmount   Decimal       @db.Decimal(10, 2)
-  walletDeduction Decimal       @db.Decimal(10, 2)
+  saleType        PackageSaleType @default(PROMO)
+  packageAmount   Decimal         @db.Decimal(10, 2)
+  walletDeduction Decimal         @db.Decimal(10, 2)
   profit          Decimal       @db.Decimal(10, 2)
   phoneNumber     String?
   note            String?
