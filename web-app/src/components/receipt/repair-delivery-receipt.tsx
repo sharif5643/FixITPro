@@ -26,13 +26,15 @@ const PM: Record<string, string> = {
 // ── Shared calculation ───────────────────────────────────────────────────────────
 
 function calcDelivery(repair: Repair) {
-  const finalCost  = Number(repair.finalCost ?? repair.estimatedTotal ?? repair.estimateCost ?? 0)
-  const deposit    = Number(repair.deposit ?? 0)
-  const remaining  = Math.max(0, finalCost - deposit)
-  const paidAmount = Number(repair.paidAmount ?? 0)
-  const change     = Math.max(0, paidAmount - remaining)
+  const finalCost    = Number(repair.finalCost ?? repair.estimatedTotal ?? repair.estimateCost ?? 0)
+  const deposit      = Number(repair.deposit ?? 0)
+  const remaining    = Math.max(0, finalCost - deposit)  // total balance due after deposit
+  const paidAmount   = Number(repair.paidAmount ?? 0)
+  const change       = Math.max(0, paidAmount - remaining)
   const chargedParts = (repair.parts ?? []).filter(p => !p.isVoided && p.chargeToCustomer)
-  return { finalCost, deposit, remaining, paidAmount, change, chargedParts }
+  const isPartial    = (repair as any).paymentStatus === 'PARTIAL'
+  const outstanding  = isPartial ? Math.max(0, remaining - paidAmount) : 0
+  return { finalCost, deposit, remaining, paidAmount, change, chargedParts, isPartial, outstanding }
 }
 
 // ── Thermal layout (58mm / 80mm) ─────────────────────────────────────────────────
@@ -48,7 +50,7 @@ function ThermalDeliveryReceipt({ repair, paperWidth, settings, copyType }: {
   const shopPhone     = settings?.shopPhone    || ''
   const receiptFooter = settings?.receiptFooter || 'ขอบคุณที่ใช้บริการ'
 
-  const { finalCost, deposit, remaining, paidAmount, change, chargedParts } = calcDelivery(repair)
+  const { finalCost, deposit, remaining, paidAmount, change, chargedParts, isPartial, outstanding } = calcDelivery(repair)
   const payLabel = PM[repair.paymentMethod ?? ''] ?? repair.paymentMethod ?? ''
   const dateStr  = fmtDate(repair.paidAt ?? repair.deliveredAt ?? new Date().toISOString())
 
@@ -67,7 +69,9 @@ function ThermalDeliveryReceipt({ repair, paperWidth, settings, copyType }: {
         {shopPhone && <p className="text-[9px]">โทร: {shopPhone}</p>}
       </div>
       <Divider />
-      <p className="text-center font-bold text-[11px]">ใบเสร็จรับเงิน</p>
+      <p className="text-center font-bold text-[11px]">
+        {isPartial ? 'ใบรับชำระบางส่วน' : 'ใบเสร็จรับเงิน'}
+      </p>
       <p className="text-center text-[9px]">ส่งมอบอุปกรณ์</p>
       {copyType && (
         <p className="text-center text-[8px] text-gray-500 mt-0.5">
@@ -103,12 +107,25 @@ function ThermalDeliveryReceipt({ repair, paperWidth, settings, copyType }: {
       <Row label="ค่าซ่อมรวม" value={`฿${finalCost.toLocaleString('th-TH')}`} />
       {deposit > 0 && <Row label="มัดจำชำระแล้ว" value={`-฿${deposit.toLocaleString('th-TH')}`} />}
       <div className="flex justify-between gap-1 text-[11px] font-bold mt-0.5">
-        <span>ยอดชำระ</span>
+        <span>ยอดทั้งหมด</span>
         <span className="tabular-nums">฿{remaining.toLocaleString('th-TH')}</span>
       </div>
       <Divider />
-      <Row label={payLabel} value={`฿${paidAmount.toLocaleString('th-TH')}`} />
+      <Row label={`รับ${isPartial ? 'ครั้งนี้' : ''} (${payLabel})`} value={`฿${paidAmount.toLocaleString('th-TH')}`} />
       {change > 0 && <Row label="เงินทอน" value={`฿${change.toLocaleString('th-TH')}`} />}
+
+      {isPartial && (
+        <>
+          <Divider />
+          <div className="border border-black px-1.5 py-1 my-0.5">
+            <div className="flex justify-between gap-1 text-[11px] font-bold">
+              <span>*** ยังค้างชำระ</span>
+              <span className="tabular-nums">฿{outstanding.toLocaleString('th-TH')} ***</span>
+            </div>
+            <p className="text-[8px] text-center mt-0.5">กรุณานำใบนี้มาแสดงเมื่อมาชำระ</p>
+          </div>
+        </>
+      )}
 
       {repair.warrantyExpiresAt && (
         <>
@@ -135,7 +152,7 @@ function A4DeliveryReceipt({ repair, settings, copyType }: {
   const shopPhone     = settings?.shopPhone    || ''
   const receiptFooter = settings?.receiptFooter || 'ขอบคุณที่ใช้บริการ'
 
-  const { finalCost, deposit, remaining, paidAmount, change, chargedParts } = calcDelivery(repair)
+  const { finalCost, deposit, remaining, paidAmount, change, chargedParts, isPartial, outstanding } = calcDelivery(repair)
   const payLabel = PM[repair.paymentMethod ?? ''] ?? repair.paymentMethod ?? ''
   const dateStr  = fmtDate(repair.paidAt ?? repair.deliveredAt ?? new Date().toISOString())
 
@@ -148,7 +165,9 @@ function A4DeliveryReceipt({ repair, settings, copyType }: {
           {shopPhone && <p className="text-slate-500 text-sm mt-0.5">โทร: {shopPhone}</p>}
         </div>
         <div className="text-right">
-          <h2 className="text-xl font-bold text-slate-900">ใบเสร็จรับเงิน</h2>
+          <h2 className="text-xl font-bold text-slate-900">
+            {isPartial ? 'ใบรับชำระบางส่วน' : 'ใบเสร็จรับเงิน'}
+          </h2>
           <p className="text-slate-500 text-sm">ส่งมอบอุปกรณ์</p>
           {copyType && (
             <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600">
@@ -228,11 +247,11 @@ function A4DeliveryReceipt({ repair, settings, copyType }: {
           </div>
         )}
         <div className="flex justify-between font-bold text-base border-t border-slate-200 pt-2 mt-1">
-          <span>ยอดชำระ</span>
+          <span>ยอดทั้งหมด</span>
           <span className="tabular-nums text-blue-700">{formatThaiMoney(remaining)}</span>
         </div>
         <div className="flex justify-between text-slate-600 border-t border-slate-100 pt-2">
-          <span>{payLabel}</span>
+          <span>รับ{isPartial ? 'ครั้งนี้' : ''} ({payLabel})</span>
           <span className="tabular-nums">{formatThaiMoney(paidAmount)}</span>
         </div>
         {change > 0 && (
@@ -241,7 +260,20 @@ function A4DeliveryReceipt({ repair, settings, copyType }: {
             <span className="tabular-nums">{formatThaiMoney(change)}</span>
           </div>
         )}
+        {isPartial && (
+          <div className="flex justify-between font-bold text-base border-t-2 border-red-200 pt-2 mt-1 bg-red-50 -mx-4 px-4 py-2 rounded-b-xl">
+            <span className="text-red-700">ยังค้างชำระ</span>
+            <span className="tabular-nums text-red-700">{formatThaiMoney(outstanding)}</span>
+          </div>
+        )}
       </div>
+
+      {isPartial && (
+        <div className="mb-6 p-3 bg-amber-50 border-2 border-amber-300 rounded-xl text-center">
+          <p className="font-bold text-amber-800 text-sm">กรุณานำใบนี้มาแสดงเมื่อมาชำระยอดที่เหลือ</p>
+          <p className="text-amber-600 text-xs mt-0.5">ยอดค้าง {formatThaiMoney(outstanding)} — {repair.ticketNumber}</p>
+        </div>
+      )}
 
       {/* Warranty */}
       {repair.warrantyExpiresAt && (
