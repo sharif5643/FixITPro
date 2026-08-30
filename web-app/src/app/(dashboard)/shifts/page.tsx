@@ -882,6 +882,7 @@ export default function ShiftsPage() {
                   <DataTableHeadCell right>ยอดปิด</DataTableHeadCell>
                   <DataTableHeadCell>หมายเหตุ</DataTableHeadCell>
                   <DataTableHeadCell className="text-center">สถานะ</DataTableHeadCell>
+                  <DataTableHeadCell className="text-center"></DataTableHeadCell>
                 </DataTableHead>
                 <DataTableBody>
                   {history.map((shift) => (
@@ -897,6 +898,27 @@ export default function ShiftsPage() {
                           ? <span className="rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-semibold">กำลังเปิด</span>
                           : <span className="rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-2.5 py-0.5 text-[10px] font-semibold">ปิดแล้ว</span>
                         }
+                      </DataTableCell>
+                      <DataTableCell className="text-center">
+                        <button
+                          onClick={() => {
+                            const date = format(new Date(shift.openedAt), 'yyyy-MM-dd')
+                            const p = new URLSearchParams({
+                              staffName: shift.user.name,
+                              openedAt: shift.openedAt,
+                              closedAt: shift.closedAt ?? '',
+                              openBalance: String(shift.openBalance),
+                              closeBalance: String(shift.closeBalance ?? ''),
+                              paper: '80mm',
+                            })
+                            window.open(`/print/daily-close/${date}?${p.toString()}`, '_blank')
+                          }}
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded px-1.5 py-1 transition-colors"
+                          title="พิมพ์รายงานกะนี้"
+                        >
+                          <Printer className="h-3 w-3" />
+                          พิมพ์
+                        </button>
                       </DataTableCell>
                     </DataTableRow>
                   ))}
@@ -929,6 +951,24 @@ export default function ShiftsPage() {
                     </div>
                   </div>
                   {shift.note && <p className="text-xs text-slate-400">{shift.note}</p>}
+                  <button
+                    onClick={() => {
+                      const date = format(new Date(shift.openedAt), 'yyyy-MM-dd')
+                      const p = new URLSearchParams({
+                        staffName: shift.user.name,
+                        openedAt: shift.openedAt,
+                        closedAt: shift.closedAt ?? '',
+                        openBalance: String(shift.openBalance),
+                        closeBalance: String(shift.closeBalance ?? ''),
+                        paper: '80mm',
+                      })
+                      window.open(`/print/daily-close/${date}?${p.toString()}`, '_blank')
+                    }}
+                    className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-200 hover:bg-blue-50 rounded-lg px-3 py-1.5 w-full justify-center transition-colors"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    พิมพ์รายงานกะนี้
+                  </button>
                 </div>
               ))}
             </div>
