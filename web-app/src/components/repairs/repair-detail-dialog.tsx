@@ -1047,6 +1047,15 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     )}
                     <Button
                       size="sm"
+                      variant="outline"
+                      className="w-full gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-400"
+                      onClick={() => window.open(`/print/delivery/${repair.id}?paper=80mm`, '_blank')}
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      พิมพ์ใบรับชำระบางส่วน
+                    </Button>
+                    <Button
+                      size="sm"
                       className="w-full gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
                       onClick={() => setAddPayOpen(true)}
                       disabled={!currentShift}
