@@ -11,29 +11,26 @@ import { Loader2, Printer, X } from 'lucide-react'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types matching actual backend response from getDailyClosingReport ─────────
 
 interface DailyReport {
   date: string
-  sales: {
-    count: number
-    totalRevenue: number
-    totalDiscount: number
-    paymentBreakdown: Record<string, number>
+  revenue: {
+    pos:      { total: number; count: number; breakdown: Record<string, number> }
+    repairs:  { total: number; count: number; breakdown: Record<string, number> }
+    packages: { total: number; amount: number; count: number }
+    voided:   { total: number; count: number }
+    cash:     number
+    transfer: number
+    card:     number
+    grandTotal: number
   }
-  voidedSales: { count: number; totalAmount: number }
-  packageSales: { count: number; totalPackageAmount: number; totalProfit: number }
-  repairPayments: {
-    count: number
-    totalRevenue: number
-    paymentBreakdown: Record<string, number>
-  }
-  repairs: { count: number; byStatus: Record<string, number> }
-  supplierPayments: {
-    count: number
-    totalAmount: number
-    paymentBreakdown: Record<string, number>
-  }
+  sales:          { items: unknown[]; count: number }
+  voidedSales:    { items: unknown[]; count: number }
+  repairPayments: { items: unknown[]; count: number }
+  packageSales:   { items: unknown[]; count: number }
+  repairSummary:  { new: number; byStatus: Record<string, number>; overdue: number }
+  expenses:       { items: unknown[]; count: number; totalAmount: number }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,6 +102,7 @@ export default function DailyClosePrintPage() {
     queryFn:  () => api.get(`/reports/daily-closing?date=${date}`).then(r => r.data),
     staleTime: 300_000,
     retry: 1,
+    enabled: !!date,
   })
 
   const { data: settings } = useQuery<ShopSettings>({
@@ -118,6 +116,7 @@ export default function DailyClosePrintPage() {
 
   // Inject @page CSS based on paper size
   useEffect(() => {
+    if (!mounted) return
     const style = document.createElement('style')
     style.id = 'print-page-size'
     if (paper === '80mm') {
@@ -147,7 +146,7 @@ export default function DailyClosePrintPage() {
     }
     document.head.appendChild(style)
     return () => { style.remove() }
-  }, [paper])
+  }, [paper, mounted])
 
   // Auto-print
   useEffect(() => {
@@ -177,20 +176,30 @@ export default function DailyClosePrintPage() {
   const shopAddress = settings?.shopAddress ?? ''
   const shopPhone   = settings?.shopPhone   ?? ''
 
-  // ── Computed totals ──
-  const totalRevenue  = report.sales.totalRevenue + report.repairPayments.totalRevenue + report.packageSales.totalProfit
-  const totalExpenses = report.supplierPayments.totalAmount
+  // ── Map backend response to display values ──
+  const rev = report.revenue ?? {}
+  const posBreakdown     = rev.pos?.breakdown     ?? {}
+  const repairsBreakdown = rev.repairs?.breakdown  ?? {}
+
+  const salesCount          = report.sales?.count              ?? 0
+  const salesTotalRevenue   = rev.pos?.total                   ?? 0
+  const repairCount         = report.repairPayments?.count     ?? 0
+  const repairTotalRevenue  = rev.repairs?.total               ?? 0
+  const packageCount        = report.packageSales?.count       ?? 0
+  const packageTotalProfit  = rev.packages?.total              ?? 0
+
+  const totalRevenue  = salesTotalRevenue + repairTotalRevenue + packageTotalProfit
+  const totalExpenses = report.expenses?.totalAmount           ?? 0
   const netIncome     = totalRevenue - totalExpenses
 
-  // Combined payment breakdown (sales + repairs)
+  // Combined cash income (pre-computed by backend)
+  const cashIncome = rev.cash ?? 0
+
   const allPayMethods = ['CASH', 'TRANSFER', 'CARD']
-  const combinedIn: Record<string, number> = {}
-  for (const m of allPayMethods) {
-    combinedIn[m] = (report.sales.paymentBreakdown[m] ?? 0) + (report.repairPayments.paymentBreakdown[m] ?? 0)
-  }
 
   // Repair status summary
-  const repairStatuses = Object.entries(report.repairs.byStatus).filter(([, v]) => v > 0)
+  const byStatus      = report.repairSummary?.byStatus ?? {}
+  const repairStatuses = Object.entries(byStatus).filter(([, v]) => v > 0)
 
   if (isThermal) {
     return (
@@ -222,9 +231,9 @@ export default function DailyClosePrintPage() {
 
           {/* Revenue rows */}
           {[
-            { label: `ยอดขาย (${report.sales.count} บิล)`, val: report.sales.totalRevenue },
-            { label: `ค่าซ่อม (${report.repairPayments.count} งาน)`, val: report.repairPayments.totalRevenue, show: report.repairPayments.count > 0 },
-            { label: `Package (${report.packageSales.count})`, val: report.packageSales.totalProfit, show: report.packageSales.count > 0 },
+            { label: `ยอดขาย (${salesCount} บิล)`, val: salesTotalRevenue },
+            { label: `ค่าซ่อม (${repairCount} งาน)`, val: repairTotalRevenue, show: repairCount > 0 },
+            { label: `Package (${packageCount})`, val: packageTotalProfit, show: packageCount > 0 },
           ].filter(r => r.show !== false).map(r => (
             <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
               <span>{r.label}</span><span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(r.val)}</span>
@@ -247,7 +256,7 @@ export default function DailyClosePrintPage() {
                 <span>ยอดที่ควรมี</span><span>{fmt(expectedBalance)}</span>
               </div>
             )}
-            {closeBalance > 0 && (
+            {closeBalance !== 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
                 <span>นับจริง</span><span>{fmt(closeBalance)}</span>
               </div>
@@ -333,27 +342,24 @@ export default function DailyClosePrintPage() {
         <table className="w-full text-sm border-collapse mb-4">
           <tbody>
             {/* Sales */}
-            <Row label={`ยอดขายสินค้า (${report.sales.count} บิล)`} value={`${fmt(report.sales.totalRevenue)} บาท`} />
-            {allPayMethods.filter(m => (report.sales.paymentBreakdown[m] ?? 0) > 0).map(m => (
-              <Row key={`sale-${m}`} label={PAY_LABEL[m] ?? m} value={`${fmt(report.sales.paymentBreakdown[m])} บาท`} sub />
+            <Row label={`ยอดขายสินค้า (${salesCount} บิล)`} value={`${fmt(salesTotalRevenue)} บาท`} />
+            {allPayMethods.filter(m => (posBreakdown[m] ?? 0) > 0).map(m => (
+              <Row key={`sale-${m}`} label={PAY_LABEL[m] ?? m} value={`${fmt(posBreakdown[m])} บาท`} sub />
             ))}
-            {report.sales.totalDiscount > 0 && (
-              <Row label="ส่วนลดสินค้า" value={`(${fmt(report.sales.totalDiscount)}) บาท`} sub />
-            )}
 
             {/* Repairs */}
-            {report.repairPayments.count > 0 && (
+            {repairCount > 0 && (
               <>
-                <Row label={`ค่าซ่อม (${report.repairPayments.count} งาน)`} value={`${fmt(report.repairPayments.totalRevenue)} บาท`} />
-                {allPayMethods.filter(m => (report.repairPayments.paymentBreakdown[m] ?? 0) > 0).map(m => (
-                  <Row key={`rep-${m}`} label={PAY_LABEL[m] ?? m} value={`${fmt(report.repairPayments.paymentBreakdown[m])} บาท`} sub />
+                <Row label={`ค่าซ่อม (${repairCount} งาน)`} value={`${fmt(repairTotalRevenue)} บาท`} />
+                {allPayMethods.filter(m => (repairsBreakdown[m] ?? 0) > 0).map(m => (
+                  <Row key={`rep-${m}`} label={PAY_LABEL[m] ?? m} value={`${fmt(repairsBreakdown[m])} บาท`} sub />
                 ))}
               </>
             )}
 
             {/* Package sales */}
-            {report.packageSales.count > 0 && (
-              <Row label={`Package/ซิม (${report.packageSales.count} รายการ)`} value={`${fmt(report.packageSales.totalProfit)} บาท`} />
+            {packageCount > 0 && (
+              <Row label={`Package/ซิม (${packageCount} รายการ)`} value={`${fmt(packageTotalProfit)} บาท`} />
             )}
 
             {/* Total revenue */}
@@ -370,10 +376,7 @@ export default function DailyClosePrintPage() {
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">รายจ่าย</p>
             <table className="w-full text-sm border-collapse mb-4">
               <tbody>
-                <Row label={`ชำระซัพพลายเออร์ (${report.supplierPayments.count} รายการ)`} value={`${fmt(totalExpenses)} บาท`} />
-                {allPayMethods.filter(m => (report.supplierPayments.paymentBreakdown[m] ?? 0) > 0).map(m => (
-                  <Row key={`exp-${m}`} label={PAY_LABEL[m] ?? m} value={`${fmt(report.supplierPayments.paymentBreakdown[m])} บาท`} sub />
-                ))}
+                <Row label={`รายจ่าย (${report.expenses?.count ?? 0} รายการ)`} value={`${fmt(totalExpenses)} บาท`} />
                 <tr className="border-t-2 border-slate-800">
                   <td className="py-2 font-bold text-sm">รวมรายจ่าย</td>
                   <td className="py-2 text-right tabular-nums font-bold text-red-600 text-base">{fmt(totalExpenses)} บาท</td>
@@ -392,19 +395,16 @@ export default function DailyClosePrintPage() {
         </div>
 
         {/* ── Section 4: ตรวจเงินสด ── */}
-        {(openedAt || closeBalance > 0) && (
+        {(openedAt || closeBalance !== 0) && (
           <>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">ตรวจนับเงินสด</p>
             <table className="w-full text-sm border-collapse mb-5">
               <tbody>
                 {openBalance > 0 && <Row label="ยอดเงินสดต้นกะ" value={`${fmt(openBalance)} บาท`} />}
-                {combinedIn.CASH > 0 && <Row label="เงินสดรับ (ขาย + ซ่อม)" value={`${fmt(combinedIn.CASH)} บาท`} />}
-                {(report.supplierPayments.paymentBreakdown.CASH ?? 0) > 0 && (
-                  <Row label="เงินสดจ่าย (ซัพพลายเออร์)" value={`(${fmt(report.supplierPayments.paymentBreakdown.CASH)}) บาท`} />
-                )}
+                {cashIncome > 0 && <Row label="เงินสดรับ (ขาย + ซ่อม)" value={`${fmt(cashIncome)} บาท`} />}
                 {expectedBalance > 0 && <Row label="ยอดเงินสดที่ควรมี" value={`${fmt(expectedBalance)} บาท`} />}
-                {closeBalance > 0 && <Row label="นับจริง" value={`${fmt(closeBalance)} บาท`} bold />}
-                {(openedAt || closeBalance > 0) && (
+                {closeBalance !== 0 && <Row label="นับจริง" value={`${fmt(closeBalance)} บาท`} bold />}
+                {(openedAt || closeBalance !== 0) && (
                   <tr className="border-t-2 border-slate-800">
                     <td className="py-2 font-bold text-sm">ส่วนต่าง</td>
                     <td className={`py-2 text-right tabular-nums font-bold text-base ${
@@ -420,9 +420,9 @@ export default function DailyClosePrintPage() {
         )}
 
         {/* ── Section 5: สถานะงานซ่อม ── */}
-        {report.repairs.count > 0 && (
+        {repairStatuses.length > 0 && (
           <>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">สรุปงานซ่อม ({report.repairs.count} งานในวัน)</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">สรุปสถานะงานซ่อมปัจจุบัน</p>
             <div className="flex flex-wrap gap-2 mb-5">
               {repairStatuses.map(([status, count]) => (
                 <div key={status} className="border border-slate-200 rounded px-2.5 py-1 text-xs">
@@ -445,16 +445,16 @@ export default function DailyClosePrintPage() {
           <tbody>
             <tr className="border-t border-slate-200">
               <td className="py-1.5 px-3">ยอดขายสินค้า</td>
-              <td className="py-1.5 px-3 text-right tabular-nums">{fmt(report.sales.totalRevenue)} บาท</td>
+              <td className="py-1.5 px-3 text-right tabular-nums">{fmt(salesTotalRevenue)} บาท</td>
             </tr>
             <tr className="border-t border-slate-200">
               <td className="py-1.5 px-3">ค่าซ่อม</td>
-              <td className="py-1.5 px-3 text-right tabular-nums">{fmt(report.repairPayments.totalRevenue)} บาท</td>
+              <td className="py-1.5 px-3 text-right tabular-nums">{fmt(repairTotalRevenue)} บาท</td>
             </tr>
-            {report.packageSales.count > 0 && (
+            {packageCount > 0 && (
               <tr className="border-t border-slate-200">
                 <td className="py-1.5 px-3">Package/ซิม</td>
-                <td className="py-1.5 px-3 text-right tabular-nums">{fmt(report.packageSales.totalProfit)} บาท</td>
+                <td className="py-1.5 px-3 text-right tabular-nums">{fmt(packageTotalProfit)} บาท</td>
               </tr>
             )}
             {totalExpenses > 0 && (
