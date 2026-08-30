@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -228,9 +228,11 @@ function A5Card({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function WarrantyCardPage() {
-  const { repairId }  = useParams<{ repairId: string }>()
-  const searchParams  = useSearchParams()
-  const initPaper     = (searchParams.get('paper') as PaperWidth) ?? 'A5'
+  const params        = useParams<{ repairId: string }>()
+  const repairId      = params?.repairId ?? ''
+  const initPaper     = (typeof window !== 'undefined'
+    ? (new URLSearchParams(window.location.search).get('paper') as PaperWidth)
+    : null) ?? 'A5'
   const [paper, setPaper] = useState<PaperWidth>(initPaper)
   const printedRef    = useRef(false)
   const isThermal     = paper === '80mm' || paper === '58mm'

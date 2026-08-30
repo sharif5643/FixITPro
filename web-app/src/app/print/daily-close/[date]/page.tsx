@@ -2,8 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useRef } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -80,18 +80,23 @@ function Row({ label, value, bold, sub, red }: {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function DailyClosePrintPage() {
-  const { date }     = useParams<{ date: string }>()
-  const searchParams = useSearchParams()
+  const params       = useParams<{ date: string }>()
+  const date         = params?.date ?? ''
   const autoPrintFired = useRef(false)
 
-  // Shift data from query params (passed by shifts page on close)
-  const staffName       = searchParams.get('staffName')      ?? ''
-  const openedAt        = searchParams.get('openedAt')       ?? ''
-  const closedAt        = searchParams.get('closedAt')       ?? ''
-  const openBalance     = Number(searchParams.get('openBalance')     ?? 0)
-  const closeBalance    = Number(searchParams.get('closeBalance')    ?? 0)
-  const expectedBalance = Number(searchParams.get('expectedBalance') ?? 0)
-  const difference      = Number(searchParams.get('difference')      ?? 0)
+  // Parse query params client-side only (avoids useSearchParams SSR issues)
+  const [qp, setQp] = useState<URLSearchParams>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams()
+  )
+  useEffect(() => { setQp(new URLSearchParams(window.location.search)) }, [])
+
+  const staffName       = qp.get('staffName')      ?? ''
+  const openedAt        = qp.get('openedAt')       ?? ''
+  const closedAt        = qp.get('closedAt')       ?? ''
+  const openBalance     = Number(qp.get('openBalance')     ?? 0)
+  const closeBalance    = Number(qp.get('closeBalance')    ?? 0)
+  const expectedBalance = Number(qp.get('expectedBalance') ?? 0)
+  const difference      = Number(qp.get('difference')      ?? 0)
 
   const { data: report, isLoading, isError } = useQuery<DailyReport>({
     queryKey: ['daily-close-print', date],
@@ -106,7 +111,7 @@ export default function DailyClosePrintPage() {
     staleTime: 60_000,
   })
 
-  const paper = searchParams.get('paper') ?? 'A4'
+  const paper = qp.get('paper') ?? 'A4'
   const isThermal = paper === '80mm' || paper === '58mm'
 
   // Inject @page CSS based on paper size
