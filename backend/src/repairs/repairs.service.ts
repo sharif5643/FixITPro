@@ -844,9 +844,11 @@ export class RepairsService {
     const deposit = Number(repair.deposit ?? 0);
     const balance = Math.max(0, total - deposit);
 
-    if (dto.amountPaid < balance) {
+    const isPartial = dto.allowPartial === true && dto.amountPaid < balance;
+
+    if (!isPartial && dto.amountPaid < balance) {
       throw new BadRequestException(
-        `จำนวนเงินน้อยกว่ายอดค้างชำระ (ต้องชำระอีก ${balance} บาท)`,
+        `จำนวนเงินน้อยกว่ายอดค้างชำระ (ต้องชำระอีก ${balance} บาท) หรือเลือก "ค้างชำระ" เพื่อให้รับเครื่องก่อน`,
       );
     }
 
@@ -857,7 +859,7 @@ export class RepairsService {
       const guard = await tx.repair.updateMany({
         where: { id: repairId, paymentStatus: { not: 'PAID' } },
         data: {
-          paymentStatus: 'PAID',
+          paymentStatus: isPartial ? 'PARTIAL' : 'PAID',
           paymentMethod: dto.paymentMethod as any,
           paidAmount:    dto.amountPaid,
           paidAt:        new Date(),
@@ -1026,7 +1028,12 @@ export class RepairsService {
     if (tenantId) addPayWhere.branch = { tenantId };
     const repair = await this.prisma.repair.findFirst({
       where: addPayWhere,
-      select: { id: true, status: true, branchId: true, ticketNumber: true, branch: { select: { tenantId: true } } },
+      select: {
+        id: true, status: true, branchId: true, ticketNumber: true,
+        paymentStatus: true, finalCost: true, deposit: true, paidAmount: true,
+        branch: { select: { tenantId: true } },
+        additionalPayments: { select: { amount: true } },
+      },
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
@@ -1050,6 +1057,27 @@ export class RepairsService {
           createdById:   userId,
         },
       });
+
+      // Auto-upgrade PARTIAL → PAID when total collected reaches finalCost
+      if (repair.paymentStatus === 'PARTIAL' && repair.finalCost) {
+        const previousAdditional = (repair.additionalPayments ?? []).reduce(
+          (s, p) => s + Number(p.amount), 0
+        );
+        const totalCollected =
+          Number(repair.paidAmount ?? 0) +
+          previousAdditional +
+          dto.amount;
+        const balance = Math.max(
+          0,
+          Number(repair.finalCost) - Number(repair.deposit ?? 0)
+        );
+        if (totalCollected >= balance) {
+          await tx.repair.update({
+            where: { id: repairId },
+            data:  { paymentStatus: 'PAID' },
+          });
+        }
+      }
 
       // Record CASH additional payment in Cash Drawer ledger (IN)
       if (repair.branchId) {
@@ -1472,7 +1500,8 @@ export class RepairsService {
       outstandingAmount: Math.max(
         0,
         Number(r.finalCost ?? 0) -
-        Number(r.deposit  ?? 0) -
+        Number(r.deposit   ?? 0) -
+        Number(r.paidAmount ?? 0) -
         r.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0),
       ),
     }));
@@ -1495,6 +1524,7 @@ export class RepairsService {
         deviceModel:   true,
         finalCost:     true,
         deposit:       true,
+        paidAmount:    true,
         paymentStatus: true,
         deliveredAt:   true,
         customer:      { select: { id: true, name: true, phone: true } },
@@ -1507,8 +1537,9 @@ export class RepairsService {
     const aged = repairs.map((r) => {
       const outstanding = Math.max(
         0,
-        Number(r.finalCost ?? 0) -
-        Number(r.deposit  ?? 0) -
+        Number(r.finalCost  ?? 0) -
+        Number(r.deposit    ?? 0) -
+        Number(r.paidAmount ?? 0) -
         r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0),
       );
       const daysOverdue = r.deliveredAt

@@ -10,7 +10,7 @@ import {
   Plus, Trash2, Package, CheckCircle2, Clock, DollarSign, X,
   Banknote, CreditCard as CardIcon, Smartphone as TransferIcon, Lock,
   Camera, ChevronLeft, ChevronRight, ArrowRightLeft, History, ChevronDown,
-  Pencil, Check,
+  Pencil, Check, AlertTriangle,
 } from 'lucide-react'
 import { PartnerTransferPanel } from '@/components/partner-repair/PartnerTransferPanel'
 import {
@@ -307,15 +307,17 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   })
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays?: number }) =>
+    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays?: number; allowPartial?: boolean }) =>
       api.post(`/repairs/${repairId}/payment`, data),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
       queryClient.invalidateQueries({ queryKey: ['repairs'] })
       queryClient.invalidateQueries({ queryKey: ['daily-report'] })
       queryClient.invalidateQueries({ queryKey: ['shifts', 'current'] })
+      queryClient.invalidateQueries({ queryKey: ['debt'] })
       setPayOpen(false)
-      toast.success('รับเงินสำเร็จ — งานซ่อมส่งคืนแล้ว')
+      const isPartial = res.data?.paymentStatus === 'PARTIAL'
+      toast.success(isPartial ? 'ส่งเครื่องแล้ว — มียอดค้างชำระในหน้าลูกหนี้' : 'รับเงินสำเร็จ — งานซ่อมส่งคืนแล้ว')
       onStatusChange?.()
     },
     onError: (err: any) => {
@@ -407,7 +409,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
     })
   }
 
-  const handlePayment = () => {
+  const handlePayment = (allowPartial = false) => {
     const amount = Number(payAmount)
     if (!amount || amount < 0) {
       toast.error('กรุณาระบุจำนวนเงิน')
@@ -418,6 +420,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       paymentMethod: payMethod,
       amountPaid: amount,
       warrantyDays: wDays > 0 ? wDays : 0,
+      allowPartial,
     })
   }
 
@@ -1013,6 +1016,51 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 </div>
               )}
 
+              {/* ── Partial payment badge (DELIVERED + PARTIAL) ── */}
+              {repair.paymentStatus === 'PARTIAL' && repair.status === 'DELIVERED' && (() => {
+                const additionalSum = (repair.additionalPayments ?? []).reduce((s: number, p: any) => s + Number(p.amount), 0)
+                const totalCollected = Number(repair.paidAmount ?? 0) + additionalSum
+                const outstanding = Math.max(0, Number(repair.finalCost ?? 0) - Number(repair.deposit ?? 0) - totalCollected)
+                return (
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/10 p-4 space-y-2 text-sm">
+                    <div className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400">
+                      <Clock className="h-4 w-4" />
+                      ค้างชำระ — ส่งเครื่องแล้ว
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">รับมาแล้ว</span>
+                      <span className="tabular-nums font-medium text-green-700">{formatThaiMoney(totalCollected)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-amber-100 dark:border-amber-800/60 pt-1.5">
+                      <span className="font-bold text-amber-800 dark:text-amber-300">ยังค้างอยู่</span>
+                      <span className="font-bold tabular-nums text-red-600">{formatThaiMoney(outstanding)}</span>
+                    </div>
+                    {(repair.additionalPayments ?? []).length > 0 && (
+                      <div className="space-y-0.5">
+                        {(repair.additionalPayments as any[]).map((ap) => (
+                          <div key={ap.id} className="flex justify-between text-xs text-muted-foreground">
+                            <span>{fmtDate(ap.createdAt)}</span>
+                            <span className="tabular-nums">+{formatThaiMoney(Number(ap.amount))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <Button
+                      size="sm"
+                      className="w-full gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                      onClick={() => setAddPayOpen(true)}
+                      disabled={!currentShift}
+                    >
+                      <DollarSign className="h-3.5 w-3.5" />
+                      รับชำระส่วนที่เหลือ ({formatThaiMoney(outstanding)})
+                    </Button>
+                    {!currentShift && (
+                      <p className="text-center text-xs text-amber-600">กรุณาเปิดกะก่อนรับเงิน</p>
+                    )}
+                  </div>
+                )
+              })()}
+
               {/* Paid badge */}
               {repair.paymentStatus === 'PAID' && (
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-1.5 text-sm">
@@ -1340,7 +1388,18 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
             </div>
           </div>
 
-          <DialogFooter className="pt-1">
+          {/* Partial payment warning */}
+          {payAmountNum > 0 && payAmountNum < repairBalance && (
+            <div className="mx-6 mb-2 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>
+                ยอดที่รับ <strong>{formatThaiMoney(payAmountNum)}</strong> น้อยกว่ายอดค้าง <strong>{formatThaiMoney(repairBalance)}</strong> — ยังค้างอีก <strong className="text-red-600">{formatThaiMoney(repairBalance - payAmountNum)}</strong>
+                <br />กดปุ่ม "ค้างชำระ" เพื่อส่งเครื่องแล้วบันทึกยอดค้างในหน้าลูกหนี้
+              </span>
+            </div>
+          )}
+
+          <DialogFooter className="pt-1 flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => setPayOpen(false)}
@@ -1348,9 +1407,26 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
             >
               ยกเลิก
             </Button>
+            {payAmountNum > 0 && payAmountNum < repairBalance && (
+              <Button
+                variant="outline"
+                onClick={() => handlePayment(true)}
+                disabled={paymentMutation.isPending}
+                className="gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/20"
+              >
+                {paymentMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Clock className="h-4 w-4" />
+                    ค้างชำระ — รับเครื่องก่อน
+                  </>
+                )}
+              </Button>
+            )}
             <Button
-              onClick={handlePayment}
-              disabled={paymentMutation.isPending || (payMethod === 'CASH' && payChange < 0)}
+              onClick={() => handlePayment(false)}
+              disabled={paymentMutation.isPending || (payAmountNum > 0 && payAmountNum < repairBalance) || (payMethod === 'CASH' && payChange < 0)}
               className="gap-2 bg-green-600 hover:bg-green-700 min-w-[120px]"
             >
               {paymentMutation.isPending ? (

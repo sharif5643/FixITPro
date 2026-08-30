@@ -1,5 +1,5 @@
-import { IsIn, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 
 export class RepairPaymentDto {
   @IsIn(['CASH', 'TRANSFER', 'CARD'])
@@ -28,4 +28,10 @@ export class RepairPaymentDto {
   @Min(0)
   @Max(3_650)
   warrantyDays?: number;
+
+  /** Allow partial payment — device is delivered with balance owed */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  allowPartial?: boolean;
 }
