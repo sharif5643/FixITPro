@@ -6,7 +6,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsEnum, IsNumber, IsOptional, IsString, Min, Max } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, Min, Max, ValidateNested, ArrayMaxSize, ArrayMinSize, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CarrierWalletService } from './carrier-wallet.service';
 import { PackageSaleDto, CarrierEnum } from './dto/package-sale.dto';
@@ -16,6 +16,34 @@ import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+
+class ReconcileEntryDto {
+  @IsEnum(CarrierEnum)
+  carrier: CarrierEnum;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(9_999_999)
+  actualBalance: number;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+class ReconcileDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => ReconcileEntryDto)
+  entries: ReconcileEntryDto[];
+
+  @IsOptional()
+  @IsString()
+  shiftId?: string;
+}
 
 class SimSaleDto {
   @IsEnum(CarrierEnum)
@@ -106,6 +134,16 @@ export class CarrierWalletController {
     @CurrentUser('id') userId: string,
   ) {
     return this.service.createSimSale(dto, userId);
+  }
+
+  @Post('reconcile')
+  @UseGuards(ModuleGuard)
+  @RequireModule('package_sales')
+  reconcile(
+    @Body() dto: ReconcileDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.service.reconcileAtClose(dto.entries, dto.shiftId ?? null, userId);
   }
 
   @Get('package-sales/list')

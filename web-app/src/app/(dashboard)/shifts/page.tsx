@@ -23,6 +23,7 @@ import {
   TrendingUp,
   X,
   Printer,
+  Wifi,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,6 +45,7 @@ import {
 import { formatThaiMoney } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
+import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -124,13 +126,26 @@ const PAYMENT_METHODS = ['CASH', 'TRANSFER', 'CARD'] as const
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const CARRIERS = ['AIS', 'TRUE', 'DTAC', 'NT'] as const
+type Carrier = typeof CARRIERS[number]
+
+const CARRIER_COLORS: Record<Carrier, { bg: string; text: string; border: string }> = {
+  AIS:  { bg: 'bg-red-50 dark:bg-red-900/20',    text: 'text-red-700 dark:text-red-400',    border: 'border-red-200 dark:border-red-800/60'  },
+  TRUE: { bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-400',   border: 'border-blue-200 dark:border-blue-800/60' },
+  DTAC: { bg: 'bg-sky-50 dark:bg-sky-900/20',     text: 'text-sky-700 dark:text-sky-400',     border: 'border-sky-200 dark:border-sky-800/60'  },
+  NT:   { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800/60' },
+}
+
 export default function ShiftsPage() {
   const queryClient = useQueryClient()
+  const { hasModule } = useAuthStore()
   const [closeOpen, setCloseOpen] = useState(false)
   const [closeResult, setCloseResult] = useState<CloseShiftResult | null>(null)
   const [hasPrinted, setHasPrinted] = useState(false)
   const [paperSize, setPaperSize] = useState<'A4' | '80mm' | '58mm'>('80mm')
+  const [walletInputs, setWalletInputs] = useState<Partial<Record<Carrier, string>>>({})
   const { isGlobalMode } = useBranchContext()
+  const showWalletReconcile = hasModule('package_sales')
 
   // ── Queries ──
   const { data: currentShift, isLoading: loadingCurrent } =
@@ -145,6 +160,14 @@ export default function ShiftsPage() {
       queryKey: ['shifts', 'history'],
       queryFn: async () => (await api.get('/shifts')).data,
       staleTime: 60_000,
+    })
+
+  const { data: walletBalances = [] } =
+    useQuery<{ carrier: string; balance: number }[]>({
+      queryKey: ['carrier-wallet', 'balances'],
+      queryFn: async () => (await api.get('/carrier-wallet/balances')).data,
+      staleTime: 30_000,
+      enabled: showWalletReconcile,
     })
 
   // ── Forms ──
@@ -175,7 +198,6 @@ export default function ShiftsPage() {
 
   const closeMutation = useMutation({
     mutationFn: async (data: CloseForm) => {
-      // Always refetch current shift to get the real ID (avoids stale cache)
       const fresh = await queryClient.fetchQuery<{ id: string } | null>({
         queryKey: ['shifts', 'current'],
         queryFn: async () => (await api.get('/shifts/current')).data,
@@ -183,13 +205,26 @@ export default function ShiftsPage() {
       })
       const shiftId = fresh?.id
       if (!shiftId) throw new Error('ไม่พบกะที่เปิดอยู่')
+
+      // Reconcile carrier wallets if any inputs were filled
+      if (showWalletReconcile) {
+        const entries = CARRIERS
+          .filter((c) => walletInputs[c] !== undefined && walletInputs[c] !== '')
+          .map((c) => ({ carrier: c, actualBalance: Number(walletInputs[c]) }))
+        if (entries.length > 0) {
+          await api.post('/carrier-wallet/reconcile', { entries, shiftId })
+        }
+      }
+
       return (await api.post(`/shifts/${shiftId}/close`, data)).data
     },
     onSuccess: (result: CloseShiftResult) => {
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
       queryClient.invalidateQueries({ queryKey: ['daily-report'] })
+      queryClient.invalidateQueries({ queryKey: ['carrier-wallet'] })
       setCloseOpen(false)
       setCloseResult(result)
+      setWalletInputs({})
       closeForm.reset()
       toast.success('ปิดกะสำเร็จ')
     },
@@ -545,10 +580,10 @@ export default function ShiftsPage() {
       <Dialog
         open={closeOpen}
         onOpenChange={(v) => {
-          if (!v && !closeMutation.isPending) { setCloseOpen(false); setHasPrinted(false) }
+          if (!v && !closeMutation.isPending) { setCloseOpen(false); setHasPrinted(false); setWalletInputs({}) }
         }}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-red-500" />
@@ -684,6 +719,59 @@ export default function ShiftsPage() {
                   <span className="font-bold tabular-nums">
                     {balanceDiff === 0 ? '—' : formatThaiMoney(Math.abs(balanceDiff))}
                   </span>
+                </div>
+              </div>
+            )}
+
+            {/* ── Carrier wallet reconciliation (package_sales module only) ── */}
+            {showWalletReconcile && (
+              <div className="rounded-lg border border-slate-200 dark:border-slate-700/60 overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/60">
+                  <Wifi className="h-3.5 w-3.5 text-slate-500" />
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">ตรวจสอบกระเป๋าค่าย (ไม่บังคับ)</p>
+                </div>
+                <div className="divide-y divide-slate-100 dark:divide-slate-700/40">
+                  {CARRIERS.map((carrier) => {
+                    const recorded = walletBalances.find((w) => w.carrier === carrier)?.balance ?? 0
+                    const rawInput = walletInputs[carrier]
+                    const actual   = rawInput !== undefined && rawInput !== '' ? Number(rawInput) : null
+                    const diff     = actual !== null ? Math.round((actual - recorded) * 100) / 100 : null
+                    const clr      = CARRIER_COLORS[carrier]
+                    return (
+                      <div key={carrier} className="px-3 py-2 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${clr.bg} ${clr.text} ${clr.border} border`}>
+                            {carrier}
+                          </span>
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            ระบบ: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(recorded)}</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            placeholder={`ยอดจริงใน${carrier} app`}
+                            value={walletInputs[carrier] ?? ''}
+                            onChange={(e) => setWalletInputs((prev) => ({ ...prev, [carrier]: e.target.value }))}
+                            className="h-7 text-sm"
+                          />
+                          {diff !== null && (
+                            <span className={`text-xs font-semibold tabular-nums whitespace-nowrap ${diff > 0 ? 'text-blue-600' : diff < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                              {diff === 0 ? 'ตรง' : diff > 0 ? `+${formatThaiMoney(diff)}` : formatThaiMoney(diff)}
+                            </span>
+                          )}
+                        </div>
+                        {diff !== null && diff < 0 && (
+                          <p className="flex items-center gap-1 text-[11px] text-red-600">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            ยอดขาด {formatThaiMoney(Math.abs(diff))} — อาจมีการขายที่ไม่บันทึก
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

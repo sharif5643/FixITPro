@@ -257,6 +257,68 @@ export class CarrierWalletService {
     }));
   }
 
+  // ── Shift-close reconciliation ───────────────────────────────────────────────
+
+  async reconcileAtClose(
+    entries: { carrier: string; actualBalance: number; note?: string }[],
+    shiftId: string | null,
+    userId: string,
+  ) {
+    const results: {
+      carrier: string;
+      balanceBefore: number;
+      balanceAfter: number;
+      difference: number;
+    }[] = [];
+
+    for (const entry of entries) {
+      const wallet = await this.prisma.carrierWallet.findUnique({
+        where: { carrier: entry.carrier as any },
+      });
+      if (!wallet) continue;
+
+      const currentBalance = Number(wallet.balance);
+      const newBalance     = Math.round(entry.actualBalance * 100) / 100;
+      const difference     = Math.round((newBalance - currentBalance) * 100) / 100;
+
+      if (Math.abs(difference) < 0.01) {
+        results.push({ carrier: entry.carrier, balanceBefore: currentBalance, balanceAfter: currentBalance, difference: 0 });
+        continue;
+      }
+
+      await this.prisma.carrierWallet.update({
+        where: { carrier: entry.carrier as any },
+        data:  { balance: newBalance },
+      });
+
+      const noteText = entry.note
+        ? `ตรวจสอบปิดกะ: ${entry.note}`
+        : `ตรวจสอบปิดกะ (ระบบ ${currentBalance.toFixed(2)} → จริง ${newBalance.toFixed(2)})`;
+
+      await this.prisma.carrierWalletMovement.create({
+        data: {
+          carrier:       entry.carrier as any,
+          type:          'ADJUSTMENT',
+          amount:        Math.abs(difference),
+          balanceBefore: currentBalance,
+          balanceAfter:  newBalance,
+          note:          noteText,
+          walletId:      wallet.id,
+          shiftId:       shiftId ?? null,
+          createdById:   userId,
+        },
+      });
+
+      this.logger.log(
+        `Reconcile carrier=${entry.carrier} before=${currentBalance} after=${newBalance} diff=${difference}`,
+      );
+
+      results.push({ carrier: entry.carrier, balanceBefore: currentBalance, balanceAfter: newBalance, difference });
+    }
+
+    return results;
+  }
+
   // ── Opening balance (called by ShiftsService on openShift) ───────────────────
 
   async recordOpeningBalances(
