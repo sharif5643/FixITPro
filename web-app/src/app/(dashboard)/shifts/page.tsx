@@ -203,7 +203,9 @@ export default function ShiftsPage() {
   const closeBalanceWatch = closeForm.watch('closeBalance')
   const closeNoteWatch = closeForm.watch('note')
   const closeBalanceNum = Number(closeBalanceWatch) || 0
-  const expectedCash = Number(currentShift?.expectedCashBalance ?? 0)
+  const rawExpectedCash = Number(currentShift?.expectedCashBalance ?? 0)
+  const expectedCashNegative = rawExpectedCash < 0
+  const expectedCash = Math.max(0, rawExpectedCash)  // ลิ้นชักไม่มีทางติดลบ
   const balanceDiff = closeBalanceNum - expectedCash
   const balanceMismatch =
     currentShift?.expectedCashBalance !== undefined &&
@@ -586,10 +588,11 @@ export default function ShiftsPage() {
                 </div>
               </div>
               {/* Expected cash callout */}
-              <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-2.5 flex items-center justify-between text-sm">
-                <span className="text-emerald-700 font-medium">เงินสดที่คาดในลิ้นชัก</span>
-                <span className="font-bold tabular-nums text-emerald-800">
-                  {formatThaiMoney(Number(currentShift.expectedCashBalance))}
+              <div className={`rounded-lg border px-4 py-2.5 flex items-center justify-between text-sm ${expectedCashNegative ? 'border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20' : 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-900/20'}`}>
+                <span className={`font-medium ${expectedCashNegative ? 'text-amber-700' : 'text-emerald-700'}`}>เงินสดที่คาดในลิ้นชัก</span>
+                <span className={`font-bold tabular-nums ${expectedCashNegative ? 'text-amber-800' : 'text-emerald-800'}`}>
+                  {formatThaiMoney(expectedCash)}
+                  {expectedCashNegative && <span className="text-xs font-normal ml-1">(รายจ่ายเกิน)</span>}
                 </span>
               </div>
             </div>
@@ -610,7 +613,7 @@ export default function ShiftsPage() {
                 <Label htmlFor="closeBalance">เงินสดจริง ณ ปิดกะ (บาท)</Label>
                 {currentShift?.expectedCashBalance !== undefined && (
                   <span className="text-xs text-muted-foreground">
-                    คาด: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(Number(currentShift.expectedCashBalance))}</span>
+                    คาด: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(expectedCash)}</span>
                   </span>
                 )}
               </div>
@@ -636,7 +639,7 @@ export default function ShiftsPage() {
               {balanceMismatch && !closeForm.formState.errors.closeBalance && (
                 <p className="flex items-center gap-1 text-xs text-amber-700">
                   <AlertTriangle className="h-3 w-3 shrink-0" />
-                  ยอดไม่ตรงกับที่คาด ({formatThaiMoney(Number(currentShift!.expectedCashBalance))}) — กรุณาระบุหมายเหตุ
+                  ยอดไม่ตรงกับที่คาด ({formatThaiMoney(expectedCash)}) — กรุณาระบุหมายเหตุ
                 </p>
               )}
             </div>
@@ -655,6 +658,14 @@ export default function ShiftsPage() {
                 <p className="text-xs text-red-500">{closeForm.formState.errors.note.message}</p>
               )}
             </div>
+
+            {/* ── Negative expected cash warning ── */}
+            {expectedCashNegative && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>รายจ่ายเกินยอดเงินสดในลิ้นชัก — ยอดเงินสดที่คาดคำนวณเป็น {formatThaiMoney(rawExpectedCash)} ซึ่งแสดงเป็น ฿0 แทน กรอกเงินสดจริงที่นับได้ และระบุหมายเหตุ</span>
+              </div>
+            )}
 
             {/* ── Cash count summary ── */}
             {currentShift && (
