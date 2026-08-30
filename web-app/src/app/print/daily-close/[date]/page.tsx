@@ -13,6 +13,23 @@ import type { ShopSettings } from '@/types'
 
 // ── Types matching actual backend response from getDailyClosingReport ─────────
 
+interface RepairPaymentItem {
+  id: string; ticketNumber: string; paidAmount: number | null; finalCost: number | null
+  estimatedTotal: number | null; deposit: number | null; paymentMethod: string | null
+  deviceBrand: string; deviceModel: string; paidAt: string | null
+  customer: { id: string; name: string; phone?: string | null } | null
+  technician: { id: string; name: string } | null
+}
+interface ExpenseItem {
+  id: string; amount: number; description: string | null; paymentMethod: string | null
+  expenseDate: string; category: { name: string } | null; createdBy: { name: string } | null
+}
+interface PartialRepairItem {
+  id: string; ticketNumber: string; deviceBrand: string; deviceModel: string
+  paidAmount: number | null; finalCost: number | null; deposit: number | null
+  deliveredAt: string | null; totalCollected: number; outstanding: number
+  customer: { id: string; name: string; phone?: string | null } | null
+}
 interface DailyReport {
   date: string
   revenue: {
@@ -27,10 +44,11 @@ interface DailyReport {
   }
   sales:          { items: unknown[]; count: number }
   voidedSales:    { items: unknown[]; count: number }
-  repairPayments: { items: unknown[]; count: number }
+  repairPayments: { items: RepairPaymentItem[]; count: number }
   packageSales:   { items: unknown[]; count: number }
   repairSummary:  { new: number; byStatus: Record<string, number>; overdue: number }
-  expenses:       { items: unknown[]; count: number; totalAmount: number }
+  expenses:       { items: ExpenseItem[]; count: number; totalAmount: number }
+  partialRepairs: { items: PartialRepairItem[]; count: number }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -267,6 +285,66 @@ export default function DailyClosePrintPage() {
             </div>
           </div>
 
+          {/* Repair items */}
+          {(report.repairPayments?.items ?? []).length > 0 && (
+            <div style={{ borderTop: '1px dashed #000', marginTop: 8, paddingTop: 6 }}>
+              <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>รายการซ่อมรับเงิน</div>
+              {(report.repairPayments.items as RepairPaymentItem[]).map((r) => (
+                <div key={r.id} style={{ fontSize: 10, marginBottom: 3, borderBottom: '1px dotted #ccc', paddingBottom: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontFamily: 'monospace' }}>{r.ticketNumber}</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmt(Number(r.paidAmount ?? 0))}</span>
+                  </div>
+                  <div style={{ color: '#555' }}>{r.customer?.name ?? '—'} · {r.deviceBrand} {r.deviceModel}</div>
+                  <div style={{ color: '#888' }}>{PAY_LABEL[r.paymentMethod ?? ''] ?? r.paymentMethod ?? ''}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Expense items */}
+          {totalExpenses > 0 && (
+            <div style={{ borderTop: '1px dashed #000', marginTop: 8, paddingTop: 6 }}>
+              <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>รายจ่าย</div>
+              {(report.expenses?.items ?? []).map((e: ExpenseItem) => (
+                <div key={e.id} style={{ fontSize: 10, marginBottom: 3, display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#333' }}>{e.description ?? e.category?.name ?? '—'}</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums', color: '#c00' }}>{fmt(Number(e.amount))}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 700, borderTop: '1px solid #000', marginTop: 3, paddingTop: 3 }}>
+                <span>รวมจ่าย</span><span style={{ color: '#c00' }}>{fmt(totalExpenses)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Partial repairs */}
+          {(report.partialRepairs?.items ?? []).length > 0 && (
+            <div style={{ borderTop: '1px dashed #000', marginTop: 8, paddingTop: 6 }}>
+              <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 4 }}>⚠ งานค้างชำระ</div>
+              {(report.partialRepairs.items as PartialRepairItem[]).map((r) => (
+                <div key={r.id} style={{ fontSize: 10, marginBottom: 3, borderBottom: '1px dotted #ccc', paddingBottom: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontFamily: 'monospace' }}>{r.ticketNumber}</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: '#c00' }}>ค้าง {fmt(r.outstanding)}</span>
+                  </div>
+                  <div style={{ color: '#555' }}>{r.customer?.name ?? '—'}{r.customer?.phone ? ` ${r.customer.phone}` : ''}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Signature */}
+          <div style={{ borderTop: '1px dashed #000', marginTop: 12, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ borderTop: '1px solid #000', marginTop: 24, paddingTop: 3 }}>พนักงาน</div>
+            </div>
+            <div style={{ width: 16 }} />
+            <div style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ borderTop: '1px solid #000', marginTop: 24, paddingTop: 3 }}>ผู้ตรวจสอบ</div>
+            </div>
+          </div>
+
           <div style={{ textAlign: 'center', marginTop: 10, borderTop: '1px dashed #000', paddingTop: 6, fontSize: 10, color: '#666' }}>
             พิมพ์เมื่อ {format(new Date(), 'dd/MM/yyyy HH:mm', { locale: th })}
           </div>
@@ -370,16 +448,68 @@ export default function DailyClosePrintPage() {
           </tbody>
         </table>
 
+        {/* ── Section 1b: รายการซ่อมที่รับเงิน ── */}
+        {(report.repairPayments?.items ?? []).length > 0 && (
+          <>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 mt-4">รายการซ่อมที่รับเงินวันนี้</p>
+            <table className="w-full text-xs border-collapse mb-4">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-300">
+                  <th className="text-left py-1.5 px-2 font-semibold">ตั๋ว</th>
+                  <th className="text-left py-1.5 px-2 font-semibold">ลูกค้า</th>
+                  <th className="text-left py-1.5 px-2 font-semibold">อุปกรณ์</th>
+                  <th className="text-right py-1.5 px-2 font-semibold">ยอด</th>
+                  <th className="text-center py-1.5 px-2 font-semibold">ช่องทาง</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(report.repairPayments.items as RepairPaymentItem[]).map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100">
+                    <td className="py-1 px-2 font-mono text-[10px] text-slate-500">{r.ticketNumber}</td>
+                    <td className="py-1 px-2">{r.customer?.name ?? '—'}</td>
+                    <td className="py-1 px-2 text-slate-500">{r.deviceBrand} {r.deviceModel}</td>
+                    <td className="py-1 px-2 text-right tabular-nums font-semibold">{fmt(Number(r.paidAmount ?? 0))}</td>
+                    <td className="py-1 px-2 text-center text-[10px]">{PAY_LABEL[r.paymentMethod ?? ''] ?? r.paymentMethod ?? '—'}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-slate-600 font-bold">
+                  <td colSpan={3} className="py-1.5 px-2 text-sm">รวม</td>
+                  <td className="py-1.5 px-2 text-right tabular-nums text-emerald-700 text-sm">{fmt(repairTotalRevenue)}</td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </>
+        )}
+
         {/* ── Section 2: รายจ่าย ── */}
         {totalExpenses > 0 && (
           <>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">รายจ่าย</p>
-            <table className="w-full text-sm border-collapse mb-4">
+            <table className="w-full text-xs border-collapse mb-4">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-300">
+                  <th className="text-left py-1.5 px-2 font-semibold">รายการ</th>
+                  <th className="text-left py-1.5 px-2 font-semibold">หมวด</th>
+                  <th className="text-left py-1.5 px-2 font-semibold">โดย</th>
+                  <th className="text-right py-1.5 px-2 font-semibold">จำนวน</th>
+                  <th className="text-center py-1.5 px-2 font-semibold">ช่องทาง</th>
+                </tr>
+              </thead>
               <tbody>
-                <Row label={`รายจ่าย (${report.expenses?.count ?? 0} รายการ)`} value={`${fmt(totalExpenses)} บาท`} />
-                <tr className="border-t-2 border-slate-800">
-                  <td className="py-2 font-bold text-sm">รวมรายจ่าย</td>
-                  <td className="py-2 text-right tabular-nums font-bold text-red-600 text-base">{fmt(totalExpenses)} บาท</td>
+                {(report.expenses?.items ?? []).map((e: ExpenseItem) => (
+                  <tr key={e.id} className="border-b border-slate-100">
+                    <td className="py-1 px-2">{e.description ?? '—'}</td>
+                    <td className="py-1 px-2 text-slate-500">{e.category?.name ?? '—'}</td>
+                    <td className="py-1 px-2 text-slate-500">{e.createdBy?.name ?? '—'}</td>
+                    <td className="py-1 px-2 text-right tabular-nums font-semibold text-red-600">{fmt(Number(e.amount))}</td>
+                    <td className="py-1 px-2 text-center text-[10px]">{PAY_LABEL[e.paymentMethod ?? ''] ?? e.paymentMethod ?? '—'}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-slate-600 font-bold">
+                  <td colSpan={3} className="py-1.5 px-2 text-sm">รวมรายจ่าย</td>
+                  <td className="py-1.5 px-2 text-right tabular-nums text-red-600 text-sm">{fmt(totalExpenses)}</td>
+                  <td />
                 </tr>
               </tbody>
             </table>
@@ -431,6 +561,42 @@ export default function DailyClosePrintPage() {
                 </div>
               ))}
             </div>
+          </>
+        )}
+
+        {/* ── Section 5b: งานค้างชำระ (PARTIAL) ── */}
+        {(report.partialRepairs?.items ?? []).length > 0 && (
+          <>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 mb-1.5 mt-4">งานค้างชำระ — ส่งเครื่องแล้วยังเก็บเงินไม่ครบ</p>
+            <table className="w-full text-xs border-collapse mb-4 border border-amber-200">
+              <thead>
+                <tr className="bg-amber-50 border-b border-amber-200">
+                  <th className="text-left py-1.5 px-2 font-semibold">ตั๋ว</th>
+                  <th className="text-left py-1.5 px-2 font-semibold">ลูกค้า</th>
+                  <th className="text-left py-1.5 px-2 font-semibold">อุปกรณ์</th>
+                  <th className="text-right py-1.5 px-2 font-semibold">รับแล้ว</th>
+                  <th className="text-right py-1.5 px-2 font-semibold text-red-600">ค้างชำระ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(report.partialRepairs.items as PartialRepairItem[]).map((r) => (
+                  <tr key={r.id} className="border-b border-amber-100">
+                    <td className="py-1 px-2 font-mono text-[10px] text-slate-500">{r.ticketNumber}</td>
+                    <td className="py-1 px-2">{r.customer?.name ?? '—'}{r.customer?.phone ? ` (${r.customer.phone})` : ''}</td>
+                    <td className="py-1 px-2 text-slate-500">{r.deviceBrand} {r.deviceModel}</td>
+                    <td className="py-1 px-2 text-right tabular-nums">{fmt(r.totalCollected)}</td>
+                    <td className="py-1 px-2 text-right tabular-nums font-bold text-red-600">{fmt(r.outstanding)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-amber-400 font-bold bg-amber-50">
+                  <td colSpan={3} className="py-1.5 px-2 text-sm">รวมค้างทั้งหมด</td>
+                  <td />
+                  <td className="py-1.5 px-2 text-right tabular-nums text-red-600 text-sm">
+                    {fmt((report.partialRepairs.items as PartialRepairItem[]).reduce((s, r) => s + r.outstanding, 0))}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </>
         )}
 

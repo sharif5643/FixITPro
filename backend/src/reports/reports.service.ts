@@ -582,8 +582,9 @@ export class ReportsService {
         where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', ...bFilter },
         select: {
           id: true, ticketNumber: true, paidAmount: true, paymentMethod: true,
-          finalCost: true, paidAt: true,
-          customer: { select: { id: true, name: true } },
+          finalCost: true, estimatedTotal: true, deposit: true, paidAt: true,
+          deviceBrand: true, deviceModel: true,
+          customer: { select: { id: true, name: true, phone: true } },
           technician: { select: { id: true, name: true } },
         },
         orderBy: { paidAt: 'asc' },
@@ -640,6 +641,18 @@ export class ReportsService {
         _sum: { paidAmount: true },
       }),
     ]);
+
+    // PARTIAL repairs (delivered but still owe money)
+    const partialRepairs = await this.prisma.repair.findMany({
+      where: { paymentStatus: 'PARTIAL', status: 'DELIVERED', ...bFilter },
+      select: {
+        id: true, ticketNumber: true, paidAmount: true, finalCost: true, deposit: true,
+        deviceBrand: true, deviceModel: true, deliveredAt: true,
+        customer: { select: { id: true, name: true, phone: true } },
+        additionalPayments: { select: { amount: true } },
+      },
+      orderBy: { deliveredAt: 'desc' },
+    });
 
     // Revenue
     const posRevenue = sales.reduce((sum, s) => sum + Number(s.total), 0);
@@ -817,6 +830,15 @@ export class ReportsService {
         overdueItems: overdueRepairs,
       },
       unpaidRepairs: { items: unpaidRepairs, count: unpaidRepairs.length, total: unpaidTotal },
+      partialRepairs: {
+        items: partialRepairs.map((r) => {
+          const additionalSum = r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0);
+          const totalCollected = Number(r.paidAmount ?? 0) + additionalSum;
+          const outstanding = Math.max(0, Number(r.finalCost ?? 0) - Number(r.deposit ?? 0) - totalCollected);
+          return { ...r, totalCollected, outstanding };
+        }),
+        count: partialRepairs.length,
+      },
       shifts: { items: shiftsWithCash },
       expenses: {
         items:       expensesToday,
