@@ -393,11 +393,14 @@ export class ShiftsService {
     const where: any = {};
 
     if (query.userId)   where.userId   = query.userId;
-    // Scope shifts to tenant via branch.tenantId
+    // Scope shifts to tenant: match branch.tenantId OR branchless shifts by user.tenantId
     if (query.branchId) {
       where.branchId = query.branchId;
     } else if (query.tenantId) {
-      where.branch = { tenantId: query.tenantId };
+      where.OR = [
+        { branch: { tenantId: query.tenantId } },
+        { branchId: null, user: { tenantId: query.tenantId } },
+      ];
     }
 
     if (query.date) {
