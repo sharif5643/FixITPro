@@ -230,12 +230,16 @@ function A5Card({
 export default function WarrantyCardPage() {
   const params        = useParams<{ repairId: string }>()
   const repairId      = params?.repairId ?? ''
-  const initPaper     = (typeof window !== 'undefined'
-    ? (new URLSearchParams(window.location.search).get('paper') as PaperWidth)
-    : null) ?? 'A5'
-  const [paper, setPaper] = useState<PaperWidth>(initPaper)
+  const [mounted, setMounted] = useState(false)
+  const [paper, setPaper] = useState<PaperWidth>('A5')
   const printedRef    = useRef(false)
   const isThermal     = paper === '80mm' || paper === '58mm'
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('paper') as PaperWidth | null
+    if (p) setPaper(p)
+    setMounted(true)
+  }, [])
 
   const { data: repair } = useQuery<Repair>({
     queryKey: ['repairs', repairId],
@@ -300,7 +304,7 @@ export default function WarrantyCardPage() {
 
   const cardProps = { shopName, shopPhone, shopAddress, wNumber, ticketNumber, customerName, customerPhone, deviceText, imei, startDate, endDate, daysLeft, isExpired, wDesc }
 
-  if (!ready) {
+  if (!mounted || !ready) {
     return (
       <div className="flex items-center justify-center min-h-screen text-slate-400 text-sm">
         กำลังโหลดข้อมูลใบรับประกัน…

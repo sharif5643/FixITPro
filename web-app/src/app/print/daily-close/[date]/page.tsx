@@ -80,15 +80,17 @@ function Row({ label, value, bold, sub, red }: {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function DailyClosePrintPage() {
-  const params       = useParams<{ date: string }>()
-  const date         = params?.date ?? ''
+  const params         = useParams<{ date: string }>()
+  const date           = params?.date ?? ''
   const autoPrintFired = useRef(false)
+  const [mounted, setMounted] = useState(false)
 
-  // Parse query params client-side only (avoids useSearchParams SSR issues)
-  const [qp, setQp] = useState<URLSearchParams>(() =>
-    typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams()
-  )
-  useEffect(() => { setQp(new URLSearchParams(window.location.search)) }, [])
+  // Parse query params client-side only to avoid SSR/hydration mismatch
+  const [qp, setQp] = useState<URLSearchParams>(() => new URLSearchParams())
+  useEffect(() => {
+    setQp(new URLSearchParams(window.location.search))
+    setMounted(true)
+  }, [])
 
   const staffName       = qp.get('staffName')      ?? ''
   const openedAt        = qp.get('openedAt')       ?? ''
@@ -155,7 +157,7 @@ export default function DailyClosePrintPage() {
     return () => clearTimeout(t)
   }, [report])
 
-  if (isLoading) {
+  if (!mounted || isLoading) {
     return (
       <div className="flex items-center justify-center h-screen gap-2 text-slate-500">
         <Loader2 className="h-5 w-5 animate-spin" />
