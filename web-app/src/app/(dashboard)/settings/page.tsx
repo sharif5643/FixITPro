@@ -86,12 +86,13 @@ function ToggleSwitch({
 // ── Tab config ────────────────────────────────────────────────────────────────
 
 const SETTINGS_TABS = [
-  { id: 'shop',    label: 'ข้อมูลร้าน',    icon: Store,         ownerOnly: false },
-  { id: 'receipt', label: 'ใบเสร็จ',        icon: Receipt,       ownerOnly: false },
-  { id: 'finance', label: 'การเงิน',         icon: DollarSign,    ownerOnly: false },
-  { id: 'system',  label: 'ระบบ',           icon: Settings2,     ownerOnly: false },
-  { id: 'alerts',  label: 'การแจ้งเตือน',  icon: Bell,          ownerOnly: false },
-  { id: 'danger',  label: 'รีเซ็ตข้อมูล',  icon: AlertTriangle, ownerOnly: true  },
+  { id: 'shop',     label: 'ข้อมูลร้าน',    icon: Store,         ownerOnly: false },
+  { id: 'receipt',  label: 'ใบเสร็จ',        icon: Receipt,       ownerOnly: false },
+  { id: 'finance',  label: 'การเงิน',         icon: DollarSign,    ownerOnly: false },
+  { id: 'system',   label: 'ระบบ',           icon: Settings2,     ownerOnly: false },
+  { id: 'hardware', label: 'ฮาร์ดแวร์',      icon: Cpu,           ownerOnly: false },
+  { id: 'alerts',   label: 'การแจ้งเตือน',  icon: Bell,          ownerOnly: false },
+  { id: 'danger',   label: 'รีเซ็ตข้อมูล',  icon: AlertTriangle, ownerOnly: true  },
 ] as const
 
 type TabId = typeof SETTINGS_TABS[number]['id']
@@ -625,6 +626,27 @@ export default function SettingsPage() {
                     description="สร้าง Barcode EAN-13 อัตโนมัติเมื่อเพิ่มสินค้าใหม่"
                   />
                 </div>
+              </SectionCard>
+            )}
+
+            {/* ── Tab: ฮาร์ดแวร์ ── */}
+            {activeTab === 'hardware' && (
+              <SectionCard title="ลิ้นชักเงินสด" description="ตั้งค่าการเชื่อมต่อลิ้นชักเพื่อเปิดอัตโนมัติเมื่อรับเงินสด" icon={Cpu}>
+                <Link
+                  href="/settings/hardware"
+                  className="flex items-center justify-between p-4 rounded-2xl border border-orange-100 dark:border-orange-800/40 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-orange-500 flex items-center justify-center shrink-0 shadow-[0_4px_8px_rgba(249,115,22,0.25)]">
+                      <Cpu className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-orange-900 dark:text-orange-200">ตรวจสอบและตั้งค่าฮาร์ดแวร์</p>
+                      <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">ลิ้นชัก USB / Bluetooth / Network · ดาวน์โหลด Agent · ทดสอบเปิดลิ้นชัก</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-orange-400 dark:text-orange-500 shrink-0" />
+                </Link>
               </SectionCard>
             )}
 
