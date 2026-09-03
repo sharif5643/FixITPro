@@ -128,7 +128,9 @@ const server = https.createServer({ key: tls.key, cert: tls.cert }, async (req, 
   send(res, 404, { error: 'Not found' }, origin)
 })
 
-server.listen(PORT, '127.0.0.1', () => {
+// Listen on all interfaces (IPv4 + IPv6) so both 127.0.0.1 and ::1 work.
+// CORS headers restrict browser access to allowed origins only.
+server.listen(PORT, () => {
   console.log(`พร้อมใช้งาน! https://localhost:${PORT}`)
   console.log(`เปิดหน้าต่างนี้ทิ้งไว้ (หรือ minimize ได้)`)
 })
