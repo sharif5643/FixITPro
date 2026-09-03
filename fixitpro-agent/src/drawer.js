@@ -63,52 +63,24 @@ function openDrawerWindows(printerName) {
     const psPath = tmpFile.replace(/\\/g, '/')
     const escapedPrinter = printerName.replace(/'/g, "''")
 
+    // Get the USB port name from Windows (e.g. USB001) then write raw bytes
+    // directly to \\.\USB001 — bypasses the printer driver entirely
+    // Write ESC/POS bytes directly to the USB device port (bypasses driver)
     const script = `
 $ErrorActionPreference = 'Stop'
 $printerName = '${escapedPrinter}'
-$data = [System.IO.File]::ReadAllBytes('${psPath}')
-Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-public class WinPrint {
-  [DllImport("winspool.drv", CharSet=CharSet.Auto, SetLastError=true)]
-  public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
-  [DllImport("winspool.drv", CharSet=CharSet.Auto, SetLastError=true)]
-  public static extern bool ClosePrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", CharSet=CharSet.Auto, SetLastError=true)]
-  public static extern int StartDocPrinter(IntPtr hPrinter, int Level, ref DOCINFO pDocInfo);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool StartPagePrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool WritePrinter(IntPtr hPrinter, byte[] pBuf, int cbBuf, out int pcWritten);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool EndPagePrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", SetLastError=true)]
-  public static extern bool EndDocPrinter(IntPtr hPrinter);
-  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Ansi)]
-  public struct DOCINFO {
-    [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
-    [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
-    [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
-  }
-}
-'@
-$h = [IntPtr]::Zero
-if (-not [WinPrint]::OpenPrinter($printerName, [ref]$h, [IntPtr]::Zero)) { throw "OpenPrinter failed — check printer name: $printerName" }
+$portName = (Get-Printer -Name $printerName -ErrorAction Stop).PortName
+if (-not $portName) { throw "Cannot find port for printer: $printerName" }
+$data = [byte[]](0x1B, 0x70, 0x00, 0x32, 0xFA, 0x1B, 0x70, 0x01, 0x32, 0xFA)
+$tmp = [System.IO.Path]::GetTempFileName() + '.bin'
+[System.IO.File]::WriteAllBytes($tmp, $data)
+$devicePath = '\\\\.' + '\\' + $portName
 try {
-  $doc = New-Object WinPrint+DOCINFO
-  $doc.pDocName = "CashDrawer"
-  $doc.pDataType = "RAW"
-  $jobId = [WinPrint]::StartDocPrinter($h, 1, [ref]$doc)
-  if ($jobId -le 0) { throw "StartDocPrinter failed" }
-  if (-not [WinPrint]::StartPagePrinter($h)) { throw "StartPagePrinter failed" }
-  $written = 0
-  if (-not [WinPrint]::WritePrinter($h, $data, $data.Length, [ref]$written)) { throw "WritePrinter failed" }
-  [WinPrint]::EndPagePrinter($h) | Out-Null
-  [WinPrint]::EndDocPrinter($h) | Out-Null
-  Write-Output "OK:$written bytes"
+  $out = & cmd /c "copy /b ""$tmp"" ""$devicePath""" 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "copy to $devicePath failed: $out" }
+  Write-Output "OK:$portName"
 } finally {
-  [WinPrint]::ClosePrinter($h) | Out-Null
+  Remove-Item $tmp -ErrorAction SilentlyContinue
 }
 `.trim()
 
