@@ -6,8 +6,11 @@ const os = require('os')
 const fs = require('fs')
 const path = require('path')
 
-// ESC/POS: ESC p pin t1 t2 — open drawer on pin 2 (standard RJ11)
-const DRAWER_PULSE = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA])
+// ESC/POS: ESC p pin t1 t2 — send both pin 2 and pin 5 to cover all drawer wiring
+const DRAWER_PULSE = Buffer.from([
+  0x1B, 0x70, 0x00, 0x32, 0xFA,  // pin 2 (most common)
+  0x1B, 0x70, 0x01, 0x32, 0xFA,  // pin 5 (some models)
+])
 
 /**
  * Open drawer via Network printer (raw TCP port 9100)
