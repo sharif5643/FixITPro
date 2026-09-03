@@ -21,6 +21,8 @@ function corsHeaders(origin) {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    // Required for Chrome Private Network Access (public HTTPS → local HTTPS)
+    'Access-Control-Allow-Private-Network': 'true',
     'Content-Type': 'application/json',
   }
 }
