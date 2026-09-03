@@ -133,22 +133,27 @@ try {
 function openDrawerSerial(comPort, baudRate) {
   baudRate = baudRate || 9600
   return new Promise((resolve, reject) => {
-    const ps = `
+    const script = `
+$ErrorActionPreference = 'Stop'
 $port = New-Object System.IO.Ports.SerialPort('${comPort}', ${baudRate})
+$port.ReadTimeout = 500
+$port.WriteTimeout = 2000
 $port.Open()
-$data = [byte[]](0x1B, 0x70, 0x00, 0x19, 0xFA)
+Start-Sleep -Milliseconds 300
+$data = [byte[]](0x1B, 0x70, 0x00, 0x32, 0xFA, 0x1B, 0x70, 0x01, 0x32, 0xFA)
 $port.Write($data, 0, $data.Length)
+Start-Sleep -Milliseconds 100
 $port.Close()
 Write-Output "OK"
 `.trim()
     try {
-      const out = execSync(
-        `powershell -NoProfile -NonInteractive -Command "${ps.replace(/"/g, '\\"')}"`,
-        { timeout: 5000, encoding: 'utf8' }
-      )
+      const out = runPS(script, { timeout: 8000 })
+      console.log(`[Drawer] Serial ${comPort}@${baudRate}: ${out.trim()}`)
       resolve({ method: 'serial', port: comPort, output: out.trim() })
     } catch (err) {
-      reject(new Error(`Serial error on ${comPort}: ${err.stderr || err.message}`))
+      const msg = (err.stderr || err.stdout || err.message || '').toString().trim()
+      console.error(`[Drawer] Serial error ${comPort}: ${msg}`)
+      reject(new Error(`Serial error on ${comPort}: ${msg}`))
     }
   })
 }
