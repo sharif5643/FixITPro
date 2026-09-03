@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import {
   Loader2, Save, Store, Receipt, DollarSign, Settings2, Bell, Image, BellRing, ChevronRight,
-  MessageSquare, Database, AlertTriangle, Trash2, Upload, X, Users,
+  MessageSquare, Database, AlertTriangle, Trash2, Upload, X, Users, Cpu,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -674,6 +674,24 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <ChevronRight className="h-4 w-4 text-green-400 dark:text-green-500 shrink-0" />
+                  </Link>
+                </SectionCard>
+
+                <SectionCard title="ฮาร์ดแวร์" description="ลิ้นชักเงินสด · เครื่องพิมพ์ · กล้อง" icon={Cpu}>
+                  <Link
+                    href="/settings/hardware"
+                    className="flex items-center justify-between p-4 rounded-2xl border border-orange-100 dark:border-orange-800/40 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-orange-500 flex items-center justify-center shrink-0 shadow-[0_4px_8px_rgba(249,115,22,0.25)]">
+                        <Cpu className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-orange-900 dark:text-orange-200">ตรวจสอบฮาร์ดแวร์</p>
+                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">ตั้งค่าลิ้นชักเงินสด · USB / Bluetooth / Network · ดาวน์โหลด Agent</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-orange-400 dark:text-orange-500 shrink-0" />
                   </Link>
                 </SectionCard>
 
