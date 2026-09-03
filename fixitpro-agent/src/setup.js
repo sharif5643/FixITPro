@@ -5,15 +5,16 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 
+const HELPER_PRINTER = 'FixITPro Cash Drawer'
+
 // Run PowerShell using Base64-encoded command (no escaping issues)
 function runPS(script, opts = {}) {
-  // Suppress progress/verbose streams so CLIXML noise doesn't print to console
   const full = `$ProgressPreference='SilentlyContinue';$VerbosePreference='SilentlyContinue'\n${script}`
   const encoded = Buffer.from(full, 'utf16le').toString('base64')
   return execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, {
     encoding: 'utf8',
     windowsHide: true,
-    stdio: ['pipe', 'pipe', 'ignore'], // discard stderr (where CLIXML goes)
+    stdio: ['pipe', 'pipe', 'ignore'],
     ...opts,
   }).trim()
 }
@@ -29,13 +30,54 @@ function isCertInstalled() {
   }
 }
 
-function installCertElevated(certFile) {
-  const innerScript = `Import-Certificate -FilePath '${certFile.replace(/'/g, "''")}' -CertStoreLocation 'Cert:\\LocalMachine\\Root' | Out-Null`
-  const innerEncoded = Buffer.from(innerScript, 'utf16le').toString('base64')
-  // -Verb RunAs = UAC popup, -Wait = wait for it to finish before continuing
-  runPS(`Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -EncodedCommand ${innerEncoded}'`, {
-    timeout: 60000,
+function isHelperPrinterInstalled() {
+  try {
+    const out = runPS(
+      `if (Get-Printer -Name '${HELPER_PRINTER}' -ErrorAction SilentlyContinue) { 'yes' } else { 'no' }`
+    )
+    return out.trim() === 'yes'
+  } catch {
+    return false
+  }
+}
+
+// Run elevated PowerShell script (shows UAC popup).
+// script must NOT include <?php or any shell-specific markup — pure PS.
+function runElevated(script, timeout = 60000) {
+  const innerEncoded = Buffer.from(script, 'utf16le').toString('base64')
+  runPS(`Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile -NonInteractive -EncodedCommand ${innerEncoded}'`, {
+    timeout,
   })
+}
+
+// Install cert to LocalMachine\Root AND create the Generic/Text-Only helper
+// printer for RAW cash-drawer access — both in ONE UAC popup.
+function installCertElevated(certFile) {
+  const escaped = certFile.replace(/'/g, "''")
+  runElevated(`
+Import-Certificate -FilePath '${escaped}' -CertStoreLocation 'Cert:\\LocalMachine\\Root' | Out-Null
+
+# Install cash drawer helper printer (best-effort; skipped if printer already exists)
+if (-not (Get-Printer -Name '${HELPER_PRINTER}' -ErrorAction SilentlyContinue)) {
+    $usbPort = (Get-Printer | Where-Object { $_.PortName -like 'USB*' } | Select-Object -First 1).PortName
+    if ($usbPort) {
+        Add-Printer -Name '${HELPER_PRINTER}' -DriverName 'Generic / Text Only' -PortName $usbPort -ErrorAction SilentlyContinue
+    }
+}
+`)
+}
+
+// Install helper printer via a separate UAC popup (used when cert is already
+// installed but the helper printer is missing — e.g. printer connected later).
+function installHelperPrinterElevated() {
+  runElevated(`
+if (-not (Get-Printer -Name '${HELPER_PRINTER}' -ErrorAction SilentlyContinue)) {
+    $usbPort = (Get-Printer | Where-Object { $_.PortName -like 'USB*' } | Select-Object -First 1).PortName
+    if ($usbPort) {
+        Add-Printer -Name '${HELPER_PRINTER}' -DriverName 'Generic / Text Only' -PortName $usbPort -ErrorAction SilentlyContinue
+    }
+}
+`)
 }
 
 function addToStartup() {
@@ -64,4 +106,11 @@ $s.Save()
   }
 }
 
-module.exports = { isCertInstalled, installCertElevated, addToStartup }
+module.exports = {
+  isCertInstalled,
+  isHelperPrinterInstalled,
+  installCertElevated,
+  installHelperPrinterElevated,
+  addToStartup,
+  HELPER_PRINTER,
+}

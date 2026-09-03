@@ -2,7 +2,7 @@
 
 const https = require('https')
 const { getCert, CERT_FILE } = require('./cert')
-const { isCertInstalled, installCertElevated, addToStartup } = require('./setup')
+const { isCertInstalled, isHelperPrinterInstalled, installCertElevated, installHelperPrinterElevated, addToStartup } = require('./setup')
 const { openDrawerNetwork, openDrawerWindows, openDrawerSerial, listPrinters, listComPorts } = require('./drawer')
 
 const PORT = 7777
@@ -49,18 +49,17 @@ function firstRunSetup() {
   console.log('─'.repeat(45))
 
   // 1. Generate cert (no admin needed)
-  console.log('[1/3] สร้าง certificate...')
+  console.log('[1/4] สร้าง certificate...')
   const tls = getCert()
   console.log('      สร้างแล้ว')
 
-  // 2. Install cert to Windows Trust Store if needed
-  console.log('[2/3] ตรวจสอบ certificate...')
+  // 2. Install cert + helper printer (same UAC popup)
+  console.log('[2/4] ตรวจสอบ certificate...')
   if (!isCertInstalled()) {
-    console.log('      ยังไม่ได้ติดตั้ง — จะมี popup "Do you want to allow..." ขึ้นมา')
-    console.log('      กด Yes เพื่อดำเนินการต่อ')
+    console.log('      จะมี popup "Do you want to allow..." ขึ้นมา — กด Yes')
     try {
       installCertElevated(CERT_FILE)
-      console.log('      ติดตั้งสำเร็จ')
+      console.log('      ติดตั้ง certificate + cash drawer printer สำเร็จ')
     } catch (err) {
       console.error('      ติดตั้งไม่สำเร็จ:', err.message)
       console.error('      Agent จะยังรันได้ แต่ browser อาจแสดง warning')
@@ -69,8 +68,26 @@ function firstRunSetup() {
     console.log('      ติดตั้งแล้ว (ข้าม)')
   }
 
-  // 3. Add to Windows Startup
-  console.log('[3/3] ตั้งค่า Auto-start...')
+  // 3. Install cash drawer helper printer (separate UAC if cert was already done)
+  console.log('[3/4] ตรวจสอบ cash drawer printer...')
+  if (!isHelperPrinterInstalled()) {
+    console.log('      ยังไม่มี — จะมี popup ขึ้นมา กด Yes')
+    try {
+      installHelperPrinterElevated()
+      if (isHelperPrinterInstalled()) {
+        console.log('      ติดตั้งสำเร็จ')
+      } else {
+        console.log('      ไม่พบเครื่องพิมพ์ USB — เชื่อมต่อเครื่องพิมพ์แล้วรัน agent ใหม่')
+      }
+    } catch (err) {
+      console.warn('      ติดตั้งไม่สำเร็จ:', err.message)
+    }
+  } else {
+    console.log('      พร้อมแล้ว (ข้าม)')
+  }
+
+  // 4. Add to Windows Startup
+  console.log('[4/4] ตั้งค่า Auto-start...')
   addToStartup()
 
   console.log('─'.repeat(45))
