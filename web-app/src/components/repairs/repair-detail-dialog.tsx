@@ -12,6 +12,7 @@ import {
   Camera, ChevronLeft, ChevronRight, ArrowRightLeft, History, ChevronDown,
   Pencil, Check, AlertTriangle,
 } from 'lucide-react'
+import { openCashDrawer } from '@/lib/cash-drawer'
 import { PartnerTransferPanel } from '@/components/partner-repair/PartnerTransferPanel'
 import {
   Dialog,
@@ -320,6 +321,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       setPayOpen(false)
       const isPartial = res.data?.paymentStatus === 'PARTIAL'
       toast.success(isPartial ? 'ส่งเครื่องแล้ว — มียอดค้างชำระในหน้าลูกหนี้' : 'รับเงินสำเร็จ — งานซ่อมส่งคืนแล้ว')
+      if (payMethod === 'CASH') openCashDrawer().catch(() => {})
       onStatusChange?.()
     },
     onError: (err: any) => {
@@ -356,6 +358,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       setAddPayAmount('')
       setAddPayNote('')
       toast.success('บันทึกการรับเงินเพิ่มเติมสำเร็จ')
+      if (addPayMethod === 'CASH') openCashDrawer().catch(() => {})
     },
     onError: (err: any) => {
       toast.error(apiErrorMessage(err))
