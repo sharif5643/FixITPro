@@ -6,6 +6,19 @@ const os = require('os')
 const fs = require('fs')
 const path = require('path')
 
+// Encode PS script as Base64 UTF-16LE so heredocs, quotes, newlines all survive
+function psEncode(script) {
+  return Buffer.from(script, 'utf16le').toString('base64')
+}
+
+function runPS(script, opts = {}) {
+  const encoded = psEncode(script)
+  return execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, {
+    encoding: 'utf8',
+    ...opts,
+  })
+}
+
 // ESC/POS: ESC p pin t1 t2 — send both pin 2 and pin 5 to cover all drawer wiring
 const DRAWER_PULSE = Buffer.from([
   0x1B, 0x70, 0x00, 0x32, 0xFA,  // pin 2 (most common)
@@ -46,11 +59,14 @@ function openDrawerWindows(printerName) {
       return reject(new Error(`Cannot write temp file: ${err.message}`))
     }
 
-    // PowerShell script using Win32 API to send raw bytes to printer
-    const ps = `
+    // PowerShell forward-slash paths work fine and avoid double-backslash bugs
+    const psPath = tmpFile.replace(/\\/g, '/')
+    const escapedPrinter = printerName.replace(/'/g, "''")
+
+    const script = `
 $ErrorActionPreference = 'Stop'
-$printerName = '${printerName.replace(/'/g, "''")}'
-$data = [System.IO.File]::ReadAllBytes('${tmpFile.replace(/\\/g, '\\\\')}')
+$printerName = '${escapedPrinter}'
+$data = [System.IO.File]::ReadAllBytes('${psPath}')
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -78,31 +94,32 @@ public class WinPrint {
 }
 '@
 $h = [IntPtr]::Zero
-if (-not [WinPrint]::OpenPrinter($printerName, [ref]$h, [IntPtr]::Zero)) { throw "OpenPrinter failed for: $printerName" }
+if (-not [WinPrint]::OpenPrinter($printerName, [ref]$h, [IntPtr]::Zero)) { throw "OpenPrinter failed — check printer name: $printerName" }
 try {
   $doc = New-Object WinPrint+DOCINFO
-  $doc.pDocName = "FixITPro-Drawer"
+  $doc.pDocName = "CashDrawer"
   $doc.pDataType = "RAW"
-  [WinPrint]::StartDocPrinter($h, 1, [ref]$doc) | Out-Null
-  [WinPrint]::StartPagePrinter($h) | Out-Null
+  $jobId = [WinPrint]::StartDocPrinter($h, 1, [ref]$doc)
+  if ($jobId -le 0) { throw "StartDocPrinter failed" }
+  if (-not [WinPrint]::StartPagePrinter($h)) { throw "StartPagePrinter failed" }
   $written = 0
-  [WinPrint]::WritePrinter($h, $data, $data.Length, [ref]$written) | Out-Null
+  if (-not [WinPrint]::WritePrinter($h, $data, $data.Length, [ref]$written)) { throw "WritePrinter failed" }
   [WinPrint]::EndPagePrinter($h) | Out-Null
   [WinPrint]::EndDocPrinter($h) | Out-Null
+  Write-Output "OK:$written bytes"
 } finally {
   [WinPrint]::ClosePrinter($h) | Out-Null
 }
-Write-Output "OK"
 `.trim()
 
     try {
-      const out = execSync(
-        `powershell -NoProfile -NonInteractive -Command "${ps.replace(/"/g, '\\"')}"`,
-        { timeout: 8000, encoding: 'utf8' }
-      )
+      const out = runPS(script, { timeout: 15000 })
+      console.log(`[Drawer] Windows print result: ${out.trim()}`)
       resolve({ method: 'windows', printer: printerName, output: out.trim() })
     } catch (err) {
-      reject(new Error(`PowerShell error: ${err.stderr || err.message}`))
+      const msg = (err.stderr || err.stdout || err.message || '').toString().trim()
+      console.error(`[Drawer] Windows print error: ${msg}`)
+      reject(new Error(`PowerShell error: ${msg}`))
     } finally {
       try { fs.unlinkSync(tmpFile) } catch {}
     }
