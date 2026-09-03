@@ -7,10 +7,13 @@ const os = require('os')
 
 // Run PowerShell using Base64-encoded command (no escaping issues)
 function runPS(script, opts = {}) {
-  const encoded = Buffer.from(script, 'utf16le').toString('base64')
-  return execSync(`powershell -NoProfile -EncodedCommand ${encoded}`, {
+  // Suppress progress/verbose streams so CLIXML noise doesn't print to console
+  const full = `$ProgressPreference='SilentlyContinue';$VerbosePreference='SilentlyContinue'\n${script}`
+  const encoded = Buffer.from(full, 'utf16le').toString('base64')
+  return execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, {
     encoding: 'utf8',
     windowsHide: true,
+    stdio: ['pipe', 'pipe', 'ignore'], // discard stderr (where CLIXML goes)
     ...opts,
   }).trim()
 }
