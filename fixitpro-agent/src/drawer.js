@@ -2,9 +2,6 @@
 
 const net = require('net')
 const { execSync } = require('child_process')
-const os = require('os')
-const fs = require('fs')
-const path = require('path')
 
 // Encode PS script as Base64 UTF-16LE so heredocs, quotes, newlines all survive
 function psEncode(script) {
@@ -12,9 +9,12 @@ function psEncode(script) {
 }
 
 function runPS(script, opts = {}) {
-  const encoded = psEncode(script)
+  const full = `$ProgressPreference='SilentlyContinue';$VerbosePreference='SilentlyContinue'\n${script}`
+  const encoded = psEncode(full)
   return execSync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, {
     encoding: 'utf8',
+    windowsHide: true,
+    stdio: ['pipe', 'pipe', 'ignore'],
     ...opts,
   })
 }
@@ -52,35 +52,24 @@ function openDrawerNetwork(ip, port) {
  */
 function openDrawerWindows(printerName) {
   return new Promise((resolve, reject) => {
-    const tmpFile = path.join(os.tmpdir(), `fixitpro_drawer_${Date.now()}.bin`)
-    try {
-      fs.writeFileSync(tmpFile, DRAWER_PULSE)
-    } catch (err) {
-      return reject(new Error(`Cannot write temp file: ${err.message}`))
-    }
-
-    // PowerShell forward-slash paths work fine and avoid double-backslash bugs
-    const psPath = tmpFile.replace(/\\/g, '/')
     const escapedPrinter = printerName.replace(/'/g, "''")
 
-    // Get the USB port name from Windows (e.g. USB001) then write raw bytes
-    // directly to \\.\USB001 — bypasses the printer driver entirely
-    // Write ESC/POS bytes directly to the USB device port (bypasses driver)
+    // Write ESC/POS bytes to \\.\USB001 via .NET FileStream — bypasses GDI-only driver
     const script = `
+$ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = 'Stop'
 $printerName = '${escapedPrinter}'
 $portName = (Get-Printer -Name $printerName -ErrorAction Stop).PortName
 if (-not $portName) { throw "Cannot find port for printer: $printerName" }
+$devicePath = '\\\\.' + [char]92 + $portName
 $data = [byte[]](0x1B, 0x70, 0x00, 0x32, 0xFA, 0x1B, 0x70, 0x01, 0x32, 0xFA)
-$tmp = [System.IO.Path]::GetTempFileName() + '.bin'
-[System.IO.File]::WriteAllBytes($tmp, $data)
-$devicePath = '\\\\.' + '\\' + $portName
+$stream = New-Object System.IO.FileStream($devicePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
 try {
-  $out = & cmd /c "copy /b ""$tmp"" ""$devicePath""" 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "copy to $devicePath failed: $out" }
+  $stream.Write($data, 0, $data.Length)
+  $stream.Flush()
   Write-Output "OK:$portName"
 } finally {
-  Remove-Item $tmp -ErrorAction SilentlyContinue
+  $stream.Dispose()
 }
 `.trim()
 
@@ -92,8 +81,6 @@ try {
       const msg = (err.stderr || err.stdout || err.message || '').toString().trim()
       console.error(`[Drawer] Windows print error: ${msg}`)
       reject(new Error(`PowerShell error: ${msg}`))
-    } finally {
-      try { fs.unlinkSync(tmpFile) } catch {}
     }
   })
 }
