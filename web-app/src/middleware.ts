@@ -82,5 +82,5 @@ export function middleware(request: NextRequest) {
 export const config = {
   // Run on all app routes; skip Next.js internals, static assets, and the
   // health page (which is also in PUBLIC_PATHS as belt-and-suspenders).
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|uploads|sunmi-health).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|uploads|downloads|sunmi-health).*)'],
 }
