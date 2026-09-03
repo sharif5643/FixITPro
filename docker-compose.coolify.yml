@@ -121,6 +121,8 @@ services:
       PORT:     3000
     labels:
       - "traefik.http.services.http-0-z9m1c1i9nr6kbyo4qn0vuv1b-frontend.loadbalancer.server.port=3000"
+    volumes:
+      - downloads_data:/app/public/downloads
     depends_on:
       - backend
     networks:
@@ -152,6 +154,9 @@ volumes:
     driver: local
   # Winston error/combined log files — persist across deploys
   logs_data:
+    driver: local
+  # Agent .exe and tools served as static downloads from /downloads/*
+  downloads_data:
     driver: local
 
 # ── Networks ─────────────────────────────────────────────────────────────────
