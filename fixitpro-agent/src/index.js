@@ -1,10 +1,11 @@
 'use strict'
 
-const http = require('http')
+const https = require('https')
+const { getCert } = require('./cert')
 const { openDrawerNetwork, openDrawerWindows, openDrawerSerial, listPrinters, listComPorts } = require('./drawer')
 
 const PORT = 7777
-const VERSION = '1.0.0'
+const VERSION = '1.1.0'
 
 // ── Allowed origins (web app domains only) ────────────────────────────────────
 const ALLOWED_ORIGINS = [
@@ -35,36 +36,39 @@ function readBody(req) {
 }
 
 function send(res, status, data, origin) {
-  const headers = corsHeaders(origin)
-  res.writeHead(status, headers)
+  res.writeHead(status, corsHeaders(origin))
   res.end(JSON.stringify(data))
 }
 
-// ── HTTP Server ───────────────────────────────────────────────────────────────
+// ── HTTPS Server ──────────────────────────────────────────────────────────────
 
-const server = http.createServer(async (req, res) => {
+let tls
+try {
+  tls = getCert()
+} catch (err) {
+  console.error('[Cert] Failed to generate/load certificate:', err.message)
+  process.exit(1)
+}
+
+const server = https.createServer({ key: tls.key, cert: tls.cert }, async (req, res) => {
   const origin = req.headers['origin'] || ''
 
-  // Preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders(origin))
     res.end()
     return
   }
 
-  // ── GET /health ────────────────────────────────────────────────────────────
   if (req.url === '/health' && req.method === 'GET') {
     send(res, 200, { status: 'ok', version: VERSION, agent: 'FixITPro Cash Drawer Agent' }, origin)
     return
   }
 
-  // ── GET /printers ──────────────────────────────────────────────────────────
   if (req.url === '/printers' && req.method === 'GET') {
     send(res, 200, { printers: listPrinters(), comPorts: listComPorts() }, origin)
     return
   }
 
-  // ── POST /open-drawer ──────────────────────────────────────────────────────
   if (req.url === '/open-drawer' && req.method === 'POST') {
     const body = await readBody(req)
     const { method, ip, port, printer, comPort, baudRate } = body
@@ -97,8 +101,11 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`FixITPro Agent v${VERSION}`)
-  console.log(`Listening on http://127.0.0.1:${PORT}`)
+  console.log(`Listening on https://localhost:${PORT}`)
   console.log(`Methods: network (IP:9100) | windows (USB printer name) | serial (COM port)`)
+  console.log(``)
+  console.log(`If this is the first run, install the certificate:`)
+  console.log(`  Run install.bat as Administrator`)
 })
 
 server.on('error', (err) => {

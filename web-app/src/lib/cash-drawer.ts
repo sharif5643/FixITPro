@@ -2,7 +2,7 @@
 // Pin 2 (RJ11 pin 2 — standard for most drawers): 0x1B 0x70 0x00 0x19 0xFA
 const DRAWER_PULSE = new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA])
 
-const AGENT_URL = 'http://127.0.0.1:7777'
+const AGENT_URL = 'https://localhost:7777'
 const STORAGE_KEY = 'fixitpro_drawer_config'
 
 // ── Config types ──────────────────────────────────────────────────────────────

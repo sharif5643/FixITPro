@@ -8,10 +8,14 @@
     "build": "pkg src/index.js --targets node18-win-x64 --output dist/FixITPro-Agent.exe --compress GZip"
   },
   "pkg": {
-    "assets": ["src/**/*"],
+    "assets": [
+      "src/**/*"
+    ],
     "outputPath": "dist"
   },
-  "dependencies": {},
+  "dependencies": {
+    "node-forge": "^1.4.0"
+  },
   "devDependencies": {
     "pkg": "^5.8.1"
   }
