@@ -102,9 +102,9 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
   const cost      = Number(costPrice) || 0
   const walletBal = wallets.find(w => w.carrier === carrier)?.balance ?? 0
 
-  // For packages: deduct what the dealer actually pays (default = full price, i.e. 100%)
-  // User can override via dealerCost field if carrier gives a discount
-  const pkgDeduction = dealerCost !== '' ? Number(dealerCost) : price
+  // For packages: carrier deducts 97% from wallet, 3% is dealer profit
+  // User can override via dealerCost field if their carrier deal differs
+  const pkgDeduction = dealerCost !== '' ? Number(dealerCost) : Math.round(price * 0.97 * 100) / 100
   const pkgProfit    = price - pkgDeduction
 
   const deduction    = saleType === 'SIM_SALE' ? cost : pkgDeduction
@@ -287,12 +287,12 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
               <label className="text-xs text-slate-500 whitespace-nowrap">ต้นทุนดีลเลอร์ (บาท)</label>
               <input
                 type="number" inputMode="numeric"
-                placeholder={String(price)}
+                placeholder={price > 0 ? String(Math.round(price * 0.97 * 100) / 100) : '97%'}
                 value={dealerCost}
                 onChange={e => setDealerCost(e.target.value)}
                 className="flex-1 h-8 px-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
-              <span className="text-xs text-slate-400 whitespace-nowrap">ค่าเริ่มต้น = ราคาขาย</span>
+              <span className="text-xs text-slate-400 whitespace-nowrap">ค่าเริ่มต้น 97%</span>
             </div>
           )}
 
