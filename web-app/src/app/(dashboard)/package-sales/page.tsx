@@ -7,7 +7,7 @@ import { th } from 'date-fns/locale'
 import { toast } from 'sonner'
 import {
   Wifi, TrendingUp, Banknote, Smartphone, CreditCard,
-  Plus, ChevronDown, X, Loader2, Phone,
+  Plus, X, Loader2, Phone, Wallet, ArrowDownLeft,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
@@ -333,6 +333,102 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
   )
 }
 
+// ── Topup Dialog ──────────────────────────────────────────────────────────────
+
+interface TopupDialogProps {
+  shiftId?: string
+  onClose: () => void
+  onDone: () => void
+}
+
+function TopupDialog({ shiftId, onClose, onDone }: TopupDialogProps) {
+  const [carrier, setCarrier] = useState<Carrier>('AIS')
+  const [amount,  setAmount]  = useState('')
+  const [note,    setNote]    = useState('')
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/carrier-wallet/topup', {
+      carrier,
+      amount: Number(amount),
+      note: note.trim() || undefined,
+      shiftId,
+    }),
+    onSuccess: () => { toast.success(`เติมกระเป๋า ${carrier} สำเร็จ`); onDone() },
+    onError: (err: any) => toast.error(apiErrorMessage(err)),
+  })
+
+  const canSubmit = Number(amount) > 0
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b">
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <ArrowDownLeft className="h-5 w-5 text-emerald-600" /> เติมกระเป๋าค่าย
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-sm text-slate-500">บันทึกเมื่อโอนเงินเข้าแอปดีลเลอร์ค่าย</p>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">ค่าย</label>
+            <div className="grid grid-cols-4 gap-2">
+              {CARRIERS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setCarrier(c)}
+                  className={`py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                    carrier === c ? CARRIER_COLOR[c] : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">จำนวนเงิน (บาท)</label>
+            <input
+              type="number" inputMode="numeric" placeholder="500"
+              value={amount} onChange={e => setAmount(e.target.value)}
+              className="w-full h-14 px-4 border-2 border-slate-200 rounded-xl text-3xl font-bold focus:outline-none focus:border-emerald-500 tabular-nums"
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">หมายเหตุ (ไม่บังคับ)</label>
+            <input
+              type="text" placeholder="เช่น โอนผ่านธนาคาร..."
+              value={note} onChange={e => setNote(e.target.value)}
+              className="w-full h-11 px-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+
+          {!shiftId && (
+            <p className="text-sm text-amber-700 bg-amber-50 rounded-xl px-3 py-2 text-center font-medium">
+              กรุณาเปิดกะก่อนเติม
+            </p>
+          )}
+        </div>
+        <div className="p-5 border-t flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50">ยกเลิก</button>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={!canSubmit || !shiftId || mutation.isPending}
+            className="flex-1 py-3 rounded-xl bg-emerald-600 text-white font-bold disabled:opacity-50 hover:bg-emerald-700 flex items-center justify-center gap-2"
+          >
+            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+            เติม {amount ? `฿${Number(amount).toLocaleString()}` : ''}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function PackageSalesPage() {
@@ -340,6 +436,8 @@ export default function PackageSalesPage() {
   const qc = useQueryClient()
 
   const [showCreate,   setShowCreate]   = useState(false)
+  const [showTopup,    setShowTopup]    = useState(false)
+  const [activeTab,    setActiveTab]    = useState<'sales' | 'topups'>('sales')
   const [filterDate,   setFilterDate]   = useState(new Date().toISOString().slice(0, 10))
   const [filterCarrier, setFilterCarrier] = useState('')
   const [filterType,   setFilterType]   = useState('')
@@ -359,6 +457,23 @@ export default function PackageSalesPage() {
     queryFn:  () => api.get('/carrier-wallet/balances').then(r => r.data),
     staleTime: 15_000,
   })
+
+  interface MovementRow {
+    id: string; carrier: string; type: string;
+    amount: number; balanceBefore: number; balanceAfter: number;
+    note: string | null; createdAt: string;
+  }
+
+  const { data: movements = [], isLoading: movLoading } = useQuery<MovementRow[]>({
+    queryKey: ['carrier-wallet', 'movements', filterDate, filterCarrier],
+    queryFn:  () => api.get('/carrier-wallet/movements', {
+      params: { carrier: filterCarrier || undefined, date: filterDate },
+    }).then(r => r.data),
+    staleTime: 30_000,
+    enabled: activeTab === 'topups',
+  })
+
+  const topups = movements.filter(m => m.type === 'TOPUP')
 
   const { data: sales = [], isLoading } = useQuery<PackageSaleRow[]>({
     queryKey: ['package-sales', filterDate, filterCarrier, filterType],
@@ -393,12 +508,20 @@ export default function PackageSalesPage() {
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">บันทึกการขายซิมการ์ดและแพ็กเกจอินเทอร์เน็ต</p>
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" /> บันทึกการขาย
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowTopup(true)}
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
+            >
+              <ArrowDownLeft className="h-4 w-4" /> เติมกระเป๋า
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> บันทึกการขาย
+            </button>
+          </div>
         </div>
 
         {/* Wallet balances */}
@@ -434,94 +557,183 @@ export default function PackageSalesPage() {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-semibold text-slate-600">วันที่</label>
-            <input
-              type="date" value={filterDate}
-              onChange={e => setFilterDate(e.target.value)}
-              className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-semibold text-slate-600">ค่าย</label>
-            <select
-              value={filterCarrier}
-              onChange={e => setFilterCarrier(e.target.value)}
-              className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        {/* Tabs + Filters */}
+        <div className="bg-white rounded-xl border border-slate-100 p-4 space-y-3">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('sales')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                activeTab === 'sales' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+              }`}
             >
-              <option value="">ทั้งหมด</option>
-              {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-semibold text-slate-600">ประเภท</label>
-            <select
-              value={filterType}
-              onChange={e => setFilterType(e.target.value)}
-              className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              ยอดขาย
+            </button>
+            <button
+              onClick={() => setActiveTab('topups')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                activeTab === 'topups' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+              }`}
             >
-              <option value="">ทั้งหมด</option>
-              {(Object.entries(SALE_TYPE_LABEL) as [SaleType, string][]).map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
-              ))}
-            </select>
+              <Wallet className="h-3.5 w-3.5" /> ประวัติเติมกระเป๋า
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-semibold text-slate-600">วันที่</label>
+              <input
+                type="date" value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-semibold text-slate-600">ค่าย</label>
+              <select
+                value={filterCarrier}
+                onChange={e => setFilterCarrier(e.target.value)}
+                className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">ทั้งหมด</option>
+                {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            {activeTab === 'sales' && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-semibold text-slate-600">ประเภท</label>
+                <select
+                  value={filterType}
+                  onChange={e => setFilterType(e.target.value)}
+                  className="h-9 px-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">ทั้งหมด</option>
+                  {(Object.entries(SALE_TYPE_LABEL) as [SaleType, string][]).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16 text-slate-400">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" /> กำลังโหลด...
-            </div>
-          ) : sales.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
-              <Wifi className="h-10 w-10 opacity-30" />
-              <p className="text-sm">ยังไม่มีรายการ</p>
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-100">
-                <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-600">เลขที่</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-600">ประเภท</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-600">ค่าย</th>
-                  <th className="text-right py-3 px-4 font-semibold text-slate-600">ราคาขาย</th>
-                  <th className="text-right py-3 px-4 font-semibold text-slate-600">กำไร</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-600">เบอร์</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-600">พนักงาน</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-600">เวลา</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {sales.map(row => (
-                  <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono text-xs text-slate-500">{row.receiptNumber}</td>
-                    <td className="py-3 px-4">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${SALE_TYPE_COLOR[row.saleType]}`}>
-                        {SALE_TYPE_LABEL[row.saleType]}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold text-white ${CARRIER_COLOR[row.carrier]?.split(' ')[0]}`}>
-                        {row.carrier}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right tabular-nums font-semibold">{formatThaiMoney(row.packageAmount)}</td>
-                    <td className="py-3 px-4 text-right tabular-nums font-semibold text-emerald-700">{formatThaiMoney(row.profit)}</td>
-                    <td className="py-3 px-4 text-slate-500">{row.phoneNumber ?? '—'}</td>
-                    <td className="py-3 px-4 text-slate-600">{row.createdBy?.name ?? row.cashierName}</td>
-                    <td className="py-3 px-4 text-slate-500">
-                      {format(new Date(row.createdAt), 'HH:mm', { locale: th })}
-                    </td>
+        {/* Sales Table */}
+        {activeTab === 'sales' && (
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-16 text-slate-400">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" /> กำลังโหลด...
+              </div>
+            ) : sales.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
+                <Wifi className="h-10 w-10 opacity-30" />
+                <p className="text-sm">ยังไม่มีรายการ</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-600">เลขที่</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-600">ประเภท</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-600">ค่าย</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">ราคาขาย</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-600">กำไร</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-600">เบอร์</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-600">พนักงาน</th>
+                    <th className="text-left py-3 px-4 font-semibold text-slate-600">เวลา</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {sales.map(row => (
+                    <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 font-mono text-xs text-slate-500">{row.receiptNumber}</td>
+                      <td className="py-3 px-4">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${SALE_TYPE_COLOR[row.saleType]}`}>
+                          {SALE_TYPE_LABEL[row.saleType]}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold text-white ${CARRIER_COLOR[row.carrier]?.split(' ')[0]}`}>
+                          {row.carrier}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right tabular-nums font-semibold">{formatThaiMoney(row.packageAmount)}</td>
+                      <td className="py-3 px-4 text-right tabular-nums font-semibold text-emerald-700">{formatThaiMoney(row.profit)}</td>
+                      <td className="py-3 px-4 text-slate-500">{row.phoneNumber ?? '—'}</td>
+                      <td className="py-3 px-4 text-slate-600">{row.createdBy?.name ?? row.cashierName}</td>
+                      <td className="py-3 px-4 text-slate-500">
+                        {format(new Date(row.createdAt), 'HH:mm', { locale: th })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Topup History */}
+        {activeTab === 'topups' && (
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            {movLoading ? (
+              <div className="flex items-center justify-center py-16 text-slate-400">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" /> กำลังโหลด...
+              </div>
+            ) : topups.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
+                <Wallet className="h-10 w-10 opacity-30" />
+                <p className="text-sm">ยังไม่มีการเติมกระเป๋าในวันนี้</p>
+              </div>
+            ) : (
+              <>
+                {/* Summary bar */}
+                <div className="p-4 bg-emerald-50 border-b border-emerald-100 flex flex-wrap gap-4">
+                  {CARRIERS.filter(c => !filterCarrier || filterCarrier === c).map(c => {
+                    const total = topups.filter(m => m.carrier === c).reduce((s, m) => s + m.amount, 0)
+                    if (total === 0) return null
+                    return (
+                      <div key={c} className="flex items-center gap-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold text-white ${CARRIER_COLOR[c]?.split(' ')[0]}`}>{c}</span>
+                        <span className="text-sm font-bold text-emerald-700 tabular-nums">{formatThaiMoney(total)}</span>
+                      </div>
+                    )
+                  })}
+                  <span className="ml-auto text-sm text-emerald-600 font-semibold">
+                    รวมเติมทั้งหมด: {formatThaiMoney(topups.reduce((s, m) => s + m.amount, 0))}
+                  </span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-100">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-600">ค่าย</th>
+                      <th className="text-right py-3 px-4 font-semibold text-slate-600">เติม</th>
+                      <th className="text-right py-3 px-4 font-semibold text-slate-600">ก่อนเติม</th>
+                      <th className="text-right py-3 px-4 font-semibold text-slate-600">หลังเติม</th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-600">หมายเหตุ</th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-600">เวลา</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {topups.map(row => (
+                      <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-4">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold text-white ${CARRIER_COLOR[row.carrier as Carrier]?.split(' ')[0] ?? 'bg-slate-500'}`}>
+                            {row.carrier}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums font-bold text-emerald-700">+{formatThaiMoney(row.amount)}</td>
+                        <td className="py-3 px-4 text-right tabular-nums text-slate-500">{formatThaiMoney(row.balanceBefore)}</td>
+                        <td className="py-3 px-4 text-right tabular-nums font-semibold">{formatThaiMoney(row.balanceAfter)}</td>
+                        <td className="py-3 px-4 text-slate-500 text-xs">{row.note ?? '—'}</td>
+                        <td className="py-3 px-4 text-slate-500">
+                          {format(new Date(row.createdAt), 'HH:mm', { locale: th })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {showCreate && (
@@ -533,6 +745,17 @@ export default function PackageSalesPage() {
           onDone={() => {
             setShowCreate(false)
             qc.invalidateQueries({ queryKey: ['package-sales'] })
+            qc.invalidateQueries({ queryKey: ['carrier-wallet'] })
+          }}
+        />
+      )}
+
+      {showTopup && (
+        <TopupDialog
+          shiftId={shift?.id}
+          onClose={() => setShowTopup(false)}
+          onDone={() => {
+            setShowTopup(false)
             qc.invalidateQueries({ queryKey: ['carrier-wallet'] })
           }}
         />
