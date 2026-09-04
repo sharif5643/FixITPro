@@ -7,8 +7,9 @@ import { th } from 'date-fns/locale'
 import { toast } from 'sonner'
 import {
   Wifi, TrendingUp, Banknote, Smartphone, CreditCard,
-  Plus, X, Loader2, Phone, Wallet, ArrowDownLeft,
+  Plus, X, Loader2, Phone, Wallet, ArrowDownLeft, Printer, ScanLine,
 } from 'lucide-react'
+import Barcode from 'react-barcode'
 import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
 import { apiErrorMessage, formatThaiMoney } from '@/lib/utils'
@@ -70,7 +71,8 @@ const PAY_LABEL: Record<PayMethod, string> = {
   CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตร',
 }
 
-const PRESET_AMOUNTS = [99, 150, 200, 250, 299, 399, 499, 599]
+const PRESET_AMOUNTS = [99, 150, 200, 250, 299, 300, 350, 399, 499, 599]
+const BARCODE_PRESETS = [150, 200, 250, 300, 350]
 
 // ── Create Dialog ─────────────────────────────────────────────────────────────
 
@@ -88,21 +90,51 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
   const [selPreset,    setSelPreset]    = useState<number | null>(null)
   const [customPrice,  setCustomPrice]  = useState('')
   const [costPrice,    setCostPrice]    = useState('35')
+  const [dealerCost,   setDealerCost]   = useState('')
   const [payMethod,    setPayMethod]    = useState<PayMethod>('CASH')
   const [amountPaid,   setAmountPaid]   = useState('')
   const [phoneNumber,  setPhoneNumber]  = useState('')
   const [note,         setNote]         = useState('')
+  const [scanInput,    setScanInput]    = useState('')
+  const scanRef = useState<ReturnType<typeof setTimeout> | null>(null)
 
-  const price        = selPreset !== null ? selPreset : (Number(customPrice) || 0)
-  const cost         = Number(costPrice) || 0
-  const walletBal    = wallets.find(w => w.carrier === carrier)?.balance ?? 0
-  const deduction    = saleType === 'SIM_SALE' ? cost : Math.round(price * 0.97 * 100) / 100
-  const profit       = saleType === 'SIM_SALE' ? price - cost : Math.round(price * 0.03 * 100) / 100
+  const price     = selPreset !== null ? selPreset : (Number(customPrice) || 0)
+  const cost      = Number(costPrice) || 0
+  const walletBal = wallets.find(w => w.carrier === carrier)?.balance ?? 0
+
+  // For packages: deduct what the dealer actually pays (default = full price, i.e. 100%)
+  // User can override via dealerCost field if carrier gives a discount
+  const pkgDeduction = dealerCost !== '' ? Number(dealerCost) : price
+  const pkgProfit    = price - pkgDeduction
+
+  const deduction    = saleType === 'SIM_SALE' ? cost : pkgDeduction
+  const profit       = saleType === 'SIM_SALE' ? price - cost : pkgProfit
   const paidNum      = Number(amountPaid) || 0
   const change       = payMethod === 'CASH' ? Math.max(0, paidNum - price) : 0
   const insufficient = saleType !== 'SIM_SALE' && price > 0 && deduction > walletBal
   const canSubmit    = !!shiftId && price > 0 && !insufficient
     && (payMethod !== 'CASH' || paidNum >= price)
+
+  // Handle barcode scanner input (USB scanner = fast keystrokes + Enter)
+  function handleScanKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const val = scanInput.trim()
+      const num = Number(val)
+      if (num > 0) {
+        if (PRESET_AMOUNTS.includes(num)) {
+          setSelPreset(num)
+          setCustomPrice('')
+          setDealerCost('')
+        } else {
+          setSelPreset(null)
+          setCustomPrice(val)
+          setDealerCost('')
+        }
+      }
+      setScanInput('')
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -139,6 +171,25 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
         </div>
 
         <div className="p-5 space-y-4">
+
+          {/* Barcode scan input */}
+          <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2 border-2 border-dashed border-slate-200 focus-within:border-blue-400">
+            <ScanLine className="h-4 w-4 text-slate-400 flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="แสกนบาร์โค้ด หรือพิมพ์ราคาแล้ว Enter..."
+              value={scanInput}
+              onChange={e => setScanInput(e.target.value)}
+              onKeyDown={handleScanKeyDown}
+              className="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 focus:outline-none"
+              autoFocus
+            />
+            {scanInput && (
+              <button onClick={() => setScanInput('')} className="text-slate-400 hover:text-slate-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
 
           {/* Sale type */}
           <div className="space-y-1.5">
@@ -230,15 +281,32 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
             </div>
           )}
 
+          {/* Dealer cost override (packages only) */}
+          {saleType !== 'SIM_SALE' && price > 0 && (
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-500 whitespace-nowrap">ต้นทุนดีลเลอร์ (บาท)</label>
+              <input
+                type="number" inputMode="numeric"
+                placeholder={String(price)}
+                value={dealerCost}
+                onChange={e => setDealerCost(e.target.value)}
+                className="flex-1 h-8 px-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <span className="text-xs text-slate-400 whitespace-nowrap">ค่าเริ่มต้น = ราคาขาย</span>
+            </div>
+          )}
+
           {/* Profit summary */}
           {price > 0 && (
             <div className="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
               <span className="text-sm text-slate-500">
-                {saleType === 'SIM_SALE' ? `ต้นทุน ${formatThaiMoney(deduction)} → ` : `หักกระเป๋า ${formatThaiMoney(deduction)} → `}
+                {saleType === 'SIM_SALE'
+                  ? `ต้นทุน ${formatThaiMoney(deduction)} → `
+                  : `หักกระเป๋า ${formatThaiMoney(deduction)} → `}
               </span>
-              <span className="font-bold text-emerald-700 flex items-center gap-1">
+              <span className={`font-bold flex items-center gap-1 ${profit > 0 ? 'text-emerald-700' : profit < 0 ? 'text-red-600' : 'text-slate-500'}`}>
                 <TrendingUp className="h-4 w-4" />
-                กำไร {formatThaiMoney(profit)}
+                {profit === 0 ? 'ไม่มีมาร์กอัป (คอมจากค่าย)' : `กำไร ${formatThaiMoney(profit)}`}
               </span>
             </div>
           )}
@@ -330,6 +398,75 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Print Barcodes Modal ──────────────────────────────────────────────────────
+
+function PrintBarcodesModal({ onClose }: { onClose: () => void }) {
+  return (
+    <>
+      {/* Screen overlay */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 print:hidden">
+        <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl">
+          <div className="flex items-center justify-between p-5 border-b">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Printer className="h-5 w-5 text-slate-600" /> พิมพ์บาร์โค้ดโปร
+            </h2>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+          </div>
+          <div className="p-6">
+            <p className="text-sm text-slate-500 mb-4">แสกนบาร์โค้ดในหน้าต่าง "บันทึกการขาย" เพื่อเลือกราคาแพ็กเกจอัตโนมัติ</p>
+            <div className="grid grid-cols-5 gap-3 mb-6">
+              {BARCODE_PRESETS.map(amt => (
+                <div key={amt} className="flex flex-col items-center border border-slate-200 rounded-xl p-3 bg-slate-50">
+                  <Barcode
+                    value={String(amt)}
+                    format="CODE128"
+                    width={1.5}
+                    height={60}
+                    fontSize={14}
+                    margin={4}
+                    displayValue={false}
+                  />
+                  <span className="text-base font-bold text-slate-800 mt-1">{amt} บาท</span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => window.print()}
+              className="w-full py-3 bg-slate-800 text-white rounded-xl font-semibold hover:bg-slate-900 flex items-center justify-center gap-2"
+            >
+              <Printer className="h-4 w-4" /> สั่งพิมพ์
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Print-only layout */}
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          #barcode-print-sheet { display: flex !important; }
+        }
+      `}</style>
+      <div id="barcode-print-sheet" className="hidden print:flex flex-wrap gap-4 p-4">
+        {BARCODE_PRESETS.map(amt => (
+          <div key={amt} style={{ border: '1px solid #ccc', padding: '8px', borderRadius: '8px', textAlign: 'center', width: '140px' }}>
+            <Barcode
+              value={String(amt)}
+              format="CODE128"
+              width={1.5}
+              height={60}
+              fontSize={14}
+              margin={4}
+              displayValue={false}
+            />
+            <div style={{ fontWeight: 'bold', fontSize: '18px', marginTop: '4px' }}>{amt} บาท</div>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
 
@@ -435,9 +572,10 @@ export default function PackageSalesPage() {
   const { user, hasModule } = useAuthStore()
   const qc = useQueryClient()
 
-  const [showCreate,   setShowCreate]   = useState(false)
-  const [showTopup,    setShowTopup]    = useState(false)
-  const [activeTab,    setActiveTab]    = useState<'sales' | 'topups'>('sales')
+  const [showCreate,        setShowCreate]        = useState(false)
+  const [showTopup,         setShowTopup]         = useState(false)
+  const [showPrintBarcodes, setShowPrintBarcodes] = useState(false)
+  const [activeTab,         setActiveTab]         = useState<'sales' | 'topups'>('sales')
   const [filterDate,   setFilterDate]   = useState(new Date().toISOString().slice(0, 10))
   const [filterCarrier, setFilterCarrier] = useState('')
   const [filterType,   setFilterType]   = useState('')
@@ -508,7 +646,13 @@ export default function PackageSalesPage() {
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">บันทึกการขายซิมการ์ดและแพ็กเกจอินเทอร์เน็ต</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
+            <button
+              onClick={() => setShowPrintBarcodes(true)}
+              className="flex items-center gap-2 bg-slate-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-slate-700 transition-colors"
+            >
+              <Printer className="h-4 w-4" /> พิมพ์บาร์โค้ด
+            </button>
             <button
               onClick={() => setShowTopup(true)}
               className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
@@ -759,6 +903,10 @@ export default function PackageSalesPage() {
             qc.invalidateQueries({ queryKey: ['carrier-wallet'] })
           }}
         />
+      )}
+
+      {showPrintBarcodes && (
+        <PrintBarcodesModal onClose={() => setShowPrintBarcodes(false)} />
       )}
     </div>
   )
