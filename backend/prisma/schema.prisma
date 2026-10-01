@@ -1236,11 +1236,16 @@ model UserPermission {
 
 model CarrierWallet {
   id        String   @id @default(cuid())
-  carrier   Carrier  @unique
+  carrier   Carrier
   balance   Decimal  @default(0) @db.Decimal(12, 2)
   updatedAt DateTime @updatedAt
 
+  // One wallet per carrier per tenant. NULL = legacy/no-tenant users.
+  tenantId String?
+
   movements CarrierWalletMovement[]
+
+  @@unique([tenantId, carrier])
 }
 
 model CarrierWalletMovement {
@@ -1258,9 +1263,12 @@ model CarrierWalletMovement {
 
   shiftId     String?
   createdById String?
+  tenantId    String?
 
   @@index([carrier, createdAt])
   @@index([type, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([shiftId])
 }
 
 model ExpenseCategory {
@@ -1338,10 +1346,13 @@ model PackageSale {
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
 
+  tenantId String?
+
   @@index([carrier, createdAt])
   @@index([createdAt])
   @@index([shiftId])
   @@index([customerId])
+  @@index([tenantId, createdAt])
 }
 
 model Warranty {

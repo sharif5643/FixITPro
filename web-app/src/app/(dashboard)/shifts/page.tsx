@@ -62,6 +62,17 @@ interface ActiveShift {
   repairCount: number
   repairRevenue: number
   expectedCashBalance: number
+  packageSalesByCarrier?: CarrierShiftSummary[]
+}
+
+interface CarrierShiftSummary {
+  carrier: string
+  salesCount: number
+  salesAmount: number
+  walletDeduction: number
+  profit: number
+  topupCount: number
+  topupAmount: number
 }
 
 interface ShiftRecord {
@@ -733,6 +744,7 @@ export default function ShiftsPage() {
                 <div className="divide-y divide-slate-100 dark:divide-slate-700/40">
                   {CARRIERS.map((carrier) => {
                     const recorded = walletBalances.find((w) => w.carrier === carrier)?.balance ?? 0
+                    const shiftSum = currentShift?.packageSalesByCarrier?.find((c) => c.carrier === carrier)
                     const rawInput = walletInputs[carrier]
                     const actual   = rawInput !== undefined && rawInput !== '' ? Number(rawInput) : null
                     const diff     = actual !== null ? Math.round((actual - recorded) * 100) / 100 : null
@@ -747,6 +759,13 @@ export default function ShiftsPage() {
                             ระบบ: <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(recorded)}</span>
                           </span>
                         </div>
+                        {shiftSum && (shiftSum.salesCount > 0 || shiftSum.topupCount > 0) && (
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
+                            <span>ขาย {shiftSum.salesCount} รายการ <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(shiftSum.salesAmount)}</span></span>
+                            <span>กำไร <span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(shiftSum.profit)}</span></span>
+                            <span>เติมกระเป๋า <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(shiftSum.topupAmount)}</span></span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2">
                           <Input
                             type="number"

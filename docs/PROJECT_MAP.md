@@ -1,0 +1,91 @@
+# FixITPro — Project Map
+
+> Orientation for new contributors / AI sessions. Updated 2026-10-01.
+> For older detail see `CURRENT_SYSTEM_SUMMARY.md` (2026-05) and `docs/ai-handoff/latest.md` (2026-06).
+
+## What it is
+
+Multi-tenant SaaS back-office for phone shops / repair shops: POS, repairs, multi-branch stock,
+SIM/package sales with carrier wallets, shifts and cash drawer, double-entry accounting.
+
+```
+Clients
+ ├─ Web (Next.js 14, app router)      https://fixitpro.in.th   web-app/src/app/(dashboard)
+ ├─ SUNMI V2 Pro POS (Capacitor APK)  /sunmi/*                 web-app/android
+ ├─ Staff app (Capacitor APK)         /staff/*                 FixITPro-Staff-v2.0.apk
+ └─ Public pages                      /(public), /track/*
+        │ HttpOnly cookie JWT (Bearer fallback for old APKs)
+Backend  NestJS 10 + Prisma 5       /api/v1   backend/src
+        │
+PostgreSQL                           backend/prisma (schema.prisma, migrations/)
+
+FixITPro Agent (.exe, Windows)       https://localhost:7777  fixitpro-agent/  — opens cash drawer via ESC/POS
+```
+
+Unused / legacy: `server/` (old express), `mobile-app/` (Expo prototype).
+
+## Deploy
+
+Push to `main` → `.github/workflows/deploy.yml` → SSH to VPS → Coolify rebuild →
+backend container runs `prisma migrate deploy` on start (`backend/docker-entrypoint.sh`) →
+workflow polls `https://fixitpro.in.th/login` for 200. **No tests run before deploy.**
+Other branches do not deploy. Secrets come from Coolify env vars (`docker-compose.coolify.yml`).
+
+## Backend modules (`backend/src`)
+
+| Area | Modules |
+|---|---|
+| Sales | `sales` (POS, split payments, refunds, void), `customers` (CRM, loyalty), `debt-payments` |
+| Repairs | `repairs` (largest), `chat` (socket.io `/chat`), `warranties`, `claims`, `technicians`, `public-tracking` |
+| Partner repair | `partner-relationships`, `partner-repair-transfers`, `partner-repair-quotations` |
+| Stock | `products`, `categories`, `stock`, `serials` (IMEI), `branches` (BranchStock + transfer workflow), `purchase-orders`, `suppliers` |
+| Cash | `shifts`, `cash-drawer`, `expenses`, `finance` (daily close, branch P&L), `carrier-wallet` |
+| Accounting | `journal` (auto double-entry), `accounting-accounts` (CoA), `accounting-reconciliation`, `reconciliation` |
+| SaaS | `super-admin/*`, `modules` (+ `ModuleGuard`), `subscription`, `plan-limits`, `tenant`, `tenant-backup` |
+| Other | `auth`, `permissions`, `users`, `settings`, `notifications`, `reminders`, `alerts`, `audit-log`, `line-messaging`, `backup`, `data` |
+
+### Request pipeline
+- `JwtStrategy` (`auth/strategies/jwt.strategy.ts`) loads the user + permissions on every request → `req.user = { id, role, tenantId, branchId, permissions }`.
+- Guards: `JwtAuthGuard`, `TenantActiveGuard` (blocks writes 2 days after tenant expiry), `PermissionGuard` (`@RequirePermission`), `ModuleGuard` (`@RequireModule`), `RolesGuard`. OWNER / SUPER_ADMIN bypass permission + module checks.
+- Global `ValidationPipe({ whitelist, transform, forbidNonWhitelisted })` — **any field the client sends that the DTO does not declare → 400.**
+
+### Tenant isolation — manual, per service
+There is no Prisma middleware. Every service must filter by `tenantId` itself, either directly
+(`where: { tenantId }`) or through a relation (repairs/sales: `branch: { tenantId }`).
+Users with `tenantId = null` (SUPER_ADMIN / legacy) are unfiltered in most services.
+When adding a query, copy the pattern of the neighbouring code and add a case to `backend/test/multi-tenant.e2e-spec.ts`.
+
+## Carrier wallet / package sales
+
+- One `CarrierWallet` per (tenantId, carrier) — created on first use. Movement types: OPENING / TOPUP / DEDUCTION / ADJUSTMENT.
+- `POST /carrier-wallet/package-sale` — deducts `dealerCost` (default 97% of price) from the wallet; profit = price − deduction. `saleType` PROMO / TOPUP / BUNDLE.
+- `POST /carrier-wallet/sim-sale` — SIM card sale, no wallet deduction (`saleType = SIM_SALE`).
+- `POST /carrier-wallet/topup`, `GET /balances`, `GET /movements`, `GET /package-sales/list`, `POST /reconcile` (shift close).
+- Receipt numbers `PKG-YYYYMMDD-####` use the Bangkok date; conflicts retry the transaction.
+- Dates in query params are Bangkok calendar days (`YYYY-MM-DD`).
+- Shift summary (`GET /shifts/current`, close result) includes `packageSalesByCarrier`.
+
+## Frontend (`web-app/src`)
+
+- Pages: `app/(dashboard)/*` (desktop), `app/sunmi/*` (SUNMI POS), `app/staff/*` (staff app), `app/super-admin/*`, `app/print/*` (printable docs), `app/(public)/*`.
+- Data: TanStack Query + axios (`lib/api.ts`), auth/modules from `useAuthStore` (`hasModule`).
+- Printing: `lib/printer.ts` (thermal HTML builders), `lib/sunmi-printer.ts`, `lib/cash-drawer.ts` (talks to the agent).
+- Offline queue for SUNMI: `lib/offline-queue.ts` + `hooks/use-sync-queue.ts`.
+
+## Running checks
+
+```bash
+# backend
+cd backend && npm ci && npx prisma generate
+npx tsc --noEmit -p tsconfig.json
+npx jest --ci                                   # unit (mocked Prisma)
+# e2e needs Postgres at postgres:123456@localhost:5432/fixitpro_test (see jest.e2e.config.ts)
+npx jest --config jest.e2e.config.ts --runInBand --forceExit
+
+# web
+cd web-app && npm ci
+npx tsc --noEmit && npx next lint && npx vitest run
+```
+
+Known noise: `super-admin-v2.test.ts` has 2 failing assertions (BUG.md UI-001); e2e `CD-05` / `VAL-12`
+fail intermittently depending on suite order when the whole e2e suite runs together.

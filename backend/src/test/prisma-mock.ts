@@ -14,6 +14,9 @@ export function mockPrisma(): jest.Mocked<PrismaService> {
     shift: { findFirst: jest.fn(), update: jest.fn() },
     auditLog: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
     carrierWallet: {
+      // ensureWallets() checks outside the transaction — report the wallet as existing
+      findFirst: jest.fn().mockResolvedValue({ id: 'w1' }),
+      create: jest.fn(),
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       update: jest.fn(),
