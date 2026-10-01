@@ -112,7 +112,8 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
   const paidNum      = Number(amountPaid) || 0
   const change       = payMethod === 'CASH' ? Math.max(0, paidNum - price) : 0
   const insufficient = saleType !== 'SIM_SALE' && price > 0 && deduction > walletBal
-  const canSubmit    = !!shiftId && price > 0 && !insufficient
+  const dealerCostTooHigh = saleType !== 'SIM_SALE' && dealerCost !== '' && pkgDeduction > price
+  const canSubmit    = !!shiftId && price > 0 && !insufficient && !dealerCostTooHigh
     && (payMethod !== 'CASH' || paidNum >= price)
 
   // Handle barcode scanner input (USB scanner = fast keystrokes + Enter)
@@ -148,6 +149,7 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
       }
       return api.post('/carrier-wallet/package-sale', {
         carrier, packageAmount: price, saleType,
+        dealerCost: dealerCost !== '' ? Math.round(pkgDeduction * 100) / 100 : undefined,
         paymentMethod: payMethod, amountPaid: payMethod === 'CASH' ? paidNum : price,
         phoneNumber: phoneNumber.trim() || undefined,
         note: note.trim() || undefined, shiftId, cashierName,
@@ -294,6 +296,9 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
               />
               <span className="text-xs text-slate-400 whitespace-nowrap">ค่าเริ่มต้น 97%</span>
             </div>
+          )}
+          {dealerCostTooHigh && (
+            <p className="text-xs text-red-600">ต้นทุนดีลเลอร์ต้องไม่เกินราคาขาย</p>
           )}
 
           {/* Profit summary */}

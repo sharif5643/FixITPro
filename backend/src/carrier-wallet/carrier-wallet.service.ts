@@ -7,8 +7,7 @@ import { PrismaService } from '../database/prisma.service';
 import { PackageSaleDto } from './dto/package-sale.dto';
 import { TopupDto } from './dto/topup.dto';
 
-const PROFIT_RATE    = 0.03;  // shop keeps 3%
-const DEDUCTION_RATE = 0.97;  // 97% deducted from carrier wallet
+const DEDUCTION_RATE = 0.97;  // default: 97% deducted from carrier wallet, shop keeps 3%
 
 @Injectable()
 export class CarrierWalletService {
@@ -30,10 +29,15 @@ export class CarrierWalletService {
 
   // ── Package sale ──────────────────────────────────────────────────────────────
 
-  async createPackageSale(dto: PackageSaleDto & { saleType?: string }, userId: string) {
-    const walletDeduction = Math.round(dto.packageAmount * DEDUCTION_RATE * 100) / 100;
-    const profit          = Math.round(dto.packageAmount * PROFIT_RATE * 100) / 100;
-    const saleType        = (dto.saleType as any) ?? 'PROMO';
+  async createPackageSale(dto: PackageSaleDto, userId: string) {
+    if (dto.dealerCost != null && dto.dealerCost > dto.packageAmount) {
+      throw new BadRequestException('ต้นทุนดีลเลอร์ต้องไม่เกินราคาขาย');
+    }
+    const walletDeduction = dto.dealerCost != null
+      ? Math.round(dto.dealerCost * 100) / 100
+      : Math.round(dto.packageAmount * DEDUCTION_RATE * 100) / 100;
+    const profit          = Math.round((dto.packageAmount - walletDeduction) * 100) / 100;
+    const saleType        = dto.saleType ?? 'PROMO';
     const change          = dto.paymentMethod === 'CASH'
       ? Math.max(0, dto.amountPaid - dto.packageAmount)
       : 0;
