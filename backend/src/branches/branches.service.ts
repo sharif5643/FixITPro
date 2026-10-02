@@ -16,6 +16,7 @@ import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 import { SetBranchStockDto } from './dto/set-branch-stock.dto';
+import { bangkokYmd } from '../common/bangkok-date';
 
 @Injectable()
 export class BranchesService implements OnModuleInit {
@@ -35,7 +36,7 @@ export class BranchesService implements OnModuleInit {
   // ── Transfer number ─────────────────────────────────────────────────────────
 
   private generateTransferNumber(): string {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = bangkokYmd();
     const suffix = randomBytes(3).toString('hex').toUpperCase();
     return `TRF-${dateStr}-${suffix}`;
   }

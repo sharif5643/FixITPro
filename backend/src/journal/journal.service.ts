@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { bangkokYmd } from '../common/bangkok-date';
 
 // ── Input types ───────────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ export class JournalService {
   // is the enforced safety net. Callers should catch P2002 if they need retry logic.
 
   private generateEntryNumber(): string {
-    const date   = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const date   = bangkokYmd();
     const suffix = randomBytes(4).toString('hex').toUpperCase();
     return `JE-${date}-${suffix}`;
   }

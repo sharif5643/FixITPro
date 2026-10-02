@@ -184,6 +184,10 @@ describe('RepairsService — Workflow tests (RC1)', () => {
       const createdPayment = { id: 'add-pay-1', repairId: 'r-1', amount: 200 };
       (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
         const tx = {
+          $queryRaw: jest.fn().mockResolvedValue([]),
+          repair: {
+            findUniqueOrThrow: jest.fn().mockResolvedValue({ paymentStatus: 'PENDING', paidAmount: null, additionalPayments: [] }),
+          },
           repairAdditionalPayment: { create: jest.fn().mockResolvedValue(createdPayment) },
           branch: { findUnique: jest.fn().mockResolvedValue({ tenantId: TENANT_ID }) },
         };

@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 export function mockPrisma(): jest.Mocked<PrismaService> {
   return {
     repair: {
+      aggregate: jest.fn().mockResolvedValue({ _sum: { deposit: 0 } }),
       findFirst: jest.fn(),
       findMany: jest.fn(),
       findUniqueOrThrow: jest.fn(),
@@ -22,6 +23,7 @@ export function mockPrisma(): jest.Mocked<PrismaService> {
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    repairAdditionalPayment: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }) },
     carrierWalletMovement: { create: jest.fn() },
     packageSale: { create: jest.fn(), count: jest.fn(), findMany: jest.fn() },
     serialNumber: {

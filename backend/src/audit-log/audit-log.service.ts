@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 
@@ -99,7 +99,16 @@ export class AuditLogService {
     return { items, total, page, limit };
   }
 
-  async findOne(id: string) {
-    return this.prisma.auditLog.findUnique({ where: { id } });
+  // Same scoping as findMany: tenant users only see logs written by users of their tenant
+  async findOne(id: string, tenantId?: string | null, role?: string) {
+    const log = await this.prisma.auditLog.findUnique({ where: { id } });
+    if (!log) throw new NotFoundException('Audit log not found');
+    if (tenantId && role !== 'SUPER_ADMIN') {
+      const actor = log.actorId
+        ? await this.prisma.user.findUnique({ where: { id: log.actorId }, select: { tenantId: true } })
+        : null;
+      if (actor?.tenantId !== tenantId) throw new NotFoundException('Audit log not found');
+    }
+    return log;
   }
 }

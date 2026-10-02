@@ -92,8 +92,9 @@ export class DataController {
     @CurrentUser('id')       actorId: string,
     @CurrentUser('name')     actorName: string,
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('branchId') branchId: string | null,
   ) {
     if (!file) throw new BadRequestException('กรุณาเลือกไฟล์ CSV');
-    return this.svc.import(type, file.buffer.toString('utf-8'), actorId, actorName, tenantId);
+    return this.svc.import(type, file.buffer.toString('utf-8'), actorId, actorName, tenantId, branchId);
   }
 }

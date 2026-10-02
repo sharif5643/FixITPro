@@ -8,6 +8,7 @@ import { PrismaService } from '../database/prisma.service';
 import { CreateClaimDto } from './dto/create-claim.dto';
 import { UpdateClaimStatusDto } from './dto/update-claim-status.dto';
 import { UpdateClaimDto } from './dto/update-claim.dto';
+import { bangkokYmd } from '../common/bangkok-date';
 
 // ─── Includes ──────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ export class ClaimsService {
   // ─── Claim number ────────────────────────────────────────────────────────────
 
   private async generateClaimNumber(): Promise<string> {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = bangkokYmd();
     const prefix = `CLM-${dateStr}-`;
     const last = await this.prisma.claim.findFirst({
       where: { claimNumber: { startsWith: prefix } },

@@ -33,7 +33,7 @@ function ModuleDialog({
   const [description, setDescription] = useState(mod?.description ?? '')
 
   const mutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (): Promise<unknown> =>
       isEdit
         ? api.put(`/super-admin/modules/${mod!.key}`, { name, description })
         : api.post('/super-admin/modules', { key, name, description }),

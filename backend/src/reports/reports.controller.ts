@@ -7,6 +7,7 @@ import { ModuleGuard } from '../common/guards/module.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { bangkokDate } from '../common/bangkok-date';
 
 @RequireModule('report')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard, ModuleGuard)
@@ -32,7 +33,7 @@ export class ReportsController {
     @CurrentUser('branchId') userBranchId?: string,
     @CurrentUser('tenantId') tenantId?: string,
   ) {
-    const reportDate = date || new Date().toISOString().slice(0, 10);
+    const reportDate = date || bangkokDate();
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN') ? branchId : (userBranchId ?? undefined);
     return this.reportsService.getDailyReport(reportDate, effectiveBranchId, tenantId);
   }
@@ -47,7 +48,7 @@ export class ReportsController {
     @CurrentUser('branchId') userBranchId?: string,
     @CurrentUser('tenantId') tenantId?: string,
   ) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokDate();
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN') ? branchId : (userBranchId ?? undefined);
     return this.reportsService.getSummary(startDate || today, endDate || today, effectiveBranchId, tenantId);
   }
@@ -59,7 +60,7 @@ export class ReportsController {
     @Query('branchId') branchId?: string,
     @CurrentUser('tenantId') tenantId?: string,
   ) {
-    const reportDate = date || new Date().toISOString().slice(0, 10);
+    const reportDate = date || bangkokDate();
     return this.reportsService.getVoidLog(reportDate, branchId, tenantId);
   }
 
@@ -72,7 +73,7 @@ export class ReportsController {
     @CurrentUser('branchId') userBranchId?: string,
     @CurrentUser('tenantId') tenantId?: string,
   ) {
-    const reportDate = date || new Date().toISOString().slice(0, 10);
+    const reportDate = date || bangkokDate();
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN') ? branchId : (userBranchId ?? undefined);
     return this.reportsService.getDailyClosingReport(reportDate, effectiveBranchId, tenantId);
   }
@@ -87,7 +88,7 @@ export class ReportsController {
     @CurrentUser('branchId') userBranchId?: string,
     @CurrentUser('tenantId') tenantId?: string,
   ) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokDate();
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN') ? branchId : (userBranchId ?? undefined);
     return this.reportsService.getProfitReport(startDate || today, endDate || today, effectiveBranchId, tenantId);
   }

@@ -46,8 +46,11 @@ export class UsersService {
     });
   }
 
-  async findOne(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id }, select: USER_SELECT });
+  async findOne(id: string, tenantId?: string | null) {
+    const user = await this.prisma.user.findFirst({
+      where:  { id, ...(tenantId ? { tenantId } : {}) },
+      select: USER_SELECT,
+    });
     if (!user) throw new NotFoundException('User not found');
     return user;
   }

@@ -14,7 +14,8 @@ interface FiInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>,
 
 export const FiInput = React.forwardRef<HTMLInputElement, FiInputProps>(
   ({ className, label, hint, error, prefixIcon, suffixIcon, prefixText, suffixText, size = 'md', id, ...props }, ref) => {
-    const inputId = id ?? React.useId()
+    const generatedId = React.useId()
+    const inputId = id ?? generatedId
     const hasPrefix = !!prefixIcon || !!prefixText
     const hasSuffix = !!suffixIcon || !!suffixText
 

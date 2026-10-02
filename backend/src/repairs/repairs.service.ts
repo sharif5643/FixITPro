@@ -20,6 +20,7 @@ import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
 import { RepairAccountingAdapter } from './repair-accounting.adapter';
 import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
+import { bangkokYmd } from '../common/bangkok-date';
 
 const REPAIR_INCLUDE = {
   customer: true,
@@ -72,7 +73,7 @@ export class RepairsService {
   }
 
   private generateTicketNumber(): string {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = bangkokYmd();
     const suffix = randomBytes(3).toString('hex').toUpperCase();
     return `REP-${dateStr}-${suffix}`;
   }
@@ -162,6 +163,12 @@ export class RepairsService {
       const partsCost  = dto.estimatedPartsCost;
       const total      = laborCost != null && partsCost != null ? laborCost + partsCost : dto.estimateCost;
 
+      // A deposit taken at intake belongs to the receiving user's open shift (expected cash)
+      const hasDeposit   = (dto.deposit ?? 0) > 0;
+      const depositShift = hasDeposit && actorId
+        ? await tx.shift.findFirst({ where: { userId: actorId, isActive: true }, select: { id: true } })
+        : null;
+
       const newRepair = await tx.repair.create({
         data: {
           ticketNumber:       this.generateTicketNumber(),
@@ -183,6 +190,8 @@ export class RepairsService {
           estimatedPartsCost: partsCost,
           estimatedTotal:     total,
           deposit:            dto.deposit ?? 0,
+          depositPaymentMethod: hasDeposit ? ((dto.depositPaymentMethod ?? 'CASH') as any) : null,
+          depositShiftId:     depositShift?.id ?? null,
           note:               dto.note,
           branchId:           effectiveBranchId,
         },
@@ -481,6 +490,8 @@ export class RepairsService {
         }
 
         updateData.status = 'CANCELLED';
+        // Deposit handed back → no longer part of the receiving shift's cash (same as paymentShiftId)
+        if (deposit > 0) updateData.depositShiftId = null;
         const updatedRepair = await tx.repair.update({ where: { id }, data: updateData, include: REPAIR_INCLUDE });
         await this.auditLog.logWithTx(tx, {
           actorId, actorName,
@@ -846,6 +857,10 @@ export class RepairsService {
     const balance = Math.max(0, total - deposit);
 
     const isPartial = dto.allowPartial === true && dto.amountPaid < balance;
+    // amountPaid from the UI is the money tendered (cash includes change). The shop keeps at most
+    // the balance; recording the tendered amount inflated revenue, the cash-drawer ledger and
+    // shift expected cash by the change given back.
+    const received = Math.round(Math.min(dto.amountPaid, balance) * 100) / 100;
 
     if (!isPartial && dto.amountPaid < balance) {
       throw new BadRequestException(
@@ -862,7 +877,7 @@ export class RepairsService {
         data: {
           paymentStatus: isPartial ? 'PARTIAL' : 'PAID',
           paymentMethod: dto.paymentMethod as any,
-          paidAmount:    dto.amountPaid,
+          paidAmount:    received,
           paidAt:        new Date(),
           status:        'DELIVERED',
           deliveredAt:   new Date(),
@@ -889,7 +904,7 @@ export class RepairsService {
         action:     'REPAIR_PAYMENT',
         entityType: 'Repair',
         entityId:   repairId,
-        afterData:  { finalCost: total, paymentMethod: dto.paymentMethod, amountPaid: dto.amountPaid },
+        afterData:  { finalCost: total, paymentMethod: dto.paymentMethod, amountPaid: received, tendered: dto.amountPaid },
       });
 
       // Record CASH repair payment in Cash Drawer ledger (IN)
@@ -897,12 +912,12 @@ export class RepairsService {
         where: { id: repairId },
         select: { branchId: true, branch: { select: { tenantId: true } } },
       });
-      if (repairRecord?.branchId) {
+      if (repairRecord?.branchId && received > 0) {
         await this.accounting.record({
           sourceType:    ACCOUNTING_SOURCE.REPAIR_FINAL_PAYMENT,
           sourceId:      repairId,
           paymentMethod: dto.paymentMethod as any,
-          amount:        dto.amountPaid,
+          amount:        received,
           direction:     'IN',
           branchId:      repairRecord.branchId,
           tenantId:      (repairRecord as any).branch?.tenantId ?? null,
@@ -1048,6 +1063,25 @@ export class RepairsService {
     });
 
     const payment = await this.prisma.$transaction(async (tx) => {
+      // Lock the repair and re-read balances so concurrent payments are checked one at a time
+      await tx.$queryRaw`SELECT id FROM "Repair" WHERE id = ${repairId} FOR UPDATE`;
+      const fresh = await tx.repair.findUniqueOrThrow({
+        where:  { id: repairId },
+        select: { paymentStatus: true, paidAmount: true, additionalPayments: { select: { amount: true } } },
+      });
+      repair.paymentStatus      = fresh.paymentStatus;
+      repair.paidAmount         = fresh.paidAmount;
+      repair.additionalPayments = fresh.additionalPayments;
+
+      // Paying off a debt (PARTIAL): never accept more than what is still owed
+      if (repair.paymentStatus === 'PARTIAL' && repair.finalCost) {
+        const owed = Number(repair.finalCost) - Number(repair.deposit ?? 0) - Number(repair.paidAmount ?? 0)
+          - repair.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        if (dto.amount > owed + 0.005) {
+          throw new BadRequestException(`ยอดชำระเกินยอดค้างชำระ (คงเหลือ ${Math.max(0, owed).toFixed(2)} บาท)`);
+        }
+      }
+
       const created = await tx.repairAdditionalPayment.create({
         data: {
           repairId,
@@ -1314,9 +1348,13 @@ export class RepairsService {
           paidAt:         null,
           deliveredAt:    null,
           paymentShiftId: null,
+          depositShiftId: null,
         },
         include: REPAIR_INCLUDE,
       });
+
+      // Refunded debt payments no longer count toward the shifts that received them
+      await tx.repairAdditionalPayment.updateMany({ where: { repairId }, data: { shiftId: null } });
 
       await this.auditLog.logWithTx(tx, {
         actorId:    userId,
@@ -1615,7 +1653,7 @@ export class RepairsService {
 
   async submitReview(repairId: string, rating: number, comment?: string, tenantId?: string | null) {
     if (rating < 1 || rating > 5) {
-      throw new Error('Rating must be between 1 and 5');
+      throw new BadRequestException('คะแนนต้องอยู่ระหว่าง 1 ถึง 5');
     }
     const where: any = { id: repairId };
     if (tenantId) where.branch = { tenantId };

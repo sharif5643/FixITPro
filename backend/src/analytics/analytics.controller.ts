@@ -9,6 +9,7 @@ import { RequirePermission } from '../common/decorators/permission.decorator';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { bangkokDate } from '../common/bangkok-date';
 
 const IS_ELEVATED = (role: string) => role === 'OWNER' || role === 'SUPER_ADMIN';
 
@@ -80,7 +81,7 @@ export class AnalyticsController {
     @CurrentUser('tenantId') tenantId?: string,
   ) {
     const effectiveBranchId = IS_ELEVATED(role ?? '') ? branchId : (userBranchId ?? undefined);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokDate();
     const start = new Date(`${startDate ?? today}T00:00:00+07:00`);
     const end   = new Date(`${endDate   ?? today}T23:59:59+07:00`);
     return this.analyticsService.getTopProfitProducts(effectiveBranchId, start, end, tenantId);
@@ -97,8 +98,8 @@ export class AnalyticsController {
     @CurrentUser('tenantId') tenantId?: string,
   ) {
     const effectiveBranchId = IS_ELEVATED(role ?? '') ? branchId : (userBranchId ?? undefined);
-    const today = new Date().toISOString().slice(0, 10);
-    const start = new Date(`${startDate ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)}T00:00:00+07:00`);
+    const today = bangkokDate();
+    const start = new Date(`${startDate ?? bangkokDate(new Date(Date.now() - 30 * 86400000))}T00:00:00+07:00`);
     const end   = new Date(`${endDate ?? today}T23:59:59+07:00`);
     return this.analyticsService.getTechnicianTrends(effectiveBranchId, start, end, tenantId);
   }

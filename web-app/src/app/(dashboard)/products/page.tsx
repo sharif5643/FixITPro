@@ -174,7 +174,8 @@ export default function ProductsPage() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: ProductFormData }) =>
+    // Stock is changed only through stock adjustments, never by editing the product
+    mutationFn: ({ id, data: { stock: _stock, ...data } }: { id: string; data: ProductFormData }) =>
       api.patch(`/products/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })

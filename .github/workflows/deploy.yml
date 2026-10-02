@@ -27,7 +27,7 @@ jobs:
 
       - name: Deploy via SSH
         run: |
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 \
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 root@91.98.151.10 \
             "bash /root/trigger-coolify-deploy.sh" 2>&1
 
       - name: Verify deployment

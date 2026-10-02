@@ -747,7 +747,7 @@ describe('SalesService.exchangeSaleItems — Phase 4B.4T', () => {
   // ── Serialized product ────────────────────────────────────────────────────
 
   describe('serialized product', () => {
-    it('U-SERIAL-1: fully returning serialized item → serialNumber.updateMany RETURNED', async () => {
+    it('U-SERIAL-1: fully returning serialized item → serialNumber back to IN_STOCK (sellable again)', async () => {
       const serialSale = {
         ...ORIG_SALE,
         items: [{
@@ -767,7 +767,7 @@ describe('SalesService.exchangeSaleItems — Phase 4B.4T', () => {
       expect(tx.serialNumber.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { saleItemId: ORIG_SI_ID },
-          data:  { status: 'RETURNED', soldAt: null },
+          data:  { status: 'IN_STOCK', saleItemId: null, soldAt: null, warrantyExpiresAt: null },
         }),
       );
     });

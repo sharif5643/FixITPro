@@ -384,7 +384,9 @@ export class ProductsService {
         type: dto.type as any,
         price: dto.price,
         costPrice: dto.costPrice,
-        stock: dto.stock,
+        // Stock is NOT editable here: Product.stock is the sum of BranchStock and is changed
+        // only via stock movements (/stock/adjust, sales, PO receive, transfers). Writing it
+        // directly made the total disagree with branch quantities ("stock jumps" reports).
         minStock: dto.minStock,
         description: dto.description,
         imageUrl: dto.imageUrl,

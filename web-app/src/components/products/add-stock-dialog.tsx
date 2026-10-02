@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { PackagePlus, Loader2, Search, AlertCircle } from 'lucide-react'
+import { PackagePlus, Loader2, Search, AlertCircle, ClipboardCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -53,6 +53,8 @@ export function AddStockDialog({
   const [selectedBranchId, setSelectedBranchId] = useState('')
   const [qty, setQty]   = useState('')
   const [note, setNote] = useState('')
+  // 'add' = receive N more; 'count' = set the branch quantity to what was physically counted
+  const [mode, setMode] = useState<'add' | 'count'>('add')
 
   const reset = () => {
     setPickedProduct(null)
@@ -60,6 +62,7 @@ export function AddStockDialog({
     setSelectedBranchId('')
     setQty('')
     setNote('')
+    setMode('add')
   }
 
   // Active product being added — propProduct takes precedence
@@ -109,8 +112,27 @@ export function AddStockDialog({
     ).slice(0, 50)
   }, [allProductsForPicker, propProduct, productSearch])
 
+  // Current quantity of this product in the selected branch (authoritative BranchStock)
+  const { data: availability, isFetching: loadingCurrent } = useQuery<{ branches: { branchId: string; quantity: number }[] }>({
+    queryKey: ['products', activeProduct?.id, 'availability'],
+    queryFn:  () => api.get(`/products/${activeProduct!.id}/availability`).then((r) => r.data),
+    enabled:  open && mode === 'count' && !!activeProduct,
+    staleTime: 0,
+  })
+  const currentQty = availability?.branches.find((b) => b.branchId === effectiveBranchId)?.quantity ?? 0
+
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (): Promise<unknown> => {
+      if (mode === 'count') {
+        const counted = Number(qty)
+        return api.post('/stock/adjust', {
+          productId: activeProduct!.id,
+          type:      'ADJUST',
+          quantity:  counted - currentQty,
+          branchId:  effectiveBranchId,
+          note:      note.trim() || `ตั้งยอดตามนับจริง (ระบบ ${currentQty} → นับได้ ${counted})`,
+        })
+      }
       if (process.env.NODE_ENV === 'development') {
         console.log('[AddStockDialog][submit]', {
           productId:        activeProduct!.id,
@@ -136,7 +158,9 @@ export function AddStockDialog({
         qc.invalidateQueries({ queryKey: ['low-stock'] }),
         qc.invalidateQueries({ queryKey: ['dashboard'] }),
       ])
-      toast.success(`เพิ่มสต็อก "${activeProduct?.name}" เข้า${effectiveBranchName || 'สาขา'} เรียบร้อย`)
+      toast.success(mode === 'count'
+        ? `ตั้งยอด "${activeProduct?.name}" ที่${effectiveBranchName || 'สาขา'} เป็น ${Number(qty)} ชิ้นแล้ว`
+        : `เพิ่มสต็อก "${activeProduct?.name}" เข้า${effectiveBranchName || 'สาขา'} เรียบร้อย`)
       onOpenChange(false)
       reset()
     },
@@ -149,7 +173,11 @@ export function AddStockDialog({
   const qtyNum  = Number(qty)
   // effectiveBranchId being falsy already blocks submit; no separate ownerGlobalModeBlocked needed.
   // The products page prevents OWNER from opening the dialog in global mode entirely.
-  const isValid = !!activeProduct && !!qty && qtyNum > 0 && Number.isInteger(qtyNum) && !!effectiveBranchId
+  const countDelta = qtyNum - currentQty
+  const isValid = mode === 'count'
+    ? !!activeProduct && qty !== '' && qtyNum >= 0 && Number.isInteger(qtyNum) && !!effectiveBranchId
+      && !loadingCurrent && countDelta !== 0
+    : !!activeProduct && !!qty && qtyNum > 0 && Number.isInteger(qtyNum) && !!effectiveBranchId
   const noBranchWarning = isBranchLocked && !effectiveBranchId
 
   return (
@@ -164,11 +192,27 @@ export function AddStockDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PackagePlus className="h-5 w-5 text-green-600" />
-            เพิ่มสต็อกเข้าสาขา{effectiveBranchName ? `: ${effectiveBranchName}` : ''}
+            {mode === 'count' ? 'ตั้งยอดตามที่นับจริง' : 'เพิ่มสต็อกเข้าสาขา'}{effectiveBranchName ? `: ${effectiveBranchName}` : ''}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-1">
+
+          {/* ── Mode: receive more / set to counted quantity ── */}
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 p-1">
+            {([['add', 'รับเข้าเพิ่ม'], ['count', 'ตั้งยอดตามนับจริง']] as const).map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => { setMode(m); setQty('') }}
+                className={`rounded-md py-1.5 text-xs font-semibold transition-colors ${
+                  mode === m ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-muted-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
           {/* ── Product: pre-filled OR picker ── */}
           {propProduct ? (
@@ -272,8 +316,36 @@ export function AddStockDialog({
             </div>
           )}
 
+          {/* ── Counted quantity ── */}
+          {activeProduct && mode === 'count' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="count-qty">จำนวนที่นับได้จริงในสาขานี้</Label>
+              <Input
+                id="count-qty"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="เช่น 5"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                autoFocus={!!propProduct}
+              />
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                ในระบบตอนนี้: {loadingCurrent ? '…' : `${currentQty} ชิ้น`}
+                {qty !== '' && !loadingCurrent && (
+                  countDelta === 0
+                    ? <span className="font-semibold text-emerald-600"> · ตรงแล้ว</span>
+                    : <span className={`font-semibold ${countDelta > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                        {' '}· ปรับ {countDelta > 0 ? '+' : ''}{countDelta} ชิ้น
+                      </span>
+                )}
+              </p>
+            </div>
+          )}
+
           {/* ── Quantity ── */}
-          {activeProduct && (
+          {activeProduct && mode === 'add' && (
             <div>
               <Label htmlFor="add-qty">จำนวนที่รับเข้า</Label>
               <Input
@@ -322,7 +394,7 @@ export function AddStockDialog({
             ) : (
               <>
                 <PackagePlus className="h-4 w-4" />
-                เพิ่มสต็อก
+                {mode === 'count' ? 'บันทึกยอด' : 'เพิ่มสต็อก'}
               </>
             )}
           </Button>

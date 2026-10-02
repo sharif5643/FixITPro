@@ -20,6 +20,7 @@ import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { bangkokDate } from '../common/bangkok-date';
 
 @RequireModule('finance')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
@@ -64,7 +65,7 @@ export class ExpensesController {
     @Query('date') date: string,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    const d = date || new Date().toISOString().slice(0, 10);
+    const d = date || bangkokDate();
     return this.expensesService.getDailySummary(d, tenantId);
   }
 

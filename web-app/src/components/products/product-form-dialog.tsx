@@ -385,15 +385,22 @@ export function ProductFormDialog({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>
-                {!isEditing && effectiveBranchName && !isOwnerGlobalMode
-                  ? 'จำนวนเริ่มต้นในสาขานี้ (ชิ้น)'
-                  : 'จำนวนสต็อก (ชิ้น)'}
+                {isEditing
+                  ? 'จำนวนสต็อกรวมทุกสาขา (ชิ้น)'
+                  : effectiveBranchName && !isOwnerGlobalMode
+                    ? 'จำนวนเริ่มต้นในสาขานี้ (ชิ้น)'
+                    : 'จำนวนสต็อก (ชิ้น)'}
               </Label>
               <Input
                 type="number" min="0" placeholder="0"
-                disabled={isLoading || (!isEditing && isOwnerGlobalMode)}
+                disabled={isLoading || isEditing || isOwnerGlobalMode}
                 {...register('stock')}
               />
+              {isEditing && (
+                <p className="text-xs text-muted-foreground">
+                  แก้จำนวนสต็อกที่ปุ่ม “เพิ่มสต็อก” ในตารางสินค้า (เลือกสาขาก่อน) — มีโหมด “ตั้งยอดตามนับจริง”
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>

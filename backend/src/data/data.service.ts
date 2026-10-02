@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantService } from '../tenant/tenant.service';
+import { bangkokDate } from '../common/bangkok-date';
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
@@ -17,7 +18,7 @@ function buildCSV(headers: string[], rows: unknown[][]): string {
 }
 
 function dateTag(): string {
-  return new Date().toISOString().slice(0, 10);
+  return bangkokDate();
 }
 
 function parseCSVRows(raw: string): string[][] {
@@ -378,11 +379,12 @@ export class DataService {
     actorId?: string,
     actorName?: string,
     tenantId?: string | null,
+    branchId?: string | null,
   ): Promise<ImportResult> {
     const preview = await this.preview(type, csvContent, tenantId);
     let result: ImportResult;
 
-    if      (type === 'products')   result = await this.importProducts(preview, tenantId);
+    if      (type === 'products')   result = await this.importProducts(preview, tenantId, branchId);
     else if (type === 'customers')  result = await this.importCustomers(preview, tenantId);
     else if (type === 'categories') result = await this.importCategories(preview, tenantId);
     else if (type === 'suppliers')  result = await this.importSuppliers(preview, tenantId);
@@ -416,7 +418,22 @@ export class DataService {
     return result;
   }
 
-  private async importProducts(preview: PreviewResult, tenantId?: string | null): Promise<ImportResult> {
+  // Imported stock goes into a branch (the importer's branch, else the tenant's default branch)
+  // as BranchStock, and Product.stock mirrors it. Writing only Product.stock left imported
+  // items "in stock" overall but at 0 in every branch, so the POS refused to sell them.
+  private async resolveImportBranchId(tenantId?: string | null, branchId?: string | null): Promise<string | null> {
+    if (branchId) return branchId;
+    if (!tenantId) return null;
+    const branch = await this.prisma.branch.findFirst({
+      where:   { tenantId, isActive: true, status: 'ACTIVE' as any },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select:  { id: true },
+    });
+    return branch?.id ?? null;
+  }
+
+  private async importProducts(preview: PreviewResult, tenantId?: string | null, branchId?: string | null): Promise<ImportResult> {
+    const stockBranchId = await this.resolveImportBranchId(tenantId, branchId);
     const errors: { row: number; message: string }[] = [];
     let imported = 0;
     let skipped  = 0;
@@ -432,19 +449,33 @@ export class DataService {
         continue;
       }
       const [name, sku, barcode, type, price, cost, stock, minStock] = r.data;
+      const qty = stock ? Math.max(0, parseInt(stock) || 0) : 0;
+      const min = minStock ? Math.max(0, parseInt(minStock) || 0) : 0;
       try {
-        await this.prisma.product.create({
-          data: {
-            name:      name.trim(),
-            sku:       sku.trim(),
-            barcode:   barcode?.trim() || null,
-            type:      type.trim().toUpperCase() as any,
-            price:     Number(price),
-            costPrice: Number(cost),
-            stock:     stock ? Math.max(0, parseInt(stock)) : 0,
-            minStock:  minStock ? Math.max(0, parseInt(minStock)) : 0,
-            ...this.tenantSvc.scope(tenantId),
-          },
+        await this.prisma.$transaction(async (tx) => {
+          const product = await tx.product.create({
+            data: {
+              name:      name.trim(),
+              sku:       sku.trim(),
+              barcode:   barcode?.trim() || null,
+              type:      type.trim().toUpperCase() as any,
+              price:     Number(price),
+              costPrice: Number(cost),
+              stock:     qty,
+              minStock:  min,
+              ...this.tenantSvc.scope(tenantId),
+            },
+          });
+          if (stockBranchId) {
+            await tx.branchStock.create({
+              data: { branchId: stockBranchId, productId: product.id, quantity: qty, minStock: min },
+            });
+            if (qty > 0) {
+              await tx.stockMovement.create({
+                data: { productId: product.id, type: 'IN', quantity: qty, branchId: stockBranchId, note: 'นำเข้าจากไฟล์' },
+              });
+            }
+          }
         });
         imported++;
       } catch (err: any) {
