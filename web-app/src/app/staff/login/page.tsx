@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, Loader2, User, Lock, X, ArrowRight, ShieldCheck, ChevronLeft, Copy, Check } from 'lucide-react'
+import { Eye, EyeOff, Loader2, User, Lock, X, ArrowRight, ShieldCheck, ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/store/auth.store'
 import { isInWebViewApp } from '@/lib/webview-bridge'
@@ -57,8 +57,7 @@ function LoginForm() {
   const [showForgot, setShowForgot] = useState(false)
   const [forgotEmail,setForgotEmail]= useState('')
   const [forgotLoading,setForgotLoading]= useState(false)
-  const [tempPw,     setTempPw]     = useState<string|null>(null)
-  const [copied,     setCopied]     = useState(false)
+  const [forgotSent, setForgotSent] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -112,12 +111,10 @@ function LoginForm() {
     if (!forgotEmail.trim()) { toast.error('กรุณากรอกอีเมล'); return }
     setForgotLoading(true)
     try {
-      const res = await api.post('/auth/forgot-password', { email: forgotEmail.trim().toLowerCase() })
-      if (res.data.found && res.data.tempPassword) {
-        setTempPw(res.data.tempPassword)
-      } else {
-        toast.error('ไม่พบอีเมลนี้ในระบบ')
-      }
+      // The owner resets the password from Users (Settings) and gives the staff member the
+      // temporary password; this request only notifies them.
+      await api.post('/auth/forgot-password', { email: forgotEmail.trim().toLowerCase() })
+      setForgotSent(true)
     } catch {
       toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
     } finally {
@@ -125,36 +122,10 @@ function LoginForm() {
     }
   }
 
-  function copyTempPw() {
-    if (!tempPw) return
-    // Clipboard API fallback for WebView (no clipboard permission)
-    const tryCopy = () => {
-      try {
-        const el = document.createElement('textarea')
-        el.value = tempPw
-        el.style.position = 'fixed'; el.style.opacity = '0'
-        document.body.appendChild(el)
-        el.focus(); el.select()
-        document.execCommand('copy')
-        document.body.removeChild(el)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      } catch { /* ignore */ }
-    }
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(tempPw)
-        .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
-        .catch(tryCopy)
-    } else {
-      tryCopy()
-    }
-  }
-
   function closeForgot() {
     setShowForgot(false)
     setForgotEmail('')
-    setTempPw(null)
-    setCopied(false)
+    setForgotSent(false)
   }
 
   return (
@@ -310,24 +281,18 @@ function LoginForm() {
       {showForgot && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40">
           <div className="rounded-t-3xl bg-white px-5 pt-5 pb-10">
-            {tempPw ? (
-              /* Step 2: show temp password */
+            {forgotSent ? (
+              /* Step 2: request sent to the shop owner */
               <div className="flex flex-col items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-50">
                   <ShieldCheck className="h-7 w-7 text-green-500"/>
                 </div>
                 <div className="text-center">
-                  <p className="text-base font-bold text-brand-black">รหัสผ่านชั่วคราว</p>
-                  <p className="mt-1 text-sm text-slate-400">ใช้รหัสนี้เพื่อเข้าระบบ แล้วเปลี่ยนรหัสผ่านใหม่</p>
+                  <p className="text-base font-bold text-brand-black">ส่งคำขอแล้ว</p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    แจ้งเจ้าของร้านให้รีเซ็ตรหัสผ่านที่เมนู ผู้ใช้งาน แล้วรับรหัสผ่านชั่วคราวจากเจ้าของร้าน
+                  </p>
                 </div>
-                <div className="flex w-full items-center gap-3 rounded-2xl bg-[#F8F9FB] px-4 py-3">
-                  <p className="flex-1 text-center text-lg font-bold tracking-widest text-brand-black">{tempPw}</p>
-                  <button onClick={copyTempPw}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
-                    {copied ? <Check className="h-4 w-4 text-green-500"/> : <Copy className="h-4 w-4 text-slate-500"/>}
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400 text-center">รหัสนี้จะหมดอายุหลังจากที่คุณเปลี่ยนรหัสผ่านใหม่</p>
                 <button onClick={closeForgot}
                   className="w-full h-12 rounded-2xl bg-brand-yellow text-sm font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)]">
                   เข้าใจแล้ว
@@ -342,7 +307,7 @@ function LoginForm() {
                     <X className="h-4 w-4 text-slate-500"/>
                   </button>
                 </div>
-                <p className="mb-4 text-sm text-slate-500">กรอกอีเมลที่ใช้สมัครระบบ ระบบจะสร้างรหัสผ่านชั่วคราวให้</p>
+                <p className="mb-4 text-sm text-slate-500">กรอกอีเมลที่ใช้สมัครระบบ ระบบจะแจ้งเจ้าของร้านให้รีเซ็ตรหัสผ่านให้</p>
                 <form onSubmit={handleForgotSubmit} className="flex flex-col gap-3">
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"/>
@@ -357,7 +322,7 @@ function LoginForm() {
                   </div>
                   <button type="submit" disabled={forgotLoading}
                     className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-brand-yellow text-sm font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)] disabled:opacity-60">
-                    {forgotLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'รับรหัสผ่านชั่วคราว'}
+                    {forgotLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'ส่งคำขอถึงเจ้าของร้าน'}
                   </button>
                 </form>
               </>

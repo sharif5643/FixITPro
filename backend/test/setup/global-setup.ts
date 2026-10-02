@@ -116,6 +116,7 @@ export default async function globalSetup() {
     await (prisma as any).carrierWallet.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
     const e2eProduct = { product: { tenantId: { in: E2E_TENANT_IDS } } };
     await prisma.stockMovement.deleteMany({ where: { OR: [e2eProduct, { branchId: { in: E2E_BRANCH_IDS } }] } });
+    await prisma.stockTransfer.deleteMany({ where: { OR: [e2eProduct, { fromBranchId: { in: E2E_BRANCH_IDS } }, { toBranchId: { in: E2E_BRANCH_IDS } }] } });
     await prisma.branchStock.deleteMany({ where: { OR: [e2eProduct, { branchId: { in: E2E_BRANCH_IDS } }] } });
     await prisma.warranty.deleteMany({ where: { serialNumber: e2eProduct } }).catch(() => {});
     await prisma.serialNumber.deleteMany({ where: e2eProduct });

@@ -68,7 +68,7 @@ export class UsersController {
   @Post()
   create(
     @Body() dto: CreateUserDto,
-    @CurrentUser() requester: { id: string; tenantId: string | null },
+    @CurrentUser() requester: { id: string; tenantId: string | null; role: string },
   ) {
     return this.usersService.create(dto, requester);
   }
@@ -77,9 +77,9 @@ export class UsersController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
-    @CurrentUser() requester: { id: string; tenantId: string | null; name?: string },
+    @CurrentUser() requester: { id: string; tenantId: string | null; name?: string; role: string },
   ) {
-    return this.usersService.update(id, dto, requester.id, requester.tenantId, requester.name);
+    return this.usersService.update(id, dto, requester.id, requester.tenantId, requester.name, requester.role);
   }
 
   @Patch(':id/branch')
@@ -89,24 +89,25 @@ export class UsersController {
     @CurrentUser('id') requesterId: string,
     @CurrentUser('name') requesterName: string,
     @CurrentUser('tenantId') requesterTenantId: string | null,
+    @CurrentUser('role') requesterRole: string,
   ) {
-    return this.usersService.assignBranch(id, body.branchId ?? null, requesterId, requesterName, requesterTenantId);
+    return this.usersService.assignBranch(id, body.branchId ?? null, requesterId, requesterName, requesterTenantId, requesterRole);
   }
 
   @Patch(':id/toggle')
   toggleActive(
     @Param('id') id: string,
-    @CurrentUser() requester: { id: string; tenantId: string | null },
+    @CurrentUser() requester: { id: string; tenantId: string | null; role: string },
   ) {
-    return this.usersService.toggleActive(id, requester.id, requester.tenantId);
+    return this.usersService.toggleActive(id, requester.id, requester.tenantId, requester.role);
   }
 
   @Patch(':id/reset-password')
   resetPassword(
     @Param('id') id: string,
-    @CurrentUser() requester: { id: string; tenantId: string | null },
+    @CurrentUser() requester: { id: string; tenantId: string | null; role: string },
   ) {
-    return this.usersService.resetPassword(id, requester.id, requester.tenantId);
+    return this.usersService.resetPassword(id, requester.id, requester.tenantId, requester.role);
   }
 
   @Delete(':id')
