@@ -12,6 +12,7 @@
 #   FIXITPRO_PG_DBNAME     PostgreSQL database (default: fixitpro)
 #   FIXITPRO_BACKUP_DIR    Backup destination (default: /opt/fixitpro-backups/db)
 #   FIXITPRO_RETENTION_DAYS  Days to keep backups (default: 7)
+#   FIXITPRO_MIN_KEEP      Newest backups always kept regardless of age (default: 7)
 #
 # Security: no credentials are stored in this script.
 # pg_dump connects via Unix socket inside Docker (no password needed).
@@ -129,11 +130,17 @@ if [ "$LINE_COUNT" -lt 100 ]; then
 fi
 
 # ── Step 7: Retention cleanup ────────────────────────────────────────────────
-log "Cleaning backups older than ${RETENTION_DAYS} days..."
-BEFORE=$(find "$BACKUP_DIR" -name "*.sql.gz" | wc -l)
-find "$BACKUP_DIR" -name "*.sql.gz" -mtime "+${RETENTION_DAYS}" -delete
-find "$BACKUP_DIR" -name "*.sql.gz.sha256" -mtime "+${RETENTION_DAYS}" -delete
-AFTER=$(find "$BACKUP_DIR" -name "*.sql.gz" | wc -l)
+# Always keep the newest MIN_KEEP backups, whatever their age: when backups had silently
+# failed for over a week, age-only cleanup deleted every old file and left a single copy.
+MIN_KEEP="${FIXITPRO_MIN_KEEP:-7}"
+log "Cleaning backups older than ${RETENTION_DAYS} days (always keeping the newest ${MIN_KEEP})..."
+BEFORE=$(find "$BACKUP_DIR" -maxdepth 1 -name "*.sql.gz" | wc -l)
+ls -1t "$BACKUP_DIR"/*.sql.gz 2>/dev/null | tail -n +"$((MIN_KEEP + 1))" | while read -r old; do
+  if [ -n "$(find "$old" -mtime "+${RETENTION_DAYS}")" ]; then
+    rm -f -- "$old" "${old}.sha256"
+  fi
+done
+AFTER=$(find "$BACKUP_DIR" -maxdepth 1 -name "*.sql.gz" | wc -l)
 log "Cleanup: removed $((BEFORE - AFTER)) backup(s), $AFTER remaining"
 
 # ── Step 8: Disk usage report ─────────────────────────────────────────────────
