@@ -34,6 +34,17 @@ When `BACKUP_S3_ENABLED=true`:
 - A **failed S3 upload never deletes the local backup** — it creates an ERROR-level notification in the app and logs the error.
 - S3 credentials are never logged or exposed in API responses.
 
+Setting it up (Cloudflare R2 example, ~10 minutes, free tier covers this database size):
+1. Cloudflare dashboard → R2 → Create bucket, e.g. `fixitpro-backups`.
+2. R2 → Manage API tokens → Create token with **Object Read & Write** on that bucket only.
+   Note the Access Key ID, Secret Access Key and the account endpoint.
+3. Coolify → backend service → Environment Variables:
+   `BACKUP_S3_ENABLED=true`, `BACKUP_S3_BUCKET=fixitpro-backups`,
+   `BACKUP_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com`, `BACKUP_S3_REGION=auto`,
+   `BACKUP_S3_ACCESS_KEY_ID=…`, `BACKUP_S3_SECRET_ACCESS_KEY=…`, optional `BACKUP_S3_PREFIX=prod/`.
+4. Redeploy the backend, then Super Admin → Backup → create a backup and check the object
+   appears in the bucket. Do not reuse these keys anywhere else.
+
 Supported providers (configured via `BACKUP_S3_*` env vars):
 
 | Provider | `BACKUP_S3_ENDPOINT` |
@@ -212,6 +223,11 @@ then drops the temporary database. A red run means that backup could not be rest
 
 Same thing by hand on the server: `bash /opt/fixitpro-backups/pg_restore_verify.sh [file.sql.gz]`.
 It needs free disk of about twice the live database size and refuses to start otherwise.
+
+Server-side dumps (`/opt/fixitpro-backups/db`, daily cron) delete files older than
+`FIXITPRO_RETENTION_DAYS` (7) but always keep the newest `FIXITPRO_MIN_KEEP` (7). Before
+2026-10-02 the cron had failed for over a week (stale container name) and the age-only cleanup
+then removed every older dump.
 
 ## 9b. Staging Restore Test Procedure
 
