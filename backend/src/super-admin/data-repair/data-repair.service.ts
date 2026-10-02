@@ -108,6 +108,9 @@ export class DataRepairService {
     let skipped = 0;
 
     for (const p of products) {
+      // No BranchStock rows at all (e.g. legacy/imported product): Product.stock is the only
+      // record of its quantity — keep it instead of zeroing it. Run backfill-branch-stock first.
+      if (!sumMap.has(p.id)) { skipped++; continue; }
       const correctStock = sumMap.get(p.id) ?? 0;
       if (Number(p.stock) !== correctStock) {
         await this.prisma.product.update({ where: { id: p.id }, data: { stock: correctStock } });
@@ -147,7 +150,13 @@ export class DataRepairService {
       });
       const products = await this.prisma.product.findMany({
         where: { tenantId: tenant.id, isActive: true },
-        select: { id: true },
+        select: { id: true, stock: true },
+      });
+      // Branch that receives the quantity of products that only have Product.stock
+      const homeBranch = await this.prisma.branch.findFirst({
+        where:   { tenantId: tenant.id, isActive: true, status: 'ACTIVE' as any },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+        select:  { id: true },
       });
 
       for (const product of products) {
@@ -156,6 +165,8 @@ export class DataRepairService {
           select: { branchId: true },
         });
         const existingBranchIds = new Set(existingRows.map((r: any) => r.branchId));
+        // Product never had branch rows: its whole Product.stock goes to the home branch
+        const carryQty = existingRows.length === 0 ? Math.max(0, Number(product.stock) || 0) : 0;
 
         for (const branch of branches) {
           if (existingBranchIds.has(branch.id)) {
@@ -165,7 +176,7 @@ export class DataRepairService {
               data: {
                 branchId:  branch.id,
                 productId: product.id,
-                quantity:  0,
+                quantity:  branch.id === homeBranch?.id ? carryQty : 0,
                 minStock:  0,
               },
             });

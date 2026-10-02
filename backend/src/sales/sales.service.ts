@@ -625,7 +625,8 @@ export class SalesService {
         if (saleItem.product.hasSerial && newRefundedQty === saleItem.quantity) {
           await tx.serialNumber.updateMany({
             where: { saleItemId: refundItem.saleItemId },
-            data: { status: 'RETURNED', soldAt: null },
+            // Back in stock (quantity was restored above) → sellable again, same as void
+            data: { status: 'IN_STOCK', saleItemId: null, soldAt: null, warrantyExpiresAt: null },
           });
         }
 
@@ -979,7 +980,8 @@ export class SalesService {
         if (saleItem.product.hasSerial && newRefundedQty === saleItem.quantity) {
           await tx.serialNumber.updateMany({
             where: { saleItemId: ri.saleItemId },
-            data: { status: 'RETURNED', soldAt: null },
+            // Back in stock (quantity was restored above) → sellable again, same as void
+            data: { status: 'IN_STOCK', saleItemId: null, soldAt: null, warrantyExpiresAt: null },
           });
         }
 

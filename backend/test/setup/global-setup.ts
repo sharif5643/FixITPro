@@ -114,6 +114,8 @@ export default async function globalSetup() {
     const e2eProduct = { product: { tenantId: { in: E2E_TENANT_IDS } } };
     await prisma.stockMovement.deleteMany({ where: { OR: [e2eProduct, { branchId: { in: E2E_BRANCH_IDS } }] } });
     await prisma.branchStock.deleteMany({ where: { OR: [e2eProduct, { branchId: { in: E2E_BRANCH_IDS } }] } });
+    await prisma.warranty.deleteMany({ where: { serialNumber: e2eProduct } }).catch(() => {});
+    await prisma.serialNumber.deleteMany({ where: e2eProduct });
     await prisma.product.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
     await prisma.category.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
     await prisma.rolePermission.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
