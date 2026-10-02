@@ -26,6 +26,11 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      # defaults point at /app/* (the container), which the runner user cannot create
+      LOGS_DIR: /tmp/fixitpro/logs
+      UPLOADS_BASE_DIR: /tmp/fixitpro/uploads
+      BACKUP_DIR: /tmp/fixitpro/backups
     defaults:
       run:
         working-directory: backend
