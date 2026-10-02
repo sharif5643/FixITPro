@@ -15,6 +15,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ALL_PERMISSIONS } from './strategies/jwt.strategy';
 import { ModulesService } from '../modules/modules.service';
+import { loadRolePermissions } from '../permissions/role-permissions';
 
 const REFRESH_TOKEN_DAYS = 30;
 
@@ -89,10 +90,10 @@ export class AuthService {
       permissions = ALL_PERMISSIONS;
     } else {
       const [roleRows, userRows] = await Promise.all([
-        this.prisma.rolePermission.findMany({ where: { role: user.role }, select: { permission: true } }),
+        loadRolePermissions(this.prisma, user.role, user.tenantId),
         this.prisma.userPermission.findMany({ where: { userId: user.id }, select: { permission: true } }),
       ]);
-      permissions = [...new Set([...roleRows.map((r) => r.permission), ...userRows.map((r) => r.permission)])];
+      permissions = [...new Set([...roleRows, ...userRows.map((r) => r.permission)])];
     }
 
     let tenantExpiryDate: string | null = null;
@@ -261,11 +262,7 @@ export class AuthService {
     if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') {
       permissions = ALL_PERMISSIONS;
     } else {
-      const rows = await this.prisma.rolePermission.findMany({
-        where: { role: user.role as any },
-        select: { permission: true },
-      });
-      permissions = rows.map((r) => r.permission);
+      permissions = await loadRolePermissions(this.prisma, user.role, user.tenantId);
     }
 
     let tenantExpiryDate: string | null = null;

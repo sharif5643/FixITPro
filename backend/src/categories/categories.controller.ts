@@ -21,11 +21,11 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 export class CategoriesController {
   constructor(private categoriesService: CategoriesService) {}
 
-  // ── Category Types (system-wide, no tenant scope) ───────────────
+  // ── Category Types (shared types + each tenant's own) ───────────
 
   @Post('types')
-  createType(@Body() dto: CreateCategoryTypeDto) {
-    return this.categoriesService.createType(dto);
+  createType(@Body() dto: CreateCategoryTypeDto, @CurrentUser('tenantId') tenantId: string | null) {
+    return this.categoriesService.createType(dto, tenantId);
   }
 
   @Get('types')
@@ -34,13 +34,22 @@ export class CategoriesController {
   }
 
   @Put('types/:id')
-  updateType(@Param('id') id: string, @Body() dto: Partial<CreateCategoryTypeDto>) {
-    return this.categoriesService.updateType(id, dto);
+  updateType(
+    @Param('id') id: string,
+    @Body() dto: Partial<CreateCategoryTypeDto>,
+    @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.categoriesService.updateType(id, dto, tenantId, role);
   }
 
   @Delete('types/:id')
-  removeType(@Param('id') id: string) {
-    return this.categoriesService.removeType(id);
+  removeType(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.categoriesService.removeType(id, tenantId, role);
   }
 
   // ── Categories ──────────────────────────────────────────────────

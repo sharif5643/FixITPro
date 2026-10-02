@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
   ConflictException,
@@ -25,16 +26,43 @@ export class CategoriesService {
 
   // ── Category Types ────────────────────────────────────────────────
 
-  async createType(dto: CreateCategoryTypeDto) {
+  // Types a tenant can see: shared ones (tenantId NULL) plus its own.
+  // Users without a tenant (SUPER_ADMIN) see every type.
+  private visibleTypesWhere(tenantId?: string | null) {
+    return tenantId ? { OR: [{ tenantId: null }, { tenantId }] } : {};
+  }
+
+  // Shops may only change their own types; shared types are managed by SUPER_ADMIN.
+  private async getEditableType(id: string, tenantId: string | null | undefined, role: string | undefined) {
+    const type = await this.prisma.categoryType.findFirst({
+      where:   { id, ...this.visibleTypesWhere(tenantId) },
+      include: { _count: { select: { categories: true } } },
+    });
+    if (!type) throw new NotFoundException('CategoryType not found');
+    if (role !== 'SUPER_ADMIN' && type.tenantId !== (tenantId ?? null)) {
+      throw new ForbiddenException('ประเภทนี้เป็นประเภทกลางของระบบ แก้ไขหรือลบไม่ได้');
+    }
+    return type;
+  }
+
+  async assertTypeVisible(categoryTypeId: string, tenantId?: string | null) {
+    const type = await this.prisma.categoryType.findFirst({
+      where: { id: categoryTypeId, ...this.visibleTypesWhere(tenantId) },
+    });
+    if (!type) throw new NotFoundException('CategoryType not found');
+  }
+
+  async createType(dto: CreateCategoryTypeDto, tenantId: string | null) {
     const slug = dto.slug?.trim() || this.toSlug(dto.name) || `type-${Date.now()}`;
-    const existing = await this.prisma.categoryType.findUnique({ where: { slug } });
+    const existing = await this.prisma.categoryType.findFirst({ where: { slug, tenantId: tenantId ?? null } });
     if (existing) throw new ConflictException('Slug already exists');
-    return this.prisma.categoryType.create({ data: { name: dto.name, slug } });
+    return this.prisma.categoryType.create({ data: { name: dto.name, slug, tenantId: tenantId ?? null } });
   }
 
   async findAllTypes(tenantId?: string | null) {
     const tenantWhere = this.tenantSvc.scope(tenantId);
     const types = await this.prisma.categoryType.findMany({
+      where: this.visibleTypesWhere(tenantId),
       include: {
         categories: {
           where: tenantWhere,
@@ -66,18 +94,13 @@ export class CategoriesService {
     }));
   }
 
-  async updateType(id: string, dto: Partial<CreateCategoryTypeDto>) {
-    const type = await this.prisma.categoryType.findUnique({ where: { id } });
-    if (!type) throw new NotFoundException('CategoryType not found');
+  async updateType(id: string, dto: Partial<CreateCategoryTypeDto>, tenantId: string | null, role?: string) {
+    await this.getEditableType(id, tenantId, role);
     return this.prisma.categoryType.update({ where: { id }, data: { name: dto.name } });
   }
 
-  async removeType(id: string) {
-    const type = await this.prisma.categoryType.findUnique({
-      where: { id },
-      include: { _count: { select: { categories: true } } },
-    });
-    if (!type) throw new NotFoundException('CategoryType not found');
+  async removeType(id: string, tenantId: string | null, role?: string) {
+    const type = await this.getEditableType(id, tenantId, role);
     if (type._count.categories > 0)
       throw new BadRequestException('ไม่สามารถลบประเภทที่มีหมวดหมู่อยู่ได้');
     return this.prisma.categoryType.delete({ where: { id } });
@@ -92,10 +115,7 @@ export class CategoriesService {
     });
     if (existing) throw new ConflictException('Slug already exists');
 
-    if (dto.categoryTypeId) {
-      const type = await this.prisma.categoryType.findUnique({ where: { id: dto.categoryTypeId } });
-      if (!type) throw new NotFoundException('CategoryType not found');
-    }
+    if (dto.categoryTypeId) await this.assertTypeVisible(dto.categoryTypeId, tenantId);
 
     return this.prisma.category.create({
       data: { name: dto.name, slug, categoryTypeId: dto.categoryTypeId, ...this.tenantSvc.scope(tenantId) },
@@ -123,8 +143,7 @@ export class CategoriesService {
     if (!category) throw new NotFoundException('Category not found');
 
     if (dto.categoryTypeId !== undefined && dto.categoryTypeId !== null) {
-      const type = await this.prisma.categoryType.findUnique({ where: { id: dto.categoryTypeId } });
-      if (!type) throw new NotFoundException('CategoryType not found');
+      await this.assertTypeVisible(dto.categoryTypeId, tenantId);
     }
 
     return this.prisma.category.update({

@@ -6,7 +6,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsEnum, IsNumber, IsOptional, IsString, Min, Max, ValidateNested, ArrayMaxSize, ArrayMinSize, IsArray } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, Min, Max, MaxLength, ValidateNested, ArrayMaxSize, ArrayMinSize, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CarrierWalletService } from './carrier-wallet.service';
 import { PackageSaleDto, CarrierEnum } from './dto/package-sale.dto';
@@ -16,6 +16,8 @@ import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { ModuleGuard } from '../common/guards/module.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 
 class ReconcileEntryDto {
   @IsEnum(CarrierEnum)
@@ -43,6 +45,21 @@ class ReconcileDto {
   @IsOptional()
   @IsString()
   shiftId?: string;
+}
+
+class AdjustBalanceDto {
+  @IsEnum(CarrierEnum)
+  carrier: CarrierEnum;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(9_999_999)
+  newBalance: number;
+
+  @IsString()
+  @MaxLength(200)
+  reason: string;
 }
 
 class SimSaleDto {
@@ -150,6 +167,18 @@ export class CarrierWalletController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.service.reconcileAtClose(dto.entries, dto.shiftId ?? null, userId, tenantId);
+  }
+
+  // Owner-only: set a wallet to an exact balance (e.g. clear test top-ups). Kept in history.
+  @Post('adjust')
+  @UseGuards(RolesGuard)
+  @Roles('OWNER', 'SUPER_ADMIN')
+  adjust(
+    @Body() dto: AdjustBalanceDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.adjustBalance(dto, userId, tenantId);
   }
 
   @Get('package-sales/list')

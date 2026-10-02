@@ -465,6 +465,62 @@ export class SalesService {
     return `REF-${dateStr}-${suffix}`;
   }
 
+  // Authoritative refund guard — must run inside the refund/exchange transaction.
+  // Locks the sale row so refunds/exchanges of the same bill run one at a time, then re-checks
+  // against fresh data: remaining quantity, refund price ≤ what the customer paid per unit,
+  // and total refunds ≤ the bill total. Returns the current refundedQty per sale item.
+  private async lockAndValidateRefund(
+    tx: any,
+    saleId: string,
+    items: { saleItemId: string; quantity: number; refundPrice: number }[],
+  ): Promise<Map<string, number>> {
+    await tx.$queryRaw`SELECT id FROM "Sale" WHERE id = ${saleId} FOR UPDATE`;
+    const sale = await tx.sale.findUniqueOrThrow({
+      where:  { id: saleId },
+      select: {
+        status: true,
+        total:  true,
+        items:  { select: { id: true, quantity: true, refundedQty: true, total: true, product: { select: { name: true } } } },
+      },
+    });
+    if (sale.status === 'VOIDED')   throw new BadRequestException('ไม่สามารถคืนเงินบิลที่ยกเลิกแล้ว');
+    if (sale.status === 'REFUNDED') throw new BadRequestException('บิลนี้ถูกคืนเงินครบแล้ว');
+
+    // Same sale item listed twice counts as one combined request
+    const requestedQty = new Map<string, number>();
+    for (const it of items) requestedQty.set(it.saleItemId, (requestedQty.get(it.saleItemId) ?? 0) + it.quantity);
+
+    for (const it of items) {
+      const si = sale.items.find((x: any) => x.id === it.saleItemId);
+      if (!si) throw new NotFoundException(`SaleItem ${it.saleItemId} not found in this sale`);
+
+      const remaining = si.quantity - si.refundedQty;
+      if (requestedQty.get(it.saleItemId)! > remaining) {
+        throw new BadRequestException(
+          `สินค้า "${si.product.name}": คืนได้อีก ${remaining} ชิ้น (ขอคืน ${requestedQty.get(it.saleItemId)} ชิ้น)`,
+        );
+      }
+
+      const paidPerUnit = Math.round((Number(si.total) / si.quantity) * 100) / 100;
+      if (it.refundPrice > paidPerUnit + 0.005) {
+        throw new BadRequestException(
+          `สินค้า "${si.product.name}": คืนได้ไม่เกิน ${paidPerUnit.toFixed(2)} บาทต่อชิ้น (ราคาที่ลูกค้าจ่าย)`,
+        );
+      }
+    }
+
+    const prior     = await tx.saleRefund.aggregate({ where: { saleId }, _sum: { totalRefund: true } });
+    const refunded  = Number(prior._sum.totalRefund ?? 0);
+    const requested = items.reduce((sum, it) => sum + it.refundPrice * it.quantity, 0);
+    const billTotal = Number(sale.total);
+    if (refunded + requested > billTotal + 0.005) {
+      const left = Math.max(0, Math.round((billTotal - refunded) * 100) / 100);
+      throw new BadRequestException(`ยอดคืนเงินรวมเกินยอดบิล (คืนได้อีก ${left.toFixed(2)} บาท)`);
+    }
+
+    return new Map(sale.items.map((x: any) => [x.id, x.refundedQty] as [string, number]));
+  }
+
   async refundSaleItems(id: string, dto: RefundSaleDto, userId: string, tenantId?: string | null) {
     const refundWhere: any = { id };
     if (tenantId) refundWhere.branch = { tenantId };
@@ -501,6 +557,8 @@ export class SalesService {
     const totalRefund = dto.items.reduce((sum, item) => sum + item.refundPrice * item.quantity, 0);
 
     const refundResult = await this.prisma.$transaction(async (tx) => {
+      const refundedQty = await this.lockAndValidateRefund(tx, id, dto.items);
+
       const refund = await tx.saleRefund.create({
         data: {
           refundNumber: this.generateRefundNumber(),
@@ -528,7 +586,8 @@ export class SalesService {
 
       for (const refundItem of dto.items) {
         const saleItem = sale.items.find((si) => si.id === refundItem.saleItemId)!;
-        const newRefundedQty = saleItem.refundedQty + refundItem.quantity;
+        const newRefundedQty = refundedQty.get(refundItem.saleItemId)! + refundItem.quantity;
+        refundedQty.set(refundItem.saleItemId, newRefundedQty);
 
         await tx.saleItem.update({
           where: { id: refundItem.saleItemId },
@@ -570,13 +629,10 @@ export class SalesService {
           });
         }
 
-        if (newRefundedQty < saleItem.quantity) allItemsFullyRefunded = false;
       }
 
       for (const saleItem of sale.items) {
-        if (!dto.items.find((ri) => ri.saleItemId === saleItem.id)) {
-          if (saleItem.refundedQty < saleItem.quantity) allItemsFullyRefunded = false;
-        }
+        if (refundedQty.get(saleItem.id)! < saleItem.quantity) allItemsFullyRefunded = false;
       }
 
       const newStatus = allItemsFullyRefunded ? 'REFUNDED' : 'PARTIAL_REFUND';
@@ -860,6 +916,8 @@ export class SalesService {
     const newTotal    = dto.newItems.reduce((sum, ni) => sum + ni.price * ni.quantity, 0);
 
     const txResult = await this.prisma.$transaction(async (tx) => {
+      const refundedQty = await this.lockAndValidateRefund(tx, id, dto.returnItems);
+
       // A. Record returned items as a SaleRefund
       const refundNumber = this.generateRefundNumber();
       const refund = await tx.saleRefund.create({
@@ -888,7 +946,8 @@ export class SalesService {
 
       for (const ri of dto.returnItems) {
         const saleItem = sale.items.find((si) => si.id === ri.saleItemId)!;
-        const newRefundedQty = saleItem.refundedQty + ri.quantity;
+        const newRefundedQty = refundedQty.get(ri.saleItemId)! + ri.quantity;
+        refundedQty.set(ri.saleItemId, newRefundedQty);
 
         await tx.saleItem.update({
           where: { id: ri.saleItemId },
@@ -924,13 +983,10 @@ export class SalesService {
           });
         }
 
-        if (newRefundedQty < saleItem.quantity) allItemsFullyRefunded = false;
       }
 
       for (const si of sale.items) {
-        if (!dto.returnItems.find((ri) => ri.saleItemId === si.id)) {
-          if (si.refundedQty < si.quantity) allItemsFullyRefunded = false;
-        }
+        if (refundedQty.get(si.id)! < si.quantity) allItemsFullyRefunded = false;
       }
 
       const newSaleStatus = allItemsFullyRefunded ? 'REFUNDED' : 'PARTIAL_REFUND';

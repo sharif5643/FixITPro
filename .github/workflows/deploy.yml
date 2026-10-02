@@ -38,7 +38,9 @@ jobs:
           ELAPSED=0
           STATUS="000"
           while [ $ELAPSED -lt $MAX_WAIT ]; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/login --max-time 10)
+            # curl exits non-zero on timeout while containers restart; keep polling instead of
+            # letting `bash -e` abort the step (that made every deploy show as failed)
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/login --max-time 10 || true)
             if [ "$STATUS" = "200" ]; then
               echo "✅ Deploy complete! Commit: ${{ github.sha }}"
               exit 0

@@ -75,6 +75,11 @@ async function bootstrap() {
   app.useBodyParser('json', { limit: '10mb' });
   app.useBodyParser('urlencoded', { limit: '10mb', extended: true });
 
+  // Behind Traefik (Coolify) every request arrives from the proxy's IP. Without this, req.ip is
+  // the proxy for all users, so rate limits (login 10/15 min, 300 req/min) are shared by everyone.
+  // TRUST_PROXY = number of proxy hops in front of the backend (default 1; 0 disables).
+  app.set('trust proxy', parseInt(process.env.TRUST_PROXY ?? '1', 10));
+
   // CHB-09 / BLK-1: security headers on every response, including direct LAN
   // access from the SUNMI APK that bypasses Nginx.
   app.use(helmet());

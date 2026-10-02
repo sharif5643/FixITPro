@@ -55,12 +55,22 @@ There is no Prisma middleware. Every service must filter by `tenantId` itself, e
 Users with `tenantId = null` (SUPER_ADMIN / legacy) are unfiltered in most services.
 When adding a query, copy the pattern of the neighbouring code and add a case to `backend/test/multi-tenant.e2e-spec.ts`.
 
+Shared-vs-tenant tables:
+- `RolePermission.tenantId`: `""` = system defaults; a tenant id = that shop's own set (written when its owner
+  edits a role, with a `__custom__` marker row). Read through `permissions/role-permissions.ts#loadRolePermissions`.
+- `CategoryType.tenantId`: `NULL` = shared type (read-only for shops); otherwise owned by that tenant.
+- Rate limiting relies on `app.set('trust proxy', TRUST_PROXY ?? 1)` in `main.ts` to see real client IPs behind Traefik.
+
+Refunds/exchanges: `SalesService.lockAndValidateRefund` locks the sale row and caps refund price per unit at what the
+customer paid (line total / qty) and total refunds at the bill total. The UI default comes from `web-app/src/lib/refund.ts`.
+
 ## Carrier wallet / package sales
 
 - One `CarrierWallet` per (tenantId, carrier) — created on first use. Movement types: OPENING / TOPUP / DEDUCTION / ADJUSTMENT.
 - `POST /carrier-wallet/package-sale` — deducts `dealerCost` (default 97% of price) from the wallet; profit = price − deduction. `saleType` PROMO / TOPUP / BUNDLE.
 - `POST /carrier-wallet/sim-sale` — SIM card sale, no wallet deduction (`saleType = SIM_SALE`).
 - `POST /carrier-wallet/topup`, `GET /balances`, `GET /movements`, `GET /package-sales/list`, `POST /reconcile` (shift close).
+- `POST /carrier-wallet/adjust` (OWNER only): set a wallet to an exact balance with a reason, e.g. to clear test top-ups; recorded as an ADJUSTMENT movement.
 - Receipt numbers `PKG-YYYYMMDD-####` use the Bangkok date; conflicts retry the transaction.
 - Dates in query params are Bangkok calendar days (`YYYY-MM-DD`).
 - Shift summary (`GET /shifts/current`, close result) includes `packageSalesByCarrier`.

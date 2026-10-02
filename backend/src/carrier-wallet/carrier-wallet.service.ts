@@ -391,6 +391,50 @@ export class CarrierWalletService {
     });
   }
 
+  // ── Owner balance correction (e.g. clearing test top-ups) ────────────────────
+
+  // Sets a wallet to an exact balance. History is kept: the change is recorded as an
+  // ADJUSTMENT movement with the owner's reason, so it stays auditable.
+  async adjustBalance(
+    dto: { carrier: string; newBalance: number; reason: string },
+    userId: string,
+    tenantId: TenantId,
+  ) {
+    const reason = dto.reason?.trim();
+    if (!reason) throw new BadRequestException('กรุณาระบุเหตุผลการปรับยอด');
+
+    await this.ensureWallets(tenantId, [dto.carrier]);
+
+    return this.prisma.$transaction(async (tx) => {
+      const wallet         = await this.getWallet(tx, tenantId, dto.carrier);
+      const currentBalance = Number(wallet.balance);
+      const newBalance     = Math.round(dto.newBalance * 100) / 100;
+      const difference     = Math.round((newBalance - currentBalance) * 100) / 100;
+
+      if (Math.abs(difference) < 0.01) {
+        return { carrier: dto.carrier, balanceBefore: currentBalance, balance: currentBalance, difference: 0 };
+      }
+
+      await tx.carrierWallet.update({ where: { id: wallet.id }, data: { balance: newBalance } });
+      await tx.carrierWalletMovement.create({
+        data: {
+          carrier:       dto.carrier as any,
+          type:          'ADJUSTMENT',
+          amount:        Math.abs(difference),
+          balanceBefore: currentBalance,
+          balanceAfter:  newBalance,
+          note:          `เจ้าของร้านปรับยอด: ${reason}`,
+          walletId:      wallet.id,
+          createdById:   userId,
+          ...scope(tenantId),
+        },
+      });
+
+      this.logger.log(`Adjust carrier=${dto.carrier} before=${currentBalance} after=${newBalance} by=${userId}`);
+      return { carrier: dto.carrier, balanceBefore: currentBalance, balance: newBalance, difference };
+    });
+  }
+
   // ── Opening balance (called by ShiftsService on openShift) ───────────────────
 
   async recordOpeningBalances(

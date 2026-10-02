@@ -19,6 +19,7 @@ import { formatThaiMoney, cn, apiErrorMessage } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import type { Sale, PaymentMethod } from '@/types'
+import { refundUnitPrice } from '@/lib/refund'
 
 const PM_LABEL: Record<PaymentMethod, string> = {
   CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตร',
@@ -120,10 +121,10 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
 
   const totalRefund = useMemo(() =>
     selectedItems.reduce((sum, i) => {
-      const unitPrice = i.quantity > 0 ? Number(i.total) / i.quantity : Number(i.price)
+      const unitPrice = refundUnitPrice(sale, i)
       return sum + unitPrice * (lines[i.id]?.qty ?? 1)
     }, 0),
-    [selectedItems, lines],
+    [sale, selectedItems, lines],
   )
 
   function toggleItem(id: string) {
@@ -145,7 +146,7 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
       items: selectedItems.map((i) => ({
         saleItemId: i.id,
         quantity:   lines[i.id].qty,
-        refundPrice: i.quantity > 0 ? Number(i.total) / i.quantity : Number(i.price),
+        refundPrice: refundUnitPrice(sale, i),
       })),
     }),
     onSuccess: () => {
@@ -174,7 +175,7 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
             {refundableItems.map((item) => {
               const remaining = item.quantity - item.refundedQty
               const line      = lines[item.id]
-              const unitPrice = item.quantity > 0 ? Number(item.total) / item.quantity : Number(item.price)
+              const unitPrice = refundUnitPrice(sale, item)
               return (
                 <div
                   key={item.id}
@@ -358,10 +359,10 @@ function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () 
 
   const refundTotal = useMemo(() =>
     selectedReturnItems.reduce((sum, i) => {
-      const unitPrice = i.quantity > 0 ? Number(i.total) / i.quantity : Number(i.price)
+      const unitPrice = refundUnitPrice(sale, i)
       return sum + unitPrice * (returnLines[i.id]?.qty ?? 1)
     }, 0),
-    [selectedReturnItems, returnLines],
+    [sale, selectedReturnItems, returnLines],
   )
 
   const newTotal = useMemo(() =>
@@ -426,7 +427,7 @@ function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () 
       returnItems: selectedReturnItems.map((i) => ({
         saleItemId: i.id,
         quantity: returnLines[i.id].qty,
-        refundPrice: i.quantity > 0 ? Number(i.total) / i.quantity : Number(i.price),
+        refundPrice: refundUnitPrice(sale, i),
       })),
       newItems: newItems.map((ni) => ({
         productId: ni.productId,
@@ -465,7 +466,7 @@ function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () 
               {refundableItems.map((item) => {
                 const remaining  = item.quantity - item.refundedQty
                 const line       = returnLines[item.id]
-                const unitPrice  = item.quantity > 0 ? Number(item.total) / item.quantity : Number(item.price)
+                const unitPrice  = refundUnitPrice(sale, item)
                 return (
                   <div
                     key={item.id}

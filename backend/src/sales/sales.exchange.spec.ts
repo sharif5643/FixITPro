@@ -75,8 +75,28 @@ function makeDto(refundPrice = 250, newPrice = 750) {
 
 // ── Transaction mock factory ──────────────────────────────────────────────────
 
-function makeExchangeTx(overrides: Record<string, any> = {}) {
+// The refund guard re-reads the sale inside the transaction (row lock + caps). These suites
+// are not about the caps, so the locked read mirrors whatever prisma.sale.findFirst returns
+// with generous money totals. Refund caps are covered by test/security-fixes.e2e-spec.ts.
+let currentPrisma: any;
+async function lockedSaleRead() {
+  const sale = await currentPrisma.sale.findFirst();
   return {
+    status: sale.status,
+    total:  1_000_000,
+    items:  sale.items.map((i: any) => ({ ...i, total: i.total ?? i.quantity * 100_000 })),
+  };
+}
+
+function withRefundGuardMocks(tx: any) {
+  tx.$queryRaw  = tx.$queryRaw ?? jest.fn().mockResolvedValue([]);
+  tx.sale       = { findUniqueOrThrow: jest.fn(lockedSaleRead), ...tx.sale };
+  tx.saleRefund = { aggregate: jest.fn().mockResolvedValue({ _sum: { totalRefund: 0 } }), ...tx.saleRefund };
+  return tx;
+}
+
+function makeExchangeTx(overrides: Record<string, any> = {}) {
+  return withRefundGuardMocks({
     saleRefund: {
       create: jest.fn().mockResolvedValue({ id: REFUND_ID, refundNumber: 'REF-EX1' }),
     },
@@ -99,7 +119,7 @@ function makeExchangeTx(overrides: Record<string, any> = {}) {
     serialNumber:  { updateMany: jest.fn().mockResolvedValue({}) },
     auditLog:      { create: jest.fn() },
     ...overrides,
-  };
+  });
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
@@ -129,6 +149,7 @@ describe('SalesService.exchangeSaleItems — Phase 4B.4T', () => {
       shift:       { findFirst: jest.fn().mockResolvedValue({ id: SHIFT_ID }) },
       $transaction: jest.fn(),
     };
+    currentPrisma = prisma;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

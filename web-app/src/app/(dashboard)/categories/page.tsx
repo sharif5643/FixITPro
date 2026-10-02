@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/auth.store'
 
 interface Category {
   id: string
@@ -44,6 +45,7 @@ interface CategoryType {
   id: string
   name: string
   slug: string
+  tenantId?: string | null   // null = shared system type (read-only for shops)
   categories: Category[]
   _count: { categories: number }
 }
@@ -199,9 +201,10 @@ function CategoryFormDialog({
 // ── TypeSection ───────────────────────────────────────────────────────────────
 
 function TypeSection({
-  type, types, onEditType, onDeleteType, onAddCategory, onEditCategory, onDeleteCategory,
+  type, types, canEditType, onEditType, onDeleteType, onAddCategory, onEditCategory, onDeleteCategory,
 }: {
   type: CategoryType
+  canEditType: boolean
   types: CategoryType[]
   onEditType: (t: CategoryType) => void
   onDeleteType: (t: CategoryType) => void
@@ -228,6 +231,11 @@ function TypeSection({
             <span className="text-xs text-muted-foreground bg-slate-200 dark:bg-slate-700/60 rounded-full px-2 py-0.5 shrink-0">
               {type._count.categories} หมวดหมู่
             </span>
+            {!type.tenantId && (
+              <span className="text-[10px] text-muted-foreground border border-slate-200 dark:border-slate-700/60 rounded-full px-1.5 py-0.5 shrink-0">
+                ประเภทกลาง
+              </span>
+            )}
           </div>
         </button>
         <div className="flex items-center gap-1 ml-2 shrink-0">
@@ -238,20 +246,24 @@ function TypeSection({
             <Plus className="h-3.5 w-3.5" />
             เพิ่มหมวดหมู่
           </button>
-          <button
-            onClick={() => onEditType(type)}
-            className="rounded-lg p-1.5 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => onDeleteType(type)}
-            disabled={type._count.categories > 0}
-            title={type._count.categories > 0 ? 'มีหมวดหมู่อยู่ในประเภทนี้' : 'ลบ'}
-            className="rounded-lg p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          {canEditType && (
+            <>
+              <button
+                onClick={() => onEditType(type)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => onDeleteType(type)}
+                disabled={type._count.categories > 0}
+                title={type._count.categories > 0 ? 'มีหมวดหมู่อยู่ในประเภทนี้' : 'ลบ'}
+                className="rounded-lg p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -316,6 +328,7 @@ function TypeSection({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function CategoriesPage() {
+  const isSuperAdmin = useAuthStore((s) => s.user?.role === 'SUPER_ADMIN')
   const queryClient = useQueryClient()
 
   const [typeFormOpen, setTypeFormOpen] = useState(false)
@@ -422,6 +435,7 @@ export default function CategoriesPage() {
               key={type.id}
               type={type}
               types={types}
+              canEditType={isSuperAdmin || !!type.tenantId}
               onEditType={openEditType}
               onDeleteType={setDeleteTypeTarget}
               onAddCategory={openAddCategory}
