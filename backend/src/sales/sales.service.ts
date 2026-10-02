@@ -191,6 +191,11 @@ export class SalesService {
       throw new BadRequestException('Amount paid is less than total');
     }
 
+    // Stored payment legs = money the shop keeps. The amount tendered (Sale.amountPaid) and the
+    // change stay on the Sale for the receipt, but change handed back must not count as cash
+    // received — otherwise shift expected cash and the cash-drawer ledger are inflated.
+    const appliedLegs = this.applyChangeToLegs(paymentLegs, change);
+
     // Primary method = largest leg (used in Sale.paymentMethod for legacy reports)
     const primaryMethod = [...paymentLegs].sort((a, b) => b.amount - a.amount)[0].paymentMethod;
 
@@ -225,7 +230,7 @@ export class SalesService {
             })),
           },
           payments: {
-            create: paymentLegs.map((leg, i) => ({
+            create: appliedLegs.map((leg, i) => ({
               paymentMethod: leg.paymentMethod as any,
               amount: leg.amount,
               sortOrder: i,
@@ -463,6 +468,26 @@ export class SalesService {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const suffix = randomBytes(3).toString('hex').toUpperCase();
     return `REF-${dateStr}-${suffix}`;
+  }
+
+  // Deduct change from the payment legs: cash legs first (change is given in cash), then any
+  // other leg, largest first. Returns legs that sum exactly to the sale total.
+  private applyChangeToLegs(legs: { paymentMethod: string; amount: number }[], change: number) {
+    let left = Math.round(change * 100) / 100;
+    if (left <= 0) return legs.map((l) => ({ ...l }));
+
+    const out   = legs.map((l) => ({ ...l }));
+    const order = out
+      .map((l, i) => ({ l, i }))
+      .sort((a, b) =>
+        (a.l.paymentMethod === 'CASH' ? 0 : 1) - (b.l.paymentMethod === 'CASH' ? 0 : 1) || b.l.amount - a.l.amount);
+    for (const { l } of order) {
+      if (left <= 0) break;
+      const take = Math.min(l.amount, left);
+      l.amount = Math.round((l.amount - take) * 100) / 100;
+      left     = Math.round((left - take) * 100) / 100;
+    }
+    return out.filter((l) => l.amount > 0);
   }
 
   // Authoritative refund guard — must run inside the refund/exchange transaction.

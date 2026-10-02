@@ -846,6 +846,10 @@ export class RepairsService {
     const balance = Math.max(0, total - deposit);
 
     const isPartial = dto.allowPartial === true && dto.amountPaid < balance;
+    // amountPaid from the UI is the money tendered (cash includes change). The shop keeps at most
+    // the balance; recording the tendered amount inflated revenue, the cash-drawer ledger and
+    // shift expected cash by the change given back.
+    const received = Math.round(Math.min(dto.amountPaid, balance) * 100) / 100;
 
     if (!isPartial && dto.amountPaid < balance) {
       throw new BadRequestException(
@@ -862,7 +866,7 @@ export class RepairsService {
         data: {
           paymentStatus: isPartial ? 'PARTIAL' : 'PAID',
           paymentMethod: dto.paymentMethod as any,
-          paidAmount:    dto.amountPaid,
+          paidAmount:    received,
           paidAt:        new Date(),
           status:        'DELIVERED',
           deliveredAt:   new Date(),
@@ -889,7 +893,7 @@ export class RepairsService {
         action:     'REPAIR_PAYMENT',
         entityType: 'Repair',
         entityId:   repairId,
-        afterData:  { finalCost: total, paymentMethod: dto.paymentMethod, amountPaid: dto.amountPaid },
+        afterData:  { finalCost: total, paymentMethod: dto.paymentMethod, amountPaid: received, tendered: dto.amountPaid },
       });
 
       // Record CASH repair payment in Cash Drawer ledger (IN)
@@ -897,12 +901,12 @@ export class RepairsService {
         where: { id: repairId },
         select: { branchId: true, branch: { select: { tenantId: true } } },
       });
-      if (repairRecord?.branchId) {
+      if (repairRecord?.branchId && received > 0) {
         await this.accounting.record({
           sourceType:    ACCOUNTING_SOURCE.REPAIR_FINAL_PAYMENT,
           sourceId:      repairId,
           paymentMethod: dto.paymentMethod as any,
-          amount:        dto.amountPaid,
+          amount:        received,
           direction:     'IN',
           branchId:      repairRecord.branchId,
           tenantId:      (repairRecord as any).branch?.tenantId ?? null,
