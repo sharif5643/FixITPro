@@ -92,48 +92,53 @@ export class CarrierWalletController {
   constructor(private readonly service: CarrierWalletService) {}
 
   @Get('balances')
-  getBalances() {
-    return this.service.getBalances();
+  getBalances(@CurrentUser('tenantId') tenantId: string | null) {
+    return this.service.getBalances(tenantId);
   }
 
   @Post('package-sale')
   createPackageSale(
     @Body() dto: PackageSaleDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.createPackageSale(dto, userId);
+    return this.service.createPackageSale(dto, userId, tenantId);
   }
 
   @Post('topup')
   topup(
     @Body() dto: TopupDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.topup(dto, userId);
+    return this.service.topup(dto, userId, tenantId);
   }
 
   @Get('movements')
   getMovements(
+    @CurrentUser('tenantId') tenantId: string | null,
     @Query('carrier') carrier?: string,
     @Query('date')    date?: string,
   ) {
-    return this.service.getMovements(carrier, date);
+    return this.service.getMovements(tenantId, carrier, date);
   }
 
   @Get('package-sales')
   getPackageSales(
+    @CurrentUser('tenantId') tenantId: string | null,
     @Query('date')    date?: string,
     @Query('carrier') carrier?: string,
   ) {
-    return this.service.getPackageSales(date, carrier);
+    return this.service.getPackageSales(tenantId, date, carrier);
   }
 
   @Post('sim-sale')
   createSimSale(
     @Body() dto: SimSaleDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.createSimSale(dto, userId);
+    return this.service.createSimSale(dto, userId, tenantId);
   }
 
   @Post('reconcile')
@@ -142,25 +147,29 @@ export class CarrierWalletController {
   reconcile(
     @Body() dto: ReconcileDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.reconcileAtClose(dto.entries, dto.shiftId ?? null, userId);
+    return this.service.reconcileAtClose(dto.entries, dto.shiftId ?? null, userId, tenantId);
   }
 
   @Get('package-sales/list')
   @UseGuards(ModuleGuard)
   @RequireModule('package_sales')
   listPackageSales(
+    @CurrentUser('tenantId') tenantId: string | null,
     @Query('startDate') startDate?: string,
     @Query('endDate')   endDate?: string,
     @Query('carrier')   carrier?: string,
     @Query('saleType')  saleType?: string,
   ) {
-    const today = new Date().toISOString().slice(0, 10);
+    // Default: today in Bangkok time
+    const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
     return this.service.listPackageSales({
       startDate: startDate ?? today,
-      endDate:   endDate   ? `${endDate}T23:59:59` : undefined,
+      endDate,
       carrier,
       saleType,
+      tenantId,
     });
   }
 }

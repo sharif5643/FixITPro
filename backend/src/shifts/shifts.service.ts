@@ -70,7 +70,7 @@ export class ShiftsService {
     if (dto.ntOpeningBalance   != null) carrierBalances['NT']   = dto.ntOpeningBalance;
 
     if (Object.keys(carrierBalances).length > 0) {
-      await this.carrierWalletService.recordOpeningBalances(shift.id, userId, carrierBalances);
+      await this.carrierWalletService.recordOpeningBalances(shift.id, userId, carrierBalances, tenantId);
     }
 
     // Auto-open CashDrawerSession so CASH payments work immediately after opening a shift.
@@ -156,7 +156,7 @@ export class ShiftsService {
 
     if (!shift) throw new NotFoundException('Active shift not found');
 
-    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg] = await Promise.all([
+    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg, packageSalesByCarrier] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId, status: { not: 'VOIDED' } },
         select: { total: true, paymentMethod: true, payments: { select: { paymentMethod: true, amount: true } } },
@@ -185,6 +185,7 @@ export class ShiftsService {
         where: { paymentMethod: 'CASH', sale: { shiftId } },
         _sum: { totalRefund: true },
       }),
+      this.carrierWalletService.getShiftCarrierSummary(shiftId),
     ]);
 
     const totalSales = sales.reduce((sum, s) => sum + Number(s.total), 0);
@@ -300,6 +301,7 @@ export class ShiftsService {
           count: packageSales.length,
           totalAmount: packageSaleTotalAmount,
           totalProfit: packageSaleProfit,
+          byCarrier: packageSalesByCarrier,
         },
         cashExpenses: cashExpensesTotal,
         cashRefunds: cashRefundsTotal,
@@ -320,7 +322,7 @@ export class ShiftsService {
 
     if (!shift) return null;
 
-    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg] = await Promise.all([
+    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg, packageSalesByCarrier] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId: shift.id, status: { not: 'VOIDED' } },
         select: { total: true, paymentMethod: true, payments: { select: { paymentMethod: true, amount: true } } },
@@ -349,6 +351,7 @@ export class ShiftsService {
         where: { paymentMethod: 'CASH', sale: { shiftId: shift.id } },
         _sum: { totalRefund: true },
       }),
+      this.carrierWalletService.getShiftCarrierSummary(shift.id),
     ]);
 
     const totalSales = sales.reduce((sum, s) => sum + Number(s.total), 0);
@@ -383,6 +386,7 @@ export class ShiftsService {
       packageSaleCount: packageSales.length,
       packageSaleRevenue,
       packageSaleAmount,
+      packageSalesByCarrier,
       cashExpenses,
       cashRefunds,
       expectedCashBalance,

@@ -262,8 +262,10 @@ export class SettingsService {
       await tx.supplier.deleteMany({ where: { tenantId } });
       await tx.expenseCategory.deleteMany({ where: { tenantId } });
 
-      // 21. Reset carrier wallet balance (global table — clear and reset to zero)
-      await tx.carrierWallet.updateMany({ data: { balance: 0 } });
+      // 21. Carrier wallets of this tenant (sales/movements by other users of this tenant too)
+      await tx.packageSale.deleteMany({ where: { tenantId } });
+      await tx.carrierWalletMovement.deleteMany({ where: { tenantId } });
+      await tx.carrierWallet.updateMany({ where: { tenantId }, data: { balance: 0 } });
 
     }, { timeout: 120_000 });
 

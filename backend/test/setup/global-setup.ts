@@ -101,6 +101,9 @@ export default async function globalSetup() {
     await prisma.expense.deleteMany({ where: { branchId: { in: E2E_BRANCH_IDS } } });
     await prisma.expenseCategory.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
     await prisma.customer.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
+    await prisma.packageSale.deleteMany({ where: { createdById: { in: E2E_USER_IDS } } });
+    await prisma.carrierWalletMovement.deleteMany({ where: { createdById: { in: E2E_USER_IDS } } });
+    await (prisma as any).carrierWallet.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
     await prisma.user.deleteMany({ where: { id: { in: E2E_USER_IDS } } });
     await prisma.branch.deleteMany({ where: { id: { in: E2E_BRANCH_IDS } } });
     await prisma.tenant.deleteMany({ where: { id: { in: E2E_TENANT_IDS } } });

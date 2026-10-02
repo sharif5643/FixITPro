@@ -134,4 +134,81 @@ describe('Multi-Tenant Isolation (e2e)', () => {
   it('MT-08: Unauthenticated GET /repairs → 401', async () => {
     await request(app.getHttpServer()).get('/api/v1/repairs').expect(401);
   });
+
+  // ── MT-09..12: Carrier wallets / package sales are per tenant ───────────────
+
+  const aisBalance = async (cookies: string) => {
+    const res = await authGet(app, '/api/v1/carrier-wallet/balances', cookies).expect(200);
+    return res.body.find((w: any) => w.carrier === 'AIS').balance as number;
+  };
+
+  it('MT-09: Tenant A wallet top-up does not change Tenant B wallet', async () => {
+    const beforeA = await aisBalance(cookiesA);
+    const beforeB = await aisBalance(cookiesB);
+
+    await authPost(app, '/api/v1/carrier-wallet/topup', cookiesA, { carrier: 'AIS', amount: 1000 }).expect(201);
+
+    expect(await aisBalance(cookiesA)).toBeCloseTo(beforeA + 1000, 2);
+    expect(await aisBalance(cookiesB)).toBeCloseTo(beforeB, 2);
+  });
+
+  it('MT-10: Tenant A package sale is listed for A only (date range filter works)', async () => {
+    const sale = await authPost(app, '/api/v1/carrier-wallet/package-sale', cookiesA, {
+      carrier: 'AIS', saleType: 'PROMO', packageAmount: 100, dealerCost: 96,
+      paymentMethod: 'CASH', amountPaid: 100, cashierName: 'e2e',
+    }).expect(201);
+    expect(sale.body.walletDeduction).toBe(96);
+    expect(sale.body.profit).toBe(4);
+
+    const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+    const path  = `/api/v1/carrier-wallet/package-sales/list?startDate=${today}&endDate=${today}`;
+    const listA = await authGet(app, path, cookiesA).expect(200);
+    const listB = await authGet(app, path, cookiesB).expect(200);
+
+    expect(listA.body.map((r: any) => r.id)).toContain(sale.body.id);
+    expect(listB.body.map((r: any) => r.id)).not.toContain(sale.body.id);
+  });
+
+  it('MT-11: Tenant B wallet movements do not include Tenant A top-ups', async () => {
+    const movA = await authGet(app, '/api/v1/carrier-wallet/movements', cookiesA).expect(200);
+    const movB = await authGet(app, '/api/v1/carrier-wallet/movements', cookiesB).expect(200);
+    const idsA = new Set(movA.body.map((m: any) => m.id));
+    expect(movA.body.length).toBeGreaterThan(0);
+    expect(movB.body.some((m: any) => idsA.has(m.id))).toBe(false);
+  });
+
+  // ── MT-13: Shift summary breaks package sales / top-ups down per carrier ───
+
+  it('MT-13: GET /shifts/current returns per-carrier sales and top-ups of the shift', async () => {
+    const existing = await authGet(app, '/api/v1/shifts/current', cookiesB).expect(200);
+    if (existing.body?.id) {
+      await authPost(app, `/api/v1/shifts/${existing.body.id}/close`, cookiesB, { closeBalance: 0, note: 'e2e cleanup' });
+    }
+    const opened = await authPost(app, '/api/v1/shifts/open', cookiesB, { openBalance: 0 }).expect(201);
+    const shiftId = opened.body.id;
+
+    try {
+      await authPost(app, '/api/v1/carrier-wallet/topup', cookiesB, { carrier: 'DTAC', amount: 500, shiftId }).expect(201);
+      await authPost(app, '/api/v1/carrier-wallet/package-sale', cookiesB, {
+        carrier: 'DTAC', packageAmount: 200, paymentMethod: 'CASH', amountPaid: 200, cashierName: 'e2e', shiftId,
+      }).expect(201);
+
+      const current = await authGet(app, '/api/v1/shifts/current', cookiesB).expect(200);
+      const dtac = current.body.packageSalesByCarrier.find((c: any) => c.carrier === 'DTAC');
+      expect(dtac).toMatchObject({
+        salesCount: 1, salesAmount: 200, walletDeduction: 194, profit: 6,
+        topupCount: 1, topupAmount: 500,
+      });
+      expect(current.body.packageSalesByCarrier.find((c: any) => c.carrier === 'AIS').salesCount).toBe(0);
+    } finally {
+      await authPost(app, `/api/v1/shifts/${shiftId}/close`, cookiesB, { closeBalance: 200, note: 'e2e' });
+    }
+  });
+
+  // ── MT-12: Repair chat is tenant scoped ──────────────────────────────────────
+
+  it('MT-12: Tenant A cannot read Tenant B repair chat; Tenant B can', async () => {
+    await authGet(app, `/api/v1/repairs/${repairBId}/messages`, cookiesA).expect(404);
+    await authGet(app, `/api/v1/repairs/${repairBId}/messages`, cookiesB).expect(200);
+  });
 });

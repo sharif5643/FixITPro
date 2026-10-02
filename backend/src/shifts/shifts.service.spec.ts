@@ -15,7 +15,7 @@ describe('ShiftsService.closeShift — P0-3', () => {
     prisma = mockPrisma();
     const auditLog = { log: jest.fn(), logWithTx: jest.fn() };
     const notif = { notify: jest.fn().mockResolvedValue(undefined) };
-    const carrierWallet = {};
+    const carrierWallet = { getShiftCarrierSummary: jest.fn().mockResolvedValue([]) };
     service = new (ShiftsService as any)(prisma, carrierWallet, auditLog, notif);
 
     (prisma.shift.findFirst as jest.Mock).mockResolvedValue(MOCK_SHIFT);

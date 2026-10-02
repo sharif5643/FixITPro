@@ -16,6 +16,7 @@ import { ChatService } from './chat.service';
 interface AuthSocket extends Socket {
   userId?: string;
   userName?: string;
+  tenantId?: string | null;
 }
 
 @WebSocketGateway({
@@ -46,8 +47,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const payload = this.jwtService.verify(token, {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
-      client.userId = payload.sub;
-      client.userName = payload.name ?? payload.email;
+      const user = await this.chatService.getSocketUser(payload.sub);
+      if (!user || !user.isActive) { client.disconnect(); return; }
+
+      client.userId = user.id;
+      client.userName = user.name ?? user.email ?? undefined;
+      client.tenantId = user.tenantId ?? null;
       this.logger.debug(`Connected: ${client.userId}`);
     } catch {
       client.disconnect();
@@ -59,10 +64,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('join_room')
-  handleJoinRoom(
+  async handleJoinRoom(
     @ConnectedSocket() client: AuthSocket,
     @MessageBody() data: { repairId: string },
   ) {
+    if (!client.userId || !(await this.chatService.canAccessRepair(data?.repairId, client.tenantId))) {
+      return { event: 'join_error', data: { repairId: data?.repairId, message: 'Repair not found' } };
+    }
     client.join(`repair:${data.repairId}`);
     return { event: 'joined', data: { repairId: data.repairId } };
   }
@@ -80,7 +88,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: AuthSocket,
     @MessageBody() data: { repairId: string; content: string },
   ) {
-    if (!client.userId || !data.content?.trim()) return;
+    if (!client.userId || !data?.content?.trim()) return;
+    if (!(await this.chatService.canAccessRepair(data.repairId, client.tenantId))) return;
 
     const message = await this.chatService.saveMessage(
       data.repairId,

@@ -112,7 +112,8 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
   const paidNum      = Number(amountPaid) || 0
   const change       = payMethod === 'CASH' ? Math.max(0, paidNum - price) : 0
   const insufficient = saleType !== 'SIM_SALE' && price > 0 && deduction > walletBal
-  const canSubmit    = !!shiftId && price > 0 && !insufficient
+  const dealerCostTooHigh = saleType !== 'SIM_SALE' && dealerCost !== '' && pkgDeduction > price
+  const canSubmit    = !!shiftId && price > 0 && !insufficient && !dealerCostTooHigh
     && (payMethod !== 'CASH' || paidNum >= price)
 
   // Handle barcode scanner input (USB scanner = fast keystrokes + Enter)
@@ -148,6 +149,7 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
       }
       return api.post('/carrier-wallet/package-sale', {
         carrier, packageAmount: price, saleType,
+        dealerCost: dealerCost !== '' ? Math.round(pkgDeduction * 100) / 100 : undefined,
         paymentMethod: payMethod, amountPaid: payMethod === 'CASH' ? paidNum : price,
         phoneNumber: phoneNumber.trim() || undefined,
         note: note.trim() || undefined, shiftId, cashierName,
@@ -295,6 +297,9 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
               <span className="text-xs text-slate-400 whitespace-nowrap">ค่าเริ่มต้น 97%</span>
             </div>
           )}
+          {dealerCostTooHigh && (
+            <p className="text-xs text-red-600">ต้นทุนดีลเลอร์ต้องไม่เกินราคาขาย</p>
+          )}
 
           {/* Profit summary */}
           {price > 0 && (
@@ -416,7 +421,7 @@ function PrintBarcodesModal({ onClose }: { onClose: () => void }) {
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
           </div>
           <div className="p-6">
-            <p className="text-sm text-slate-500 mb-4">แสกนบาร์โค้ดในหน้าต่าง "บันทึกการขาย" เพื่อเลือกราคาแพ็กเกจอัตโนมัติ</p>
+            <p className="text-sm text-slate-500 mb-4">แสกนบาร์โค้ดในหน้าต่าง “บันทึกการขาย” เพื่อเลือกราคาแพ็กเกจอัตโนมัติ</p>
             <div className="grid grid-cols-5 gap-3 mb-6">
               {BARCODE_PRESETS.map(amt => (
                 <div key={amt} className="flex flex-col items-center border border-slate-200 rounded-xl p-3 bg-slate-50">
@@ -576,23 +581,25 @@ export default function PackageSalesPage() {
   const [showTopup,         setShowTopup]         = useState(false)
   const [showPrintBarcodes, setShowPrintBarcodes] = useState(false)
   const [activeTab,         setActiveTab]         = useState<'sales' | 'topups'>('sales')
-  const [filterDate,   setFilterDate]   = useState(new Date().toISOString().slice(0, 10))
+  // Today in Bangkok time (UTC date is still "yesterday" before 07:00)
+  const [filterDate,   setFilterDate]   = useState(() => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10))
   const [filterCarrier, setFilterCarrier] = useState('')
   const [filterType,   setFilterType]   = useState('')
 
-  if (!hasModule('package_sales')) {
-    return <ModuleGate module="package_sales">{null}</ModuleGate>
-  }
+  // Hooks must run on every render — the module gate is applied just before rendering
+  const moduleEnabled = hasModule('package_sales')
 
   const { data: shift } = useQuery<ShiftInfo | null>({
     queryKey: ['shifts', 'current'],
     queryFn:  () => api.get('/shifts/current').then(r => r.data),
     staleTime: 30_000,
+    enabled: moduleEnabled,
   })
 
   const { data: wallets = [] } = useQuery<WalletBalance[]>({
     queryKey: ['carrier-wallet', 'balances'],
     queryFn:  () => api.get('/carrier-wallet/balances').then(r => r.data),
+    enabled: moduleEnabled,
     staleTime: 15_000,
   })
 
@@ -608,7 +615,7 @@ export default function PackageSalesPage() {
       params: { carrier: filterCarrier || undefined, date: filterDate },
     }).then(r => r.data),
     staleTime: 30_000,
-    enabled: activeTab === 'topups',
+    enabled: moduleEnabled && activeTab === 'topups',
   })
 
   const topups = movements.filter(m => m.type === 'TOPUP')
@@ -624,6 +631,7 @@ export default function PackageSalesPage() {
       },
     }).then(r => r.data),
     staleTime: 30_000,
+    enabled: moduleEnabled,
   })
 
   // Summary
@@ -633,6 +641,10 @@ export default function PackageSalesPage() {
     acc[r.saleType] = (acc[r.saleType] ?? 0) + 1
     return acc
   }, {} as Record<SaleType, number>)
+
+  if (!moduleEnabled) {
+    return <ModuleGate module="package_sales">{null}</ModuleGate>
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
