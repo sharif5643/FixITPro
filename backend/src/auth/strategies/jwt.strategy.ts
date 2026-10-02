@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../database/prisma.service';
+import { loadRolePermissions } from '../../permissions/role-permissions';
 
 export const ALL_PERMISSIONS = [
   'products.view', 'products.create', 'products.edit', 'products.delete', 'products.view_cost',
@@ -81,10 +82,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       permissions = ALL_PERMISSIONS;
     } else {
       const [roleRows, userRows] = await Promise.all([
-        this.prisma.rolePermission.findMany({ where: { role: user.role }, select: { permission: true } }),
+        loadRolePermissions(this.prisma, user.role, user.tenantId),
         this.prisma.userPermission.findMany({ where: { userId: user.id }, select: { permission: true } }),
       ]);
-      permissions = [...new Set([...roleRows.map((r) => r.permission), ...userRows.map((r) => r.permission)])];
+      permissions = [...new Set([...roleRows, ...userRows.map((r) => r.permission)])];
     }
 
     return {

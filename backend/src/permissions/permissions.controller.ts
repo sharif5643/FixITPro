@@ -19,8 +19,8 @@ export class PermissionsController {
   }
 
   @Get('roles')
-  getRolePermissions() {
-    return this.service.getRolePermissions();
+  getRolePermissions(@CurrentUser('tenantId') tenantId: string | null) {
+    return this.service.getRolePermissions(tenantId);
   }
 
   @Put('roles/:role')
@@ -29,8 +29,9 @@ export class PermissionsController {
     @Body() body: { permissions: string[] },
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.setRolePermissions(role, body.permissions, actorId, actorName);
+    return this.service.setRolePermissions(role, body.permissions ?? [], tenantId, actorId, actorName);
   }
 
   @Put('roles/:role/toggle')
@@ -39,8 +40,9 @@ export class PermissionsController {
     @Body() body: { permission: string; enabled: boolean },
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.togglePermission(role, body.permission, body.enabled, actorId, actorName);
+    return this.service.togglePermission(role, body.permission, body.enabled, tenantId, actorId, actorName);
   }
 
   @Post('roles/:role/apply-preset')
@@ -48,8 +50,9 @@ export class PermissionsController {
     @Param('role') role: Role,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.applyPreset(role, actorId, actorName);
+    return this.service.applyPreset(role, tenantId, actorId, actorName);
   }
 
   // ── Per-user grants ──────────────────────────────────────────────────────────
@@ -69,8 +72,10 @@ export class PermissionsController {
     @Body() body: { permission: string },
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') callerTenantId: string | null,
+    @CurrentUser('role') callerRole: string,
   ) {
-    return this.service.grantToUser(userId, body.permission, actorId, actorName);
+    return this.service.grantToUser(userId, body.permission, actorId, actorName, callerTenantId, callerRole);
   }
 
   @Delete('users/:userId/:permission')
@@ -79,7 +84,9 @@ export class PermissionsController {
     @Param('permission') permission: string,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') callerTenantId: string | null,
+    @CurrentUser('role') callerRole: string,
   ) {
-    return this.service.revokeFromUser(userId, permission, actorId, actorName);
+    return this.service.revokeFromUser(userId, permission, actorId, actorName, callerTenantId, callerRole);
   }
 }

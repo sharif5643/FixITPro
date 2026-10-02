@@ -7,7 +7,7 @@ import { th } from 'date-fns/locale'
 import { toast } from 'sonner'
 import {
   Wifi, TrendingUp, Banknote, Smartphone, CreditCard,
-  Plus, X, Loader2, Phone, Wallet, ArrowDownLeft, Printer, ScanLine,
+  Plus, X, Loader2, Phone, Wallet, ArrowDownLeft, Printer, ScanLine, SlidersHorizontal,
 } from 'lucide-react'
 import Barcode from 'react-barcode'
 import { useAuthStore } from '@/store/auth.store'
@@ -571,6 +571,112 @@ function TopupDialog({ shiftId, onClose, onDone }: TopupDialogProps) {
   )
 }
 
+// ── Adjust Balance Dialog (owner only) ───────────────────────────────────────
+
+interface AdjustDialogProps {
+  wallets: WalletBalance[]
+  onClose: () => void
+  onDone: () => void
+}
+
+// Lets the owner set a wallet to the real balance — e.g. to clear numbers entered while
+// testing. Each change is stored as an "ปรับยอด" movement with the reason, so history stays.
+function AdjustBalanceDialog({ wallets, onClose, onDone }: AdjustDialogProps) {
+  const [values, setValues] = useState<Partial<Record<Carrier, string>>>({})
+  const [reason, setReason] = useState('')
+
+  const balanceOf = (c: Carrier) => wallets.find(w => w.carrier === c)?.balance ?? 0
+  const changes = CARRIERS
+    .filter(c => values[c] !== undefined && values[c] !== '' && Number(values[c]) >= 0)
+    .filter(c => Math.abs(Number(values[c]) - balanceOf(c)) >= 0.01)
+    .map(c => ({ carrier: c, newBalance: Math.round(Number(values[c]) * 100) / 100 }))
+  const canSubmit = changes.length > 0 && reason.trim().length >= 3
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      for (const ch of changes) {
+        await api.post('/carrier-wallet/adjust', { ...ch, reason: reason.trim() })
+      }
+    },
+    onSuccess: () => { toast.success('ปรับยอดกระเป๋าแล้ว'); onDone() },
+    onError: (err: any) => { toast.error(apiErrorMessage(err)); onDone() },
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b">
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <SlidersHorizontal className="h-5 w-5 text-amber-600" /> ปรับ / เคลียร์ยอดกระเป๋า
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-sm text-slate-500">
+            ใส่ยอดที่ถูกต้องของแต่ละค่าย (เช่นยอดจริงในแอปดีลเลอร์) หรือกด “ล้างเป็น 0”
+            ประวัติเดิมยังอยู่ ระบบจะบันทึกเป็นรายการ “ปรับยอด” พร้อมเหตุผล
+          </p>
+
+          <div className="space-y-2">
+            {CARRIERS.map(c => (
+              <div key={c} className="flex items-center gap-2">
+                <span className={`w-14 text-center py-1.5 rounded-lg text-xs font-bold ${CARRIER_COLOR[c]}`}>{c}</span>
+                <span className="w-24 text-right text-xs text-slate-500 tabular-nums">
+                  ตอนนี้ {formatThaiMoney(balanceOf(c))}
+                </span>
+                <input
+                  type="number" inputMode="decimal" min={0} step="0.01" placeholder="ยอดใหม่"
+                  value={values[c] ?? ''}
+                  onChange={e => setValues(v => ({ ...v, [c]: e.target.value }))}
+                  className="flex-1 min-w-0 h-9 px-2 border border-slate-200 rounded-lg text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setValues(v => ({ ...v, [c]: '0' }))}
+                  className="h-9 px-2 rounded-lg text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 whitespace-nowrap"
+                >
+                  ล้างเป็น 0
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">เหตุผล <span className="text-red-500">*</span></label>
+            <input
+              type="text" placeholder="เช่น ล้างยอดที่กรอกตอนทดลองระบบ"
+              value={reason} onChange={e => setReason(e.target.value)}
+              className="w-full h-11 px-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+
+          {changes.length > 0 && (
+            <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 space-y-0.5">
+              {changes.map(ch => (
+                <div key={ch.carrier} className="flex justify-between tabular-nums">
+                  <span>{ch.carrier}</span>
+                  <span>{formatThaiMoney(balanceOf(ch.carrier))} → <b>{formatThaiMoney(ch.newBalance)}</b></span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="p-5 border-t flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50">ยกเลิก</button>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={!canSubmit || mutation.isPending}
+            className="flex-1 py-3 rounded-xl bg-amber-600 text-white font-bold disabled:opacity-50 hover:bg-amber-700 flex items-center justify-center gap-2"
+          >
+            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SlidersHorizontal className="h-4 w-4" />}
+            บันทึกยอดใหม่
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function PackageSalesPage() {
@@ -579,6 +685,7 @@ export default function PackageSalesPage() {
 
   const [showCreate,        setShowCreate]        = useState(false)
   const [showTopup,         setShowTopup]         = useState(false)
+  const [showAdjust,        setShowAdjust]        = useState(false)
   const [showPrintBarcodes, setShowPrintBarcodes] = useState(false)
   const [activeTab,         setActiveTab]         = useState<'sales' | 'topups'>('sales')
   // Today in Bangkok time (UTC date is still "yesterday" before 07:00)
@@ -588,6 +695,7 @@ export default function PackageSalesPage() {
 
   // Hooks must run on every render — the module gate is applied just before rendering
   const moduleEnabled = hasModule('package_sales')
+  const isOwner       = user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN'
 
   const { data: shift } = useQuery<ShiftInfo | null>({
     queryKey: ['shifts', 'current'],
@@ -619,6 +727,8 @@ export default function PackageSalesPage() {
   })
 
   const topups = movements.filter(m => m.type === 'TOPUP')
+  // History table also shows balance corrections (shift-close reconcile, owner "ปรับยอด")
+  const historyRows = movements.filter(m => m.type === 'TOPUP' || m.type === 'ADJUSTMENT')
 
   const { data: sales = [], isLoading } = useQuery<PackageSaleRow[]>({
     queryKey: ['package-sales', filterDate, filterCarrier, filterType],
@@ -665,6 +775,14 @@ export default function PackageSalesPage() {
             >
               <Printer className="h-4 w-4" /> พิมพ์บาร์โค้ด
             </button>
+            {isOwner && (
+              <button
+                onClick={() => setShowAdjust(true)}
+                className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-amber-700 transition-colors"
+              >
+                <SlidersHorizontal className="h-4 w-4" /> ปรับยอดกระเป๋า
+              </button>
+            )}
             <button
               onClick={() => setShowTopup(true)}
               className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
@@ -833,7 +951,7 @@ export default function PackageSalesPage() {
               <div className="flex items-center justify-center py-16 text-slate-400">
                 <Loader2 className="h-5 w-5 animate-spin mr-2" /> กำลังโหลด...
               </div>
-            ) : topups.length === 0 ? (
+            ) : historyRows.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
                 <Wallet className="h-10 w-10 opacity-30" />
                 <p className="text-sm">ยังไม่มีการเติมกระเป๋าในวันนี้</p>
@@ -868,14 +986,21 @@ export default function PackageSalesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {topups.map(row => (
+                    {historyRows.map(row => (
                       <tr key={row.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-3 px-4">
                           <span className={`text-xs px-2 py-0.5 rounded-full font-bold text-white ${CARRIER_COLOR[row.carrier as Carrier]?.split(' ')[0] ?? 'bg-slate-500'}`}>
                             {row.carrier}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right tabular-nums font-bold text-emerald-700">+{formatThaiMoney(row.amount)}</td>
+                        {row.type === 'ADJUSTMENT' ? (
+                          <td className="py-3 px-4 text-right tabular-nums font-bold text-amber-700">
+                            <span className="block text-[10px] font-semibold text-amber-600">ปรับยอด</span>
+                            {row.balanceAfter >= row.balanceBefore ? '+' : '−'}{formatThaiMoney(row.amount)}
+                          </td>
+                        ) : (
+                          <td className="py-3 px-4 text-right tabular-nums font-bold text-emerald-700">+{formatThaiMoney(row.amount)}</td>
+                        )}
                         <td className="py-3 px-4 text-right tabular-nums text-slate-500">{formatThaiMoney(row.balanceBefore)}</td>
                         <td className="py-3 px-4 text-right tabular-nums font-semibold">{formatThaiMoney(row.balanceAfter)}</td>
                         <td className="py-3 px-4 text-slate-500 text-xs">{row.note ?? '—'}</td>
@@ -901,6 +1026,17 @@ export default function PackageSalesPage() {
           onDone={() => {
             setShowCreate(false)
             qc.invalidateQueries({ queryKey: ['package-sales'] })
+            qc.invalidateQueries({ queryKey: ['carrier-wallet'] })
+          }}
+        />
+      )}
+
+      {showAdjust && (
+        <AdjustBalanceDialog
+          wallets={wallets}
+          onClose={() => setShowAdjust(false)}
+          onDone={() => {
+            setShowAdjust(false)
             qc.invalidateQueries({ queryKey: ['carrier-wallet'] })
           }}
         />

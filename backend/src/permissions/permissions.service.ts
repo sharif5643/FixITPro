@@ -1,9 +1,10 @@
-import { Injectable, OnModuleInit, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Role } from '@prisma/client';
 import { ALL_PERMISSIONS } from '../auth/strategies/jwt.strategy';
+import { CUSTOM_MARKER, DEFAULT_SCOPE, loadRolePermissions } from './role-permissions';
 
 const ROLES: Role[] = ['OWNER', 'MANAGER', 'CASHIER', 'TECHNICIAN', 'STOCK_STAFF'];
 
@@ -84,7 +85,7 @@ export class PermissionsService implements OnModuleInit {
     // partial configs set by an admin.
     const seedRoles: Role[] = ['MANAGER', 'CASHIER', 'TECHNICIAN', 'STOCK_STAFF'];
     for (const role of seedRoles) {
-      const existing = await this.prisma.rolePermission.count({ where: { role } });
+      const existing = await this.prisma.rolePermission.count({ where: { role, tenantId: DEFAULT_SCOPE } });
       if (existing === 0) {
         const preset = ROLE_PRESETS[role] ?? [];
         if (preset.length > 0) {
@@ -102,37 +103,33 @@ export class PermissionsService implements OnModuleInit {
     return ALL_PERMISSIONS;
   }
 
-  async getRolePermissions() {
-    const rows = await this.prisma.rolePermission.findMany();
-    const map: Record<string, string[]> = {};
-
-    for (const role of ROLES) {
-      map[role] = role === 'OWNER' ? [...ALL_PERMISSIONS] : [];
-    }
-
-    for (const row of rows) {
-      if (map[row.role]) map[row.role].push(row.permission);
-    }
-
-    return ROLES.map((role) => ({
+  // tenantId = null (SUPER_ADMIN / legacy users) reads and edits the system-wide defaults.
+  async getRolePermissions(tenantId: string | null) {
+    return Promise.all(ROLES.map(async (role) => ({
       role,
-      permissions: map[role],
+      permissions: role === 'OWNER' ? [...ALL_PERMISSIONS] : await loadRolePermissions(this.prisma, role, tenantId),
       isOwner: role === 'OWNER',
-    }));
+    })));
   }
 
-  async setRolePermissions(role: Role, permissions: string[], actorId?: string, actorName?: string) {
-    if (role === 'OWNER') return; // OWNER always has all — ignore
+  private async writeRolePermissions(role: Role, permissions: string[], tenantId: string | null) {
+    const scope = tenantId ?? DEFAULT_SCOPE;
+    const valid = [...new Set(permissions.filter((p) => ALL_PERMISSIONS.includes(p)))];
+    const rows  = valid.map((permission) => ({ tenantId: scope, role, permission }));
+    // A tenant's own set always carries the marker, so "no permissions" stays customised
+    if (tenantId) rows.push({ tenantId: scope, role, permission: CUSTOM_MARKER });
 
     await this.prisma.$transaction([
-      this.prisma.rolePermission.deleteMany({ where: { role } }),
-      this.prisma.rolePermission.createMany({
-        data: permissions
-          .filter((p) => ALL_PERMISSIONS.includes(p))
-          .map((permission) => ({ role, permission })),
-        skipDuplicates: true,
-      }),
+      this.prisma.rolePermission.deleteMany({ where: { tenantId: scope, role } }),
+      this.prisma.rolePermission.createMany({ data: rows, skipDuplicates: true }),
     ]);
+    return valid;
+  }
+
+  async setRolePermissions(role: Role, permissions: string[], tenantId: string | null, actorId?: string, actorName?: string) {
+    if (role === 'OWNER') return; // OWNER always has all — ignore
+
+    const saved = await this.writeRolePermissions(role, permissions, tenantId);
 
     await this.auditLog.log({
       actorId,
@@ -140,34 +137,30 @@ export class PermissionsService implements OnModuleInit {
       action: 'ROLE_PERMISSIONS_SET',
       entityType: 'Role',
       entityId: role,
-      afterData: { permissions },
+      afterData: { permissions: saved, tenantId },
     });
 
     await this.notif.notify({
       type:       'ROLE_PERMISSION_CHANGED',
       title:      `อัปเดตสิทธิ์: ${role}`,
-      message:    `กำหนดสิทธิ์ใหม่ให้กับตำแหน่ง ${role} จำนวน ${permissions.length} รายการ`,
+      message:    `กำหนดสิทธิ์ใหม่ให้กับตำแหน่ง ${role} จำนวน ${saved.length} รายการ`,
       severity:   'INFO',
       entityType: 'Role',
       entityId:   role,
+      tenantId,
     });
 
-    return this.prisma.rolePermission.findMany({ where: { role } });
+    return saved.map((permission) => ({ role, permission }));
   }
 
-  async togglePermission(role: Role, permission: string, enabled: boolean, actorId?: string, actorName?: string) {
+  async togglePermission(role: Role, permission: string, enabled: boolean, tenantId: string | null, actorId?: string, actorName?: string) {
     if (role === 'OWNER') return;
     if (!ALL_PERMISSIONS.includes(permission)) return;
 
-    if (enabled) {
-      await this.prisma.rolePermission.upsert({
-        where: { role_permission: { role, permission } },
-        create: { role, permission },
-        update: {},
-      });
-    } else {
-      await this.prisma.rolePermission.deleteMany({ where: { role, permission } });
-    }
+    // Start from the role's effective set (the defaults if this shop never customised it)
+    const current = await loadRolePermissions(this.prisma, role, tenantId);
+    const next    = enabled ? [...current, permission] : current.filter((p) => p !== permission);
+    await this.writeRolePermissions(role, next, tenantId);
 
     await this.auditLog.log({
       actorId,
@@ -175,7 +168,7 @@ export class PermissionsService implements OnModuleInit {
       action: 'ROLE_PERMISSION_TOGGLED',
       entityType: 'Role',
       entityId: role,
-      afterData: { permission, enabled },
+      afterData: { permission, enabled, tenantId },
     });
 
     await this.notif.notify({
@@ -185,29 +178,33 @@ export class PermissionsService implements OnModuleInit {
       severity:   'INFO',
       entityType: 'Role',
       entityId:   role,
+      tenantId,
     });
   }
 
-  async applyPreset(role: Role, actorId?: string, actorName?: string) {
+  async applyPreset(role: Role, tenantId: string | null, actorId?: string, actorName?: string) {
     if (role === 'OWNER') return;
 
     const preset = ROLE_PRESETS[role] ?? [];
-    return this.setRolePermissions(role, preset, actorId, actorName);
+    return this.setRolePermissions(role, preset, tenantId, actorId, actorName);
   }
 
   // ── Per-user permission grants ──────────────────────────────────────────────
 
-  async getUserGrants(userId: string, callerTenantId?: string | null, callerRole?: string) {
-    // Tenant isolation: OWNER/MANAGER can only read grants for users in their own tenant
-    if (callerRole !== 'SUPER_ADMIN' && callerTenantId) {
-      const target = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { tenantId: true },
-      });
-      if (!target || target.tenantId !== callerTenantId) {
-        throw new ForbiddenException('ไม่มีสิทธิ์ดูข้อมูลผู้ใช้ของ Tenant อื่น');
-      }
+  // Tenant isolation: callers can only touch users of their own tenant
+  private async assertSameTenant(userId: string, callerTenantId?: string | null, callerRole?: string) {
+    if (callerRole === 'SUPER_ADMIN' || !callerTenantId) return;
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { tenantId: true },
+    });
+    if (!target || target.tenantId !== callerTenantId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์จัดการผู้ใช้ของ Tenant อื่น');
     }
+  }
+
+  async getUserGrants(userId: string, callerTenantId?: string | null, callerRole?: string) {
+    await this.assertSameTenant(userId, callerTenantId, callerRole);
     const rows = await this.prisma.userPermission.findMany({
       where: { userId },
       select: { permission: true, createdAt: true },
@@ -221,10 +218,13 @@ export class PermissionsService implements OnModuleInit {
     permission: string,
     actorId: string,
     actorName?: string,
+    callerTenantId?: string | null,
+    callerRole?: string,
   ) {
     if (!ALL_PERMISSIONS.includes(permission)) {
-      throw new Error(`สิทธิ์ไม่ถูกต้อง: ${permission}`);
+      throw new BadRequestException(`สิทธิ์ไม่ถูกต้อง: ${permission}`);
     }
+    await this.assertSameTenant(userId, callerTenantId, callerRole);
     await this.prisma.userPermission.upsert({
       where: { userId_permission: { userId, permission } },
       create: { userId, permission, grantedById: actorId },
@@ -246,7 +246,10 @@ export class PermissionsService implements OnModuleInit {
     permission: string,
     actorId: string,
     actorName?: string,
+    callerTenantId?: string | null,
+    callerRole?: string,
   ) {
+    await this.assertSameTenant(userId, callerTenantId, callerRole);
     await this.prisma.userPermission.deleteMany({ where: { userId, permission } });
     await this.auditLog.log({
       actorId,

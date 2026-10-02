@@ -14,6 +14,7 @@ import { pushBackHandler } from '@/lib/back-stack'
 import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Sale, PaymentMethod } from '@/types'
+import { refundUnitPrice } from '@/lib/refund'
 
 export const PM_LABEL: Record<PaymentMethod, string> = {
   CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตร',
@@ -130,7 +131,7 @@ export function RefundSheet({
     refundableItems.map((i) => ({
       saleItemId: i.id,
       qty: 0,
-      refundPrice: Number(i.price),
+      refundPrice: refundUnitPrice(sale, i),
       maxQty: i.quantity - (i.refundedQty ?? 0),
       name: i.product.name,
     })),

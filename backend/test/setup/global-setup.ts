@@ -97,6 +97,13 @@ export default async function globalSetup() {
       where: { repair: { branchId: { in: E2E_BRANCH_IDS } } },
     }).catch(() => {});
     await prisma.repair.deleteMany({ where: { branchId: { in: E2E_BRANCH_IDS } } });
+    await prisma.saleRefundItem.deleteMany({ where: { refund: { sale: { branchId: { in: E2E_BRANCH_IDS } } } } });
+    await prisma.saleRefund.deleteMany({ where: { sale: { branchId: { in: E2E_BRANCH_IDS } } } });
+    const e2eSale = { sale: { branchId: { in: E2E_BRANCH_IDS } } };
+    await prisma.stockMovement.deleteMany({ where: { saleItem: e2eSale } });
+    await prisma.serialNumber.updateMany({ where: { saleItem: e2eSale }, data: { saleItemId: null } });
+    await prisma.salePayment.deleteMany({ where: e2eSale });
+    await prisma.saleItem.deleteMany({ where: e2eSale });
     await prisma.sale.deleteMany({ where: { branchId: { in: E2E_BRANCH_IDS } } });
     await prisma.expense.deleteMany({ where: { branchId: { in: E2E_BRANCH_IDS } } });
     await prisma.expenseCategory.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
@@ -104,6 +111,13 @@ export default async function globalSetup() {
     await prisma.packageSale.deleteMany({ where: { createdById: { in: E2E_USER_IDS } } });
     await prisma.carrierWalletMovement.deleteMany({ where: { createdById: { in: E2E_USER_IDS } } });
     await (prisma as any).carrierWallet.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
+    const e2eProduct = { product: { tenantId: { in: E2E_TENANT_IDS } } };
+    await prisma.stockMovement.deleteMany({ where: { OR: [e2eProduct, { branchId: { in: E2E_BRANCH_IDS } }] } });
+    await prisma.branchStock.deleteMany({ where: { OR: [e2eProduct, { branchId: { in: E2E_BRANCH_IDS } }] } });
+    await prisma.product.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
+    await prisma.category.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
+    await prisma.rolePermission.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
+    await prisma.categoryType.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
     await prisma.user.deleteMany({ where: { id: { in: E2E_USER_IDS } } });
     await prisma.branch.deleteMany({ where: { id: { in: E2E_BRANCH_IDS } } });
     await prisma.tenant.deleteMany({ where: { id: { in: E2E_TENANT_IDS } } });

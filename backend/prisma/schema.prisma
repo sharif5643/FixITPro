@@ -500,10 +500,16 @@ model Shift {
 model CategoryType {
   id        String   @id @default(cuid())
   name      String
-  slug      String   @unique
+  slug      String
   createdAt DateTime @default(now())
 
+  // NULL = shared type visible to every shop (read-only for shops); otherwise owned by that tenant
+  tenantId String?
+
   categories Category[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
 }
 
 model Category {
@@ -1216,8 +1222,13 @@ model RolePermission {
   role       Role
   permission String
 
-  @@unique([role, permission])
+  // "" = system-wide default; a tenant id = that shop's own permissions for the role.
+  // A shop without rows for a role uses the defaults (see permissions/role-permissions.ts).
+  tenantId String @default("")
+
+  @@unique([tenantId, role, permission])
   @@index([role])
+  @@index([tenantId, role])
 }
 
 model UserPermission {
