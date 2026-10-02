@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
@@ -29,7 +29,7 @@ export class AuthService {
     private modulesService: ModulesService,
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  @Cron('0 30 3 * * *', { timeZone: 'Asia/Bangkok' })
   async cleanupExpiredRefreshTokens() {
     const { count } = await this.prisma.refreshToken.deleteMany({
       where: { expiresAt: { lt: new Date() } },

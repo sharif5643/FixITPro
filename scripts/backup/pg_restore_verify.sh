@@ -1,137 +1,125 @@
 #!/usr/bin/env bash
 # ============================================================
-# FixITPro — Backup Restore Verification Script (Coolify/Docker)
+# FixITPro — Backup Restore Drill (Coolify/Docker)
 #
-# Restores a backup to a TEMPORARY database (fixitpro_backup_verify)
-# inside the same PostgreSQL container — does NOT touch production data.
+# Proves a backup can actually be restored. Restores it into a TEMPORARY database
+# (fixitpro_backup_verify) inside the same PostgreSQL container, compares it with the
+# live database, then drops the temporary database.
+#
+# Production is only READ (row counts). Nothing is written to it.
 #
 # Usage:
-#   bash /opt/fixitpro-backups/pg_restore_verify.sh <backup_file.sql.gz>
+#   bash pg_restore_verify.sh                      # newest backup in $BACKUP_DIR
+#   bash pg_restore_verify.sh <backup_file.sql.gz> # a specific backup
 #
-# Example:
-#   bash /opt/fixitpro-backups/pg_restore_verify.sh \
-#     /opt/fixitpro-backups/db/fixitpro_20260817_120000.sql.gz
-#
-# After verification, the temporary database is dropped automatically.
+# Exit code 0 = restore worked and the data looks complete; non-zero = investigate.
 # ============================================================
 set -euo pipefail
 
 CONTAINER="${FIXITPRO_PG_CONTAINER:-postgres-z9m1c1i9nr6kbyo4qn0vuv1b-174837653754}"
 PG_USER="${FIXITPRO_PG_USER:-fixitpro}"
+PROD_DB="${FIXITPRO_PG_DBNAME:-fixitpro}"
+BACKUP_DIR="${FIXITPRO_BACKUP_DIR:-/opt/fixitpro-backups/db}"
 VERIFY_DB="fixitpro_backup_verify"
-LOG_FILE="/opt/fixitpro-backups/restore_verify.log"
+LOG_FILE="${FIXITPRO_RESTORE_LOG:-/opt/fixitpro-backups/restore_verify.log}"
 
-BACKUP_FILE="${1:-}"
+# Tables a shop cannot lose. Restored count must be > 0 when production has rows.
+KEY_TABLES=(Tenant Branch User Customer Product BranchStock Sale SaleItem SalePayment Repair
+  RepairAdditionalPayment StockMovement Shift CashDrawerTransaction CarrierWallet PackageSale)
 
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
-fail() { log "ERROR: $*"; cleanup; exit 1; }
+mkdir -p "$(dirname "$LOG_FILE")"
+log()  { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
+psql_c() { docker exec "$CONTAINER" psql -U "$PG_USER" -v ON_ERROR_STOP=1 -At "$@"; }
 
 cleanup() {
-  log "Dropping temporary database $VERIFY_DB (cleanup)..."
-  docker exec "$CONTAINER" psql -U "$PG_USER" -d postgres \
-    -c "DROP DATABASE IF EXISTS \"$VERIFY_DB\";" 2>/dev/null || true
+  docker exec "$CONTAINER" psql -U "$PG_USER" -d postgres -q \
+    -c "DROP DATABASE IF EXISTS \"$VERIFY_DB\";" >/dev/null 2>&1 || true
 }
+fail() { log "FAIL: $*"; cleanup; exit 1; }
+trap cleanup EXIT
+trap 'log "FAIL: command failed at line $LINENO (database unreachable?)"' ERR
 
+# Never let a misconfiguration point the drill at production.
+[ "$VERIFY_DB" != "$PROD_DB" ] || { echo "VERIFY_DB equals PROD_DB — refusing"; exit 2; }
+
+BACKUP_FILE="${1:-}"
 if [ -z "$BACKUP_FILE" ]; then
-  echo "Usage: $0 <backup_file.sql.gz>"
-  exit 1
+  BACKUP_FILE=$(ls -1t "$BACKUP_DIR"/*.sql.gz 2>/dev/null | head -1 || true)
+  [ -n "$BACKUP_FILE" ] || { echo "No *.sql.gz backups in $BACKUP_DIR"; exit 1; }
 fi
-
-if [ ! -f "$BACKUP_FILE" ]; then
-  echo "ERROR: Backup file not found: $BACKUP_FILE"
-  exit 1
-fi
+[ -f "$BACKUP_FILE" ] || { echo "Backup file not found: $BACKUP_FILE"; exit 1; }
 
 log "=========================================="
-log "FixITPro Restore Verification — START"
-log "Backup file : $BACKUP_FILE"
-log "Verify DB   : $VERIFY_DB (temporary)"
+log "Restore drill — START"
+log "Backup : $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1), $(date -r "$BACKUP_FILE" '+%Y-%m-%d %H:%M'))"
+log "Target : $VERIFY_DB (temporary)"
 log "=========================================="
 
-# ── Step 1: Verify backup file integrity first ────────────────────────────────
-log "Checking gzip integrity..."
-if ! gzip -t "$BACKUP_FILE" 2>/dev/null; then
-  log "FAIL: gzip integrity check failed"
-  exit 1
-fi
-log "gzip integrity: OK"
+docker inspect "$CONTAINER" --format '{{.State.Status}}' 2>/dev/null | grep -q running \
+  || fail "PostgreSQL container '$CONTAINER' is not running"
 
-CHECKSUM_FILE="${BACKUP_FILE}.sha256"
-if [ -f "$CHECKSUM_FILE" ]; then
-  log "Verifying SHA-256 checksum..."
-  if sha256sum -c "$CHECKSUM_FILE" --quiet 2>/dev/null; then
-    log "SHA-256 checksum: OK"
-  else
-    log "WARNING: SHA-256 checksum mismatch — backup may be modified"
-    fail "Checksum verification failed"
+# ── 1. File integrity ─────────────────────────────────────────────────────────
+gzip -t "$BACKUP_FILE" || fail "gzip integrity check failed"
+if [ -f "${BACKUP_FILE}.sha256" ]; then
+  sha256sum -c "${BACKUP_FILE}.sha256" --quiet || fail "SHA-256 checksum mismatch"
+  log "gzip + SHA-256: OK"
+else
+  log "gzip: OK (no .sha256 file)"
+fi
+
+# ── 2. Disk space: the restore needs roughly the live database size again ────
+DB_BYTES=$(psql_c -d "$PROD_DB" -c "SELECT pg_database_size('$PROD_DB');")
+FREE_BYTES=$(( $(df --output=avail -k / | tail -1) * 1024 ))
+log "Live DB size: $((DB_BYTES / 1024 / 1024)) MB, free disk: $((FREE_BYTES / 1024 / 1024)) MB"
+[ "$FREE_BYTES" -gt $(( DB_BYTES * 2 )) ] || fail "Not enough free disk for a safe restore (need 2x live DB size)"
+
+# ── 3. Restore into a fresh temporary database; any SQL error fails the drill ─
+cleanup
+psql_c -d postgres -c "CREATE DATABASE \"$VERIFY_DB\" OWNER \"$PG_USER\";" >/dev/null
+log "Restoring..."
+START=$(date +%s)
+if ! zcat "$BACKUP_FILE" | docker exec -i "$CONTAINER" psql -U "$PG_USER" -d "$VERIFY_DB" \
+      -q -v ON_ERROR_STOP=1 >/dev/null 2>>"$LOG_FILE"; then
+  fail "psql reported an error while restoring (see $LOG_FILE)"
+fi
+log "Restore finished in $(( $(date +%s) - START ))s"
+
+# ── 4. Compare schema and data with production ───────────────────────────────
+count_tables() { psql_c -d "$1" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"; }
+count_migr()   { psql_c -d "$1" -c "SELECT COUNT(*) FROM \"_prisma_migrations\" WHERE finished_at IS NOT NULL;"; }
+
+T_LIVE=$(count_tables "$PROD_DB"); T_REST=$(count_tables "$VERIFY_DB")
+M_LIVE=$(count_migr "$PROD_DB");   M_REST=$(count_migr "$VERIFY_DB")
+log "Tables     : backup $T_REST / live $T_LIVE"
+log "Migrations : backup $M_REST / live $M_LIVE"
+PROBLEMS=0
+[ "$T_REST" -gt 0 ] || { log "PROBLEM: restored database has no tables"; PROBLEMS=$((PROBLEMS+1)); }
+# A deploy after the backup can add migrations/tables; fewer is expected then, more is not.
+[ "$M_REST" -le "$M_LIVE" ] || { log "PROBLEM: backup has more migrations than live"; PROBLEMS=$((PROBLEMS+1)); }
+
+log "--- Rows: backup / live (backup is older, so it may be a little lower) ---"
+for t in "${KEY_TABLES[@]}"; do
+  exists=$(psql_c -d "$PROD_DB" -c "SELECT to_regclass('public.\"$t\"') IS NOT NULL;")
+  [ "$exists" = "t" ] || continue
+  live=$(psql_c -d "$PROD_DB" -c "SELECT COUNT(*) FROM \"$t\";")
+  rest=$(psql_c -d "$VERIFY_DB" -c "SELECT COUNT(*) FROM \"$t\";" 2>/dev/null || echo "missing")
+  flag=""
+  if [ "$rest" = "missing" ] || { [ "$live" -gt 0 ] && [ "$rest" -eq 0 ]; }; then
+    flag="  <-- PROBLEM"; PROBLEMS=$((PROBLEMS+1))
   fi
+  printf '  %-26s %10s / %-10s%s\n' "$t" "$rest" "$live" "$flag" | tee -a "$LOG_FILE"
+done
+
+LATEST=$(psql_c -d "$VERIFY_DB" -c "SELECT to_char((MAX(\"createdAt\") AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD HH24:MI') FROM \"Sale\";" 2>/dev/null || echo "-")
+log "Newest sale in backup (Bangkok time): ${LATEST:--}"
+
+# ── 5. Result (the EXIT trap drops the temporary database) ───────────────────
+log "=========================================="
+if [ "$PROBLEMS" -eq 0 ]; then
+  log "RESTORE DRILL PASSED — this backup can be restored"
+  log "=========================================="
+  exit 0
 fi
-
-# ── Step 2: Drop old verify DB if it exists ───────────────────────────────────
-log "Dropping old verify database if exists..."
-docker exec "$CONTAINER" psql -U "$PG_USER" -d postgres \
-  -c "DROP DATABASE IF EXISTS \"$VERIFY_DB\";" 2>&1 | tee -a "$LOG_FILE"
-
-# ── Step 3: Create fresh verify database ─────────────────────────────────────
-log "Creating temporary database: $VERIFY_DB"
-docker exec "$CONTAINER" psql -U "$PG_USER" -d postgres \
-  -c "CREATE DATABASE \"$VERIFY_DB\" OWNER \"$PG_USER\";" 2>&1 | tee -a "$LOG_FILE"
-log "Created: $VERIFY_DB"
-
-# ── Step 4: Restore backup ────────────────────────────────────────────────────
-log "Restoring backup into $VERIFY_DB..."
-zcat "$BACKUP_FILE" | docker exec -i "$CONTAINER" psql \
-  -U "$PG_USER" \
-  -d "$VERIFY_DB" \
-  --quiet \
-  -v ON_ERROR_STOP=0 \
-  2>&1 | tail -5 | tee -a "$LOG_FILE"
-log "Restore complete"
-
-# ── Step 5: Verify — table count ─────────────────────────────────────────────
-TABLE_COUNT=$(docker exec "$CONTAINER" psql -U "$PG_USER" -d "$VERIFY_DB" -t -c \
-  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';" \
-  | tr -d ' \n')
-log "Tables in restored DB: $TABLE_COUNT"
-
-# ── Step 6: Verify — migration history ───────────────────────────────────────
-MIGRATION_COUNT=$(docker exec "$CONTAINER" psql -U "$PG_USER" -d "$VERIFY_DB" -t -c \
-  "SELECT COUNT(*) FROM \"_prisma_migrations\" WHERE finished_at IS NOT NULL;" \
-  | tr -d ' \n')
-log "Applied migrations in restored DB: $MIGRATION_COUNT"
-
-# ── Step 7: Verify — row counts (compare with baseline) ──────────────────────
-log "--- Row count verification ---"
-ROW_RESULTS=$(docker exec "$CONTAINER" psql -U "$PG_USER" -d "$VERIFY_DB" -t -c "
-SELECT 'Tenant' as t, COUNT(*) FROM \"Tenant\"
-UNION ALL SELECT 'Branch', COUNT(*) FROM \"Branch\"
-UNION ALL SELECT 'Customer', COUNT(*) FROM \"Customer\"
-UNION ALL SELECT 'Sale', COUNT(*) FROM \"Sale\"
-UNION ALL SELECT 'SaleItem', COUNT(*) FROM \"SaleItem\"
-UNION ALL SELECT 'Repair', COUNT(*) FROM \"Repair\"
-UNION ALL SELECT 'RepairAdditionalPayment', COUNT(*) FROM \"RepairAdditionalPayment\"
-UNION ALL SELECT 'Product', COUNT(*) FROM \"Product\"
-UNION ALL SELECT 'StockMovement', COUNT(*) FROM \"StockMovement\"
-UNION ALL SELECT 'CashDrawerTransaction', COUNT(*) FROM \"CashDrawerTransaction\"
-UNION ALL SELECT 'Supplier', COUNT(*) FROM \"Supplier\"
-UNION ALL SELECT 'PurchaseOrder', COUNT(*) FROM \"PurchaseOrder\"
-ORDER BY t;
-")
-log "Row counts in restored DB:"
-echo "$ROW_RESULTS" | tee -a "$LOG_FILE"
-
-# ── Step 8: Cleanup — drop temporary database ─────────────────────────────────
-log "Dropping temporary database: $VERIFY_DB"
-docker exec "$CONTAINER" psql -U "$PG_USER" -d postgres \
-  -c "DROP DATABASE IF EXISTS \"$VERIFY_DB\";" 2>&1 | tee -a "$LOG_FILE"
-log "Temporary database dropped"
-
-# ── Step 9: Final report ──────────────────────────────────────────────────────
+log "RESTORE DRILL FOUND $PROBLEMS PROBLEM(S) — see above"
 log "=========================================="
-log "RESTORE VERIFICATION COMPLETE"
-log "  Tables    : $TABLE_COUNT (expected: 62)"
-log "  Migrations: $MIGRATION_COUNT (expected: 68)"
-log "  gzip test : PASS"
-log "  Checksum  : PASS"
-log "  Result    : See row counts above — compare with PRODUCTION_PRE_MIGRATION_BASELINE.md"
-log "=========================================="
+exit 1

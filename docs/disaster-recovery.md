@@ -11,7 +11,7 @@
 
 | Trigger | Schedule | Method | Location |
 |---------|----------|--------|----------|
-| Automatic | Daily at 02:00 AM server time | NestJS `@Cron` → `pg_dump` plain SQL | Local: `/app/backups/` |
+| Automatic | Daily at 03:00 Asia/Bangkok | NestJS `@Cron` → `pg_dump` plain SQL | Local: `/app/backups/` |
 | Manual | On demand via POST `/api/v1/backup` (SUPER_ADMIN) | Same pg_dump flow | Local: `/app/backups/` |
 | Offsite | Immediately after each backup (if S3 enabled) | `@aws-sdk/client-s3` PutObject | S3 bucket configured via `BACKUP_S3_*` env vars |
 
@@ -201,7 +201,19 @@ If the entire server is lost (disk failure, provider outage, accidental deletion
 
 ---
 
-## 9. Staging Restore Test Procedure
+## 9. Restore Drill (monthly, no production writes)
+
+GitHub → Actions → **Backup restore drill** → Run workflow. It copies
+`scripts/backup/pg_restore_verify.sh` to the server, optionally takes a fresh backup
+(`pg_backup_coolify.sh`), restores the newest `/opt/fixitpro-backups/db/*.sql.gz` into the
+temporary database `fixitpro_backup_verify` with `ON_ERROR_STOP=1`, compares tables,
+migrations and key row counts with the live database, prints the newest sale in the backup,
+then drops the temporary database. A red run means that backup could not be restored as-is.
+
+Same thing by hand on the server: `bash /opt/fixitpro-backups/pg_restore_verify.sh [file.sql.gz]`.
+It needs free disk of about twice the live database size and refuses to start otherwise.
+
+## 9b. Staging Restore Test Procedure
 
 Run this procedure **before any production restore** and **at least once per quarter**:
 
