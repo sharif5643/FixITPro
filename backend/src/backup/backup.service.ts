@@ -4,7 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BackupS3Service } from './backup-s3.service';
@@ -35,8 +35,9 @@ export class BackupService {
     }
   }
 
-  // Runs every day at 02:00 AM (server local time)
-  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  // 03:00 Bangkok time. The container runs in UTC, so a bare EVERY_DAY_AT_2AM fired at
+  // 09:00 in Thailand, while shops are open.
+  @Cron('0 0 3 * * *', { timeZone: 'Asia/Bangkok' })
   async scheduledBackup() {
     this.logger.log('[Scheduled] Daily backup starting…');
     try {

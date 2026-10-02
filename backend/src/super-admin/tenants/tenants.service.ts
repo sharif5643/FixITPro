@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import {
   Injectable,
   NotFoundException,
@@ -250,8 +251,8 @@ export class TenantsService {
 
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     let tempPassword = 'Tmp';
-    for (let i = 0; i < 8; i++) {
-      tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 10; i++) {
+      tempPassword += chars.charAt(randomInt(chars.length));
     }
 
     const hashed = await bcrypt.hash(tempPassword, 12);

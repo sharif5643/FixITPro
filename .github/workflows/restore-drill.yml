@@ -1,20 +1,24 @@
-name: Deploy to Production
+name: Backup restore drill
 
+# Manual only (Actions → "Backup restore drill" → Run workflow).
+# Restores the newest database backup into a temporary database on the server, compares
+# it with the live database and drops it again. Production data is only read.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      backup_first:
+        description: Take a fresh backup before the drill
+        type: boolean
+        default: true
+
+concurrency:
+  group: restore-drill
+  cancel-in-progress: false
 
 jobs:
-  test:
-    name: Tests
-    uses: ./.github/workflows/ci.yml
-
-  deploy:
-    name: Deploy to fixitpro.in.th
-    needs: test
+  drill:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -30,29 +34,18 @@ jobs:
           |1|ibmwetm0PAiC8BgSyTtf4uTAKd8=|eE9sCjfTwZLn5uRd6FLxn8RF2do= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLrzre/wkU0criEqkVfDAb3Dx1xjcWhPtoWGVXr7hKPyWz32Zd5rIuLBoqRrf+Llc9ODEUj6Zumb/3ummYQCjHc=
           EOF
 
-      - name: Deploy via SSH
+      - name: Copy drill script
         run: |
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 root@91.98.151.10 \
-            "bash /root/trigger-coolify-deploy.sh" 2>&1
+          scp -i ~/.ssh/deploy_key -o ConnectTimeout=30 scripts/backup/pg_restore_verify.sh \
+            root@91.98.151.10:/opt/fixitpro-backups/pg_restore_verify.sh
 
-      - name: Verify deployment
+      - name: Fresh backup
+        if: ${{ inputs.backup_first }}
         run: |
-          echo "Waiting for containers to be healthy..."
-          sleep 20
-          MAX_WAIT=300
-          ELAPSED=0
-          STATUS="000"
-          while [ $ELAPSED -lt $MAX_WAIT ]; do
-            # curl exits non-zero on timeout while containers restart; keep polling instead of
-            # letting `bash -e` abort the step (that made every deploy show as failed)
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/login --max-time 10 || true)
-            if [ "$STATUS" = "200" ]; then
-              echo "✅ Deploy complete! Commit: ${{ github.sha }}"
-              exit 0
-            fi
-            echo "Waiting... HTTP $STATUS (${ELAPSED}s/${MAX_WAIT}s)"
-            sleep 15
-            ELAPSED=$((ELAPSED + 15))
-          done
-          echo "❌ Verification failed — HTTP $STATUS"
-          exit 1
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            root@91.98.151.10 "bash /opt/fixitpro-backups/pg_backup_coolify.sh"
+
+      - name: Restore drill
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            root@91.98.151.10 "bash /opt/fixitpro-backups/pg_restore_verify.sh"

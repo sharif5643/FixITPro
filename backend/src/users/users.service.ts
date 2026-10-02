@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import {
   Injectable,
   NotFoundException,
@@ -341,9 +342,10 @@ export class UsersService {
   }
 
   private generateTempPassword(): string {
+    // crypto.randomInt: Math.random is predictable and must not produce credentials
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     let result = 'Tmp';
-    for (let i = 0; i < 8; i++) result += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < 10; i++) result += chars[randomInt(chars.length)];
     return result;
   }
 
