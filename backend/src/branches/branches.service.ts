@@ -123,12 +123,12 @@ export class BranchesService implements OnModuleInit {
     return `SK${branch.branchNumber}-${String(branch.stockCodeSeq).padStart(6, '0')}`;
   }
 
-  async getNextStockCode(branchId: string) {
+  async getNextStockCode(branchId: string, tenantId?: string | null) {
     const branch = await this.prisma.branch.findUnique({
       where: { id: branchId },
-      select: { branchNumber: true, stockCodeSeq: true },
+      select: { branchNumber: true, stockCodeSeq: true, tenantId: true },
     });
-    if (!branch) throw new NotFoundException('ไม่พบสาขา');
+    if (!branch || (tenantId && branch.tenantId !== tenantId)) throw new NotFoundException('ไม่พบสาขา');
     if (!branch.branchNumber) throw new BadRequestException('สาขานี้ยังไม่มีหมายเลขสาขา');
     const nextSeq = branch.stockCodeSeq + 1;
     return {
@@ -843,16 +843,19 @@ export class BranchesService implements OnModuleInit {
     return updated;
   }
 
-  async dispatchTransfer(id: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string) {
+  async dispatchTransfer(id: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string, actorTenantId?: string | null) {
     const transfer = await this.prisma.stockTransfer.findUnique({
       where: { id },
       include: {
-        fromBranch: { select: { name: true } },
+        fromBranch: { select: { name: true, tenantId: true } },
         toBranch:   { select: { name: true } },
         product:    { select: { name: true } },
       },
     });
     if (!transfer) throw new NotFoundException('ไม่พบรายการโอน');
+    if (actorRole !== 'SUPER_ADMIN' && actorTenantId && transfer.fromBranch.tenantId !== actorTenantId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงรายการโอนนี้');
+    }
     if (transfer.status !== 'APPROVED') {
       throw new BadRequestException(`ไม่สามารถส่งของได้ (สถานะปัจจุบัน: ${transfer.status})`);
     }
@@ -946,16 +949,19 @@ export class BranchesService implements OnModuleInit {
     return updated;
   }
 
-  async receiveTransfer(id: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string) {
+  async receiveTransfer(id: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string, actorTenantId?: string | null) {
     const transfer = await this.prisma.stockTransfer.findUnique({
       where: { id },
       include: {
-        fromBranch: { select: { name: true } },
+        fromBranch: { select: { name: true, tenantId: true } },
         toBranch:   { select: { name: true } },
         product:    { select: { name: true } },
       },
     });
     if (!transfer) throw new NotFoundException('ไม่พบรายการโอน');
+    if (actorRole !== 'SUPER_ADMIN' && actorTenantId && transfer.fromBranch.tenantId !== actorTenantId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงรายการโอนนี้');
+    }
     if (transfer.status !== 'IN_TRANSIT') {
       throw new BadRequestException(`ไม่สามารถยืนยันรับของได้ (สถานะปัจจุบัน: ${transfer.status})`);
     }
@@ -1047,16 +1053,19 @@ export class BranchesService implements OnModuleInit {
     return updated;
   }
 
-  async cancelTransfer(id: string, reason: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string) {
+  async cancelTransfer(id: string, reason: string, actorId?: string, actorName?: string, actorBranchId?: string | null, actorRole?: string, actorTenantId?: string | null) {
     const transfer = await this.prisma.stockTransfer.findUnique({
       where: { id },
       include: {
-        fromBranch: { select: { name: true } },
+        fromBranch: { select: { name: true, tenantId: true } },
         toBranch:   { select: { name: true } },
         product:    { select: { name: true } },
       },
     });
     if (!transfer) throw new NotFoundException('ไม่พบรายการโอน');
+    if (actorRole !== 'SUPER_ADMIN' && actorTenantId && transfer.fromBranch.tenantId !== actorTenantId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงรายการโอนนี้');
+    }
 
     const cancellable: string[] = ['PENDING', 'APPROVED', 'IN_TRANSIT'];
     if (!cancellable.includes(transfer.status)) {

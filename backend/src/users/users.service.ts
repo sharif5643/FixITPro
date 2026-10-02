@@ -55,11 +55,39 @@ export class UsersService {
     return user;
   }
 
+  /**
+   * A MANAGER manages staff below them: they may not hand out OWNER/MANAGER roles (that let a
+   * manager promote themselves to OWNER) or act on another MANAGER / OWNER account.
+   * An OWNER may not demote themselves, which could leave the shop without an owner.
+   */
+  private assertRoleChangeAllowed(
+    requesterRole: string | undefined,
+    requesterId: string,
+    target: { id: string; role: string } | null,
+    newRole?: string,
+  ) {
+    if (requesterRole === 'MANAGER') {
+      if (newRole && newRole !== target?.role && ['OWNER', 'MANAGER'].includes(newRole)) {
+        throw new ForbiddenException('ผู้จัดการไม่สามารถกำหนดตำแหน่งเจ้าของร้านหรือผู้จัดการได้');
+      }
+      if (target && target.id !== requesterId && ['OWNER', 'MANAGER'].includes(target.role)) {
+        throw new ForbiddenException('ผู้จัดการไม่สามารถแก้ไขบัญชีเจ้าของร้านหรือผู้จัดการคนอื่นได้');
+      }
+      if (target && target.id === requesterId && newRole && newRole !== target.role) {
+        throw new ForbiddenException('ไม่สามารถเปลี่ยนตำแหน่งของตัวเองได้');
+      }
+    }
+    if (requesterRole === 'OWNER' && target?.id === requesterId && newRole && newRole !== 'OWNER') {
+      throw new ForbiddenException('ไม่สามารถเปลี่ยนตำแหน่งเจ้าของร้านของตัวเองได้');
+    }
+  }
+
   async create(
     dto: { email?: string; username?: string; name: string; phone?: string; password: string; role?: string; branchId?: string },
-    requester: { id: string; tenantId: string | null; name?: string },
+    requester: { id: string; tenantId: string | null; name?: string; role?: string },
   ) {
     if (dto.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot assign SUPER_ADMIN role');
+    this.assertRoleChangeAllowed(requester.role, requester.id, null, dto.role ?? 'CASHIER');
     if (!dto.email && !dto.username) {
       throw new BadRequestException('ต้องระบุ อีเมล หรือ Username อย่างน้อยหนึ่งอย่าง');
     }
@@ -122,10 +150,12 @@ export class UsersService {
     requesterId:  string,
     tenantId:     string | null,
     requesterName?: string,
+    requesterRole?: string,
   ) {
     const target = await this.findOne(id);
     if (target.tenantId !== tenantId) throw new ForbiddenException('Access denied');
     if (dto.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot assign SUPER_ADMIN role');
+    this.assertRoleChangeAllowed(requesterRole, requesterId, target, dto.role);
     if (target.role === 'OWNER' && id !== requesterId) {
       throw new ForbiddenException('Cannot modify another OWNER');
     }
@@ -210,11 +240,13 @@ export class UsersService {
     requesterId:      string,
     requesterName?:   string,
     requesterTenantId?: string | null,
+    requesterRole?: string,
   ) {
     const target = await this.findOne(id);
     if (requesterTenantId && (target as any).tenantId !== requesterTenantId) {
       throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขผู้ใช้นี้');
     }
+    this.assertRoleChangeAllowed(requesterRole, requesterId, target);
 
     // Verify the destination branch belongs to the same tenant
     if (branchId && requesterTenantId) {
@@ -257,9 +289,10 @@ export class UsersService {
     return updated;
   }
 
-  async toggleActive(id: string, requesterId: string, tenantId: string | null) {
+  async toggleActive(id: string, requesterId: string, tenantId: string | null, requesterRole?: string) {
     const target = await this.findOne(id);
     if (target.tenantId !== tenantId) throw new ForbiddenException('Access denied');
+    this.assertRoleChangeAllowed(requesterRole, requesterId, target);
     if (target.role === 'OWNER') throw new ForbiddenException('Cannot deactivate OWNER account');
     if (id === requesterId) throw new ForbiddenException('Cannot deactivate your own account');
 
@@ -278,9 +311,10 @@ export class UsersService {
     return toggled;
   }
 
-  async resetPassword(id: string, requesterId: string, tenantId: string | null) {
+  async resetPassword(id: string, requesterId: string, tenantId: string | null, requesterRole?: string) {
     const target = await this.findOne(id);
     if (target.tenantId !== tenantId) throw new ForbiddenException('Access denied');
+    this.assertRoleChangeAllowed(requesterRole, requesterId, target);
     if (target.role === 'OWNER' && id !== requesterId) {
       throw new ForbiddenException("Cannot reset another OWNER's password");
     }

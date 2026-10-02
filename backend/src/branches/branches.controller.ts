@@ -159,8 +159,9 @@ export class BranchesController {
     @CurrentUser('name')     actorName: string,
     @CurrentUser('branchId') actorBranchId: string,
     @CurrentUser('role')     actorRole: string,
+    @CurrentUser('tenantId') actorTenantId: string | null,
   ) {
-    return this.svc.dispatchTransfer(id, actorId, actorName, actorBranchId, actorRole);
+    return this.svc.dispatchTransfer(id, actorId, actorName, actorBranchId, actorRole, actorTenantId);
   }
 
   @Patch('transfers/:id/receive')
@@ -171,8 +172,9 @@ export class BranchesController {
     @CurrentUser('name')     actorName: string,
     @CurrentUser('branchId') actorBranchId: string,
     @CurrentUser('role')     actorRole: string,
+    @CurrentUser('tenantId') actorTenantId: string | null,
   ) {
-    return this.svc.receiveTransfer(id, actorId, actorName, actorBranchId, actorRole);
+    return this.svc.receiveTransfer(id, actorId, actorName, actorBranchId, actorRole, actorTenantId);
   }
 
   @Patch('transfers/:id/complete')
@@ -196,16 +198,17 @@ export class BranchesController {
     @CurrentUser('name')     actorName: string,
     @CurrentUser('branchId') actorBranchId: string,
     @CurrentUser('role')     actorRole: string,
+    @CurrentUser('tenantId') actorTenantId: string | null,
   ) {
-    return this.svc.cancelTransfer(id, reason ?? '', actorId, actorName, actorBranchId, actorRole);
+    return this.svc.cancelTransfer(id, reason ?? '', actorId, actorName, actorBranchId, actorRole, actorTenantId);
   }
 
   // ── Branch Approval ───────────────────────────────────────────────────────
 
   @Get(':id/stock/next-code')
   @RequirePermission('stock.adjust')
-  getNextStockCode(@Param('id') id: string) {
-    return this.svc.getNextStockCode(id);
+  getNextStockCode(@Param('id') id: string, @CurrentUser('tenantId') tenantId: string | null) {
+    return this.svc.getNextStockCode(id, tenantId);
   }
 
   @Post(':id/approve')

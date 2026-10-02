@@ -206,20 +206,36 @@ export class AuthService {
     };
   }
 
+  // Self-service reset must not change the password: the request is unauthenticated, so
+  // anyone who knew an email could lock that account out (the temp password was never
+  // shown to anyone). Instead the shop owner is notified and resets it from Users, which
+  // shows them the temporary password.
   async forgotPassword(email: string) {
-    const GENERIC_MSG = 'หากอีเมลนี้มีในระบบ รหัสผ่านชั่วคราวจะถูกส่งให้ผู้ดูแลระบบแจ้งให้ผู้ใช้';
+    const GENERIC_MSG = 'ส่งคำขอถึงเจ้าของร้านแล้ว — ให้เจ้าของร้านรีเซ็ตรหัสผ่านให้ที่เมนู ผู้ใช้งาน';
 
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-    let tempPassword = 'Tmp';
-    for (let i = 0; i < 8; i++) tempPassword += chars[Math.floor(Math.random() * chars.length)];
-
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (user && user.isActive) {
-      const hashed = await bcrypt.hash(tempPassword, 12);
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { password: hashed, forcePasswordChange: true },
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, name: true, email: true, isActive: true, tenantId: true, branchId: true },
+    });
+    if (user?.isActive && user.tenantId) {
+      const pending = await this.prisma.notification.findFirst({
+        where: { type: 'PASSWORD_RESET_REQUEST', entityId: user.id, isRead: false, tenantId: user.tenantId },
+        select: { id: true },
       });
+      if (!pending) {
+        await this.prisma.notification.create({
+          data: {
+            type:       'PASSWORD_RESET_REQUEST',
+            title:      'คำขอรีเซ็ตรหัสผ่าน',
+            message:    `${user.name} (${user.email}) ลืมรหัสผ่าน — รีเซ็ตให้ได้ที่ ผู้ใช้งาน > รีเซ็ตรหัสผ่าน`,
+            severity:   'WARNING',
+            entityType: 'User',
+            entityId:   user.id,
+            branchId:   user.branchId ?? null,
+            tenantId:   user.tenantId,
+          },
+        });
+      }
     }
     // Always return the same response — prevents user enumeration via email
     return { message: GENERIC_MSG };
