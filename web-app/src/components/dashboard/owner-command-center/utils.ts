@@ -132,7 +132,7 @@ export function computePriorities(
     items.push({ id: 'approval', level: 'warning', text: `รออนุมัติ ${repairOps.waitingApproval} งาน`, link: '/repairs?status=WAITING_APPROVAL', linkLabel: 'อนุมัติ' })
   }
   if (alerts.unpaidDebt > 0) {
-    items.push({ id: 'debt', level: 'warning', text: `หนี้ค้างชำระ ${alerts.unpaidDebt} รายการ`, link: '/customers', linkLabel: 'ติดตาม' })
+    items.push({ id: 'debt', level: 'warning', text: `หนี้ค้างชำระ ${alerts.unpaidDebtCount} รายการ · ฿${alerts.unpaidDebt.toLocaleString('th-TH')}`, link: '/debt', linkLabel: 'ติดตาม' })
   }
   if (repairOps.completedNotDelivered >= 3) {
     items.push({ id: 'pickup', level: 'warning', text: `รอรับงาน ${repairOps.completedNotDelivered} ชิ้น — แจ้งลูกค้า`, link: '/repairs?status=READY_PICKUP', linkLabel: 'แจ้งลูกค้า' })

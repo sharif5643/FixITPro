@@ -1,6 +1,7 @@
 name: Backup restore drill
 
 # Manual only (Actions → "Backup restore drill" → Run workflow).
+# Also installs the current scripts/backup/pg_backup_coolify.sh used by the server's daily cron.
 # Restores the newest database backup into a temporary database on the server, compares
 # it with the live database and drops it again. Production data is only read.
 on:
@@ -34,10 +35,15 @@ jobs:
           |1|ibmwetm0PAiC8BgSyTtf4uTAKd8=|eE9sCjfTwZLn5uRd6FLxn8RF2do= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLrzre/wkU0criEqkVfDAb3Dx1xjcWhPtoWGVXr7hKPyWz32Zd5rIuLBoqRrf+Llc9ODEUj6Zumb/3ummYQCjHc=
           EOF
 
-      - name: Copy drill script
+      - name: Install backup + drill scripts
+        # pg_backup_coolify.sh is also what the server's daily cron runs; the old copy is kept as
+        # pg_backup_coolify.sh.bak-<date> next to it.
         run: |
-          scp -i ~/.ssh/deploy_key -o ConnectTimeout=30 scripts/backup/pg_restore_verify.sh \
-            root@91.98.151.10:/opt/fixitpro-backups/pg_restore_verify.sh
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 \
+            'cd /opt/fixitpro-backups && [ ! -f pg_backup_coolify.sh ] || cp -p pg_backup_coolify.sh "pg_backup_coolify.sh.bak-$(date +%Y%m%d%H%M%S)"'
+          scp -i ~/.ssh/deploy_key -o ConnectTimeout=30 \
+            scripts/backup/pg_backup_coolify.sh scripts/backup/pg_restore_verify.sh \
+            root@91.98.151.10:/opt/fixitpro-backups/
 
       - name: Fresh backup
         if: ${{ inputs.backup_first }}

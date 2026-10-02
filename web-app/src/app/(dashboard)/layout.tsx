@@ -57,7 +57,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const user = useAuthStore((state) => state.user)
   const setAuth = useAuthStore((state) => state.setAuth)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const isOwnerOrManager = user?.role === 'OWNER' || user?.role === 'MANAGER'
+  // Only the manager's mobile dashboard (ExecutiveMobileDashboard) has its own header with a
+  // menu button; owners get OwnerCommandCenter, which relies on the normal top bar.
+  const hasOwnMobileHeader = user?.role === 'MANAGER'
   // 'pending' while /auth/me is in-flight; 'done' when resolved; 'error' on timeout/failure
   const [meStatus, setMeStatus] = useState<'pending' | 'done' | 'error'>('pending')
   // Incrementing this triggers a fresh auth check (used by the retry button)
@@ -198,7 +200,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <SideNav open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <SubscriptionBanner />
-        <div className={isOwnerOrManager && pathname === '/dashboard' ? 'hidden md:block' : undefined}>
+        <div className={hasOwnMobileHeader && pathname === '/dashboard' ? 'hidden md:block' : undefined}>
           <TopBar onMenuToggle={() => setSidebarOpen((o) => !o)} />
         </div>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] md:pb-6">

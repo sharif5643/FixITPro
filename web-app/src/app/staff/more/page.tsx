@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ChevronRight, Settings, Users, Building2, BarChart3, Bell, Shield, HelpCircle, LogOut, UserCircle, History, CreditCard, Wrench, Wallet } from 'lucide-react'
+import { ChevronRight, Settings, Users, Building2, BarChart3, Bell, Shield, LogOut, UserCircle, History, CreditCard, Wrench, Wallet } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { toast } from 'sonner'
@@ -45,9 +45,9 @@ export default function MorePage() {
     {
       title: 'ระบบ',
       items: [
-        { icon:<Shield className="h-5 w-5 text-brand-success"/>,   label:'ความปลอดภัย',   to:'/staff/profile' },
-        { icon:<Settings className="h-5 w-5 text-slate-500"/>,     label:'การตั้งค่า',    to:'/settings' },
-        { icon:<HelpCircle className="h-5 w-5 text-brand-info"/>,  label:'ช่วยเหลือ',     to:'/help' },
+        { icon:<Shield className="h-5 w-5 text-brand-success"/>,   label:'เปลี่ยนรหัสผ่าน', to:'/staff/change-password' },
+        // Shop settings live on the web dashboard and need settings.manage; there is no /help page
+        ...(isOwner ? [{ icon:<Settings className="h-5 w-5 text-slate-500"/>, label:'ตั้งค่าร้าน', to:'/settings' }] : []),
       ],
     },
   ]

@@ -236,7 +236,8 @@ export default function LoginPage() {
             )}
           </form>
 
-          {/* Demo account */}
+          {/* Demo account — local development only; it was shown on the live site too */}
+          {process.env.NODE_ENV === 'development' && (
           <div className="mt-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 px-4 py-3.5">
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">
               บัญชีทดสอบ
@@ -246,6 +247,7 @@ export default function LoginPage() {
               <p><span className="font-semibold text-slate-700 dark:text-slate-300">รหัสผ่าน:</span> admin1234</p>
             </div>
           </div>
+          )}
 
           <p className="text-center text-xs text-slate-400 dark:text-slate-600 mt-6">
             © 2026 FixITPro · All rights reserved

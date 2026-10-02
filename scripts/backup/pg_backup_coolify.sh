@@ -19,7 +19,24 @@
 set -euo pipefail
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-CONTAINER="${FIXITPRO_PG_CONTAINER:-postgres-z9m1c1i9nr6kbyo4qn0vuv1b-174837653754}"
+# Coolify recreates the database container with a new name suffix, so a hard-coded name goes
+# stale and every run fails with "not running". Use FIXITPRO_PG_CONTAINER if it names a running
+# container, otherwise the running container whose name starts with the Coolify resource id,
+# otherwise the only running postgres-image container.
+PG_RESOURCE_PREFIX="${FIXITPRO_PG_PREFIX:-postgres-z9m1c1i9nr6kbyo4qn0vuv1b}"
+resolve_pg_container() {
+  if [ -n "${FIXITPRO_PG_CONTAINER:-}" ] && \
+     docker inspect "$FIXITPRO_PG_CONTAINER" --format '{{.State.Status}}' 2>/dev/null | grep -q running; then
+    echo "$FIXITPRO_PG_CONTAINER"; return
+  fi
+  local by_prefix by_image
+  by_prefix=$(docker ps --format '{{.Names}}' | grep -E "^${PG_RESOURCE_PREFIX}" || true)
+  if [ "$(printf '%s' "$by_prefix" | grep -c .)" = "1" ]; then echo "$by_prefix"; return; fi
+  by_image=$(docker ps --format '{{.Names}} {{.Image}}' | awk '$2 ~ /(^|\/)postgres(:|$)/ {print $1}')
+  if [ "$(printf '%s' "$by_image" | grep -c .)" = "1" ]; then echo "$by_image"; return; fi
+  echo ""
+}
+CONTAINER="$(resolve_pg_container)"
 PG_USER="${FIXITPRO_PG_USER:-fixitpro}"
 PG_DB="${FIXITPRO_PG_DBNAME:-fixitpro}"
 BACKUP_DIR="${FIXITPRO_BACKUP_DIR:-/opt/fixitpro-backups/db}"
@@ -38,13 +55,14 @@ mkdir -p "$BACKUP_DIR"
 
 log "=========================================="
 log "FixITPro Production Backup — START"
-log "Container : $CONTAINER"
 log "Database  : $PG_DB"
 log "Output    : $BACKUP_FILE"
 log "Retention : ${RETENTION_DAYS} days"
 log "=========================================="
 
 # ── Step 1: Verify container is running ───────────────────────────────────────
+[ -n "$CONTAINER" ] || fail "Could not find the PostgreSQL container (running: $(docker ps --format '{{.Names}}' | tr '\n' ' '))"
+log "Container : $CONTAINER"
 if ! docker inspect "$CONTAINER" --format '{{.State.Status}}' 2>/dev/null | grep -q 'running'; then
   fail "PostgreSQL container '$CONTAINER' is not running"
 fi
