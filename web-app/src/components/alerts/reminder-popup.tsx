@@ -371,7 +371,9 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
   if (variant === 'desktop') {
     return (
       <>
-        <div className="fixed bottom-4 left-4 z-50 flex flex-col gap-2 max-h-[80vh] overflow-y-auto">
+        {/* Bottom-right: bottom-left covered the sidebar menu, and on phones it now sits above
+            the bottom tab bar instead of on top of it. Toasts use top-right. */}
+        <div className="fixed right-3 md:right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-4 z-50 flex flex-col items-end gap-2 max-h-[70vh] overflow-y-auto">
           <AnimatePresence initial={false}>
             {/* ── Existing operational alert cards ── */}
             {visibleAlerts.slice(0, 4).map((a) => {

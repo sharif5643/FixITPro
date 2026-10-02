@@ -130,10 +130,14 @@ export class DashboardService {
           ...bFilter,
         },
       }),
-      // Unpaid debt: completed but not paid
+      // Unpaid debt: handed over without full payment — same rule as /repairs/outstanding (the
+      // หนี้ค้างชำระ page). Completed-but-not-collected repairs are counted in unpaidRepairs instead.
       this.prisma.repair.findMany({
-        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' }, ...bFilter },
-        select: { finalCost: true, estimateCost: true, deposit: true },
+        where: { status: 'DELIVERED', paymentStatus: { in: ['PENDING', 'PARTIAL'] }, ...bFilter },
+        select: {
+          finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
+          additionalPayments: { select: { amount: true } },
+        },
       }),
       this.prisma.product.count({ where: { isActive: true, stock: 0, ...this.tenantSvc.scope(tenantId) } }),
       tenantId
@@ -318,12 +322,14 @@ export class DashboardService {
       Number(repairsByMethod.find(r => r.paymentMethod === 'TRANSFER')?._sum.paidAmount ?? 0);
 
     // ── Unpaid debt ────────────────────────────────────────────────────────────
-    const unpaidDebtTotal = unpaidDebtRepairs.reduce((sum, r) => {
+    const debtRemaining = unpaidDebtRepairs.map((r) => {
       const cost = Number(r.finalCost ?? r.estimateCost ?? 0);
-      const paid = Number(r.deposit ?? 0);
-      return sum + Math.max(0, cost - paid);
-    }, 0);
-    const unpaidDebtCount = unpaidDebtRepairs.length;
+      const paid = Number(r.deposit ?? 0) + Number(r.paidAmount ?? 0)
+        + r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0);
+      return Math.max(0, cost - paid);
+    }).filter((owed) => owed > 0);
+    const unpaidDebtTotal = debtRemaining.reduce((sum, owed) => sum + owed, 0);
+    const unpaidDebtCount = debtRemaining.length;
 
     // ── Stock ─────────────────────────────────────────────────────────────────
     const lowStockCount = Number((lowStockResult as [{ count: bigint }])[0]?.count ?? 0);
@@ -483,6 +489,7 @@ export class DashboardService {
         overdueRepairs:      overdueCount,
         unpaidRepairs:       statusMap['COMPLETED'] ?? 0,
         unpaidDebt:          unpaidDebtTotal,
+        unpaidDebtCount,
         outOfStock:          outOfStockCount,
         lowStock:            lowStockCount,
         expiringWarranties:  expiringWarrantyCount,

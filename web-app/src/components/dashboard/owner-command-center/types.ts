@@ -29,7 +29,7 @@ export interface DashboardOverview {
     isOpen: boolean; openedAt: string | null; userName: string | null; openBalance: number
   }
   alerts: {
-    overdueRepairs: number; unpaidRepairs: number; unpaidDebt: number
+    overdueRepairs: number; unpaidRepairs: number; unpaidDebt: number; unpaidDebtCount: number
     outOfStock: number; lowStock: number; expiringWarranties: number
     pendingClaims: number; overdueSuppliers: number; apOutstanding: number
   }

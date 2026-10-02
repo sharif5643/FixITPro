@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import {
   X, ChevronDown, ChevronRight, LayoutDashboard, Package, ShoppingCart, Wrench,
   Users, Clock, Smartphone, Tag, Barcode, Settings, CreditCard, Building2,
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
   BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Wifi,
+  ListChecks, Handshake, Wallet, Scale, BookMarked, ArrowUpDown, LineChart, Landmark,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
@@ -28,14 +29,16 @@ type NavSection = { label: string | null; items: NavItem[] }
 const OWNER_PRIMARY: NavSection[] = [
   { label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' }] },
   { label: 'งานซ่อม', items: [
-    { href: '/repairs',   icon: Wrench,       label: 'งานซ่อม',  permission: 'repair.create', module: 'repair' },
-    { href: '/reminders', icon: CalendarDays, label: 'นัดหมาย',  permission: 'repair.create', module: 'repair' },
+    { href: '/repairs',         icon: Wrench,       label: 'งานซ่อม',        permission: 'repair.create',       module: 'repair' },
+    { href: '/reminders',       icon: CalendarDays, label: 'นัดหมาย',        permission: 'repair.create',       module: 'repair' },
+    { href: '/partner-repairs', icon: Handshake,    label: 'งานพาร์ทเนอร์',  permission: 'partner_repair.work', module: 'repair' },
   ]},
   { label: 'การขาย', items: [
-    { href: '/sales',          icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create', module: 'pos' },
-    { href: '/sales/history',  icon: ScrollText,   label: 'ประวัติการขาย',   permission: 'sales.create', module: 'pos' },
-    { href: '/package-sales',  icon: Wifi,         label: 'ขายซิม / แพ็กเกจ', module: 'package_sales' },
-    { href: '/shifts',         icon: Clock,        label: 'เปิด/ปิดกะ' },
+    { href: '/sales',            icon: ShoppingCart, label: 'ขายสินค้า (POS)', permission: 'sales.create', module: 'pos' },
+    { href: '/sales/history',    icon: ScrollText,   label: 'ประวัติการขาย',   permission: 'sales.create', module: 'pos' },
+    { href: '/package-sales',    icon: Wifi,         label: 'ขายซิม / แพ็กเกจ', module: 'package_sales' },
+    { href: '/shifts',           icon: Clock,        label: 'เปิด/ปิดกะ' },
+    { href: '/shifts/checklist', icon: ListChecks,   label: 'เช็กลิสต์เปิด/ปิดร้าน' },
   ]},
   { label: 'สต็อก', items: [
     { href: '/products',  icon: Package,        label: 'สินค้า',    permission: 'products.view',  module: 'stock' },
@@ -54,10 +57,24 @@ const OWNER_PRIMARY: NavSection[] = [
 
 const OWNER_SECONDARY: NavSection[] = [
   { label: 'การเงิน', items: [
+    { href: '/finance',              icon: Wallet,         label: 'ภาพรวมการเงิน',    permission: 'reports.view', module: 'finance' },
+    { href: '/finance/transactions', icon: ArrowRightLeft, label: 'รายการรับ-จ่าย',    permission: 'reports.view', module: 'finance' },
+    { href: '/finance/daily-close',  icon: CalendarDays,   label: 'ปิดบัญชีประจำวัน', permission: 'reports.view', module: 'finance' },
+    { href: '/finance/branch-pnl',   icon: GitBranch,      label: 'กำไร-ขาดทุนรายสาขา', permission: 'reports.view', ownerOnly: true, module: 'finance' },
+    { href: '/reconciliation',       icon: Scale,          label: 'กระทบยอดเงินสด',   ownerOnly: true, module: 'finance' },
     { href: '/expenses',         icon: Receipt,         label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance' },
     { href: '/suppliers',        icon: Building2,       label: 'ซัพพลายเออร์',    permission: 'purchase.create', module: 'finance' },
     { href: '/purchase-orders',  icon: ClipboardList,   label: 'ใบสั่งซื้อ (PO)', permission: 'purchase.create', module: 'finance' },
     { href: '/reports/payables', icon: FileSpreadsheet, label: 'รายงานเจ้าหนี้',  permission: 'reports.view',    module: 'finance' },
+  ]},
+  { label: 'บัญชี', items: [
+    { href: '/accounting',                  icon: BookMarked,      label: 'สมุดบัญชี',      ownerOnly: true, module: 'accounting' },
+    { href: '/accounting/income-statement', icon: TrendingUp,      label: 'งบกำไรขาดทุน',   ownerOnly: true, module: 'accounting' },
+    { href: '/accounting/balance-sheet',    icon: Landmark,        label: 'งบดุล',          ownerOnly: true, module: 'accounting' },
+    { href: '/accounting/trial-balance',    icon: FileSpreadsheet, label: 'งบทดลอง',        ownerOnly: true, module: 'accounting' },
+    { href: '/accounting/cash-flow',        icon: ArrowUpDown,     label: 'งบกระแสเงินสด', ownerOnly: true, module: 'accounting' },
+    { href: '/accounting/trends',           icon: LineChart,       label: 'แนวโน้มกำไร',    ownerOnly: true, module: 'accounting' },
+    { href: '/accounting/accounts',         icon: BookOpen,        label: 'ผังบัญชี',       ownerOnly: true, module: 'accounting' },
   ]},
   { label: 'รับประกัน & เคลม', items: [
     { href: '/warranties', icon: BadgeCheck,  label: 'การรับประกัน',  permission: 'warranty.view',  module: 'repair' },
@@ -89,6 +106,7 @@ const MANAGER_SECTIONS: NavSection[] = [
   { label: 'งานซ่อม', items: [
     { href: '/repairs',    icon: Wrench,       label: 'งานซ่อม',       permission: 'repair.create',  module: 'repair' },
     { href: '/reminders',  icon: CalendarDays, label: 'นัดหมาย',       permission: 'repair.create',  module: 'repair' },
+    { href: '/partner-repairs', icon: Handshake, label: 'งานพาร์ทเนอร์', permission: 'partner_repair.work', module: 'repair' },
     { href: '/warranties', icon: BadgeCheck,   label: 'การรับประกัน',  permission: 'warranty.view',  module: 'repair' },
     { href: '/claims',     icon: FileWarning,  label: 'จัดการเคลม',    permission: 'claims.manage',  module: 'repair' },
   ]},
@@ -97,7 +115,9 @@ const MANAGER_SECTIONS: NavSection[] = [
     { href: '/sales/history',  icon: ScrollText,   label: 'ประวัติการขาย',   permission: 'sales.create',    module: 'pos'            },
     { href: '/package-sales',  icon: Wifi,         label: 'ขายซิม / แพ็กเกจ', module: 'package_sales'                               },
     { href: '/shifts',         icon: Clock,        label: 'เปิด/ปิดกะ' },
+    { href: '/shifts/checklist', icon: ListChecks, label: 'เช็กลิสต์เปิด/ปิดร้าน' },
     { href: '/expenses',       icon: Receipt,      label: 'ค่าใช้จ่าย',      permission: 'expenses.manage', module: 'finance'        },
+    { href: '/reconciliation', icon: Scale,        label: 'กระทบยอดเงินสด',  permission: 'expenses.manage', module: 'finance'        },
   ]},
   { label: 'สต็อก', items: [
     { href: '/products',  icon: Package,        label: 'สินค้า',    permission: 'products.view',  module: 'stock' },
@@ -108,6 +128,8 @@ const MANAGER_SECTIONS: NavSection[] = [
     { href: '/reports/daily-closing', icon: BookOpen,   label: 'รายงานปิดวัน',     permission: 'reports.view', module: 'report' },
     { href: '/reports/profit',        icon: TrendingUp, label: 'รายงานกำไร',       permission: 'reports.view', module: 'report' },
     { href: '/analytics',             icon: BarChart2,  label: 'วิเคราะห์เชิงลึก', permission: 'reports.view', module: 'report' },
+    { href: '/finance',               icon: Wallet,         label: 'ภาพรวมการเงิน',  permission: 'reports.view', module: 'finance' },
+    { href: '/finance/transactions',  icon: ArrowRightLeft, label: 'รายการรับ-จ่าย',  permission: 'reports.view', module: 'finance' },
     { href: '/technicians',           icon: UserCog,    label: 'ประสิทธิภาพช่าง',  permission: 'technician.view' },
   ]},
   { label: 'จัดการ', items: [
@@ -126,6 +148,8 @@ const CASHIER_SECTIONS: NavSection[] = [
     { href: '/sales/history',  icon: ScrollText,   label: 'ประวัติการขาย',   module: 'pos'          },
     { href: '/package-sales',  icon: Wifi,         label: 'ขายซิม / แพ็กเกจ', module: 'package_sales' },
     { href: '/shifts',         icon: Clock,        label: 'เปิด/ปิดกะ' },
+    { href: '/shifts/checklist', icon: ListChecks, label: 'เช็กลิสต์เปิด/ปิดร้าน' },
+    { href: '/expenses',       icon: Receipt,      label: 'ค่าใช้จ่าย', permission: 'expenses.manage', module: 'finance' },
   ]},
   { label: 'งานซ่อม', items: [{ href: '/repairs', icon: Wrench, label: 'รับชำระงานซ่อม', module: 'repair' }] },
   { label: 'ลูกค้า', items: [
@@ -177,8 +201,6 @@ interface SideNavInnerProps {
 function SideNavInner({ role, hasPerm, hasModule, isOwner }: SideNavInnerProps) {
   const pathname     = usePathname()
   const searchParams = useSearchParams()
-  const [othersOpen, setOthersOpen] = useState(false)
-
   function isVisible(item: NavItem): boolean {
     if (item.ownerOnly && !isOwner) return false
     if (item.permission && !hasPerm(item.permission)) return false
@@ -186,13 +208,9 @@ function SideNavInner({ role, hasPerm, hasModule, isOwner }: SideNavInnerProps) 
     return true
   }
 
-  function isActive(item: NavItem): boolean {
-    const basePath  = item.href.split('?')[0]
-    const pathMatch = pathname === basePath || pathname.startsWith(basePath + '/')
-    if (!pathMatch) return false
-    if (item.statusParam) return searchParams.get('status') === item.statusParam
-    if (basePath === '/repairs') { const s = searchParams.get('status'); return !s || s === 'ALL' }
-    return true
+  function pathMatches(item: NavItem): boolean {
+    const basePath = item.href.split('?')[0]
+    return pathname === basePath || pathname.startsWith(basePath + '/')
   }
 
   function getSections() {
@@ -206,6 +224,34 @@ function SideNavInner({ role, hasPerm, hasModule, isOwner }: SideNavInnerProps) 
   }
 
   const { primary, secondary } = getSections()
+  const allVisible = [...primary, ...(secondary ?? [])].flatMap((sec) => sec.items.filter(isVisible))
+
+  // Only the most specific match is active: on /sales/history, "ประวัติการขาย" lights up, not POS too.
+  const longestMatch = allVisible
+    .filter(pathMatches)
+    .reduce((len, item) => Math.max(len, item.href.split('?')[0].length), 0)
+
+  function isActive(item: NavItem): boolean {
+    const basePath = item.href.split('?')[0]
+    if (!pathMatches(item) || basePath.length !== longestMatch) return false
+    if (item.statusParam) return searchParams.get('status') === item.statusParam
+    if (basePath === '/repairs') { const s = searchParams.get('status'); return !s || s === 'ALL' }
+    return true
+  }
+
+  // "อื่นๆ" opens by itself when the current page lives in it, and remembers being opened.
+  const activeInSecondary = !!secondary?.some((sec) => sec.items.some((i) => isVisible(i) && isActive(i)))
+  const [othersOpen, setOthersOpen] = useState(false)
+  useEffect(() => {
+    try { if (localStorage.getItem('fi-nav-others-open') === '1') setOthersOpen(true) } catch { /* storage blocked */ }
+  }, [])
+  useEffect(() => { if (activeInSecondary) setOthersOpen(true) }, [activeInSecondary])
+  function toggleOthers() {
+    setOthersOpen((o) => {
+      try { localStorage.setItem('fi-nav-others-open', o ? '0' : '1') } catch { /* storage blocked */ }
+      return !o
+    })
+  }
 
   function renderSection(section: NavSection, key: string | number) {
     const visible = section.items.filter(isVisible)
@@ -262,7 +308,7 @@ function SideNavInner({ role, hasPerm, hasModule, isOwner }: SideNavInnerProps) 
         return (
           <div className="mx-3 mt-3 border-t border-slate-100 dark:border-slate-700/60 pt-2">
             <button
-              onClick={() => setOthersOpen(o => !o)}
+              onClick={toggleOthers}
               className="flex items-center justify-between w-full px-1 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
             >
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">

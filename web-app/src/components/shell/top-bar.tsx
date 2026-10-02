@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useQuery } from '@tanstack/react-query'
-import { Menu, AlertTriangle, Sun, Moon, LogOut, User, ChevronDown } from 'lucide-react'
+import { Menu, AlertTriangle, Sun, Moon, LogOut, KeyRound, ChevronDown } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import { useShopName } from '@/hooks/useShopName'
 import { NotificationBell } from '@/components/layout/notification-bell'
@@ -137,8 +137,10 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">
-              <User className="mr-2 h-4 w-4" />โปรไฟล์
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link href="/change-password">
+                <KeyRound className="mr-2 h-4 w-4" />เปลี่ยนรหัสผ่าน
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}

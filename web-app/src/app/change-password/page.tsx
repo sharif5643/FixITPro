@@ -30,6 +30,7 @@ type FormData = z.infer<typeof schema>
 export default function ChangePasswordPage() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
+  const forced = !!user?.forcePasswordChange
   const updateUser = useAuthStore((s) => s.updateUser)
   const [isLoading, setIsLoading] = useState(false)
   const [showCurrent, setShowCurrent] = useState(false)
@@ -70,7 +71,9 @@ export default function ChangePasswordPage() {
           <h1 className="text-2xl font-bold text-white">เปลี่ยนรหัสผ่าน</h1>
           <p className="text-slate-400 mt-1.5 text-sm">
             {user?.name ? `สวัสดี ${user.name} — ` : ''}
-            รหัสผ่านของคุณถูกรีเซ็ตโดยผู้ดูแล กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน
+            {forced
+              ? 'รหัสผ่านของคุณถูกรีเซ็ตโดยผู้ดูแล กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน'
+              : 'ตั้งรหัสผ่านใหม่สำหรับบัญชีของคุณ'}
           </p>
         </div>
 
@@ -78,13 +81,15 @@ export default function ChangePasswordPage() {
           <CardHeader className="space-y-1 pb-2">
             <CardTitle className="text-xl text-center font-bold">ตั้งรหัสผ่านใหม่</CardTitle>
             <CardDescription className="text-center text-sm">
-              กรอกรหัสผ่านชั่วคราวที่ได้รับ และตั้งรหัสผ่านใหม่ที่คุณต้องการ
+              {forced
+                ? 'กรอกรหัสผ่านชั่วคราวที่ได้รับ และตั้งรหัสผ่านใหม่ที่คุณต้องการ'
+                : 'กรอกรหัสผ่านปัจจุบัน และตั้งรหัสผ่านใหม่ที่คุณต้องการ'}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="currentPassword">รหัสผ่านชั่วคราว (ที่ได้รับ)</Label>
+                <Label htmlFor="currentPassword">{forced ? 'รหัสผ่านชั่วคราว (ที่ได้รับ)' : 'รหัสผ่านปัจจุบัน'}</Label>
                 <div className="relative">
                   <Input
                     id="currentPassword"
