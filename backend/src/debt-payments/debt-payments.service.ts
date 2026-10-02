@@ -11,6 +11,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { RepairAccountingAdapter } from '../repairs/repair-accounting.adapter';
 import { CreateDebtPaymentDto } from './dto/create-debt-payment.dto';
+import { bangkokYmd } from '../common/bangkok-date';
 
 @Injectable()
 export class DebtPaymentsService {
@@ -23,7 +24,7 @@ export class DebtPaymentsService {
   ) {}
 
   private generateReceiptNumber(): string {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = bangkokYmd();
     const suffix = randomBytes(3).toString('hex').toUpperCase();
     return `DP-${dateStr}-${suffix}`;
   }

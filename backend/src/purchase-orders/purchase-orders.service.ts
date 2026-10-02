@@ -10,6 +10,7 @@ import { CreatePurchaseOrderDto } from './dto/create-po.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-po.dto';
 import { ReceiveGoodsDto } from './dto/receive-goods.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { bangkokYmd } from '../common/bangkok-date';
 
 const PO_INCLUDE = {
   supplier:  { select: { id: true, name: true, phone: true } },
@@ -34,7 +35,7 @@ export class PurchaseOrdersService {
   ) {}
 
   private async generatePoNumber(): Promise<string> {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = bangkokYmd();
     const prefix = `PO-${dateStr}-`;
     const last = await this.prisma.purchaseOrder.findFirst({
       where: { poNumber: { startsWith: prefix } },

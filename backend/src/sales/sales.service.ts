@@ -13,6 +13,7 @@ import { SalesAccountingAdapter } from './sales-accounting.adapter';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { RefundSaleDto } from './dto/refund-sale.dto';
 import { ExchangeSaleDto } from './dto/exchange-sale.dto';
+import { bangkokYmd } from '../common/bangkok-date';
 
 @Injectable()
 export class SalesService {
@@ -49,7 +50,7 @@ export class SalesService {
   }
 
   private generateReceiptNumber(): string {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = bangkokYmd();
     const suffix = randomBytes(3).toString('hex').toUpperCase();
     return `RCP-${dateStr}-${suffix}`;
   }
@@ -465,7 +466,7 @@ export class SalesService {
   }
 
   private generateRefundNumber(): string {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = bangkokYmd();
     const suffix = randomBytes(3).toString('hex').toUpperCase();
     return `REF-${dateStr}-${suffix}`;
   }

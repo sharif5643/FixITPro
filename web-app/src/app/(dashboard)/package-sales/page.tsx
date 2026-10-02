@@ -138,7 +138,7 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
   }
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (): Promise<unknown> => {
       if (saleType === 'SIM_SALE') {
         return api.post('/carrier-wallet/sim-sale', {
           carrier, packageAmount: price, costPrice: cost,

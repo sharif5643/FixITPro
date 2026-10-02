@@ -232,6 +232,16 @@ export class RepairsController {
   ) {
     if (!files?.length) throw new BadRequestException('No files uploaded');
 
+    // The repair must belong to the caller's tenant; otherwise discard the uploaded files
+    try {
+      await this.repairsService.findOne(id, tenantId);
+    } catch (err) {
+      for (const f of files) {
+        try { unlinkSync(f.path); } catch { /* ignore cleanup errors */ }
+      }
+      throw err;
+    }
+
     // Phase 10: enforce storage quota before persisting. Files are already on disk
     // from multer; clean them up if the tenant is over their plan limit.
     if (tenantId) {

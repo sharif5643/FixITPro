@@ -5,6 +5,7 @@ import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { bangkokDate } from '../common/bangkok-date';
 
 @UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard)
 @Controller('finance')
@@ -24,7 +25,7 @@ export class FinanceController {
     const branchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
       ? queryBranchId
       : (jwtBranchId ?? undefined);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokDate();
     return this.financeService.getSummary({
       startDate: startDate ?? today,
       endDate:   endDate   ?? today,
@@ -40,7 +41,7 @@ export class FinanceController {
     @Query('endDate')   endDate:   string,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bangkokDate();
     return this.financeService.getBranchPnL({
       startDate: startDate ?? today,
       endDate:   endDate   ?? today,

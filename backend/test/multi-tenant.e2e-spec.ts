@@ -205,6 +205,29 @@ describe('Multi-Tenant Isolation (e2e)', () => {
     }
   });
 
+  // ── MT-14..16: detail reads by id are tenant scoped ─────────────────────────
+
+  it('MT-14: Tenant A cannot read a Tenant B user by id', async () => {
+    await authGet(app, `/api/v1/users/${IDS.userOwnerB}`, cookiesA).expect(404);
+  });
+
+  it('MT-15: Tenant A cannot read a Tenant B audit log entry by id', async () => {
+    const log = await prisma.auditLog.create({
+      data: { actorId: IDS.userOwnerB, actorName: 'owner b', action: 'E2E_TEST', entityType: 'Test' },
+    });
+    await authGet(app, `/api/v1/audit-logs/${log.id}`, cookiesA).expect(404);
+    await authGet(app, `/api/v1/audit-logs/${log.id}`, cookiesB).expect(200);
+  });
+
+  it('MT-16: Tenant A cannot upload images to a Tenant B repair', async () => {
+    const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/repairs/${repairBId}/images`).set('Cookie', cookiesA)
+      .attach('files', png, { filename: 'x.png', contentType: 'image/png' });
+    expect(res.status).toBe(404);
+    expect(await prisma.repairImage.count({ where: { repairId: repairBId } })).toBe(0);
+  });
+
   // ── MT-12: Repair chat is tenant scoped ──────────────────────────────────────
 
   it('MT-12: Tenant A cannot read Tenant B repair chat; Tenant B can', async () => {

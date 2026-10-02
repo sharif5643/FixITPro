@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantService } from '../tenant/tenant.service';
+import { bangkokDate } from '../common/bangkok-date';
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
@@ -17,7 +18,7 @@ function buildCSV(headers: string[], rows: unknown[][]): string {
 }
 
 function dateTag(): string {
-  return new Date().toISOString().slice(0, 10);
+  return bangkokDate();
 }
 
 function parseCSVRows(raw: string): string[][] {

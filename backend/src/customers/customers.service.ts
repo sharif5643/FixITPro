@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -328,7 +329,7 @@ export class CustomersService {
     if (!customer) throw new NotFoundException('Customer not found');
 
     const newBalance = customer.points + points;
-    if (newBalance < 0) throw new Error('Insufficient points');
+    if (newBalance < 0) throw new BadRequestException(`แต้มไม่พอ (มี ${customer.points} แต้ม)`);
 
     const [tx] = await this.prisma.$transaction([
       this.prisma.loyaltyTransaction.create({

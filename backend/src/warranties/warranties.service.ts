@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { bangkokYmd } from '../common/bangkok-date';
 
 export const WARRANTY_EXPIRY_WARN_DAYS = 7;
 
@@ -14,7 +15,7 @@ export class WarrantiesService {
   ) {}
 
   private generateWarrantyNumber(): string {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = bangkokYmd();
     const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
     return `WR-${dateStr}-${rand}`;
   }

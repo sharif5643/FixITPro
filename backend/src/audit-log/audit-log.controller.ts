@@ -22,7 +22,11 @@ export class AuditLogController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.auditLogService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.auditLogService.findOne(id, tenantId, role);
   }
 }

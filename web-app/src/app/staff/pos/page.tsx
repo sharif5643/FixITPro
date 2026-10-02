@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Search, Scan, Plus, Minus, Loader2, ShoppingCart } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import api from '@/lib/api'
+import { apiErrorMessage } from '@/lib/utils'
 import { toast } from 'sonner'
 
 const QrScannerDialog = dynamic(
@@ -28,7 +29,16 @@ export default function PosPage() {
   useEffect(() => {
     api.get('/products?limit=100').then(r => {
       const list = r.data?.data ?? r.data ?? []
-      setProducts(Array.isArray(list) ? list : [])
+      // API returns price / branchQuantity (this branch) / stock (all branches)
+      setProducts(Array.isArray(list) ? list.map((p: any): Product => ({
+        id:            p.id,
+        name:          p.name,
+        sku:           p.sku,
+        type:          p.type,
+        category:      p.category,
+        salePrice:     Number(p.price ?? 0),
+        stockQuantity: Number(p.branchQuantity ?? p.stock ?? 0),
+      })) : [])
     }).catch(()=>{}).finally(()=>setLoading(false))
   }, [])
 
@@ -65,10 +75,14 @@ export default function PosPage() {
     if (!cart.length) return
     setPaying(true)
     try {
-      await api.post('/sales', { items: cart.map(c=>({productId:c.id,quantity:c.qty,salePrice:c.salePrice})), paymentMethod:method })
+      await api.post('/sales', {
+        items:         cart.map(c => ({ productId: c.id, quantity: c.qty, price: c.salePrice })),
+        paymentMethod: method,
+        amountPaid:    total,
+      })
       toast.success('ชำระเงินสำเร็จ')
       setCart([])
-    } catch { toast.error('ชำระเงินไม่สำเร็จ') }
+    } catch (err) { toast.error(apiErrorMessage(err)) }
     finally { setPaying(false) }
   }
 

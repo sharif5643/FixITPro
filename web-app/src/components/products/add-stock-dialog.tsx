@@ -122,7 +122,7 @@ export function AddStockDialog({
   const currentQty = availability?.branches.find((b) => b.branchId === effectiveBranchId)?.quantity ?? 0
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (): Promise<unknown> => {
       if (mode === 'count') {
         const counted = Number(qty)
         return api.post('/stock/adjust', {

@@ -20,6 +20,7 @@ import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
 import { RepairAccountingAdapter } from './repair-accounting.adapter';
 import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
+import { bangkokYmd } from '../common/bangkok-date';
 
 const REPAIR_INCLUDE = {
   customer: true,
@@ -72,7 +73,7 @@ export class RepairsService {
   }
 
   private generateTicketNumber(): string {
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = bangkokYmd();
     const suffix = randomBytes(3).toString('hex').toUpperCase();
     return `REP-${dateStr}-${suffix}`;
   }
@@ -1652,7 +1653,7 @@ export class RepairsService {
 
   async submitReview(repairId: string, rating: number, comment?: string, tenantId?: string | null) {
     if (rating < 1 || rating > 5) {
-      throw new Error('Rating must be between 1 and 5');
+      throw new BadRequestException('คะแนนต้องอยู่ระหว่าง 1 ถึง 5');
     }
     const where: any = { id: repairId };
     if (tenantId) where.branch = { tenantId };

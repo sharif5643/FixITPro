@@ -44,7 +44,8 @@ export class TechniciansController {
   getDailyData(
     @Param('id') id: string,
     @Query() query: { startDate?: string; endDate?: string },
+    @CurrentUser('tenantId') tenantId: string,
   ) {
-    return this.svc.getDailyData(id, query.startDate, query.endDate);
+    return this.svc.getDailyData(id, query.startDate, query.endDate, tenantId);
   }
 }

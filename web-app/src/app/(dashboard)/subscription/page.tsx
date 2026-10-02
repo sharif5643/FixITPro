@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -82,15 +83,18 @@ export default function SubscriptionPage() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
 
-  if (user && user.role !== 'OWNER' && user.role !== 'SUPER_ADMIN') {
-    router.replace('/403')
-    return null
-  }
+  const isOwner = !user || user.role === 'OWNER' || user.role === 'SUPER_ADMIN'
+
+  // Hooks must run on every render; the redirect happens in an effect
+  useEffect(() => {
+    if (!isOwner) router.replace('/403')
+  }, [isOwner, router])
 
   const { data: sub, isLoading } = useQuery<SubscriptionData>({
     queryKey: ['subscription'],
     queryFn: async () => (await api.get('/subscription')).data,
     staleTime: 30_000,
+    enabled: isOwner,
   })
 
   const { data: usage } = useQuery<UsageData>({
@@ -99,6 +103,8 @@ export default function SubscriptionPage() {
     staleTime: 60_000,
     enabled: user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN',
   })
+
+  if (!isOwner) return null
 
   if (isLoading) {
     return (

@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { bangkokDate } from '../common/bangkok-date';
 
 export interface TechnicianKpi {
   totalRepairs: number;
@@ -225,7 +226,12 @@ export class TechniciansService {
     technicianId: string,
     startDate?: string,
     endDate?: string,
+    tenantId?: string | null,
   ): Promise<DailyPoint[]> {
+    if (tenantId) {
+      const tech = await this.prisma.user.findFirst({ where: { id: technicianId, tenantId }, select: { id: true } });
+      if (!tech) throw new NotFoundException('Technician not found');
+    }
     const dateWhere = this.buildDateWhere(startDate, endDate);
     const repairWhere: any = { technicianId, status: 'DELIVERED' };
     if (dateWhere) repairWhere.receivedAt = dateWhere;
@@ -238,7 +244,7 @@ export class TechniciansService {
 
     const map = new Map<string, { repairs: number; revenue: number }>();
     for (const r of repairs) {
-      const day = r.receivedAt.toISOString().slice(0, 10);
+      const day = bangkokDate(r.receivedAt);
       const existing = map.get(day) ?? { repairs: 0, revenue: 0 };
       existing.repairs++;
       existing.revenue += Number(r.finalCost ?? 0);
