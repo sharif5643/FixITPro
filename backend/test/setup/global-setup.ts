@@ -93,6 +93,9 @@ export default async function globalSetup() {
     await (prisma as any).repairPaymentReversal.deleteMany({
       where: { repair: { branchId: { in: E2E_BRANCH_IDS } } },
     }).catch(() => {});
+    await prisma.repairAdditionalPayment.deleteMany({
+      where: { repair: { branchId: { in: E2E_BRANCH_IDS } } },
+    });
     await (prisma as any).repairPart.deleteMany({
       where: { repair: { branchId: { in: E2E_BRANCH_IDS } } },
     }).catch(() => {});

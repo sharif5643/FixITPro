@@ -36,12 +36,15 @@ function makePmt(id = PMT_ID) {
 function makeRig(repairOverride: Partial<typeof BASE_REPAIR> = {}) {
   const repair = { ...BASE_REPAIR, ...repairOverride };
   const tx = {
+    // row lock + fresh read inside the transaction (balance is re-checked there)
+    $queryRaw:               jest.fn().mockResolvedValue([]),
     repairAdditionalPayment: { create: jest.fn().mockResolvedValue(makePmt()) },
-    repair:                  { update: jest.fn().mockResolvedValue({}) },
+    repair:                  { update: jest.fn().mockResolvedValue({}), findUniqueOrThrow: jest.fn().mockResolvedValue(repair) },
     auditLog:                { create: jest.fn().mockResolvedValue({}) },
   };
   const prisma = {
     repair:       { findUnique: jest.fn().mockResolvedValue(repair) },
+    shift:        { findFirst: jest.fn().mockResolvedValue({ id: 'shift-1' }) },
     $transaction: jest.fn().mockImplementation(async (cb: (tx: any) => any) => cb(tx)),
   };
   return { prisma, tx };

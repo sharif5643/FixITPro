@@ -34,6 +34,7 @@ export class DebtPaymentsService {
     userName?: string,
     branchId?: string | null,
     role?: string,
+    tenantId?: string | null,
   ) {
     const repair = await this.prisma.repair.findUnique({
       where: { id: dto.repairId },
@@ -45,6 +46,10 @@ export class DebtPaymentsService {
     });
 
     if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
+    // Elevated roles skip the branch check below, but never cross tenants
+    if (role !== 'SUPER_ADMIN' && tenantId && repair.branch?.tenantId !== tenantId) {
+      throw new NotFoundException('ไม่พบงานซ่อม');
+    }
 
     const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
     if (!isElevated && branchId !== undefined && repair.branchId !== branchId) {
@@ -59,35 +64,56 @@ export class DebtPaymentsService {
       throw new BadRequestException('งานซ่อมนี้ชำระเงินครบแล้ว');
     }
 
-    const finalCost    = Number(repair.finalCost ?? 0);
-    const deposit      = Number(repair.deposit ?? 0);
-    const previousPaid = repair.additionalPayments.reduce(
-      (sum, p) => sum + Number(p.amount), 0,
-    );
-    const remaining = finalCost - deposit - previousPaid;
+    const receiptNumber = this.generateReceiptNumber();
+    const customerName  = repair.customer?.name ?? 'ลูกค้า';
 
-    if (dto.amount > remaining + 0.005) {
-      throw new BadRequestException(
-        `ยอดชำระ ${dto.amount.toLocaleString('th-TH')} เกินกว่ายอดคงเหลือ ${remaining.toFixed(2)}`,
-      );
-    }
-
-    // Compute derived values before the transaction (pure — no DB state changes here)
-    const newRemaining     = remaining - dto.amount;
-    const newPaymentStatus = newRemaining <= 0.005 ? 'PAID' : 'PARTIAL';
-    const receiptNumber    = this.generateReceiptNumber();
-    const customerName     = repair.customer?.name ?? 'ลูกค้า';
-    const remainingAfter   = Math.max(0, newRemaining);
+    // The receiving user's open shift — cash collected here counts toward its expected cash
+    const activeShift = await this.prisma.shift.findFirst({
+      where:  { userId, isActive: true },
+      select: { id: true },
+    });
 
     // Atomic: create payment record + update repair status + write audit log + record in ledger.
     // All four must commit together — if any step fails, the entire transaction rolls back.
-    const payment = await this.prisma.$transaction(async (tx) => {
+    const { payment, finalCost, deposit, previousPaid, remainingAfter, newPaymentStatus } =
+      await this.prisma.$transaction(async (tx) => {
+      // Lock the repair so two concurrent payments cannot both pass the balance check
+      await tx.$queryRaw`SELECT id FROM "Repair" WHERE id = ${dto.repairId} FOR UPDATE`;
+      const fresh = await tx.repair.findUniqueOrThrow({
+        where:  { id: dto.repairId },
+        select: {
+          paymentStatus: true, finalCost: true, deposit: true, paidAmount: true,
+          additionalPayments: { select: { amount: true } },
+        },
+      });
+      if (!['PENDING', 'PARTIAL'].includes(fresh.paymentStatus)) {
+        throw new BadRequestException('งานซ่อมนี้ชำระเงินครบแล้ว');
+      }
+
+      const finalCost    = Number(fresh.finalCost ?? 0);
+      const deposit      = Number(fresh.deposit ?? 0);
+      // Paid so far = amount paid at handover (paidAmount) + earlier debt payments
+      const previousPaid = Number(fresh.paidAmount ?? 0)
+        + fresh.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const remaining    = Math.round((finalCost - deposit - previousPaid) * 100) / 100;
+
+      if (dto.amount > remaining + 0.005) {
+        throw new BadRequestException(
+          `ยอดชำระ ${dto.amount.toLocaleString('th-TH')} เกินกว่ายอดคงเหลือ ${Math.max(0, remaining).toFixed(2)}`,
+        );
+      }
+
+      const newRemaining     = remaining - dto.amount;
+      const newPaymentStatus = newRemaining <= 0.005 ? 'PAID' : 'PARTIAL';
+      const remainingAfter   = Math.max(0, Math.round(newRemaining * 100) / 100);
+
       const pmt = await tx.repairAdditionalPayment.create({
         data: {
           repairId:      dto.repairId,
           amount:        dto.amount,
           paymentMethod: dto.paymentMethod as any,
           note:          dto.note,
+          shiftId:       activeShift?.id ?? null,
           createdById:   userId,
         },
       });
@@ -129,7 +155,7 @@ export class DebtPaymentsService {
         tx,
       );
 
-      return pmt;
+      return { payment: pmt, finalCost, deposit, previousPaid, remainingAfter, newPaymentStatus };
     });
 
     // Post-commit: record additional payment journal (AFTER $transaction — failure swallowed)
@@ -189,9 +215,9 @@ export class DebtPaymentsService {
     };
   }
 
-  async getByRepair(repairId: string) {
+  async getByRepair(repairId: string, tenantId?: string | null) {
     return this.prisma.repairAdditionalPayment.findMany({
-      where:   { repairId },
+      where:   { repairId, ...(tenantId ? { repair: { branch: { tenantId } } } : {}) },
       include: { createdBy: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'asc' },
     });

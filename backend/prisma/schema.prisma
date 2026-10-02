@@ -826,6 +826,11 @@ model Repair {
   paymentShiftId String?
   paymentShift   Shift?  @relation("RepairPayments", fields: [paymentShiftId], references: [id])
 
+  // Shift that received the deposit and how it was paid — counts toward that shift's expected
+  // cash. Cleared when the deposit is refunded (same convention as paymentShiftId).
+  depositShiftId       String?
+  depositPaymentMethod PaymentMethod?
+
   branchId String?
   branch   Branch? @relation(fields: [branchId], references: [id])
 
@@ -845,6 +850,7 @@ model Repair {
   @@index([technicianId])
   @@index([receivedAt])
   @@index([paymentShiftId])
+  @@index([depositShiftId])
   @@index([deviceImei])
   @@index([branchId])
   @@index([branchId, status])
@@ -884,6 +890,7 @@ model RepairAdditionalPayment {
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
 
+  @@index([shiftId])
   @@index([repairId])
   @@index([createdAt])
 }

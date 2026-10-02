@@ -91,4 +91,69 @@ describe('Cash change handling (e2e)', () => {
     expect(Number(saved.paidAmount)).toBe(800);
     expect(await expectedCash()).toBeCloseTo(before + 800, 2);
   });
+
+  const newRepair = async (extra: object = {}) =>
+    (await authPost(app, '/api/v1/repairs', ownerB, {
+      deviceBrand: 'X', deviceModel: 'Y', issue: 'battery', estimateCost: 1000, branchId: IDS.branchB1, ...extra,
+    }).expect(201)).body;
+  const complete = async (id: string) => {
+    for (const status of ['DIAGNOSING', 'IN_PROGRESS', 'COMPLETED']) {
+      await patch(`/api/v1/repairs/${id}`, { status }).expect(200);
+    }
+  };
+
+  it('CHG-04: a cash deposit at intake counts in the shift; refunding it on cancel removes it', async () => {
+    const before = await expectedCash();
+    const repair = await newRepair({ deposit: 200, depositPaymentMethod: 'CASH' });
+    expect(await expectedCash()).toBeCloseTo(before + 200, 2);
+
+    await patch(`/api/v1/repairs/${repair.id}`, { status: 'CANCELLED' }).expect(200);
+    expect(await expectedCash()).toBeCloseTo(before, 2);
+  });
+
+  it('CHG-05: a transfer deposit does not change expected cash', async () => {
+    const before = await expectedCash();
+    await newRepair({ deposit: 300, depositPaymentMethod: 'TRANSFER' });
+    expect(await expectedCash()).toBeCloseTo(before, 2);
+  });
+
+  it('CHG-06: debt payment counts in the shift and uses the real outstanding balance', async () => {
+    const repair = await newRepair();
+    await complete(repair.id);
+    // 1000 due, 600 paid at handover → 400 owed
+    await authPost(app, `/api/v1/repairs/${repair.id}/payment`, ownerB, {
+      paymentMethod: 'CASH', amountPaid: 600, allowPartial: true,
+    }).expect(201);
+
+    const before = await expectedCash();
+    await authPost(app, '/api/v1/debt-payments', ownerB, { repairId: repair.id, amount: 401, paymentMethod: 'CASH' }).expect(400);
+    const res = await authPost(app, '/api/v1/debt-payments', ownerB, { repairId: repair.id, amount: 400, paymentMethod: 'CASH' }).expect(201);
+    expect(res.body.repair.paymentStatus).toBe('PAID');
+    expect(res.body.repair.remainingAfter).toBe(0);
+    expect(await expectedCash()).toBeCloseTo(before + 400, 2);
+  });
+
+  it('CHG-07: two simultaneous debt payments cannot both succeed', async () => {
+    const repair = await newRepair();
+    await complete(repair.id);
+    await authPost(app, `/api/v1/repairs/${repair.id}/payment`, ownerB, {
+      paymentMethod: 'CASH', amountPaid: 600, allowPartial: true,
+    }).expect(201);
+
+    const pay = () => authPost(app, '/api/v1/debt-payments', ownerB, { repairId: repair.id, amount: 400, paymentMethod: 'CASH' });
+    const results = await Promise.all([pay(), pay()]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 400]);
+    const total = await prisma.repairAdditionalPayment.aggregate({ where: { repairId: repair.id }, _sum: { amount: true } });
+    expect(Number(total._sum.amount)).toBe(400);
+  });
+
+  it('CHG-08: owner of another shop cannot record a debt payment on this repair', async () => {
+    const repair = await newRepair();
+    await complete(repair.id);
+    await authPost(app, `/api/v1/repairs/${repair.id}/payment`, ownerB, {
+      paymentMethod: 'CASH', amountPaid: 600, allowPartial: true,
+    }).expect(201);
+    const ownerA = (await loginAs(app, CREDS.ownerA.email, CREDS.ownerA.password)).cookies;
+    await authPost(app, '/api/v1/debt-payments', ownerA, { repairId: repair.id, amount: 100, paymentMethod: 'CASH' }).expect(404);
+  });
 });

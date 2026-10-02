@@ -20,12 +20,16 @@ export class DebtPaymentsController {
     @CurrentUser('name')     userName: string,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
+    @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.create(dto, userId, userName, branchId, role);
+    return this.service.create(dto, userId, userName, branchId, role, tenantId);
   }
 
   @Get('repair/:repairId')
-  getByRepair(@Param('repairId') repairId: string) {
-    return this.service.getByRepair(repairId);
+  getByRepair(
+    @Param('repairId') repairId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.getByRepair(repairId, tenantId);
   }
 }
