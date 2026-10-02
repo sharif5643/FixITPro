@@ -4,7 +4,7 @@
  * Pure-logic tests (no DOM / React rendering).
  * Covers:
  *   1. Role-based access control (SUPER_ADMIN only)
- *   2. Navigation — all 12 menu items present
+ *   2. Navigation — all menu items present
  *   3. Sidebar active-state logic
  *   4. Tenant table actions per status
  *   5. Package definitions
@@ -18,6 +18,18 @@ import { SA_NAV_GROUPS, SA_NAV_ITEMS } from '@/app/super-admin/nav'
 import type { TenantStatus, TenantPlan } from '@/types'
 import { TENANT_PLAN_LABEL } from '@/types'
 import { differenceInDays } from 'date-fns'
+import fs from 'fs'
+import path from 'path'
+
+function walkPages(dir: string, prefix = ''): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .flatMap((d) => {
+      const rel = prefix ? `${prefix}/${d.name}` : d.name
+      const here = fs.existsSync(path.join(dir, d.name, 'page.tsx')) ? [rel] : []
+      return [...here, ...walkPages(path.join(dir, d.name), rel)]
+    })
+}
 
 // ── 1. Role-based access control ──────────────────────────────────────────────
 
@@ -58,9 +70,9 @@ describe('Req 1 — SUPER_ADMIN access control', () => {
 
 // ── 2. Navigation — all 12 menu items ─────────────────────────────────────────
 
-describe('Req 2 — Sidebar contains all 12 menu items', () => {
-  it('SA_NAV_ITEMS has exactly 12 items', () => {
-    expect(SA_NAV_ITEMS).toHaveLength(12)
+describe('Req 2 — Sidebar contains all menu items', () => {
+  it('SA_NAV_ITEMS has exactly 14 items', () => {
+    expect(SA_NAV_ITEMS).toHaveLength(14)
   })
 
   it('Dashboard is included', () => {
@@ -343,24 +355,12 @@ describe('Req 7 — Expiry colour tier logic', () => {
 // ── 8. Route registry ─────────────────────────────────────────────────────────
 
 describe('Req 8 — All Super Admin V2 routes are defined', () => {
-  const ALL_SA_ROUTES = [
-    '/super-admin',
-    '/super-admin/tenants',
-    '/super-admin/tenants/[id]',
-    '/super-admin/branches',
-    '/super-admin/users',
-    '/super-admin/packages',
-    '/super-admin/modules',
-    '/super-admin/subscriptions',
-    '/super-admin/payments',
-    '/super-admin/analytics',
-    '/super-admin/audit-logs',
-    '/super-admin/settings',
-    '/super-admin/data-repair',
-  ]
+  // Read from disk so a nav entry without a page (or a renamed folder) fails here.
+  const saDir = path.join(__dirname, '../app/super-admin')
+  const ALL_SA_ROUTES = ['/super-admin', ...walkPages(saDir).map((r) => `/super-admin/${r}`)]
 
-  it('has 13 total Super Admin routes', () => {
-    expect(ALL_SA_ROUTES).toHaveLength(13)
+  it('has 15 total Super Admin routes', () => {
+    expect(ALL_SA_ROUTES).toHaveLength(15)
   })
 
   it('dashboard route exists', () => {
@@ -371,7 +371,7 @@ describe('Req 8 — All Super Admin V2 routes are defined', () => {
     expect(ALL_SA_ROUTES).toContain('/super-admin/tenants/[id]')
   })
 
-  it('all 12 nav-item routes correspond to file routes', () => {
+  it('every nav-item route has a page file', () => {
     const navHrefs = SA_NAV_ITEMS.map(i => i.href)
     navHrefs.forEach(href => {
       expect(ALL_SA_ROUTES).toContain(href)

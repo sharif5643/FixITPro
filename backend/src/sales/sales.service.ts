@@ -91,6 +91,12 @@ export class SalesService {
   }
 
   async create(dto: CreateSaleDto, userId: string, branchId?: string, tenantId?: string | null) {
+    // Reject malformed payment input before any lookups.
+    const hasSplit = !!dto.payments && dto.payments.length > 0;
+    if (!hasSplit && (!dto.paymentMethod || dto.amountPaid === undefined)) {
+      throw new BadRequestException('ต้องระบุ payments array หรือ paymentMethod + amountPaid');
+    }
+
     if (branchId) await this.assertBranchActive(branchId, tenantId);
 
     const activeShift = await this.prisma.shift.findFirst({
@@ -176,14 +182,9 @@ export class SalesService {
     const total = subtotal - discount;
 
     // Normalize payment input: split array OR legacy single method
-    const paymentLegs = (dto.payments && dto.payments.length > 0)
-      ? dto.payments.map((p) => ({ paymentMethod: p.paymentMethod, amount: p.amount }))
-      : (() => {
-          if (!dto.paymentMethod || dto.amountPaid === undefined) {
-            throw new BadRequestException('ต้องระบุ payments array หรือ paymentMethod + amountPaid');
-          }
-          return [{ paymentMethod: dto.paymentMethod, amount: dto.amountPaid }];
-        })();
+    const paymentLegs = hasSplit
+      ? dto.payments!.map((p) => ({ paymentMethod: p.paymentMethod, amount: p.amount }))
+      : [{ paymentMethod: dto.paymentMethod!, amount: dto.amountPaid! }];
 
     const totalPaid = paymentLegs.reduce((s, leg) => s + leg.amount, 0);
     const change    = totalPaid - total;

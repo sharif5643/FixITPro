@@ -79,10 +79,14 @@ describe('Cash Drawer Workflow (e2e)', () => {
     }).expect(201);
   });
 
-  // CD-05: Close session — counted = opening + deposit - withdraw = 600
+  // CD-05: Close session — count exactly what the drawer expects.
+  // Other suites can sell in branch A1 while this session is open (and a session left
+  // open by an earlier run is reused in CD-01), so read the expected amount instead of
+  // assuming opening + deposit − withdraw.
   it('CD-05: POST /cash-drawer/session/:id/close → 201 or 200', async () => {
     if (!sessionId) { return; }
-    const expectedCash = OPENING_AMOUNT + 200 - 100; // 600
+    const cur = await authGet(app, '/api/v1/cash-drawer/session/current', cookies).expect(200);
+    const expectedCash = Number((cur.body?.session ?? cur.body).expectedAmount);
     const res = await authPost(app, `/api/v1/cash-drawer/session/${sessionId}/close`, cookies, {
       countedAmount: expectedCash,
       closingNote: 'E2E close test',

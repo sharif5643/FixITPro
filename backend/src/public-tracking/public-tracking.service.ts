@@ -15,6 +15,27 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED:        'ยกเลิก',
 };
 
+/** REP-20261002-A1B2C3 → REP-20261002-••••C3 (phone search must not hand out full ticket numbers). */
+export function maskTicket(ticket: string): string {
+  const dash = ticket.lastIndexOf('-');
+  const head = dash >= 0 ? ticket.slice(0, dash + 1) : '';
+  const tail = dash >= 0 ? ticket.slice(dash + 1) : ticket;
+  if (tail.length <= 2) return head + '••';
+  return head + '•'.repeat(tail.length - 2) + tail.slice(-2);
+}
+
+/** "สมชาย ใจดี" → "สม*** ใ***" */
+export function maskName(name: string | null | undefined): string | null {
+  if (!name?.trim()) return null;
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((word, i) => Array.from(word).slice(0, i === 0 ? 2 : 1).join('') + '***')
+    .join(' ');
+}
+
+const MIN_PHONE_DIGITS = 9;
+
 @Injectable()
 export class PublicTrackingService {
   constructor(private prisma: PrismaService) {}
@@ -72,14 +93,17 @@ export class PublicTrackingService {
 
     // P1-5 FIX: phone verification gates access to PII fields.
     // Without phone: public fields only (status, device info, dates, statusHistory).
-    // With correct phone: full response including customerName, outstanding, images, warranties.
+    // With ticket + correct phone: customer name (masked), outstanding, images, warranties.
     let phoneVerified = false;
     if (phone?.trim()) {
       const customerPhone = repair.customer?.phone?.replace(/\D/g, '') ?? '';
       const inputPhone    = phone.replace(/\D/g, '');
-      const digits        = Math.min(customerPhone.length, inputPhone.length, 9);
+      // Compare the last 9 digits (drops 0 / +66 prefix). A short input such as "8"
+      // must not match by its last digit alone.
+      const digits        = Math.min(customerPhone.length, MIN_PHONE_DIGITS);
       const phoneOk       =
         digits > 0 &&
+        inputPhone.length >= digits &&
         customerPhone.slice(-digits) === inputPhone.slice(-digits);
 
       if (!phoneOk) {
@@ -91,7 +115,15 @@ export class PublicTrackingService {
     const total       = Number(repair.finalCost ?? repair.estimatedTotal ?? repair.estimateCost ?? 0);
     const deposit     = Number(repair.deposit ?? 0);
     const paid        = Number(repair.paidAmount ?? 0);
-    const outstanding = Math.max(0, total - deposit - paid);
+    let outstanding   = 0;
+    if (phoneVerified) {
+      // Debt payments after handover are RepairAdditionalPayment rows (see debt-payments).
+      const extra = await this.prisma.repairAdditionalPayment.aggregate({
+        where: { repairId: repair.id },
+        _sum: { amount: true },
+      });
+      outstanding = Math.max(0, total - deposit - paid - Number(extra._sum.amount ?? 0));
+    }
 
     const statusHistory = await this.buildStatusHistory(repair.id, repair.receivedAt);
 
@@ -109,7 +141,7 @@ export class PublicTrackingService {
       statusHistory,
       phoneVerified,
       // PII — only returned after phone verification
-      customerName:      phoneVerified ? (repair.customer?.name ?? null) : null,
+      customerName:      phoneVerified ? maskName(repair.customer?.name) : null,
       images:            phoneVerified ? repair.images : [],
       qcPassed:          phoneVerified ? (repair.qc?.allPassed ?? null) : null,
       qcNote:            phoneVerified ? (repair.qc?.note ?? null) : null,
@@ -123,6 +155,8 @@ export class PublicTrackingService {
   }
 
   // ── Search by phone — returns list of repairs for that number ─────────────
+  // Anyone can type a phone number, so this returns status + device only and a masked
+  // ticket number. Details need the full ticket number from the receipt / QR.
   async searchByPhone(phone: string) {
     if (!phone?.trim()) throw new BadRequestException('กรุณาระบุหมายเลขโทรศัพท์');
 
@@ -160,7 +194,7 @@ export class PublicTrackingService {
     });
 
     return repairs.map((r) => ({
-      ticketNumber: r.ticketNumber,
+      maskedTicket: maskTicket(r.ticketNumber),
       status:       r.status,
       statusLabel:  STATUS_LABEL[r.status] ?? r.status,
       deviceBrand:  r.deviceBrand,

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Wrench, Loader2, Package, Clock, CheckCircle2, AlertCircle, ChevronRight, ScanLine } from 'lucide-react'
+import { Search, Wrench, Loader2, Package, Clock, CheckCircle2, AlertCircle, ScanLine, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,8 +22,10 @@ const API_URL = (() => {
 
 type InputType = 'ticket' | 'phone' | 'unknown'
 
+// Phone search is open to anyone who knows the number, so the API returns a masked
+// ticket and no link to details; details need the full ticket from the receipt / QR.
 interface RepairSummary {
-  ticketNumber: string
+  maskedTicket: string
   status: string
   statusLabel: string
   deviceBrand: string
@@ -54,10 +56,6 @@ function detectType(value: string): InputType {
   if (/[A-Za-z]/.test(v) || v.includes('-')) return 'ticket'
   if (/^\d+$/.test(v)) return 'phone'
   return 'unknown'
-}
-
-function normalizePhone(phone: string): string {
-  return phone.trim().replace(/[\s\-]/g, '')
 }
 
 function fmt(date: string | null | undefined) {
@@ -218,53 +216,50 @@ export default function TrackPage() {
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
               พบ {phoneResults.length} รายการ
             </p>
-            {phoneResults.map((r) => {
+            {phoneResults.map((r, i) => {
               const colorCls = STATUS_COLOR[r.status] ?? 'bg-slate-100 text-slate-600'
               return (
-                <button
-                  key={r.ticketNumber}
-                  type="button"
-                  onClick={() => router.push(`/track/${encodeURIComponent(r.ticketNumber)}?phone=${encodeURIComponent(normalizePhone(query))}`)}
-                  className="w-full text-left bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/60 p-4 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all group"
+                <div
+                  key={`${r.maskedTicket}-${i}`}
+                  className="w-full bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200 dark:border-slate-700/60 p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="font-mono text-sm font-bold text-slate-800 dark:text-slate-100">
-                          {r.ticketNumber}
-                        </span>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${colorCls}`}>
-                          {r.statusLabel}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-300">
-                        {r.deviceBrand} {r.deviceModel}
-                        {r.deviceColor ? ` · ${r.deviceColor}` : ''}
-                      </p>
-                      <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400 dark:text-slate-500">
-                        {(r.status === 'READY_PICKUP' || r.status === 'COMPLETED' || r.status === 'DELIVERED') ? (
-                          <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                            <CheckCircle2 className="h-3 w-3" />
-                            {r.completedAt ? `เสร็จ ${fmt(r.completedAt)}` : 'เสร็จแล้ว'}
-                          </span>
-                        ) : r.dueDate ? (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            กำหนด {fmt(r.dueDate)}
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <Package className="h-3 w-3" />
-                            รับเมื่อ {fmt(r.receivedAt)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 shrink-0 mt-1 transition-colors" />
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="font-mono text-sm font-bold text-slate-800 dark:text-slate-100">
+                      {r.maskedTicket}
+                    </span>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${colorCls}`}>
+                      {r.statusLabel}
+                    </span>
                   </div>
-                </button>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                    {r.deviceBrand} {r.deviceModel}
+                    {r.deviceColor ? ` · ${r.deviceColor}` : ''}
+                  </p>
+                  <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+                    {(r.status === 'READY_PICKUP' || r.status === 'COMPLETED' || r.status === 'DELIVERED') ? (
+                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-3 w-3" />
+                        {r.completedAt ? `เสร็จ ${fmt(r.completedAt)}` : 'เสร็จแล้ว'}
+                      </span>
+                    ) : r.dueDate ? (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        กำหนด {fmt(r.dueDate)}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <Package className="h-3 w-3" />
+                        รับเมื่อ {fmt(r.receivedAt)}
+                      </span>
+                    )}
+                  </div>
+                </div>
               )
             })}
+            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-start gap-1.5 px-1 pt-1">
+              <Receipt className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              ดูรายละเอียดและยอดค้างชำระ: กรอกเลขใบซ่อมเต็มจากใบรับซ่อม หรือกดสแกน QR บนใบรับซ่อม
+            </p>
           </div>
         )}
 
@@ -274,7 +269,7 @@ export default function TrackPage() {
             ค้นหาด้วย <span className="font-medium text-slate-500 dark:text-slate-400">เลขใบซ่อม</span> เช่น REP-20240101-A1B2
           </p>
           <p className="text-xs text-slate-400 dark:text-slate-500">
-            หรือ <span className="font-medium text-slate-500 dark:text-slate-400">เบอร์โทร</span> เพื่อดูงานซ่อมทั้งหมดของคุณ
+            หรือ <span className="font-medium text-slate-500 dark:text-slate-400">เบอร์โทร</span> เพื่อดูสถานะงานซ่อมของคุณ
           </p>
           <p className="text-xs text-slate-400 dark:text-slate-500">
             หรือกด <ScanLine className="inline h-3 w-3" /> <span className="font-medium text-slate-500 dark:text-slate-400">สแกน QR</span> จากใบรับซ่อม

@@ -14,7 +14,7 @@
 ## Active Bugs (RC1 — Minor only)
 
 ### UI-001 — Super-admin tests expect 12 nav items and /super-admin/production route
-- **Status**: OPEN (pre-existing)
+- **Status**: FIXED 2026-10-02 (test reads routes from disk; nav has 14 items)
 - **File**: `web-app/src/tests/super-admin-v2.test.ts`
 - **Severity**: Minor (test-only failure; feature works in browser)
 - **Details**: 1215/1217 tests pass. Two pre-existing assertion failures.

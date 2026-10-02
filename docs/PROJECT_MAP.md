@@ -26,9 +26,10 @@ Unused / legacy: `server/` (old express), `mobile-app/` (Expo prototype).
 
 ## Deploy
 
-Push to `main` → `.github/workflows/deploy.yml` → SSH to VPS → Coolify rebuild →
+Push to `main` → `.github/workflows/deploy.yml` → runs `ci.yml` (backend typecheck + unit + e2e on a
+Postgres service, web typecheck + lint + vitest) → only if green: SSH to VPS → Coolify rebuild →
 backend container runs `prisma migrate deploy` on start (`backend/docker-entrypoint.sh`) →
-workflow polls `https://fixitpro.in.th/login` for 200. **No tests run before deploy.**
+workflow polls `https://fixitpro.in.th/login` for 200. Pull requests run `ci.yml` too.
 Other branches do not deploy. Secrets come from Coolify env vars (`docker-compose.coolify.yml`).
 
 ## Backend modules (`backend/src`)
@@ -97,5 +98,11 @@ cd web-app && npm ci
 npx tsc --noEmit && npx next lint && npx vitest run
 ```
 
-Known noise: `super-admin-v2.test.ts` has 2 failing assertions (BUG.md UI-001); e2e `CD-05` / `VAL-12`
-fail intermittently depending on suite order when the whole e2e suite runs together.
+All suites are expected to pass; CI blocks the deploy otherwise.
+
+## Public repair tracking (`/track`, no login)
+
+- Phone search → status, device, dates and a **masked** ticket (`REP-20261002-••••C3`) only.
+- Full ticket number (receipt / QR) → status and history; + matching phone (last 9 digits) → masked
+  customer name, outstanding balance (incl. debt payments), photos, QC, warranties.
+- Throttled by `public_tracking` only (the auth throttlers are skipped on this controller).

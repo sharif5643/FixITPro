@@ -5,8 +5,13 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    name: Tests
+    uses: ./.github/workflows/ci.yml
+
   deploy:
     name: Deploy to fixitpro.in.th
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
