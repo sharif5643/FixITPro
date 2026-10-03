@@ -10,7 +10,11 @@ const nextConfig = {
   // Skip ESLint during Docker/CI builds — lint runs separately in dev
   eslint: { ignoreDuringBuilds: true },
 
+  // The app does not use next/image. Turning the optimizer off makes /_next/image return 404
+  // before any processing, which closes the image-optimizer advisories on Next 14 (incl. the
+  // critical AVIF remote-code-execution one) until the Next 15 upgrade.
   images: {
+    unoptimized: true,
     remotePatterns: [],
   },
 
