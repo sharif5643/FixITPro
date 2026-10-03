@@ -32,6 +32,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { BackupModule } from './backup/backup.module';
 import { WarrantiesModule } from './warranties/warranties.module';
 import { TechniciansModule } from './technicians/technicians.module';
+import { CommissionModule } from './commission/commission.module';
 import { DataModule } from './data/data.module';
 import { BranchesModule } from './branches/branches.module';
 import { DebtPaymentsModule } from './debt-payments/debt-payments.module';
@@ -112,6 +113,7 @@ import { TenantBackupModule }             from './tenant-backup/tenant-backup.mo
     BackupModule,
     WarrantiesModule,
     TechniciansModule,
+    CommissionModule,
     DataModule,
     BranchesModule,
     DebtPaymentsModule,

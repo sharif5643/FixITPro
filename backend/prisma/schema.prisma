@@ -431,6 +431,8 @@ model User {
   activatedPayments        TenantPayment[]           @relation("PaymentActivatedBy")
   packageSales             PackageSale[]
   voidedSales              Sale[]                    @relation("SaleVoidedBy")
+  soldSales                Sale[]                    @relation("SaleSeller")
+  staffCommission          StaffCommission?
   saleRefunds              SaleRefund[]
   repairPaymentReversals   RepairPaymentReversal[]
   repairAdditionalPayments RepairAdditionalPayment[]
@@ -679,6 +681,10 @@ model Sale {
   userId String
   user   User   @relation(fields: [userId], references: [id])
 
+  // Who made the sale, when not the person at the till; earns the sale commission
+  sellerId String?
+  seller   User?   @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+
   shiftId String?
   shift   Shift?  @relation(fields: [shiftId], references: [id])
 
@@ -693,6 +699,7 @@ model Sale {
 
   @@index([createdAt])
   @@index([userId, createdAt])
+  @@index([sellerId, createdAt])
   @@index([customerId])
   @@index([shiftId])
   @@index([branchId])
@@ -896,34 +903,40 @@ model RepairAdditionalPayment {
 }
 
 model ShopSettings {
-  id                     Int      @id @default(autoincrement())
-  shopName               String   @default("FixITPro")
-  shopSubtitle           String?
-  shopPhone              String?
-  shopAddress            String?
-  shopEmail              String?
-  taxId                  String?
-  logoUrl                String?
-  receiptFooter          String?
-  paperWidth             String   @default("80mm")
-  vatPercent             Decimal  @default(0) @db.Decimal(5, 2)
-  defaultDeposit         Decimal  @default(0) @db.Decimal(10, 2)
-  autoGenerateSku        Boolean  @default(true)
-  autoGenerateBarcode    Boolean  @default(false)
-  autoPrint              Boolean  @default(false)
-  lowStockAlert          Int      @default(5)
-  repairWarrantyText     String?
-  paymentQrUrl           String?
-  showTaxId              Boolean  @default(true)
-  showLogo               Boolean  @default(true)
-  lineChannelAccessToken String?
-  lineNotifyEnabled      Boolean  @default(false)
-  promptpayId            String?
+  id                      Int      @id @default(autoincrement())
+  shopName                String   @default("FixITPro")
+  shopSubtitle            String?
+  shopPhone               String?
+  shopAddress             String?
+  shopEmail               String?
+  taxId                   String?
+  logoUrl                 String?
+  receiptFooter           String?
+  paperWidth              String   @default("80mm")
+  vatPercent              Decimal  @default(0) @db.Decimal(5, 2)
+  defaultDeposit          Decimal  @default(0) @db.Decimal(10, 2)
+  autoGenerateSku         Boolean  @default(true)
+  autoGenerateBarcode     Boolean  @default(false)
+  autoPrint               Boolean  @default(false)
+  lowStockAlert           Int      @default(5)
+  repairWarrantyText      String?
+  paymentQrUrl            String?
+  showTaxId               Boolean  @default(true)
+  showLogo                Boolean  @default(true)
+  lineChannelAccessToken  String?
+  lineNotifyEnabled       Boolean  @default(false)
+  promptpayId             String?
   // Technician pay per repair for the commission report:
   // NONE | PERCENT_TOTAL (of the job price) | PERCENT_LABOR (of price minus parts) | FIXED (per job)
-  techCommissionType     String   @default("NONE")
-  techCommissionValue    Decimal  @default(0) @db.Decimal(10, 2)
-  updatedAt              DateTime @updatedAt
+  techCommissionType      String   @default("NONE")
+  techCommissionValue     Decimal  @default(0) @db.Decimal(10, 2)
+  // BY_TYPE: baht per repair type (issue tag), e.g. {"หน้าจอ": 150, "แบตเตอรี่": 80}
+  techCommissionTypeRates Json     @default("{}")
+  // Commission for selling products (phones by default), paid to the seller
+  saleCommissionType      String   @default("NONE")
+  saleCommissionValue     Decimal  @default(0) @db.Decimal(10, 2)
+  saleCommissionScope     String   @default("PHONE")
+  updatedAt               DateTime @updatedAt
 
   tenantId String? @unique
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1352,14 +1365,14 @@ model PackageSale {
   saleType        PackageSaleType @default(PROMO)
   packageAmount   Decimal         @db.Decimal(10, 2)
   walletDeduction Decimal         @db.Decimal(10, 2)
-  profit          Decimal       @db.Decimal(10, 2)
+  profit          Decimal         @db.Decimal(10, 2)
   phoneNumber     String?
   note            String?
   paymentMethod   PaymentMethod
-  amountPaid      Decimal       @db.Decimal(10, 2)
-  change          Decimal       @db.Decimal(10, 2)
+  amountPaid      Decimal         @db.Decimal(10, 2)
+  change          Decimal         @db.Decimal(10, 2)
   cashierName     String
-  createdAt       DateTime      @default(now())
+  createdAt       DateTime        @default(now())
 
   shiftId     String?
   createdById String
@@ -1932,34 +1945,34 @@ model PartnerRepairTransfer {
   partnerBranch   Branch? @relation("PartnerBranchTransfers", fields: [partnerBranchId], references: [id])
 
   sentById String
-  sentBy   User @relation("TransferSentBy", fields: [sentById], references: [id])
+  sentBy   User   @relation("TransferSentBy", fields: [sentById], references: [id])
 
   acceptedById String?
-  acceptedBy   User? @relation("TransferAcceptedBy", fields: [acceptedById], references: [id])
+  acceptedBy   User?   @relation("TransferAcceptedBy", fields: [acceptedById], references: [id])
 
   rejectedById String?
-  rejectedBy   User? @relation("TransferRejectedBy", fields: [rejectedById], references: [id])
+  rejectedBy   User?   @relation("TransferRejectedBy", fields: [rejectedById], references: [id])
 
   receivedById String?
-  receivedBy   User? @relation("TransferReceivedBy", fields: [receivedById], references: [id])
+  receivedBy   User?   @relation("TransferReceivedBy", fields: [receivedById], references: [id])
 
   partnerStartedById String?
-  partnerStartedBy   User? @relation("TransferStartedBy", fields: [partnerStartedById], references: [id])
+  partnerStartedBy   User?   @relation("TransferStartedBy", fields: [partnerStartedById], references: [id])
 
   completedById String?
-  completedBy   User? @relation("TransferCompletedBy", fields: [completedById], references: [id])
+  completedBy   User?   @relation("TransferCompletedBy", fields: [completedById], references: [id])
 
   returnedById String?
-  returnedBy   User? @relation("TransferReturnedBy", fields: [returnedById], references: [id])
+  returnedBy   User?   @relation("TransferReturnedBy", fields: [returnedById], references: [id])
 
   ownerReceivedById String?
-  ownerReceivedBy   User? @relation("TransferOwnerReceivedBy", fields: [ownerReceivedById], references: [id])
+  ownerReceivedBy   User?   @relation("TransferOwnerReceivedBy", fields: [ownerReceivedById], references: [id])
 
   cancelledById String?
-  cancelledBy   User? @relation("TransferCancelledBy", fields: [cancelledById], references: [id])
+  cancelledBy   User?   @relation("TransferCancelledBy", fields: [cancelledById], references: [id])
 
   recalledById String?
-  recalledBy   User? @relation("TransferRecalledBy", fields: [recalledById], references: [id])
+  recalledBy   User?   @relation("TransferRecalledBy", fields: [recalledById], references: [id])
 
   events     PartnerRepairTransferEvent[]
   quotations PartnerRepairQuotation[]
@@ -2001,30 +2014,30 @@ enum PartnerRepairQuotationStatus {
 }
 
 model PartnerRepairQuotation {
-  id                 String                       @id @default(cuid())
-  version            Int
-  status             PartnerRepairQuotationStatus @default(PENDING)
-  proposedAmount     Decimal                      @db.Decimal(12, 2)
-  currency           String                       @default("THB")
-  note               String?
-  respondedAt        DateTime?
-  expiresAt          DateTime?
-  createdAt          DateTime                     @default(now())
-  updatedAt          DateTime                     @updatedAt
+  id             String                       @id @default(cuid())
+  version        Int
+  status         PartnerRepairQuotationStatus @default(PENDING)
+  proposedAmount Decimal                      @db.Decimal(12, 2)
+  currency       String                       @default("THB")
+  note           String?
+  respondedAt    DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
 
-  transferId         String
-  transfer           PartnerRepairTransfer @relation(fields: [transferId], references: [id])
+  transferId String
+  transfer   PartnerRepairTransfer @relation(fields: [transferId], references: [id])
 
   proposedByTenantId String
   proposedByTenant   Tenant @relation("QuotationsProposedByTenant", fields: [proposedByTenantId], references: [id])
 
-  proposedByUserId   String
-  proposedByUser     User   @relation("QuotationsProposedByUser", fields: [proposedByUserId], references: [id])
+  proposedByUserId String
+  proposedByUser   User   @relation("QuotationsProposedByUser", fields: [proposedByUserId], references: [id])
 
-  respondedByUserId  String?
-  respondedByUser    User?  @relation("QuotationsRespondedByUser", fields: [respondedByUserId], references: [id])
+  respondedByUserId String?
+  respondedByUser   User?   @relation("QuotationsRespondedByUser", fields: [respondedByUserId], references: [id])
 
-  events             PartnerRepairQuotationEvent[]
+  events PartnerRepairQuotationEvent[]
 
   @@unique([transferId, version])
   @@index([transferId])
@@ -2032,17 +2045,32 @@ model PartnerRepairQuotation {
 }
 
 model PartnerRepairQuotationEvent {
-  id          String   @id @default(cuid())
-  event       String
-  amount      Decimal? @db.Decimal(12, 2)
-  note        String?
-  actorId     String?
-  actorName   String?
-  tenantId    String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  event     String
+  amount    Decimal? @db.Decimal(12, 2)
+  note      String?
+  actorId   String?
+  actorName String?
+  tenantId  String?
+  createdAt DateTime @default(now())
 
   quotationId String
   quotation   PartnerRepairQuotation @relation(fields: [quotationId], references: [id])
 
   @@index([quotationId])
+}
+
+// A staff member's own commission rates; empty fields fall back to the shop's settings
+model StaffCommission {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repairType  String?
+  repairValue Decimal? @db.Decimal(10, 2)
+  saleType    String?
+  saleValue   Decimal? @db.Decimal(10, 2)
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
 }

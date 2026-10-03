@@ -25,6 +25,7 @@ import {
 import { formatThaiMoney, cn } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
+import { ISSUE_TAG_OPTIONS } from '@/lib/repair-tags'
 import { TechnicianAvatar } from '@/components/ui/technician-avatar'
 import type { Customer, RepairStatus } from '@/types'
 
@@ -84,10 +85,6 @@ const SPECIAL_TAGS = [
   { value: 'เคลม',  activeClass: 'bg-amber-600 text-white border-amber-600', baseClass: 'bg-amber-50 text-amber-700 border-amber-200 hover:border-amber-400' },
 ]
 
-const ISSUE_TAG_OPTIONS = [
-  'หน้าจอ', 'แบตเตอรี่', 'กล้อง', 'ชาร์จไม่เข้า', 'เสียง', 'ปุ่มเสีย',
-  'WiFi', 'Bluetooth', 'ไม่ติด', 'ค้าง/รีสตาร์ท', 'ตก/หล่น', 'น้ำเข้า', 'สัมผัสไม่ได้', 'อื่นๆ',
-]
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 

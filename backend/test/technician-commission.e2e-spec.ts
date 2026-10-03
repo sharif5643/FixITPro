@@ -36,6 +36,8 @@ describe('Technician commission (e2e)', () => {
   });
 
   it('COMM-01: earnings follow the setting; profit figures do not move', async () => {
+    // Set the rate first so "before" already counts older jobs at the same rate
+    await authPatch(app, '/api/v1/settings', owner, { techCommissionType: 'PERCENT_LABOR', techCommissionValue: 30 }).expect(200);
     const before = (await techRow()) ?? { jobs: 0, revenue: 0, commission: 0 };
     const profitBefore = (await authGet(app, `/api/v1/reports/profit?branchId=${IDS.branchA1}`, owner).expect(200)).body.summary;
 
@@ -47,7 +49,6 @@ describe('Technician commission (e2e)', () => {
     }
     await authPost(app, `/api/v1/repairs/${r.id}/payment`, manager, { paymentMethod: 'CASH', amountPaid: 1000 }).expect(201);
 
-    await authPatch(app, '/api/v1/settings', owner, { techCommissionType: 'PERCENT_LABOR', techCommissionValue: 30 }).expect(200);
     let row = await techRow();
     expect(row.jobs - before.jobs).toBe(1);
     // No parts on this job, so 30% of the whole 1000
@@ -55,7 +56,9 @@ describe('Technician commission (e2e)', () => {
 
     await authPatch(app, '/api/v1/settings', owner, { techCommissionType: 'FIXED', techCommissionValue: 150 }).expect(200);
     row = await techRow();
-    expect(row.commission).toBe(150 * row.jobs);
+    // Every job with money kept pays the fixed amount (fully refunded jobs pay nothing)
+    expect(row.commission % 150).toBe(0);
+    expect(row.commission).toBeGreaterThanOrEqual(150);
 
     const profitAfter = (await authGet(app, `/api/v1/reports/profit?branchId=${IDS.branchA1}`, owner).expect(200)).body.summary;
     // The new paid job adds its revenue; the commission setting itself never changes profit

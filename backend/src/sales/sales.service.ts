@@ -107,6 +107,17 @@ export class SalesService {
       throw new BadRequestException('กรุณาเปิดกะก่อนทำรายการขาย');
     }
 
+    // The seller must be an active member of this shop
+    let sellerId: string | null = null;
+    if (dto.sellerId && dto.sellerId !== userId) {
+      const seller = await this.prisma.user.findFirst({
+        where: { id: dto.sellerId, isActive: true, ...(tenantId ? { tenantId } : {}) },
+        select: { id: true },
+      });
+      if (!seller) throw new BadRequestException('ไม่พบพนักงานขายที่เลือก');
+      sellerId = seller.id;
+    }
+
     const productIds = dto.items.map((i) => i.productId);
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds }, isActive: true, ...(tenantId ? { tenantId } : {}) },
@@ -210,6 +221,7 @@ export class SalesService {
         data: {
           receiptNumber: this.generateReceiptNumber(),
           userId,
+          sellerId,
           customerId,
           shiftId: activeShift.id,
           branchId: branchId ?? null,
