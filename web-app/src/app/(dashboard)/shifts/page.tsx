@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { BranchQuickPick } from '@/components/layout/branch-context-bar'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -387,8 +388,9 @@ export default function ShiftsPage() {
           </div>
           <div>
             <p className="font-bold text-slate-900 dark:text-white">กรุณาเลือกสาขาก่อนเปิดกะ</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">ใช้เมนูสาขาที่มุมขวาบนเพื่อเลือกสาขาที่ต้องการ</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">เลือกสาขาที่จะเปิดกะ</p>
           </div>
+          <BranchQuickPick className="justify-center" />
         </div>
       ) : (
         /* No active shift — hero open form */

@@ -170,7 +170,7 @@ export class AlertsService {
           id:        `low-stock-${bs.id}`,
           type:      'LOW_STOCK',
           severity:  bs.quantity === 0 ? 'CRITICAL' : 'WARNING',
-          title:     bs.quantity === 0 ? 'สินค้าหมดสต๊อก' : 'สินค้าใกล้หมด',
+          title:     bs.quantity === 0 ? 'สินค้าหมดสต็อก' : 'สินค้าใกล้หมด',
           message:   `${bs.productName} เหลือ ${bs.quantity} ชิ้น`,
           actionUrl: `/products`,
           entityId:  bs.productId,

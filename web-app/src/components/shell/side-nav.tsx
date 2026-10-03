@@ -42,7 +42,7 @@ const OWNER_PRIMARY: NavSection[] = [
   ]},
   { label: 'สต็อก', items: [
     { href: '/products',  icon: Package,        label: 'สินค้า',    permission: 'products.view',  module: 'stock' },
-    { href: '/transfers', icon: ArrowRightLeft, label: 'โอนสต๊อก', permission: 'stock.transfer', module: 'stock' },
+    { href: '/transfers', icon: ArrowRightLeft, label: 'โอนสต็อก', permission: 'stock.transfer', module: 'stock' },
   ]},
   { label: 'ลูกค้า', items: [
     { href: '/customers', icon: Users,       label: 'ลูกค้า',       module: 'crm' },
@@ -97,7 +97,7 @@ const OWNER_SECONDARY: NavSection[] = [
     { href: '/backup',        icon: Database,    label: 'Backup ข้อมูล',    permission: 'system.backup', ownerOnly: true, module: 'report' },
     { href: '/audit-logs',    icon: ScrollText,  label: 'ประวัติกิจกรรม',  permission: 'audit.view',      module: 'report' },
     { href: '/settings',      icon: Settings,    label: 'ตั้งค่า',          permission: 'settings.manage' },
-    { href: '/subscription',  icon: CreditCard,  label: 'Subscription',    ownerOnly: true },
+    { href: '/subscription',  icon: CreditCard,  label: 'แพ็กเกจ / ต่ออายุ', ownerOnly: true },
   ]},
 ]
 
@@ -121,7 +121,7 @@ const MANAGER_SECTIONS: NavSection[] = [
   ]},
   { label: 'สต็อก', items: [
     { href: '/products',  icon: Package,        label: 'สินค้า',    permission: 'products.view',  module: 'stock' },
-    { href: '/transfers', icon: ArrowRightLeft, label: 'โอนสต๊อก', permission: 'stock.transfer', module: 'stock' },
+    { href: '/transfers', icon: ArrowRightLeft, label: 'โอนสต็อก', permission: 'stock.transfer', module: 'stock' },
   ]},
   { label: 'ลูกค้า', items: [{ href: '/customers', icon: Users, label: 'ลูกค้า', module: 'crm' }] },
   { label: 'รายงาน', items: [
@@ -174,7 +174,7 @@ const STOCK_STAFF_SECTIONS: NavSection[] = [
     { href: '/products',      icon: Package,        label: 'สินค้าทั้งหมด',   permission: 'products.view',  module: 'stock' },
     { href: '/categories',    icon: Tag,            label: 'หมวดหมู่สินค้า',  permission: 'products.view',  module: 'stock' },
     { href: '/barcode-print', icon: Barcode,        label: 'พิมพ์ Barcode',   permission: 'products.view',  module: 'stock' },
-    { href: '/transfers',     icon: ArrowRightLeft, label: 'โอนสต๊อก',        permission: 'stock.transfer', module: 'stock' },
+    { href: '/transfers',     icon: ArrowRightLeft, label: 'โอนสต็อก',        permission: 'stock.transfer', module: 'stock' },
   ]},
   { label: 'จัดซื้อ', items: [
     { href: '/purchase-orders', icon: ClipboardList, label: 'รับสินค้าเข้า (PO)', permission: 'purchase.create', module: 'finance' },
@@ -185,8 +185,8 @@ const STOCK_STAFF_SECTIONS: NavSection[] = [
 ]
 
 const PORTAL_LABEL: Record<string, string> = {
-  OWNER: 'Owner Portal', SUPER_ADMIN: 'Super Admin', MANAGER: 'Manager Portal',
-  CASHIER: 'Cashier', TECHNICIAN: 'Technician', STOCK_STAFF: 'Stock Staff',
+  OWNER: 'เจ้าของร้าน', SUPER_ADMIN: 'ผู้ดูแลระบบ', MANAGER: 'ผู้จัดการ',
+  CASHIER: 'แคชเชียร์', TECHNICIAN: 'ช่างซ่อม', STOCK_STAFF: 'พนักงานสต็อก',
 }
 
 // ── Inner nav (uses useSearchParams — must be in Suspense) ─────────────────────
@@ -334,7 +334,7 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
   const hasModule   = useAuthStore((s) => s.hasModule)
   const isOwner     = user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN'
   const shopName    = useShopName()
-  const portalLabel = PORTAL_LABEL[user?.role ?? ''] ?? 'Portal'
+  const portalLabel = PORTAL_LABEL[user?.role ?? ''] ?? ''
 
   return (
     <>

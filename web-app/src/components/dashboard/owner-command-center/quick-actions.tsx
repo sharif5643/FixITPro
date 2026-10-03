@@ -43,7 +43,7 @@ export function QuickActions() {
         icon={Zap}
         iconBg="bg-violet-50 dark:bg-violet-900/20"
         iconColor="text-violet-600 dark:text-violet-400"
-        title="Quick Actions"
+        title="ทางลัด"
       />
       <nav aria-label="ทางลัด">
         <div className="grid grid-cols-2 gap-2">

@@ -165,7 +165,7 @@ export default function ProductsPage() {
       if (status === 409) {
         const backendMsg: string = err.response?.data?.message ?? ''
         const isBranchStock = /branch|stock|สาขา|สต็อก/i.test(backendMsg)
-        toast.error(isBranchStock ? 'สินค้านี้มีสต๊อกในสาขานี้แล้ว' : 'สินค้านี้มีอยู่แล้ว หรือ SKU/Barcode ซ้ำ')
+        toast.error(isBranchStock ? 'สินค้านี้มีสต็อกในสาขานี้แล้ว' : 'สินค้านี้มีอยู่แล้ว หรือ SKU/Barcode ซ้ำ')
         return
       }
       const msg = err.response?.data?.message
@@ -190,7 +190,7 @@ export default function ProductsPage() {
       if (status === 409) {
         const backendMsg: string = err.response?.data?.message ?? ''
         const isBranchStock = /branch|stock|สาขา|สต็อก/i.test(backendMsg)
-        toast.error(isBranchStock ? 'สินค้านี้มีสต๊อกในสาขานี้แล้ว' : 'สินค้านี้มีอยู่แล้ว หรือ SKU/Barcode ซ้ำ')
+        toast.error(isBranchStock ? 'สินค้านี้มีสต็อกในสาขานี้แล้ว' : 'สินค้านี้มีอยู่แล้ว หรือ SKU/Barcode ซ้ำ')
         return
       }
       const msg = err.response?.data?.message

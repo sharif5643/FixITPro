@@ -1,5 +1,6 @@
 'use client'
 
+import { BranchQuickPick } from '@/components/layout/branch-context-bar'
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -293,8 +294,9 @@ export default function SalesPage() {
         </div>
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">กรุณาเลือกสาขาก่อนขายสินค้า</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">ไม่สามารถขายสินค้าในโหมดทุกสาขา</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">ไม่สามารถขายสินค้าในโหมดทุกสาขา — เลือกสาขาที่จะขาย</p>
         </div>
+        <BranchQuickPick className="justify-center max-w-md" />
       </div>
     )
   }

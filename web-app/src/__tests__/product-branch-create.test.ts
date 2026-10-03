@@ -47,7 +47,7 @@ function validateCreate(
 ): { error: string } | null {
   const isPrivileged = effectiveBranchId === undefined // OWNER in global mode
   if (isPrivileged && initialStock > 0) {
-    return { error: 'กรุณาเลือกสาขาก่อนเพิ่มสต๊อกสินค้า' }
+    return { error: 'กรุณาเลือกสาขาก่อนเพิ่มสต็อกสินค้า' }
   }
   return null
 }
@@ -191,7 +191,7 @@ describe('Scenario 3 — OWNER global mode + stock > 0 is blocked', () => {
   })
 
   it('throws Thai error message', () => {
-    expect(result.error).toBe('กรุณาเลือกสาขาก่อนเพิ่มสต๊อกสินค้า')
+    expect(result.error).toBe('กรุณาเลือกสาขาก่อนเพิ่มสต็อกสินค้า')
   })
 
   it('product is NOT created', () => expect(result.product).toBeNull())

@@ -11,6 +11,8 @@ import { getTenantExpiryState } from '@/lib/tenant-expiry'
 import { OperationalAlertCenter } from '@/components/alerts/operational-alert-center'
 import { ReminderPopup } from '@/components/alerts/reminder-popup'
 import api from '@/lib/api'
+import { requiredPermissionFor } from '@/lib/route-permissions'
+import ForbiddenPage from './403/page'
 
 const AUTH_TIMEOUT_MS = 10_000
 
@@ -56,6 +58,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const hasHydrated = useAuthStore((state) => state._hasHydrated)
   const user = useAuthStore((state) => state.user)
   const setAuth = useAuthStore((state) => state.setAuth)
+  const hasPermission = useAuthStore((state) => state.hasPermission)
+  useAuthStore((state) => state.permissions) // re-render when permissions load
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // Only the manager's mobile dashboard (ExecutiveMobileDashboard) has its own header with a
   // menu button; owners get OwnerCommandCenter, which relies on the normal top bar.
@@ -204,7 +208,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <TopBar onMenuToggle={() => setSidebarOpen((o) => !o)} />
         </div>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] md:pb-6">
-          {children}
+          {(() => {
+            const needed = requiredPermissionFor(pathname)
+            return needed && meStatus === 'done' && !hasPermission(needed) ? <ForbiddenPage /> : children
+          })()}
         </main>
       </div>
       <OperationalAlertCenter variant="desktop" />

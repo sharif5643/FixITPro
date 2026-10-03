@@ -64,13 +64,13 @@ export function FinancialHealth({ summary, loading }: Props) {
           {/* Margin gauges */}
           <div className="grid grid-cols-2 gap-3">
             <div className="text-center bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Gross Margin</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">อัตรากำไรขั้นต้น</p>
               <p className={cn('text-2xl font-black tabular-nums', marginColor(grossMarginPct, 30, 15))}>
                 {grossMarginPct !== null ? `${grossMarginPct}%` : '—'}
               </p>
             </div>
             <div className="text-center bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Net Margin</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">อัตรากำไรสุทธิ</p>
               <p className={cn('text-2xl font-black tabular-nums', marginColor(netMarginPct, 10, 0))}>
                 {netMarginPct !== null ? `${netMarginPct}%` : '—'}
               </p>
