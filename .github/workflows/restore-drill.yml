@@ -74,7 +74,8 @@ jobs:
             tail -n 5 /opt/fixitpro-backups/backup.log 2>/dev/null || ls /opt/fixitpro-backups/*.log 2>/dev/null
             echo "--- LINE usage (counts only) ---"
             pg=$(docker ps --format "{{.Names}}" | grep "^postgres-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
-            [ -n "$pg" ] && docker exec "$pg" psql -U fixitpro -d fixitpro -Atc "SELECT 'shops with LINE notify on: ' || COUNT(*) FILTER (WHERE \"lineNotifyEnabled\") || ', customers linked to LINE: ' || (SELECT COUNT(*) FROM \"Customer\" WHERE \"lineUserId\" IS NOT NULL) FROM \"ShopSettings\"" || true
+            echo "shops with LINE notify on | customers linked to LINE:"
+            [ -n "$pg" ] && docker exec "$pg" psql -U fixitpro -d fixitpro -Atc "SELECT COUNT(*) FILTER (WHERE \"lineNotifyEnabled\"), (SELECT COUNT(*) FROM \"Customer\" WHERE \"lineUserId\" IS NOT NULL) FROM \"ShopSettings\"" || true
             echo "--- in-app nightly backup (backend container, /app/backups) ---"
             for c in $(docker ps --format "{{.Names}}" | grep -i backend); do
               echo "container: $c"
