@@ -1,6 +1,6 @@
 import {
-  Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req,
-} from '@nestjs/common';
+  Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req, UseInterceptors } from '@nestjs/common';
+import { SuperAdminAuditInterceptor } from '../super-admin-audit.interceptor';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -12,6 +12,7 @@ import { RejectPaymentDto } from './dto/reject-payment.dto';
 @Controller('super-admin/payments')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN')
+@UseInterceptors(SuperAdminAuditInterceptor)
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 

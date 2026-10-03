@@ -153,6 +153,13 @@ export class PaymentsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // Claim the payment first so two clicks (or two admins) cannot both activate it.
+      const claimed = await tx.tenantPayment.updateMany({
+        where: { id, activatedAt: null },
+        data:  { activatedAt: now, activatedById: adminId },
+      });
+      if (claimed.count === 0) throw new ConflictException('เปิดใช้งานแล้ว ไม่สามารถทำซ้ำได้');
+
       await tx.tenantRenewal.create({
         data: {
           tenantId: payment.tenantId,
@@ -178,9 +185,8 @@ export class PaymentsService {
         },
       });
 
-      const updated = await tx.tenantPayment.update({
+      const updated = await tx.tenantPayment.findUniqueOrThrow({
         where: { id },
-        data: { activatedAt: now, activatedById: adminId },
         include: PAYMENT_INCLUDE,
       });
 

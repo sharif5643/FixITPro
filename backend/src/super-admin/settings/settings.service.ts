@@ -7,7 +7,7 @@ export class SettingsService {
   constructor(private prisma: PrismaService) {}
 
   async getSettings() {
-    const shop = await this.prisma.shopSettings.findFirst({ where: { id: 1 } });
+    const shop = await this.platformRow();
 
     return {
       platform: {
@@ -54,12 +54,22 @@ export class SettingsService {
     };
   }
 
+  /**
+   * The platform's own row is the one with no tenant. This used to read and write the row with
+   * id 1, which is whichever shop's settings were created first, so editing the platform
+   * details from Super Admin overwrote that shop's name, phone, address and tax id.
+   */
+  private platformRow() {
+    return this.prisma.shopSettings.findFirst({ where: { tenantId: null }, orderBy: { id: 'asc' } });
+  }
+
   async updateSettings(dto: UpdateSettingsDto) {
-    await this.prisma.shopSettings.upsert({
-      where: { id: 1 },
-      update: { ...dto },
-      create: { id: 1, shopName: dto.shopName ?? 'FixITPro', ...dto },
-    });
+    const existing = await this.platformRow();
+    if (existing) {
+      await this.prisma.shopSettings.update({ where: { id: existing.id }, data: { ...dto } });
+    } else {
+      await this.prisma.shopSettings.create({ data: { tenantId: null, shopName: dto.shopName ?? 'FixITPro', ...dto } });
+    }
     return this.getSettings();
   }
 }

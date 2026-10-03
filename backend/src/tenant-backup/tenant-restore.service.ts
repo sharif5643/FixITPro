@@ -155,6 +155,21 @@ export class TenantRestoreService {
 
   // ── Core Restore ────────────────────────────────────────────────────────────
 
+  /**
+   * Waits for the pre-restore snapshot. Throws if it fails or is not finished within the limit:
+   * before, a snapshot still running after 60 s fell through and the restore wiped the shop's
+   * data with no snapshot to go back to.
+   */
+  async waitForSafetySnapshot(backupJobId: string, timeoutMs = 60_000, pollMs = 1_000): Promise<void> {
+    for (let waited = 0; waited < timeoutMs; waited += pollMs) {
+      await new Promise((r) => setTimeout(r, pollMs));
+      const current = this.backupSvc.getJob(backupJobId);
+      if (current.status === 'SUCCESS') return;
+      if (current.status === 'FAILED') throw new Error(`Pre-restore safety backup failed: ${current.error}`);
+    }
+    throw new Error('Pre-restore safety backup did not finish in time — restore cancelled, no data changed');
+  }
+
   private async runRestore(job: RestoreJobRecord, archivePath: string): Promise<void> {
     const extractDir = path.join(TENANT_BACKUP_DIR, `restore-tmp-${job.id}`);
 
@@ -196,17 +211,8 @@ export class TenantRestoreService {
       job.preRestoreBackupId = preRestoreJob.id;
       this.persistRestoreJobs();
 
-      // Wait for pre-restore backup to complete (max 60 seconds)
-      let waited = 0;
-      while (waited < 60000) {
-        await new Promise((r) => setTimeout(r, 1000));
-        waited += 1000;
-        const current = this.backupSvc.getJob(preRestoreJob.id);
-        if (current.status === 'SUCCESS') break;
-        if (current.status === 'FAILED') {
-          throw new Error(`Pre-restore safety backup failed: ${current.error}`);
-        }
-      }
+      // Never delete the shop's current data without a finished safety snapshot.
+      await this.waitForSafetySnapshot(preRestoreJob.id);
 
       // ── Phase 5: Restore within a transaction ─────────────────────────────
       job.status = 'RESTORING';
