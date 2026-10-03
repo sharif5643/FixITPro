@@ -117,4 +117,42 @@ describe('Commission plans (e2e)', () => {
     await put({ sale: { type: 'NONE' } }, cashier).expect(403);
     await authGet(app, '/api/v1/commission/report', cashier).expect(403);
   });
+
+  it('CP-05: one technician gets baht for some job types and percent for others', async () => {
+    await put({
+      repair: { type: 'PERCENT_TOTAL', value: 5, typeRates: {} },
+      staff: [{
+        userId: IDS.userTechA1,
+        repairType: 'PERCENT_TOTAL', repairValue: 10,                       // every other job: 10%
+        repairRates: {
+          'หน้าจอ': { method: 'FIXED', value: 200 },                         // screens: 200 baht
+          'ไม่ติด': { method: 'PERCENT_LABOR', value: 40 },                   // dead phones: 40% of profit
+        },
+      }],
+    }).expect(200);
+
+    const cfg = (await authGet(app, '/api/v1/commission/config', owner).expect(200)).body;
+    const me = cfg.staff.find((s: any) => s.userId === IDS.userTechA1);
+    expect(me.repairRates['หน้าจอ']).toEqual({ method: 'FIXED', value: 200 });
+
+    const screen = await deliveredRepair(['หน้าจอ'], 3000);
+    const dead = await deliveredRepair(['ไม่ติด'], 2000);
+    const other = await deliveredRepair(['กล้อง'], 1000);
+    const items = rowOf(await report(), IDS.userTechA1).items;
+    const of = (r: any) => items.find((i: any) => i.ref === r.ticketNumber);
+    expect(of(screen).commission).toBe(200);
+    expect(of(dead).commission).toBe(800);   // no parts: 40% of 2000
+    expect(of(other).commission).toBe(100);  // 10% of 1000
+    expect(of(dead).note).toContain('ไม่ติด');
+
+    // Back to the shop table: his own rows are gone, the shop's 5% applies
+    await put({ staff: [{ userId: IDS.userTechA1, repairType: null, repairRates: null }] }).expect(200);
+    expect(of({ ticketNumber: screen.ticketNumber }) && rowOf(await report(), IDS.userTechA1).items
+      .find((i: any) => i.ref === screen.ticketNumber).commission).toBe(150);
+  });
+
+  it('CP-06: a percent over 100 inside a job-type row is refused', async () => {
+    await put({ staff: [{ userId: IDS.userTechA1, repairType: 'NONE', repairRates: { 'หน้าจอ': { method: 'PERCENT_LABOR', value: 120 } } }] })
+      .expect(400);
+  });
 });

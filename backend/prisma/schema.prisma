@@ -2066,8 +2066,11 @@ model StaffCommission {
   tenantId    String
   userId      String   @unique
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // repairType/repairValue: every job not in repairRates; null for both = use the shop's card
   repairType  String?
   repairValue Decimal? @db.Decimal(10, 2)
+  // {"หน้าจอ": {"method": "FIXED", "value": 150}, "ไม่ติด": {"method": "PERCENT_LABOR", "value": 40}}
+  repairRates Json?
   saleType    String?
   saleValue   Decimal? @db.Decimal(10, 2)
   updatedAt   DateTime @updatedAt

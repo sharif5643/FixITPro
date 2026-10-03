@@ -1,34 +1,63 @@
-import { pickRule, repairCommission, saleCommission } from './commission.calc';
+import { normalizeRates, personCard, pickRule, repairCommission, saleCommission, shopCard } from './commission.calc';
 
 const job = (o: Partial<Parameters<typeof repairCommission>[0]> = {}) => ({
   collected: 2000, partsCost: 800, partnerCost: 0, tags: [] as string[], ...o,
 });
-const rule = (type: any, value = 0, typeRates: Record<string, number> = {}) => ({ type, value, typeRates });
+const card = (byTag: Record<string, any> = {}, other: any = null) => ({ byTag, other });
+const fixed = (value: number) => ({ method: 'FIXED' as const, value });
+const pctProfit = (value: number) => ({ method: 'PERCENT_LABOR' as const, value });
+const pctTotal = (value: number) => ({ method: 'PERCENT_TOTAL' as const, value });
 
 describe('repairCommission', () => {
   it('percent of profit takes off parts and the partner shop fee', () => {
-    expect(repairCommission(job(), rule('PERCENT_LABOR', 30)).amount).toBe(360);
-    expect(repairCommission(job({ partnerCost: 1000 }), rule('PERCENT_LABOR', 30)).amount).toBe(60);
+    expect(repairCommission(job(), card({}, pctProfit(30))).amount).toBe(360);
+    expect(repairCommission(job({ partnerCost: 1000 }), card({}, pctProfit(30))).amount).toBe(60);
     // A loss pays nothing, never a negative amount
-    expect(repairCommission(job({ partsCost: 2500 }), rule('PERCENT_LABOR', 30)).amount).toBe(0);
+    expect(repairCommission(job({ partsCost: 2500 }), card({}, pctProfit(30))).amount).toBe(0);
   });
 
   it('percent of total and fixed per job', () => {
-    expect(repairCommission(job(), rule('PERCENT_TOTAL', 10)).amount).toBe(200);
-    expect(repairCommission(job(), rule('FIXED', 150)).amount).toBe(150);
+    expect(repairCommission(job(), card({}, pctTotal(10))).amount).toBe(200);
+    expect(repairCommission(job(), card({}, fixed(150))).amount).toBe(150);
   });
 
-  it('by type pays the highest matching type once, not the sum', () => {
-    const rates = { 'หน้าจอ': 150, 'แบตเตอรี่': 80 };
-    expect(repairCommission(job({ tags: ['แบตเตอรี่'] }), rule('BY_TYPE', 0, rates)).amount).toBe(80);
-    expect(repairCommission(job({ tags: ['แบตเตอรี่', 'หน้าจอ'] }), rule('BY_TYPE', 0, rates)).amount).toBe(150);
-    expect(repairCommission(job({ tags: ['กล้อง'] }), rule('BY_TYPE', 0, rates)).amount).toBe(0);
+  it('one card mixes baht and percent per job type; other jobs use the last row', () => {
+    const c = card({ 'หน้าจอ': fixed(150), 'ไม่ติด': pctProfit(40) }, pctTotal(10));
+    expect(repairCommission(job({ tags: ['หน้าจอ'] }), c)).toEqual({ amount: 150, note: 'หน้าจอ: 150 บาท/งาน' });
+    expect(repairCommission(job({ tags: ['ไม่ติด'] }), c).amount).toBe(480);   // 40% of 1200 profit
+    expect(repairCommission(job({ tags: ['กล้อง'] }), c).amount).toBe(200);   // other: 10% of 2000
   });
 
-  it('a fully refunded or unpaid job pays nothing under any rule', () => {
-    for (const r of [rule('PERCENT_TOTAL', 10), rule('FIXED', 150), rule('BY_TYPE', 0, { 'หน้าจอ': 150 })]) {
-      expect(repairCommission(job({ collected: 0, tags: ['หน้าจอ'] }), r).amount).toBe(0);
+  it('several job types pay the single best row, not the sum', () => {
+    const c = card({ 'หน้าจอ': fixed(150), 'แบตเตอรี่': fixed(80) });
+    expect(repairCommission(job({ tags: ['แบตเตอรี่', 'หน้าจอ'] }), c).amount).toBe(150);
+    expect(repairCommission(job({ tags: ['กล้อง'] }), c).amount).toBe(0);
+  });
+
+  it('a fully refunded or unpaid job pays nothing under any row', () => {
+    for (const c of [card({}, pctTotal(10)), card({}, fixed(150)), card({ 'หน้าจอ': fixed(150) })]) {
+      expect(repairCommission(job({ collected: 0, tags: ['หน้าจอ'] }), c).amount).toBe(0);
     }
+  });
+});
+
+describe('cards', () => {
+  it('old saves (baht numbers) read as baht rows; bad rows are dropped', () => {
+    expect(normalizeRates({ 'หน้าจอ': 150, x: 0, y: { method: 'BAD', value: 1 } })).toEqual({ 'หน้าจอ': fixed(150) });
+  });
+  it('shop card: its single rule is the row for other jobs', () => {
+    expect(shopCard('PERCENT_LABOR', 30, { 'หน้าจอ': 150 })).toEqual(card({ 'หน้าจอ': fixed(150) }, pctProfit(30)));
+    expect(shopCard('NONE', 0, {}).other).toBeNull();
+  });
+  it('a person uses their own card when set, otherwise the shop card', () => {
+    const shop = shopCard('PERCENT_LABOR', 30, { 'หน้าจอ': 150 });
+    expect(personCard(null, shop)).toBe(shop);
+    expect(personCard({ repairType: null, repairRates: null }, shop)).toBe(shop);
+    expect(personCard({ repairType: 'PERCENT_TOTAL', repairValue: 40 }, shop)).toEqual(card({}, pctTotal(40)));
+    expect(personCard({ repairType: 'NONE', repairRates: { 'หน้าจอ': { method: 'FIXED', value: 200 } } }, shop))
+      .toEqual(card({ 'หน้าจอ': fixed(200) }, null));
+    // Saved before per-person tables: "by type" used the shop's table
+    expect(personCard({ repairType: 'BY_TYPE' }, shop)).toEqual(card(shop.byTag, null));
   });
 });
 

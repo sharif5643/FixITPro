@@ -2,8 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import {
-  REPAIR_TYPES, SALE_TYPES, SALE_SCOPES, RepairRule, SaleRule,
-  pickRule, repairCommission, round2, saleCommission,
+  REPAIR_TYPES, SALE_TYPES, SALE_SCOPES, RATE_METHODS, RateMethod, RateRow, SaleRule,
+  normalizeRates, personCard, pickRule, repairCommission, round2, saleCommission, shopCard,
 } from './commission.calc';
 import { UpdateCommissionConfigDto } from './commission.dto';
 
@@ -55,11 +55,11 @@ export class CommissionService {
         saleCommissionType: true, saleCommissionValue: true, saleCommissionScope: true,
       },
     });
-    const typeRates: Record<string, number> = {};
-    const raw = (s?.techCommissionTypeRates ?? {}) as Record<string, unknown>;
-    for (const [tag, v] of Object.entries(raw)) if (Number(v) > 0) typeRates[tag] = Number(v);
+    const type = s?.techCommissionType ?? 'NONE';
+    const value = Number(s?.techCommissionValue ?? 0);
     return {
-      repair: { type: (s?.techCommissionType ?? 'NONE') as RepairRule['type'], value: Number(s?.techCommissionValue ?? 0), typeRates },
+      repair: { type, value, typeRates: normalizeRates(s?.techCommissionTypeRates) },
+      repairCard: shopCard(type, value, s?.techCommissionTypeRates),
       sale:   { type: (s?.saleCommissionType ?? 'NONE') as SaleRule['type'], value: Number(s?.saleCommissionValue ?? 0) },
       saleScope: (s?.saleCommissionScope ?? 'PHONE') as 'PHONE' | 'ALL',
     };
@@ -70,7 +70,7 @@ export class CommissionService {
       where: { tenantId, role: { in: [...STAFF_ROLES] } },
       select: {
         id: true, name: true, role: true, isActive: true,
-        staffCommission: { select: { repairType: true, repairValue: true, saleType: true, saleValue: true } },
+        staffCommission: { select: { repairType: true, repairValue: true, repairRates: true, saleType: true, saleValue: true } },
       },
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
     });
@@ -88,6 +88,7 @@ export class CommissionService {
         userId: u.id, name: u.name, role: u.role,
         repairType:  u.staffCommission?.repairType ?? null,
         repairValue: u.staffCommission?.repairValue != null ? Number(u.staffCommission.repairValue) : null,
+        repairRates: u.staffCommission?.repairRates != null ? normalizeRates(u.staffCommission.repairRates) : null,
         saleType:    u.staffCommission?.saleType ?? null,
         saleValue:   u.staffCommission?.saleValue != null ? Number(u.staffCommission.saleValue) : null,
       })),
@@ -102,26 +103,18 @@ export class CommissionService {
     if (dto.repair) check(dto.repair.type, dto.repair.value, 'ค่าคอมงานซ่อม');
     if (dto.sale) check(dto.sale.type, dto.sale.value, 'ค่าคอมการขาย');
 
-    const typeRates: Record<string, number> = {};
-    for (const [tag, v] of Object.entries(dto.repair?.typeRates ?? {})) {
-      const name = tag.trim().slice(0, 40);
-      const amount = Number(v);
-      if (!name) continue;
-      if (!Number.isFinite(amount) || amount < 0 || amount > 100000) {
-        throw new BadRequestException(`ค่าคอมประเภท "${name}" ไม่ถูกต้อง`);
-      }
-      if (amount > 0) typeRates[name] = round2(amount);
-    }
-    if (Object.keys(typeRates).length > 50) throw new BadRequestException('ตั้งประเภทงานได้ไม่เกิน 50 ประเภท');
+    const typeRates = dto.repair?.typeRates ? this.validRates(dto.repair.typeRates, 'ค่าคอมงานซ่อม') : null;
 
     const staffIds = (dto.staff ?? []).map((s) => s.userId);
     if (staffIds.length) {
       const mine = await this.prisma.user.count({ where: { id: { in: staffIds }, tenantId } });
       if (mine !== new Set(staffIds).size) throw new BadRequestException('พบพนักงานที่ไม่ได้อยู่ในร้านนี้');
     }
+    const staffRates = new Map<string, Record<string, RateRow> | null>();
     for (const s of dto.staff ?? []) {
       check(s.repairType, s.repairValue, 'ค่าคอมงานซ่อมรายคน');
       check(s.saleType, s.saleValue, 'ค่าคอมการขายรายคน');
+      staffRates.set(s.userId, s.repairRates ? this.validRates(s.repairRates, 'ค่าคอมงานซ่อมรายคน') : null);
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -129,7 +122,7 @@ export class CommissionService {
       if (dto.repair) {
         settingsData.techCommissionType = dto.repair.type;
         settingsData.techCommissionValue = dto.repair.value ?? 0;
-        if (dto.repair.typeRates) settingsData.techCommissionTypeRates = typeRates;
+        if (typeRates) settingsData.techCommissionTypeRates = typeRates as unknown as Prisma.InputJsonValue;
       }
       if (dto.sale) {
         settingsData.saleCommissionType = dto.sale.type;
@@ -144,9 +137,13 @@ export class CommissionService {
         });
       }
       for (const s of dto.staff ?? []) {
+        const rates = staffRates.get(s.userId) ?? null;
+        // A person with their own table but no rule for other jobs is stored as NONE for the rest
+        const repairType = s.repairType || (rates ? 'NONE' : null);
         const data = {
-          repairType:  s.repairType || null,
-          repairValue: s.repairType ? (s.repairValue ?? 0) : null,
+          repairType,
+          repairValue: repairType ? (s.repairValue ?? 0) : null,
+          repairRates: repairType && rates ? (rates as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
           saleType:    s.saleType || null,
           saleValue:   s.saleType ? (s.saleValue ?? 0) : null,
         };
@@ -162,6 +159,24 @@ export class CommissionService {
       }
     });
     return this.getConfig(tenantId);
+  }
+
+  /** Per-type rows from the client: numbers mean baht; percents stay within 100. */
+  private validRates(raw: Record<string, unknown>, who: string): Record<string, RateRow> {
+    const out: Record<string, RateRow> = {};
+    for (const [tag, v] of Object.entries(raw)) {
+      const name = tag.trim().slice(0, 40);
+      if (!name) continue;
+      const row = typeof v === 'object' && v !== null ? (v as { method?: string; value?: unknown }) : { method: 'FIXED', value: v };
+      const value = Number(row.value);
+      if (!RATE_METHODS.includes(row.method as RateMethod) || !Number.isFinite(value) || value < 0 || value > 100000) {
+        throw new BadRequestException(`${who}: ประเภท "${name}" ไม่ถูกต้อง`);
+      }
+      if (row.method !== 'FIXED' && value > 100) throw new BadRequestException(`${who}: ประเภท "${name}" เปอร์เซ็นต์ต้องไม่เกิน 100`);
+      if (value > 0) out[name] = { method: row.method as RateMethod, value: round2(value) };
+    }
+    if (Object.keys(out).length > 50) throw new BadRequestException('ตั้งประเภทงานได้ไม่เกิน 50 ประเภท');
+    return out;
   }
 
   /** Who can be picked as the seller at checkout, and whether the picker is worth showing. */
@@ -233,8 +248,11 @@ export class CommissionService {
       const partnerCost = r.partnerTransfers.reduce((s, t) => s + Number(t.agreedPartnerPrice ?? 0), 0);
       const tags = Array.isArray(r.issueTags) ? (r.issueTags as unknown[]).map(String) : [];
       const o = own.get(r.technician.id);
-      const rule = pickRule(rules.repair, o ? { type: o.repairType, value: o.repairValue == null ? null : Number(o.repairValue) } : null);
-      const { amount, note } = repairCommission({ collected, partsCost, partnerCost, tags }, rule as RepairRule);
+      const card = personCard(
+        o ? { repairType: o.repairType, repairValue: o.repairValue == null ? null : Number(o.repairValue), repairRates: o.repairRates } : null,
+        rules.repairCard,
+      );
+      const { amount, note } = repairCommission({ collected, partsCost, partnerCost, tags }, card);
 
       const target = row(r.technician.id, r.technician.name, r.technician.role);
       target.repair.jobs += 1;
@@ -309,7 +327,7 @@ export class CommissionService {
 
     return {
       startDate, endDate,
-      repairRule: rules.repair,
+      repairRule: { type: rules.repair.type, value: rules.repair.value },
       saleRule: { ...rules.sale, scope: rules.saleScope },
       rows: list,
       totals: {

@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, startOfMonth } from 'date-fns'
 import { ChevronDown, ChevronRight, Coins, Loader2, Save, Settings2, Wrench, Smartphone } from 'lucide-react'
@@ -16,13 +16,16 @@ import api from '@/lib/api'
 type RepairType = 'NONE' | 'PERCENT_LABOR' | 'PERCENT_TOTAL' | 'FIXED' | 'BY_TYPE'
 type SaleType = 'NONE' | 'PERCENT_PROFIT' | 'PERCENT_TOTAL' | 'FIXED_PER_UNIT'
 
+type RateMethod = 'FIXED' | 'PERCENT_LABOR' | 'PERCENT_TOTAL'
+interface RateRow { method: RateMethod; value: number }
 interface StaffRate {
   userId: string; name: string; role: string
   repairType: RepairType | null; repairValue: number | null
+  repairRates: Record<string, RateRow> | null
   saleType: SaleType | null; saleValue: number | null
 }
 interface CommissionConfig {
-  repair: { type: RepairType; value: number; typeRates: Record<string, number> }
+  repair: { type: RepairType; value: number; typeRates: Record<string, RateRow> }
   sale: { type: SaleType; value: number; scope: 'PHONE' | 'ALL' }
   staff: StaffRate[]
 }
@@ -40,13 +43,6 @@ interface CommissionReport {
   totals: { repair: number; sale: number; total: number }
 }
 
-const REPAIR_OPTIONS: { value: RepairType; label: string; hint: string }[] = [
-  { value: 'NONE',          label: 'ไม่ใช้ค่าคอม',          hint: 'ไม่คำนวณค่าคอมงานซ่อม' },
-  { value: 'PERCENT_LABOR', label: '% ของกำไร',             hint: 'ราคางาน − อะไหล่ − ค่าร้านพาร์ทเนอร์' },
-  { value: 'PERCENT_TOTAL', label: '% ของราคางาน',          hint: 'คิดจากยอดเงินที่ร้านได้รับจริง' },
-  { value: 'FIXED',         label: 'เหมาต่องาน',            hint: 'ทุกงานได้เท่ากัน' },
-  { value: 'BY_TYPE',       label: 'ตามประเภทงาน',          hint: 'เช่น เปลี่ยนจอ 150 / แบต 80' },
-]
 const SALE_OPTIONS: { value: SaleType; label: string; hint: string }[] = [
   { value: 'NONE',           label: 'ไม่ใช้ค่าคอม',     hint: 'ไม่คำนวณค่าคอมการขาย' },
   { value: 'PERCENT_PROFIT', label: '% ของกำไร',        hint: 'ราคาขาย − ต้นทุน' },
@@ -223,25 +219,75 @@ function ReportTab({ onSetup }: { onSetup: () => void }) {
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 
+/** One table of repair rates: a row per job type, each in baht or percent, plus "every other job". */
+interface CardForm {
+  rows: { tag: string; method: RateMethod; value: number }[]
+  other: { method: RateMethod | 'NONE'; value: number }
+}
+interface PersonForm extends StaffRate { own: boolean; card: CardForm }
+interface SettingsForm { shop: CardForm; sale: CommissionConfig['sale']; staff: PersonForm[] }
+
+const METHOD_OPTIONS: { value: RateMethod; label: string }[] = [
+  { value: 'FIXED',         label: 'บาท / งาน' },
+  { value: 'PERCENT_LABOR', label: '% ของกำไร' },
+  { value: 'PERCENT_TOTAL', label: '% ของราคางาน' },
+]
+const RATE_METHODS = METHOD_OPTIONS.map((m) => m.value) as string[]
+
+const toCard = (rates: Record<string, RateRow> | null | undefined, type: string | null, value: number | null): CardForm => ({
+  rows: Object.entries(rates ?? {}).map(([tag, r]) => ({ tag, method: r.method, value: r.value })),
+  other: RATE_METHODS.includes(type ?? '') ? { method: type as RateMethod, value: value ?? 0 } : { method: 'NONE', value: 0 },
+})
+const fromCard = (c: CardForm) => ({
+  type: c.other.method,
+  value: c.other.method === 'NONE' ? 0 : Number(c.other.value) || 0,
+  rates: Object.fromEntries(c.rows.filter((r) => r.tag && Number(r.value) > 0).map((r) => [r.tag, { method: r.method, value: Number(r.value) }])),
+})
+const rateText = (method: RateMethod | 'NONE', value: number) =>
+  method === 'NONE' ? 'ไม่ได้ค่าคอม' : method === 'FIXED' ? `${formatThaiMoney(value)}` : `${value}% ${method === 'PERCENT_LABOR' ? 'ของกำไร' : 'ของราคางาน'}`
+
 function SettingsTab({ canEdit }: { canEdit: boolean }) {
   const qc = useQueryClient()
   const { data, isLoading } = useQuery<CommissionConfig>({
     queryKey: ['commission-config'],
     queryFn: async () => (await api.get('/commission/config')).data,
   })
-  const [form, setForm] = useState<CommissionConfig | null>(null)
-  useEffect(() => { if (data) setForm(structuredClone(data)) }, [data])
+  const [form, setForm] = useState<SettingsForm | null>(null)
+  const [who, setWho] = useState<string>('shop')
+
+  useEffect(() => {
+    if (!data) return
+    const shop = toCard(data.repair.typeRates, data.repair.type, data.repair.value)
+    setForm({
+      shop,
+      sale: { ...data.sale },
+      staff: data.staff.map((s) => {
+        const own = s.repairType != null || s.repairRates != null
+        // Saved before per-person tables: "by type" meant the shop's rows
+        const rates = s.repairRates ?? (s.repairType === 'BY_TYPE' ? data.repair.typeRates : {})
+        return { ...s, own, card: own ? toCard(rates, s.repairType, s.repairValue) : structuredClone(shop) }
+      }),
+    })
+  }, [data])
 
   const save = useMutation({
-    mutationFn: async (f: CommissionConfig) => (await api.put('/commission/config', {
-      repair: f.repair,
-      sale: f.sale,
-      staff: f.staff.map((s) => ({
-        userId: s.userId,
-        repairType: s.repairType, repairValue: s.repairType ? Number(s.repairValue ?? 0) : null,
-        saleType: s.saleType, saleValue: s.saleType ? Number(s.saleValue ?? 0) : null,
-      })),
-    })).data,
+    mutationFn: async (f: SettingsForm) => {
+      const shop = fromCard(f.shop)
+      return (await api.put('/commission/config', {
+        repair: { type: shop.type, value: shop.value, typeRates: shop.rates },
+        sale: f.sale,
+        staff: f.staff.map((s) => {
+          const c = fromCard(s.card)
+          return {
+            userId: s.userId,
+            repairType: s.own ? c.type : null,
+            repairValue: s.own ? c.value : null,
+            repairRates: s.own ? c.rates : null,
+            saleType: s.saleType, saleValue: s.saleType ? Number(s.saleValue ?? 0) : null,
+          }
+        }),
+      })).data
+    },
     onSuccess: (fresh: CommissionConfig) => {
       toast.success('บันทึกวิธีคิดค่าคอมแล้ว')
       qc.setQueryData(['commission-config'], fresh)
@@ -251,65 +297,81 @@ function SettingsTab({ canEdit }: { canEdit: boolean }) {
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'บันทึกไม่สำเร็จ'),
   })
 
-  const tags = useMemo(() => {
-    const extra = Object.keys(form?.repair.typeRates ?? {}).filter((t) => !ISSUE_TAG_OPTIONS.includes(t))
-    return [...ISSUE_TAG_OPTIONS, ...extra]
-  }, [form?.repair.typeRates])
-
   if (isLoading || !form) return <div className="py-10 text-center text-slate-400"><Loader2 className="inline h-5 w-5 animate-spin" /></div>
 
-  const set = (fn: (f: CommissionConfig) => void) => setForm((prev) => {
+  const set = (fn: (f: SettingsForm) => void) => setForm((prev) => {
     if (!prev) return prev
     const next = structuredClone(prev)
     fn(next)
     return next
   })
+  const person = form.staff.find((s) => s.userId === who)
 
   return (
     <div className="space-y-4">
       {/* Repairs */}
-      <section className={cn(card, 'p-4 space-y-3')}>
-        <div className="flex items-center gap-2">
-          <Wrench className="h-4 w-4 text-blue-500" />
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">ค่าคอมงานซ่อม (ค่าเริ่มต้นของร้าน)</p>
+      <section className={cn(card, 'p-4 space-y-4')}>
+        <div>
+          <div className="flex items-center gap-2">
+            <Wrench className="h-4 w-4 text-blue-500" />
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">ค่าคอมงานซ่อม</p>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            แต่ละประเภทงานเลือกได้ว่าให้เป็น <b>บาท</b> หรือ <b>%</b> · ช่างที่ได้ไม่เหมือนคนอื่น กดชื่อแล้วตั้งตารางของคนนั้นได้
+          </p>
         </div>
-        <OptionGrid options={REPAIR_OPTIONS} value={form.repair.type} disabled={!canEdit} onChange={(v) => set((f) => { f.repair.type = v })} />
-        {needsValue(form.repair.type) && (
-          <ValueInput type={form.repair.type} value={form.repair.value} disabled={!canEdit}
-            onChange={(v) => set((f) => { f.repair.value = v })} unitLabel="บาทต่องาน" />
-        )}
-        {(form.repair.type === 'BY_TYPE' || form.staff.some((s) => s.repairType === 'BY_TYPE')) && (
-          <div className="space-y-2">
-            <p className="text-xs text-slate-500">
-              ค่าคอมต่อประเภทงาน (บาท) — ใช้ประเภทที่ติ๊กไว้ในใบรับซ่อม ถ้างานมีหลายประเภทจะได้ตามประเภทที่สูงที่สุด
-            </p>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {tags.map((tag) => (
-                <label key={tag} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-slate-700/60 px-3 py-1.5">
-                  <span className="text-sm text-slate-700 dark:text-slate-200">{tag}</span>
-                  <Input
-                    type="number" min={0} step="10" inputMode="decimal" disabled={!canEdit}
-                    value={form.repair.typeRates[tag] ?? ''}
-                    placeholder="0"
-                    onChange={(e) => set((f) => {
-                      const n = Number(e.target.value)
-                      if (e.target.value === '' || !n) delete f.repair.typeRates[tag]
-                      else f.repair.typeRates[tag] = n
-                    })}
-                    className="h-8 w-24 text-right"
-                  />
+
+        {/* Whose table */}
+        <div className="flex flex-wrap gap-1.5">
+          <WhoChip active={who === 'shop'} onClick={() => setWho('shop')} label="ตารางของร้าน" sub="ค่าเริ่มต้น" />
+          {form.staff.map((s) => (
+            <WhoChip key={s.userId} active={who === s.userId} onClick={() => setWho(s.userId)}
+              label={s.name} sub={s.own ? 'ตั้งเอง' : 'ใช้ของร้าน'} highlight={s.own} />
+          ))}
+        </div>
+
+        {who === 'shop' ? (
+          <>
+            <p className="text-xs text-slate-500">ใช้กับทุกคนที่ไม่ได้ตั้งตารางของตัวเอง</p>
+            <RateTable card={form.shop} disabled={!canEdit} onChange={(c) => set((f) => { f.shop = c })} />
+          </>
+        ) : person && (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {[[false, 'ใช้ตารางของร้าน'], [true, `ตั้งตารางเฉพาะ ${person.name}`]].map(([own, label]) => (
+                <label key={String(own)} className={cn(
+                  'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm',
+                  person.own === own ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700/60',
+                )}>
+                  <input type="radio" disabled={!canEdit} checked={person.own === own}
+                    onChange={() => set((f) => {
+                      const p = f.staff.find((x) => x.userId === who)!
+                      p.own = own as boolean
+                      // Start their own table from the shop's, then they change what differs
+                      if (own) p.card = structuredClone(f.shop)
+                    })} />
+                  {label as string}
                 </label>
               ))}
             </div>
-          </div>
+            {person.own ? (
+              <RateTable card={person.card} disabled={!canEdit}
+                onChange={(c) => set((f) => { f.staff.find((x) => x.userId === who)!.card = c })} />
+            ) : (
+              <RateSummary card={form.shop} />
+            )}
+          </>
         )}
+        <p className="text-xs text-slate-500">
+          ประเภทงานมาจากที่ติ๊กไว้ในใบรับซ่อม · ถ้างานมีหลายประเภท จะได้ตามแถวที่ได้มากที่สุด (ไม่บวกกัน)
+        </p>
       </section>
 
       {/* Sales */}
       <section className={cn(card, 'p-4 space-y-3')}>
         <div className="flex items-center gap-2">
           <Smartphone className="h-4 w-4 text-violet-500" />
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">ค่าคอมการขาย (ค่าเริ่มต้นของร้าน)</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">ค่าคอมการขาย</p>
         </div>
         <OptionGrid options={SALE_OPTIONS} value={form.sale.type} disabled={!canEdit} onChange={(v) => set((f) => { f.sale.type = v })} />
         {form.sale.type !== 'NONE' && (
@@ -326,35 +388,24 @@ function SettingsTab({ canEdit }: { canEdit: boolean }) {
             </div>
           </div>
         )}
+        <details className="rounded-lg border border-slate-100 dark:border-slate-700/60 px-3 py-2">
+          <summary className="cursor-pointer text-sm text-slate-700 dark:text-slate-200">เรตการขายรายคน (ถ้าแต่ละคนได้ไม่เท่ากัน)</summary>
+          <div className="mt-2 space-y-2">
+            {form.staff.map((s, i) => (
+              <div key={s.userId} className="flex flex-wrap items-center gap-2">
+                <span className="w-32 truncate text-sm text-slate-700 dark:text-slate-200">{s.name}</span>
+                <StaffRateInput
+                  label="" options={SALE_OPTIONS} disabled={!canEdit}
+                  type={s.saleType} value={s.saleValue} shopText={describe(form.sale.type, form.sale.value, SALE_OPTIONS)}
+                  onChange={(t, v) => set((f) => { f.staff[i].saleType = t as SaleType | null; f.staff[i].saleValue = v })}
+                />
+              </div>
+            ))}
+          </div>
+        </details>
         <p className="text-xs text-slate-500">
           ค่าคอมการขายเป็นของ &quot;พนักงานขาย&quot; ที่เลือกตอนชำระเงินในหน้า POS (ถ้าไม่เลือก จะเป็นของคนที่กดขาย)
         </p>
-      </section>
-
-      {/* Per person */}
-      <section className={cn(card, 'p-4 space-y-3')}>
-        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">เรตรายคน</p>
-        <p className="text-xs text-slate-500">ช่างหรือพนักงานแต่ละคนได้ไม่เท่ากัน ตั้งที่นี่ — ถ้าเลือก &quot;ใช้ค่าของร้าน&quot; จะใช้ค่าเริ่มต้นด้านบน</p>
-        <div className="space-y-2">
-          {form.staff.map((s, i) => (
-            <div key={s.userId} className="grid gap-2 rounded-xl border border-slate-100 dark:border-slate-700/60 p-3 lg:grid-cols-[180px_1fr_1fr] lg:items-center">
-              <div>
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{s.name}</p>
-                <p className="text-xs text-slate-400">{ROLE_LABEL[s.role] ?? s.role}</p>
-              </div>
-              <StaffRateInput
-                label="งานซ่อม" options={REPAIR_OPTIONS} disabled={!canEdit}
-                type={s.repairType} value={s.repairValue} shopText={describe(form.repair.type, form.repair.value, REPAIR_OPTIONS)}
-                onChange={(t, v) => set((f) => { f.staff[i].repairType = t as RepairType | null; f.staff[i].repairValue = v })}
-              />
-              <StaffRateInput
-                label="การขาย" options={SALE_OPTIONS} disabled={!canEdit}
-                type={s.saleType} value={s.saleValue} shopText={describe(form.sale.type, form.sale.value, SALE_OPTIONS)}
-                onChange={(t, v) => set((f) => { f.staff[i].saleType = t as SaleType | null; f.staff[i].saleValue = v })}
-              />
-            </div>
-          ))}
-        </div>
       </section>
 
       {canEdit ? (
@@ -365,6 +416,91 @@ function SettingsTab({ canEdit }: { canEdit: boolean }) {
       ) : (
         <p className="text-xs text-slate-500">เจ้าของร้านเป็นผู้ตั้งวิธีคิดค่าคอม</p>
       )}
+    </div>
+  )
+}
+
+function WhoChip({ active, onClick, label, sub, highlight }: {
+  active: boolean; onClick: () => void; label: string; sub: string; highlight?: boolean
+}) {
+  return (
+    <button type="button" onClick={onClick} className={cn(
+      'rounded-xl border px-3 py-1.5 text-left transition-colors',
+      active ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700/60 hover:border-blue-300',
+    )}>
+      <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{label}</p>
+      <p className={cn('text-[11px]', highlight ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400')}>{sub}</p>
+    </button>
+  )
+}
+
+function RateSummary({ card: c }: { card: CardForm }) {
+  return (
+    <ul className="space-y-1 rounded-lg bg-slate-50 dark:bg-slate-800/40 p-3 text-sm">
+      {c.rows.map((r) => (
+        <li key={r.tag} className="flex justify-between gap-2"><span>{r.tag}</span><span className="tabular-nums">{rateText(r.method, r.value)}</span></li>
+      ))}
+      <li className="flex justify-between gap-2 text-slate-500"><span>งานอื่นๆ ทั้งหมด</span><span>{rateText(c.other.method, c.other.value)}</span></li>
+    </ul>
+  )
+}
+
+function RateTable({ card: c, disabled, onChange }: { card: CardForm; disabled: boolean; onChange: (c: CardForm) => void }) {
+  const used = new Set(c.rows.map((r) => r.tag))
+  const free = ISSUE_TAG_OPTIONS.filter((t) => !used.has(t))
+  const edit = (fn: (x: CardForm) => void) => { const x = structuredClone(c); fn(x); onChange(x) }
+  const unit = (m: RateMethod | 'NONE') => (m === 'FIXED' ? 'บาท' : m === 'NONE' ? '' : '%')
+
+  return (
+    <div className="space-y-2">
+      <div className="hidden grid-cols-[1fr_150px_120px_32px] gap-2 px-2 text-xs text-slate-500 sm:grid">
+        <span>ประเภทงาน</span><span>คิดแบบ</span><span>ค่า</span><span />
+      </div>
+      {c.rows.map((r, i) => (
+        <div key={r.tag} className="grid grid-cols-[1fr_32px] gap-2 rounded-lg border border-slate-100 dark:border-slate-700/60 p-2 sm:grid-cols-[1fr_150px_120px_32px] sm:items-center sm:border-0 sm:px-2 sm:py-0">
+          <span className="self-center text-sm font-medium text-slate-800 dark:text-slate-100">{r.tag}</span>
+          <button type="button" disabled={disabled} aria-label={`ลบ ${r.tag}`}
+            onClick={() => edit((x) => { x.rows.splice(i, 1) })}
+            className="row-span-1 h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 sm:order-last">✕</button>
+          <select className={cn(selectCls, 'col-span-2 sm:col-span-1')} disabled={disabled} value={r.method}
+            onChange={(e) => edit((x) => { x.rows[i].method = e.target.value as RateMethod })}>
+            {METHOD_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+          <div className="col-span-2 flex items-center gap-1 sm:col-span-1">
+            <Input type="number" min={0} max={r.method === 'FIXED' ? undefined : 100} step="0.5" inputMode="decimal"
+              disabled={disabled} value={r.value || ''} placeholder="0"
+              onChange={(e) => edit((x) => { x.rows[i].value = Number(e.target.value) || 0 })}
+              className="h-9 w-24 text-right" />
+            <span className="text-xs text-slate-500">{unit(r.method)}</span>
+          </div>
+        </div>
+      ))}
+
+      {!disabled && free.length > 0 && (
+        <select className={cn(selectCls, 'text-blue-600')} value=""
+          onChange={(e) => e.target.value && edit((x) => { x.rows.push({ tag: e.target.value, method: 'FIXED', value: 0 }) })}>
+          <option value="">+ เพิ่มประเภทงาน…</option>
+          {free.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      )}
+
+      <div className="grid grid-cols-1 gap-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 p-2 sm:grid-cols-[1fr_150px_120px_32px] sm:items-center">
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-200">งานอื่นๆ ทั้งหมด</span>
+        <select className={selectCls} disabled={disabled} value={c.other.method}
+          onChange={(e) => edit((x) => { x.other.method = e.target.value as RateMethod | 'NONE' })}>
+          <option value="NONE">ไม่ได้ค่าคอม</option>
+          {METHOD_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+        {c.other.method !== 'NONE' ? (
+          <div className="flex items-center gap-1">
+            <Input type="number" min={0} max={c.other.method === 'FIXED' ? undefined : 100} step="0.5" inputMode="decimal"
+              disabled={disabled} value={c.other.value || ''} placeholder="0"
+              onChange={(e) => edit((x) => { x.other.value = Number(e.target.value) || 0 })}
+              className="h-9 w-24 text-right" />
+            <span className="text-xs text-slate-500">{unit(c.other.method)}</span>
+          </div>
+        ) : <span />}
+      </div>
     </div>
   )
 }
@@ -421,7 +557,7 @@ function StaffRateInput({ label, options, type, value, shopText, disabled, onCha
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="w-14 text-xs text-slate-500">{label}</span>
+      {label && <span className="w-14 text-xs text-slate-500">{label}</span>}
       <select
         className={selectCls}
         disabled={disabled}
