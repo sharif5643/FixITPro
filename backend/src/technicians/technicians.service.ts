@@ -39,6 +39,76 @@ export interface DailyPoint {
 export class TechniciansService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * What each technician earned for repairs handed over and paid in [startDate, endDate]
+   * (Bangkok calendar days), using the shop's commission setting. Read-only: it does not
+   * change any stored money or the profit figures.
+   */
+  async getCommission(query: { startDate?: string; endDate?: string }, tenantId?: string | null) {
+    const day = /^\d{4}-\d{2}-\d{2}$/;
+    const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+    const startDate = query.startDate && day.test(query.startDate) ? query.startDate : `${today.slice(0, 8)}01`;
+    const endDate   = query.endDate && day.test(query.endDate) ? query.endDate : today;
+    const start = new Date(`${startDate}T00:00:00+07:00`);
+    const end   = new Date(new Date(`${endDate}T00:00:00+07:00`).getTime() + 24 * 3600_000);
+
+    const settings = tenantId
+      ? await this.prisma.shopSettings.findUnique({
+          where: { tenantId }, select: { techCommissionType: true, techCommissionValue: true },
+        })
+      : null;
+    const type  = settings?.techCommissionType ?? 'NONE';
+    const value = Number(settings?.techCommissionValue ?? 0);
+
+    const repairs = await this.prisma.repair.findMany({
+      where: {
+        technicianId: { not: null },
+        status: 'DELIVERED',
+        paidAt: { gte: start, lt: end },
+        ...(tenantId ? { branch: { tenantId } } : {}),
+      },
+      select: {
+        technicianId: true, finalCost: true, estimateCost: true,
+        technician: { select: { id: true, name: true } },
+        parts: { where: { isVoided: false }, select: { costPrice: true, price: true, quantity: true } },
+      },
+    });
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const byTech = new Map<string, { technicianId: string; name: string; jobs: number; revenue: number; partsCost: number; commission: number }>();
+    for (const r of repairs) {
+      const price = Number(r.finalCost ?? r.estimateCost ?? 0);
+      const parts = r.parts.reduce((s, p) => s + Number(p.costPrice ?? p.price) * p.quantity, 0);
+      const earned =
+        type === 'PERCENT_TOTAL' ? price * value / 100
+        : type === 'PERCENT_LABOR' ? Math.max(0, price - parts) * value / 100
+        : type === 'FIXED' ? value
+        : 0;
+      const row = byTech.get(r.technicianId!) ?? {
+        technicianId: r.technicianId!, name: r.technician?.name ?? '-', jobs: 0, revenue: 0, partsCost: 0, commission: 0,
+      };
+      row.jobs += 1;
+      row.revenue += price;
+      row.partsCost += parts;
+      row.commission += earned;
+      byTech.set(r.technicianId!, row);
+    }
+    const rows = [...byTech.values()]
+      .map((r) => ({ ...r, revenue: round2(r.revenue), partsCost: round2(r.partsCost), commission: round2(r.commission) }))
+      .sort((a, b) => b.commission - a.commission || b.jobs - a.jobs);
+
+    return {
+      startDate, endDate,
+      setting: { type, value },
+      rows,
+      totals: {
+        jobs: rows.reduce((s, r) => s + r.jobs, 0),
+        revenue: round2(rows.reduce((s, r) => s + r.revenue, 0)),
+        commission: round2(rows.reduce((s, r) => s + r.commission, 0)),
+      },
+    };
+  }
+
   /** Active technicians and managers of the shop, id + name only (see RepairsService assignment check). */
   findAssignable(tenantId?: string | null) {
     return this.prisma.user.findMany({

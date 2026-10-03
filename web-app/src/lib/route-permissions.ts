@@ -5,6 +5,7 @@
  */
 const ROUTE_PERMISSIONS: [prefix: string, permission: string][] = [
   ['/sales', 'sales.create'],
+  ['/technicians/commission', 'reports.view'],
   ['/expenses', 'expenses.manage'],
   ['/purchase-orders', 'purchase.create'],
   ['/suppliers', 'purchase.create'],

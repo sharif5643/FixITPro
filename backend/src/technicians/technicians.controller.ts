@@ -28,6 +28,16 @@ export class TechniciansController {
     return this.svc.findAssignable(tenantId);
   }
 
+  /** Technician pay for a period (owners / managers: it shows everyone's earnings). */
+  @Get('commission')
+  @RequirePermission('reports.view')
+  commission(
+    @Query() query: { startDate?: string; endDate?: string },
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.svc.getCommission(query, tenantId);
+  }
+
   @Get('leaderboard')
   @RequirePermission('technician.view')
   leaderboard(

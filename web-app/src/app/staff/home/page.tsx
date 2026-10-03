@@ -425,7 +425,7 @@ export default function HomePage() {
                 const max = Math.max(...weekly.map(w => w.revenue), 1)
                 const pct = Math.max((d.revenue / max) * 100, 4)
                 return (
-                  <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                  <div key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
                     <div
                       className="w-full rounded-t-md"
                       style={{ height: `${pct}%`, background: i === weekly.length-1 ? '#FFC107' : '#FEE9A0' }}
