@@ -22,11 +22,14 @@ describe('Money consistency (e2e)', () => {
   const patch = (p: string, b: object) => request(app.getHttpServer()).patch(p).set('Cookie', ownerB).send(b);
 
   const snapshot = async () => {
-    const dash = (await authGet(app, `/api/v1/dashboard/overview?${q}`, ownerB).expect(200)).body.finance;
+    const overview = (await authGet(app, `/api/v1/dashboard/overview?${q}`, ownerB).expect(200)).body;
+    const dash = overview.finance;
+    const todayBar = overview.weeklyRevenue[overview.weeklyRevenue.length - 1];
+    const week = todayBar.sales + todayBar.repairs + todayBar.packages;
     const profit = (await authGet(app, `/api/v1/reports/profit?${q}`, ownerB).expect(200)).body;
     const close = (await authGet(app, `/api/v1/reports/daily-closing?${q}`, ownerB).expect(200)).body.revenue;
     const shift = Number((await authGet(app, '/api/v1/shifts/current', ownerB).expect(200)).body.expectedCashBalance);
-    return { dash, profit, close, shift };
+    return { dash, week, profit, close, shift };
   };
 
   beforeAll(async () => {
@@ -101,5 +104,7 @@ describe('Money consistency (e2e)', () => {
     expect(d(after.dash.cashIn, before.dash.cashIn)).toBe(1390);
     expect(d(after.close.cash, before.close.cash)).toBe(1390);
     expect(d(after.shift, before.shift)).toBe(1390);
+    // Today's bar in the 7-day chart moves by the same amount
+    expect(d(after.week, before.week)).toBe(1390);
   });
 });
