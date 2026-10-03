@@ -56,6 +56,12 @@ jobs:
             ls -lt --time-style=+"%Y-%m-%d %H:%M %Z" /opt/fixitpro-backups/db/*.sql.gz 2>/dev/null | head -10 || echo "no backups found"
             echo "--- last lines of the backup log ---"
             tail -n 5 /opt/fixitpro-backups/backup.log 2>/dev/null || ls /opt/fixitpro-backups/*.log 2>/dev/null
+            echo "--- in-app nightly backup (backend container, /app/backups) ---"
+            for c in $(docker ps --format "{{.Names}}" | grep -i backend); do
+              echo "container: $c"
+              docker exec "$c" sh -c "ls -lt /app/backups 2>/dev/null | head -8" || true
+              docker logs --since 48h "$c" 2>&1 | grep -i "\[Scheduled\]" | tail -n 6 || true
+            done
           '
 
       - name: Fresh backup
