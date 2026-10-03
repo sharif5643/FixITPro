@@ -5,6 +5,7 @@ import type { ShopSettings } from '@/types'
 
 export function useShopName(): string {
   const role = useAuthStore((s) => s.user?.role)
+  const tenantName = useAuthStore((s) => s.user?.shopName)
   const isSuperAdmin = role === 'SUPER_ADMIN'
 
   const { data } = useQuery<ShopSettings>({
@@ -15,5 +16,9 @@ export function useShopName(): string {
   })
 
   if (isSuperAdmin) return 'FixITPro'
-  return data?.shopName ?? 'FixITPro'
+  // Settings start out as the placeholder "FixITPro"; until the owner sets a name, show the
+  // shop's registered name instead of the product name.
+  const fromSettings = data?.shopName?.trim()
+  if (fromSettings && fromSettings !== 'FixITPro') return fromSettings
+  return tenantName?.trim() || fromSettings || 'FixITPro'
 }

@@ -44,11 +44,13 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
   }, [shopName])
 
   const isShopUser = user?.role !== 'SUPER_ADMIN'
+  // Only people who take money open shifts; technicians and stock staff never see the warning.
+  const handlesCash = ['OWNER', 'MANAGER', 'CASHIER'].includes(user?.role ?? '')
   const { data: currentShift, isLoading: shiftLoading } = useQuery<{ id: string } | null>({
     queryKey: ['shifts', 'current'],
     queryFn: async () => (await api.get('/shifts/current')).data,
     staleTime: 30_000,
-    enabled: isShopUser,
+    enabled: isShopUser && ['OWNER', 'MANAGER', 'CASHIER'].includes(user?.role ?? ''),
   })
 
   const handleLogout = async () => {
@@ -69,10 +71,8 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
           <Menu className="h-5 w-5 text-slate-600 dark:text-slate-300" />
         </button>
 
+        {/* Shop name and branch are in the sidebar header; keep only the role here */}
         <div className="hidden md:flex items-center gap-2.5 min-w-0">
-          <span className="text-sm font-bold text-slate-900 dark:text-white truncate max-w-[180px]">
-            {shopName}
-          </span>
           <FiBadge variant="primary" size="sm">
             {roleLabel[user?.role ?? ''] ?? user?.role}
           </FiBadge>
@@ -86,7 +86,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
         </div>
 
         {/* No-shift warning */}
-        {isShopUser && !shiftLoading && !currentShift && (
+        {handlesCash && !shiftLoading && !currentShift && (
           <Link href="/shifts">
             <span className={cn(
               'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold',
@@ -103,15 +103,6 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
         <BranchSelector />
         <SyncStatusIndicator />
         <NotificationBell />
-
-        {/* Theme toggle */}
-        <button
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="h-9 w-9 inline-flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors text-slate-500 dark:text-slate-400"
-          aria-label="สลับธีม"
-        >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
 
         {/* User dropdown */}
         <DropdownMenu>
