@@ -45,6 +45,19 @@ jobs:
             scripts/backup/pg_backup_coolify.sh scripts/backup/pg_restore_verify.sh \
             root@91.98.151.10:/opt/fixitpro-backups/
 
+      - name: Backup schedule and recent backups (read-only)
+        # Shows whether the nightly backup is scheduled and actually ran, before this run adds one.
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            echo "--- cron entries for backups (crontab -l, /etc/cron.d) ---"
+            (crontab -l 2>/dev/null; cat /etc/cron.d/* 2>/dev/null) | grep -i "pg_backup\|fixitpro-backups" || echo "NO BACKUP CRON ENTRY FOUND"
+            echo "--- server time: $(date) / Bangkok: $(TZ=Asia/Bangkok date) ---"
+            echo "--- newest database backups ---"
+            ls -lt --time-style=+"%Y-%m-%d %H:%M %Z" /opt/fixitpro-backups/db/*.sql.gz 2>/dev/null | head -10 || echo "no backups found"
+            echo "--- last lines of the backup log ---"
+            tail -n 5 /opt/fixitpro-backups/backup.log 2>/dev/null || ls /opt/fixitpro-backups/*.log 2>/dev/null
+          '
+
       - name: Fresh backup
         if: ${{ inputs.backup_first }}
         run: |

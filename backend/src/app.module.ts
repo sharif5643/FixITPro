@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { BranchTenantInterceptor } from './common/interceptors/branch-tenant.interceptor';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -64,6 +65,8 @@ import { TenantBackupModule }             from './tenant-backup/tenant-backup.mo
     // RC2-002: Apply 300 req/min default throttle globally. Named auth throttlers
     // (auth_login etc.) are skipped by GlobalThrottlerGuard and remain per-route only.
     { provide: APP_GUARD, useClass: GlobalThrottlerGuard },
+    // A client-sent branchId must belong to the caller's shop (see the interceptor)
+    { provide: APP_INTERCEPTOR, useClass: BranchTenantInterceptor },
   ],
   imports: [
     ConfigModule.forRoot({
