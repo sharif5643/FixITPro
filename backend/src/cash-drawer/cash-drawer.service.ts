@@ -4,7 +4,9 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
+import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -24,6 +26,7 @@ export class CashDrawerService {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private notif: NotificationsService,
+    @Optional() private opsAccounting?: OpsAccountingAdapter,
   ) {}
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -368,6 +371,11 @@ export class CashDrawerService {
       afterData:  { amount: dto.amount, reason: dto.reason },
     });
 
+    await this.opsAccounting?.recordDrawerManual({
+      tenantId: session.tenantId, branchId: session.branchId, txId: tx.id,
+      direction: 'OUT', amount: dto.amount, reason: dto.reason, actorId: actor.id,
+    });
+
     // Notify manager on large withdrawal
     if (dto.amount >= 1000) {
       await this.notif.notify({
@@ -424,6 +432,11 @@ export class CashDrawerService {
       entityType: 'CashDrawerSession',
       entityId:   sessionId,
       afterData:  { amount: dto.amount, reason: dto.reason },
+    });
+
+    await this.opsAccounting?.recordDrawerManual({
+      tenantId: session.tenantId, branchId: session.branchId, txId: tx.id,
+      direction: 'IN', amount: dto.amount, reason: dto.reason, actorId: actor.id,
     });
 
     return tx;
@@ -618,6 +631,14 @@ export class CashDrawerService {
       entityId:   txId,
       afterData:  { reversalId: reversal.id, reason },
     });
+
+    // Only hand-made entries have their journal here; sales, repairs and expenses keep their own
+    if (!original.sourceType) {
+      await this.opsAccounting?.reverseDrawerManual({
+        tenantId: original.tenantId, branchId: original.branchId,
+        originalTxId: original.id, reversalTxId: reversal.id, actorId: actor.id,
+      });
+    }
 
     return reversal;
   }

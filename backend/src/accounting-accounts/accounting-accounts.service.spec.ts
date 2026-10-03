@@ -59,7 +59,7 @@ describe('AccountingAccountsService', () => {
 
   // ── 1. Initialize new tenant ──────────────────────────────────────────────
 
-  it('1: initialize creates 17 accounts for a new tenant', async () => {
+  it('1: initialize creates every template account for a new tenant', async () => {
     const { service, prisma } = await build();
     prisma.tenant.findUnique.mockResolvedValue(BASE_TENANT);
     prisma.accountingAccount.findMany.mockResolvedValue([]);
@@ -96,10 +96,8 @@ describe('AccountingAccountsService', () => {
   it('2: initialize existing tenant returns created=0 and skips existing accounts', async () => {
     const { service, prisma } = await build();
     prisma.tenant.findUnique.mockResolvedValue(BASE_TENANT);
-    // All 17 accounts already exist
-    const allExisting = Array.from({ length: COA_TEMPLATE_COUNT }, (_, i) => ({
-      code: ['1100','1110','1120','1200','1210','1300','1310','2100','2110','3100','4100','4200','4300','5100','5200','6100','6200'][i],
-    }));
+    // Every template account already exists
+    const allExisting = CHART_OF_ACCOUNTS_TEMPLATE.map((t) => ({ code: t.code }));
     prisma.accountingAccount.findMany.mockResolvedValue(allExisting);
 
     const result = await service.initializeForTenant(TENANT_ID);
@@ -116,9 +114,7 @@ describe('AccountingAccountsService', () => {
     prisma.tenant.findUnique.mockResolvedValue(BASE_TENANT);
     prisma.accountingAccount.findMany
       .mockResolvedValueOnce([])                                        // first call: none exist
-      .mockResolvedValueOnce(Array.from({ length: COA_TEMPLATE_COUNT }, (_, i) => ({
-        code: ['1100','1110','1120','1200','1210','1300','1310','2100','2110','3100','4100','4200','4300','5100','5200','6100','6200'][i],
-      })));                                                             // second call: all exist
+      .mockResolvedValueOnce(CHART_OF_ACCOUNTS_TEMPLATE.map((t) => ({ code: t.code })));                                                             // second call: all exist
     prisma.accountingAccount.createMany.mockResolvedValue({ count: COA_TEMPLATE_COUNT });
 
     const first  = await service.initializeForTenant(TENANT_ID);

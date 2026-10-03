@@ -115,6 +115,15 @@ export default async function globalSetup() {
     await prisma.carrierWalletMovement.deleteMany({ where: { createdById: { in: E2E_USER_IDS } } });
     await (prisma as any).carrierWallet.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } });
     const e2eProduct = { product: { tenantId: { in: E2E_TENANT_IDS } } };
+    // Purchase orders, suppliers and the books (journals posted by the accounting e2e tests)
+    const e2ePo = { OR: [{ supplier: { tenantId: { in: E2E_TENANT_IDS } } }, { branchId: { in: E2E_BRANCH_IDS } }] };
+    await prisma.supplierPayment.deleteMany({ where: { purchaseOrder: e2ePo } }).catch(() => {});
+    await prisma.purchaseOrderItem.deleteMany({ where: { OR: [e2eProduct, { purchaseOrder: e2ePo }] } }).catch(() => {});
+    await prisma.purchaseOrder.deleteMany({ where: e2ePo }).catch(() => {});
+    await prisma.supplier.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } }).catch(() => {});
+    await prisma.journalLine.deleteMany({ where: { entry: { tenantId: { in: E2E_TENANT_IDS } } } }).catch(() => {});
+    await prisma.journalEntry.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } }).catch(() => {});
+    await prisma.accountingAccount.deleteMany({ where: { tenantId: { in: E2E_TENANT_IDS } } }).catch(() => {});
     await prisma.stockMovement.deleteMany({ where: { OR: [e2eProduct, { branchId: { in: E2E_BRANCH_IDS } }] } });
     await prisma.stockTransfer.deleteMany({ where: { OR: [e2eProduct, { fromBranchId: { in: E2E_BRANCH_IDS } }, { toBranchId: { in: E2E_BRANCH_IDS } }] } });
     await prisma.branchStock.deleteMany({ where: { OR: [e2eProduct, { branchId: { in: E2E_BRANCH_IDS } }] } });

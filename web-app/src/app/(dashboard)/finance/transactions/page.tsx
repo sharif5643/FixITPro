@@ -48,6 +48,7 @@ const SOURCE_LABEL: Record<string, string> = {
   REPAIR_ADDITIONAL_PAYMENT: 'บริการเพิ่ม',
   EXPENSE_PAYMENT:           'ค่าใช้จ่าย',
   SUPPLIER_PAYMENT:          'ซัพพลายเออร์',
+  PACKAGE_SALE:              'ซิม/แพ็กเกจ',
   SALE_REFUND:               'คืนเงิน',
   CASH_WITHDRAWAL:           'เบิกเงิน',
   CASH_DEPOSIT:              'เติมเงิน',
