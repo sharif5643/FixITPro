@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -51,6 +51,11 @@ export class SettingsService {
     if (!tenantId) {
       // SUPER_ADMIN has no tenant — nothing to persist
       return this.defaultSettings();
+    }
+
+    const commissionIsPercent = (dto.techCommissionType ?? '').startsWith('PERCENT');
+    if (commissionIsPercent && (dto.techCommissionValue ?? 0) > 100) {
+      throw new BadRequestException('เปอร์เซ็นต์ค่าคอมช่างต้องไม่เกิน 100');
     }
 
     // If the frontend echoes back a masked token (starts with ****), skip updating it

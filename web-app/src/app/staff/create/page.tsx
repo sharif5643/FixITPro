@@ -196,7 +196,7 @@ export default function CreateRepairPage() {
   const loadTechs = useCallback(async () => {
     if (technicians.length) return
     try {
-      const r = await api.get('/employees', { params: { role: 'TECHNICIAN', limit: 50 } })
+      const r = await api.get('/technicians/assignable')
       const list = r.data?.data ?? r.data ?? []
       setTechnicians(Array.isArray(list) ? list : [])
     } catch { /* silent */ }

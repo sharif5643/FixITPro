@@ -10,7 +10,7 @@ import {
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
   BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Wifi,
   ListChecks, Handshake, Wallet, Scale, BookMarked, ArrowUpDown, LineChart, Landmark,
-  HardHat, History, ListOrdered, HandCoins, Star, PanelLeftClose, PanelLeftOpen,
+  HardHat, History, ListOrdered, HandCoins, Coins, Star, PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
@@ -83,6 +83,7 @@ const SHOP_SECTIONS: NavSection[] = [
   ]},
   { key: 'team', label: 'ทีมงาน', open: false, items: [
     { href: '/technicians', icon: HardHat,     label: 'ประสิทธิภาพช่าง', permission: 'technician.view' },
+    { href: '/technicians/commission', icon: Coins,     label: 'ค่าคอมช่าง', permission: 'reports.view' },
     { href: '/employees',   icon: UserCog,     label: 'พนักงาน',          ownerOnly: true, module: 'user_management' },
     { href: '/roles',       icon: ShieldAlert, label: 'สิทธิ์การใช้งาน', ownerOnly: true, module: 'user_management' },
     { href: '/branches',    icon: GitBranch,   label: 'สาขา',             permission: 'branches.manage', ownerOnly: true, module: 'user_management' },

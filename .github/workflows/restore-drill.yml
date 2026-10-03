@@ -45,6 +45,45 @@ jobs:
             scripts/backup/pg_backup_coolify.sh scripts/backup/pg_restore_verify.sh \
             root@91.98.151.10:/opt/fixitpro-backups/
 
+      - name: Ensure the nightly server backup is scheduled
+        # Second, independent layer next to the app's own 03:00 backup: the host cron the docs
+        # describe was not installed (found 2026-10-03; owner approved installing it).
+        # Idempotent: adds the line only if missing. 20:30 UTC = 03:30 Bangkok.
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            line="30 20 * * * /bin/bash /opt/fixitpro-backups/pg_backup_coolify.sh >> /opt/fixitpro-backups/cron.log 2>&1"
+            if crontab -l 2>/dev/null | grep -qF "pg_backup_coolify.sh"; then
+              echo "backup cron already present"
+            else
+              (crontab -l 2>/dev/null; echo "# FixITPro nightly DB backup (03:30 Bangkok)"; echo "$line") | crontab -
+              echo "backup cron installed"
+            fi
+            crontab -l | grep -F "pg_backup_coolify.sh"
+          '
+
+      - name: Backup schedule and recent backups (read-only)
+        # Shows whether the nightly backup is scheduled and actually ran, before this run adds one.
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            echo "--- cron entries for backups (crontab -l, /etc/cron.d) ---"
+            (crontab -l 2>/dev/null; cat /etc/cron.d/* 2>/dev/null) | grep -i "pg_backup\|fixitpro-backups" || echo "NO BACKUP CRON ENTRY FOUND"
+            echo "--- server time: $(date) / Bangkok: $(TZ=Asia/Bangkok date) ---"
+            echo "--- newest database backups ---"
+            ls -lt --time-style=+"%Y-%m-%d %H:%M %Z" /opt/fixitpro-backups/db/*.sql.gz 2>/dev/null | head -10 || echo "no backups found"
+            echo "--- last lines of the backup log ---"
+            tail -n 5 /opt/fixitpro-backups/backup.log 2>/dev/null || ls /opt/fixitpro-backups/*.log 2>/dev/null
+            echo "--- LINE usage (counts only) ---"
+            pg=$(docker ps --format "{{.Names}}" | grep "^postgres-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
+            echo "shops with LINE notify on | customers linked to LINE:"
+            [ -n "$pg" ] && docker exec "$pg" psql -U fixitpro -d fixitpro -Atc "SELECT COUNT(*) FILTER (WHERE \"lineNotifyEnabled\"), (SELECT COUNT(*) FROM \"Customer\" WHERE \"lineUserId\" IS NOT NULL) FROM \"ShopSettings\"" || true
+            echo "--- in-app nightly backup (backend container, /app/backups) ---"
+            for c in $(docker ps --format "{{.Names}}" | grep -i backend); do
+              echo "container: $c"
+              docker exec "$c" sh -c "ls -lt /app/backups 2>/dev/null | head -8" || true
+              docker logs --since 48h "$c" 2>&1 | grep -i "\[Scheduled\]" | tail -n 6 || true
+            done
+          '
+
       - name: Fresh backup
         if: ${{ inputs.backup_first }}
         run: |

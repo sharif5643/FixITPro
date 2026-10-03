@@ -29,7 +29,7 @@ export default function CashDrawerHistoryPage() {
 
   const { data: sessions = [], isLoading } = useQuery<SessionListItem[]>({
     queryKey: ['cash-drawer-sessions'],
-    queryFn:  async () => (await api.get('/cash-drawer/sessions')).data,
+    queryFn:  async () => (await api.get('/cash-drawer/session/history?limit=50')).data?.sessions ?? [],
     staleTime: 60_000,
   })
 

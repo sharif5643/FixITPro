@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wrench, Package, ArrowRightLeft, X, ChevronRight, AlertTriangle, AlertCircle, Crown, Settings2, Clock } from 'lucide-react'
@@ -108,6 +108,7 @@ type QuickAction = { kind: 'approve' | 'receive'; transferId: string } | null
 
 export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
   const router   = useRouter()
+  const pathname = usePathname()
   const qc       = useQueryClient()
   const user     = useAuthStore((s) => s.user)
   const hasPerm  = useAuthStore((s) => s.hasPermission)
@@ -372,8 +373,12 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
     return (
       <>
         {/* Bottom-right: bottom-left covered the sidebar menu, and on phones it now sits above
-            the bottom tab bar instead of on top of it. Toasts use top-right. */}
-        <div className="fixed right-3 md:right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-4 z-50 flex flex-col items-end gap-2 max-h-[70vh] overflow-y-auto">
+            the bottom tab bar instead of on top of it. Toasts use top-right. On the POS the
+            checkout button is bottom-right, so there it moves next to the (icon-only) sidebar. */}
+        <div className={cn(
+          'fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-4 z-50 flex flex-col gap-2 max-h-[70vh] overflow-y-auto',
+          pathname === '/sales' ? 'right-3 items-end md:right-auto md:left-20 md:items-start' : 'right-3 md:right-4 items-end',
+        )}>
           <AnimatePresence initial={false}>
             {/* ── Existing operational alert cards ── */}
             {visibleAlerts.slice(0, 4).map((a) => {

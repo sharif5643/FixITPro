@@ -20,6 +20,24 @@ export class TechniciansController {
     return this.svc.findAll(query, tenantId);
   }
 
+  /** Names only, for picking who does a repair. Front-desk staff who can take in repairs
+   *  need this without the technician performance figures behind technician.view. */
+  @Get('assignable')
+  @RequirePermission('repair.create')
+  assignable(@CurrentUser('tenantId') tenantId: string) {
+    return this.svc.findAssignable(tenantId);
+  }
+
+  /** Technician pay for a period (owners / managers: it shows everyone's earnings). */
+  @Get('commission')
+  @RequirePermission('reports.view')
+  commission(
+    @Query() query: { startDate?: string; endDate?: string },
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.svc.getCommission(query, tenantId);
+  }
+
   @Get('leaderboard')
   @RequirePermission('technician.view')
   leaderboard(

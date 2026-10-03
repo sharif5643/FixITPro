@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { unreadSince } from '../notifications/notifications.service';
 import { loadPeriodMoney, summarizeMoney, bangkokDay, MoneyRow } from '../common/money/period-money';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
@@ -44,11 +45,16 @@ export class DashboardService {
       : this.tenantSvc.branchScope(tenantId);
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     // When tenantId is null (SUPER_ADMIN), scope to nothing — SUPER_ADMIN should use /super-admin
+    // Always tenant-scoped: the branch filter alone also matched other shops' branch-less
+    // notifications. Personal notifications (userId set) belong to the bell of that user only,
+    // and the badge counts the last UNREAD_WINDOW_DAYS so old alerts do not pile up to 99+.
     const notifWhere = !tenantId
       ? { id: 'no-tenant-scope' }
-      : params.branchId
-        ? { OR: [{ branchId: params.branchId }, { branchId: null as string | null }] }
-        : { branch: { tenantId } };
+      : {
+          tenantId,
+          userId: null as string | null,
+          ...(params.branchId ? { OR: [{ branchId: params.branchId }, { branchId: null as string | null }] } : {}),
+        };
 
     // Pre-fetch tenant user IDs for scoping AuditLog (no direct tenantId field)
     const tenantUserIds = tenantId
@@ -116,7 +122,7 @@ export class DashboardService {
       this.prisma.warranty.count({
         where: { status: 'ACTIVE', endDate: { gte: now, lte: sevenDaysFromNow }, ...(tenantId ? { customer: { tenantId } } : {}) },
       }),
-      this.prisma.notification.count({ where: { isRead: false, ...notifWhere } }),
+      this.prisma.notification.count({ where: { isRead: false, createdAt: { gte: unreadSince() }, ...notifWhere } }),
       this.prisma.notification.findMany({
         where: { isRead: false, ...notifWhere },
         orderBy: { createdAt: 'desc' },

@@ -919,6 +919,10 @@ model ShopSettings {
   lineChannelAccessToken String?
   lineNotifyEnabled      Boolean  @default(false)
   promptpayId            String?
+  // Technician pay per repair for the commission report:
+  // NONE | PERCENT_TOTAL (of the job price) | PERCENT_LABOR (of price minus parts) | FIXED (per job)
+  techCommissionType     String   @default("NONE")
+  techCommissionValue    Decimal  @default(0) @db.Decimal(10, 2)
   updatedAt              DateTime @updatedAt
 
   tenantId String? @unique

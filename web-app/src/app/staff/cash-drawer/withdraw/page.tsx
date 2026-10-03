@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, TrendingDown, Check } from 'lucide-react'
 import api from '@/lib/api'
+import { currentSessionId } from '../current-session'
 
 const REASONS = ['ซื้ออุปกรณ์', 'ค่าอาหาร/เครื่องดื่ม', 'ค่าส่ง', 'ค่าบริการอื่น']
 
@@ -17,8 +18,8 @@ export default function WithdrawPage() {
   const [error, setError]    = useState('')
 
   const withdraw = useMutation({
-    mutationFn: () =>
-      api.post('/cash-drawer/session/withdraw', {
+    mutationFn: async () =>
+      api.post(`/cash-drawer/session/${await currentSessionId()}/withdraw`, {
         amount:  parseFloat(amount),
         reason,
         note: note || undefined,

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react'
 import api from '@/lib/api'
+import { currentSessionId } from '../current-session'
 
 interface SessionSummary {
   id: string
@@ -30,8 +31,8 @@ export default function CloseSessionPage() {
   })
 
   const close = useMutation({
-    mutationFn: () =>
-      api.post('/cash-drawer/session/close', {
+    mutationFn: async () =>
+      api.post(`/cash-drawer/session/${session?.id ?? await currentSessionId()}/close`, {
         countedAmount:    parseFloat(counted),
         closingNote:      closingNote || undefined,
         differenceReason: diffReason  || undefined,

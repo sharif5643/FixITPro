@@ -581,7 +581,7 @@ export function RepairKanbanBoard({
 
   const { data: techUsers = [] } = useQuery<TechUser[]>({
     queryKey: ['technicians-simple'],
-    queryFn: () => api.get('/technicians').then((r) => r.data?.data ?? r.data ?? []),
+    queryFn: () => api.get('/technicians/assignable').then((r) => r.data?.data ?? r.data ?? []),
     staleTime: 5 * 60_000,
   })
 

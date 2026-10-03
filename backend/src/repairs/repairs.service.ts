@@ -77,8 +77,8 @@ export class RepairsService {
     if (!tech) throw new BadRequestException('ไม่พบช่างที่เลือก หรือช่างไม่ได้อยู่ในร้านนี้');
   }
 
-  /** Tell the technician they have a new job; only they see it. Never blocks the caller. */
-  private notifyAssigned(
+  /** Tell the technician they have a new job; only they see it. notify() never throws. */
+  private async notifyAssigned(
     repair: { id: string; ticketNumber: string; deviceBrand: string; deviceModel: string; branchId?: string | null },
     technicianId: string,
     actorId: string | undefined,
@@ -86,7 +86,9 @@ export class RepairsService {
     tenantId: string | null | undefined,
   ) {
     if (technicianId === actorId) return; // took the job themselves
-    this.notifications.notify({
+    // Awaited so the notification exists when the request returns (the technician's app may
+    // refresh right away); notify() catches its own errors.
+    await this.notifications.notify({
       type: 'REPAIR_ASSIGNED',
       title: 'มีงานซ่อมมอบหมายให้คุณ',
       message: `${repair.ticketNumber} · ${repair.deviceBrand} ${repair.deviceModel}${actorName ? ` (จาก ${actorName})` : ''}`,
@@ -95,7 +97,7 @@ export class RepairsService {
       branchId: repair.branchId ?? undefined,
       tenantId: tenantId ?? null,
       userId: technicianId,
-    }).catch(() => {});
+    });
   }
 
   private async assertBranchActive(branchId: string) {
@@ -283,7 +285,7 @@ export class RepairsService {
         entityId: repair.id,
         afterData: { technicianId: dto.technicianId, ticketNumber: repair.ticketNumber },
       });
-      this.notifyAssigned(repair as any, dto.technicianId, actorId, actorName, tenantId);
+      await this.notifyAssigned(repair as any, dto.technicianId, actorId, actorName, tenantId);
     }
 
     // LINE notify: "รับงานใหม่" — fire-and-forget, never block create
@@ -653,7 +655,7 @@ export class RepairsService {
           ticketNumber: repair.ticketNumber,
         },
       });
-      if (dto.technicianId) this.notifyAssigned(repair as any, dto.technicianId, actorId, actorName, tenantId);
+      if (dto.technicianId) await this.notifyAssigned(repair as any, dto.technicianId, actorId, actorName, tenantId);
     }
     return updated;
   }

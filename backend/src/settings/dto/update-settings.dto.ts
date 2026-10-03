@@ -104,4 +104,15 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   promptpayId?: string;
+
+  @IsOptional()
+  @IsIn(['NONE', 'PERCENT_TOTAL', 'PERCENT_LABOR', 'FIXED'])
+  techCommissionType?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100000)
+  techCommissionValue?: number;
 }

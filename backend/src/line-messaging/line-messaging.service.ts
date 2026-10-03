@@ -127,13 +127,18 @@ export class LineMessagingService {
     const where: any = {};
     if (tenantId) where.tenantId = tenantId;
     const digits = phone.replace(/\D/g, '').slice(-9);
-    const customer = await this.prisma.customer.findFirst({
+    // Link only when exactly one customer matches; with several (or across shops when no
+    // tenant is configured) we cannot know whose repair updates this LINE account should get.
+    const matches = await this.prisma.customer.findMany({
       where: {
         ...where,
         phone: { endsWith: digits },
       },
+      select: { id: true },
+      take: 2,
     });
-    if (!customer) return false;
+    if (matches.length !== 1) return false;
+    const customer = matches[0];
     await this.prisma.customer.update({
       where: { id: customer.id },
       data: { lineUserId },

@@ -54,7 +54,7 @@ export function MorningBrief({ overview, summary, loading }: Props) {
               </>
             ) : (
               <>
-                <p className="font-bold text-slate-800 dark:text-white text-sm">{cfg.greeting}</p>
+                <p className="font-bold text-slate-800 dark:text-white text-sm">สรุปวันนี้</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                   {shift?.isOpen
                     ? `กะเปิดโดย ${shift.userName ?? '—'} · ยอดวันนี้ ${formatThaiMoney(today?.totalRevenue ?? 0)}`
