@@ -11,9 +11,9 @@ export class RepairCommissionDto {
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(100000)
   value?: number;
 
-  /** Baht per repair type, e.g. {"หน้าจอ": 150} */
+  /** Per repair type: {"หน้าจอ": {"method": "FIXED", "value": 150}}; a plain number means baht */
   @IsOptional() @IsObject()
-  typeRates?: Record<string, number>;
+  typeRates?: Record<string, unknown>;
 }
 
 export class SaleCommissionDto {
@@ -37,6 +37,10 @@ export class StaffCommissionDto {
 
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(100000)
   repairValue?: number | null;
+
+  /** This person's own per-type rows (same shape as the shop's typeRates); null = shop table */
+  @IsOptional() @IsObject()
+  repairRates?: Record<string, unknown> | null;
 
   @IsOptional() @IsIn([...SALE_TYPES, null] as unknown as string[])
   saleType?: string | null;
