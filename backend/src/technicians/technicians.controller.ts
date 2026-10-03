@@ -20,6 +20,14 @@ export class TechniciansController {
     return this.svc.findAll(query, tenantId);
   }
 
+  /** Names only, for picking who does a repair. Front-desk staff who can take in repairs
+   *  need this without the technician performance figures behind technician.view. */
+  @Get('assignable')
+  @RequirePermission('repair.create')
+  assignable(@CurrentUser('tenantId') tenantId: string) {
+    return this.svc.findAssignable(tenantId);
+  }
+
   @Get('leaderboard')
   @RequirePermission('technician.view')
   leaderboard(

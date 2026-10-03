@@ -39,6 +39,15 @@ export interface DailyPoint {
 export class TechniciansService {
   constructor(private prisma: PrismaService) {}
 
+  /** Active technicians and managers of the shop, id + name only (see RepairsService assignment check). */
+  findAssignable(tenantId?: string | null) {
+    return this.prisma.user.findMany({
+      where: { role: { in: ['TECHNICIAN', 'MANAGER'] as any[] }, isActive: true, ...(tenantId ? { tenantId } : {}) },
+      select: { id: true, name: true, role: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   private buildDateWhere(startDate?: string, endDate?: string) {
     if (!startDate && !endDate) return undefined;
     const where: any = {};

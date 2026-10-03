@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, TrendingUp, Check } from 'lucide-react'
 import api from '@/lib/api'
+import { currentSessionId } from '../current-session'
 
 const REASONS = ['เติมเงินทอน', 'ย้ายเงินจากสาขาอื่น', 'เงินสำรอง']
 
@@ -17,8 +18,8 @@ export default function DepositPage() {
   const [error, setError]    = useState('')
 
   const deposit = useMutation({
-    mutationFn: () =>
-      api.post('/cash-drawer/session/deposit', {
+    mutationFn: async () =>
+      api.post(`/cash-drawer/session/${await currentSessionId()}/deposit`, {
         amount:  parseFloat(amount),
         reason,
         note: note || undefined,

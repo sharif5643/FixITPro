@@ -143,50 +143,48 @@ export default function HomePage() {
   const load = useCallback(async () => {
     setLoading(true); setError(false)
     try {
-      const [sRes, rRes, nRes, tRes, wRes] = await Promise.allSettled([
-        api.get('/repairs/stats'),
-        api.get('/repairs?limit=4&sort=createdAt:desc'),
-        api.get('/notifications?limit=3&unread=true'),
-        api.get('/products/stats/top-selling?limit=5'),
-        api.get('/analytics/weekly'),
+      // Real endpoints only. Owners/managers get money figures from /dashboard/overview
+      // (needs reports.view); everyone gets job and notification counts.
+      const [oRes, rRes, nRes, cRes] = await Promise.allSettled([
+        canSeeRev ? api.get('/dashboard/overview') : Promise.reject(new Error('no reports.view')),
+        api.get('/repairs?activeOnly=true'),
+        api.get('/notifications?limit=3&isRead=false'),
+        api.get('/notifications/unread-count'),
       ])
 
-      if (sRes.status === 'fulfilled') {
-        const d = sRes.value.data ?? {}
-        setStats({
-          todayRevenue:        d.todayRevenue     ?? d.totalRevenue ?? 0,
-          todayProfit:         d.todayProfit      ?? 0,
-          pendingRepairs:      d.pendingRepairs   ?? d.pending ?? 0,
-          todayDeliveries:     d.todayDeliveries  ?? d.waitPickup ?? 0,
-          completedDeliveries: d.completedToday   ?? 0,
-          lowStockItems:       d.lowStockItems    ?? 0,
-          unreadNotifs:        d.unreadNotifs     ?? 0,
-          revenueChange:       d.revenueChange    ?? 0,
-          profitChange:        d.profitChange     ?? 0,
-        })
-      }
+      const overview = oRes.status === 'fulfilled' ? oRes.value.data : null
+      const active   = rRes.status === 'fulfilled' ? (rRes.value.data?.data ?? rRes.value.data ?? []) : []
+      const activeList: any[] = Array.isArray(active) ? active : []
+      const mine = isTech ? activeList.filter((r) => r.technician?.id === user?.id) : activeList
 
-      if (rRes.status === 'fulfilled') {
-        const list = rRes.value.data?.data ?? rRes.value.data ?? []
-        setRepairs(Array.isArray(list) ? list.slice(0,4) : [])
-      }
+      setStats({
+        todayRevenue:        overview?.finance?.totalRevenue ?? 0,
+        todayProfit:         overview?.finance?.grossProfit ?? 0,
+        pendingRepairs:      mine.filter((r) => !['COMPLETED', 'READY_PICKUP'].includes(r.status)).length,
+        todayDeliveries:     activeList.filter((r) => ['COMPLETED', 'READY_PICKUP'].includes(r.status)).length,
+        completedDeliveries: 0,
+        lowStockItems:       (overview?.stock?.lowStock ?? 0) + (overview?.stock?.outOfStock ?? 0),
+        unreadNotifs:        cRes.status === 'fulfilled' ? (cRes.value.data?.count ?? 0) : 0,
+        revenueChange:       0,
+        profitChange:        0,
+      })
+
+      setRepairs(mine.slice(0, 4))
 
       if (nRes.status === 'fulfilled') {
-        const list = nRes.value.data?.data ?? nRes.value.data ?? []
+        const list = nRes.value.data?.items ?? nRes.value.data?.data ?? []
         setNotifs(Array.isArray(list) ? list.slice(0,3) : [])
       }
 
-      if (tRes.status === 'fulfilled') {
-        const list = tRes.value.data?.data ?? tRes.value.data ?? []
-        setTopProd(Array.isArray(list) ? list.slice(0,5) : [])
-      }
-
-      if (wRes.status === 'fulfilled') {
-        const list = wRes.value.data?.data ?? wRes.value.data ?? []
-        if (Array.isArray(list) && list.length) {
-          setWeekly(list.slice(-7).map((d: any) => ({
+      if (overview) {
+        setTopProd((overview.topProducts ?? []).slice(0, 5).map((p: any, i: number) => ({
+          id: String(i), name: p.name, soldQty: p.qty ?? 0, totalRevenue: p.revenue ?? 0,
+        })))
+        const week = overview.weeklyRevenue ?? []
+        if (Array.isArray(week) && week.length) {
+          setWeekly(week.slice(-7).map((d: any) => ({
             label: d.date ? format(new Date(d.date), 'EEE', {locale:th}) : '-',
-            revenue: d.revenue ?? 0,
+            revenue: (d.sales ?? 0) + (d.repairs ?? 0) + (d.packages ?? 0),
           })))
         }
       }
@@ -195,7 +193,7 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [canSeeRev, isTech, user?.id])
 
   useEffect(() => { load() }, [load])
 

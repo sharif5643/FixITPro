@@ -60,12 +60,12 @@ export default function SessionPage() {
   })
 
   const join = useMutation({
-    mutationFn: () => api.post('/cash-drawer/session/join'),
+    mutationFn: () => api.post(`/cash-drawer/session/${session?.id}/join`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cash-drawer-session-current'] }),
   })
 
   const leave = useMutation({
-    mutationFn: () => api.post('/cash-drawer/session/leave'),
+    mutationFn: () => api.post(`/cash-drawer/session/${session?.id}/leave`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cash-drawer-session-current'] }),
   })
 

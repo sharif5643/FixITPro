@@ -103,4 +103,14 @@ describe('Repair assignment (e2e)', () => {
     expect(await types(tech)).not.toContain('PASSWORD_RESET_REQUEST');
     expect(await types(cashier)).not.toContain('PASSWORD_RESET_REQUEST');
   });
+
+  it('ASSIGN-06: front desk (cashier) can list who to assign, names only', async () => {
+    const list = (await authGet(app, '/api/v1/technicians/assignable', cashier).expect(200)).body as any[];
+    expect(list.map((u) => u.id)).toContain(IDS.userTechA1);
+    expect(list.map((u) => u.id)).not.toContain(IDS.userCashierA1);
+    expect(list.map((u) => u.id)).not.toContain(IDS.userOwnerB);
+    expect(Object.keys(list[0]).sort()).toEqual(['id', 'name', 'role']);
+    // The full technician list with performance figures stays behind technician.view
+    await authGet(app, '/api/v1/technicians', cashier).expect(403);
+  });
 });
