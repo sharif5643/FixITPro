@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { loadPeriodMoney, summarizeMoney } from '../common/money/period-money';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 
@@ -579,7 +580,7 @@ export class ReportsService {
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.repair.findMany({
-        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', ...bFilter },
+        where: { paidAt: { gte: start, lt: end }, paymentStatus: { in: ['PAID', 'PARTIAL'] }, ...bFilter },
         select: {
           id: true, ticketNumber: true, paidAmount: true, paymentMethod: true,
           finalCost: true, estimatedTotal: true, deposit: true, paidAt: true,
@@ -676,7 +677,13 @@ export class ReportsService {
       return sum + Math.max(0, Number(r.finalCost ?? r.estimateCost ?? 0) - Number(r.deposit ?? 0));
     }, 0);
     const depositTotal = newRepairs.reduce((sum, r) => sum + Number(r.deposit ?? 0), 0);
-    const grandTotal = posRevenue + repairRevenue + packageRevenue;
+    // Totals and the cash/transfer split use the shared money rules (common/money/period-money.ts):
+    // refunds come off POS, repairs count deposits, partial and debt payments, split bills
+    // count each payment leg. The lists below stay as detail.
+    const money = summarizeMoney(await loadPeriodMoney(this.prisma, {
+      start, end, branchWhere: bFilter, branchId, tenantId,
+    }));
+    const grandTotal = money.totalRevenue;
 
     // Repairs by status (current active state)
     const activeByStatus = await this.prisma.repair.groupBy({
@@ -805,17 +812,20 @@ export class ReportsService {
     return {
       date,
       revenue: {
-        pos: { total: posRevenue, count: sales.length, breakdown: posPaymentBreakdown },
-        repairs: { total: repairRevenue, count: repairPayments.length, breakdown: repairPaymentBreakdown },
+        pos: { total: money.posRevenue, gross: posRevenue, count: sales.length, breakdown: posPaymentBreakdown },
+        repairs: {
+          total: money.repairRevenue, count: repairPayments.length, breakdown: repairPaymentBreakdown,
+          deposits: money.repairDeposits, atPickup: money.repairPickup, debtPayments: money.repairDebtPayments,
+        },
         packages: { total: packageRevenue, amount: packageAmount, count: packageSales.length },
         refunds: { total: refundTotal, count: refunds.length },
         voided: { total: voidedTotal, count: voidedSales.length },
         deposits: { total: depositTotal },
         outstanding: { total: unpaidTotal, count: unpaidRepairs.length },
         grandTotal,
-        cash: (posPaymentBreakdown['CASH'] || 0) + (repairPaymentBreakdown['CASH'] || 0),
-        transfer: (posPaymentBreakdown['TRANSFER'] || 0) + (repairPaymentBreakdown['TRANSFER'] || 0),
-        card: (posPaymentBreakdown['CARD'] || 0) + (repairPaymentBreakdown['CARD'] || 0),
+        cash: money.byMethod['CASH'] ?? 0,
+        transfer: money.byMethod['TRANSFER'] ?? 0,
+        card: money.byMethod['CARD'] ?? 0,
       },
       sales: { items: sales, count: sales.length },
       voidedSales: { items: voidedSales, count: voidedSales.length },
@@ -934,7 +944,7 @@ export class ReportsService {
 
       // Repairs: jobs paid (paidAt) within range
       this.prisma.repair.findMany({
-        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', ...bFilter },
+        where: { paidAt: { gte: start, lt: end }, paymentStatus: { in: ['PAID', 'PARTIAL'] }, ...bFilter },
         select: {
           id: true,
           ticketNumber: true,
@@ -988,15 +998,22 @@ export class ReportsService {
       }),
     ]);
 
+    // Totals use the shared money rules (common/money/period-money.ts): bill discounts and
+    // refunds come off POS revenue, repairs count deposits, partial and debt payments.
+    const money = summarizeMoney(await loadPeriodMoney(this.prisma, {
+      start, end, branchWhere: bFilter, branchId, tenantId,
+    }));
+    const lineTotal = saleItems.reduce((s, i) => s + Number(i.total), 0);
+
     // --- POS profit ---
-    const posRevenue = saleItems.reduce((s, i) => s + Number(i.total), 0);
-    const posCOGS    = saleItems.reduce((s, i) => s + Number(i.costPrice) * i.quantity, 0);
+    const posRevenue = money.posRevenue;
+    const posCOGS    = money.posCOGS;
     const posProfit  = posRevenue - posCOGS;
 
     // --- Repair profit ---
     // costPrice = COGS (product cost snapshot at time of adding the part)
     // fallback to price for legacy parts created before the migration
-    const repairRevenue   = repaids.reduce((s, r) => s + Number(r.paidAmount ?? 0), 0);
+    const repairRevenue   = money.repairRevenue;
     const repairPartsCost = repaids.reduce(
       (s, r) => s + r.parts.reduce((ps, p) => ps + Number((p as any).costPrice ?? p.price) * p.quantity, 0), 0,
     );
@@ -1032,6 +1049,9 @@ export class ReportsService {
       period: { startDate, endDate },
       pos: {
         revenue: posRevenue,
+        grossSales:   money.posGross,
+        billDiscount: Math.round((lineTotal - money.posGross) * 100) / 100,
+        refunds:      money.posRefunds,
         cogs:    posCOGS,
         profit:  posProfit,
         margin:  posRevenue > 0 ? (posProfit / posRevenue) * 100 : 0,
@@ -1048,6 +1068,9 @@ export class ReportsService {
       },
       repair: {
         revenue:   repairRevenue,
+        deposits:     money.repairDeposits,
+        atPickup:     money.repairPickup,
+        debtPayments: money.repairDebtPayments,
         partsCost: repairPartsCost,
         laborCost: repairLaborCost,
         profit:    repairProfit,
@@ -1069,6 +1092,7 @@ export class ReportsService {
         }),
       },
       package: {
+        // face value sold; only the profit (commission) counts as shop revenue
         revenue: packageRevenue,
         profit:  packageProfit,
         count:   packageSales.length,
@@ -1094,13 +1118,9 @@ export class ReportsService {
       summary: {
         grossProfit,
         netProfit,
-        totalRevenue: posRevenue + repairRevenue + packageRevenue,
-        grossMargin:  (posRevenue + repairRevenue + packageRevenue) > 0
-          ? (grossProfit / (posRevenue + repairRevenue + packageRevenue)) * 100
-          : 0,
-        netMargin:    (posRevenue + repairRevenue + packageRevenue) > 0
-          ? (netProfit / (posRevenue + repairRevenue + packageRevenue)) * 100
-          : 0,
+        totalRevenue: money.totalRevenue,
+        grossMargin:  money.totalRevenue > 0 ? (grossProfit / money.totalRevenue) * 100 : 0,
+        netMargin:    money.totalRevenue > 0 ? (netProfit / money.totalRevenue) * 100 : 0,
       },
     };
   }

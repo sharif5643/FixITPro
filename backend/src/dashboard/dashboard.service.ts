@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { loadPeriodMoney, summarizeMoney, bangkokDay, MoneyRow } from '../common/money/period-money';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 
@@ -56,11 +56,6 @@ export class DashboardService {
       : null;
 
     const [
-      salesAgg,
-      salesByMethod,
-      repairPaymentsAgg,
-      repairsByMethod,
-      packageSalesAgg,
       expensesAgg,
       repairsByStatus,
       overdueCount,
@@ -73,46 +68,16 @@ export class DashboardService {
       latestNotifs,
       topProductGroups,
       techRepairGroups,
-      weeklySales,
-      weeklyRepairPmts,
-      weeklyPackageSales,
       recentActivities,
       activeShift,
       pendingClaimsCount,
       overdueSupplierPoCount,
       apOutstandingAgg,
       pendingReceivePoCount,
-      salesByBranch,
-      repairsByBranch,
       openRepairsByBranch,
       overdueRepairsByBranch,
       branches,
     ] = await Promise.all([
-      this.prisma.sale.aggregate({
-        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...bFilter },
-        _sum: { total: true },
-        _count: { id: true },
-      }),
-      this.prisma.sale.groupBy({
-        by: ['paymentMethod'],
-        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...bFilter },
-        _sum: { total: true },
-      }),
-      this.prisma.repair.aggregate({
-        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', ...bFilter },
-        _sum: { paidAmount: true },
-        _count: { id: true },
-      }),
-      this.prisma.repair.groupBy({
-        by: ['paymentMethod'],
-        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', ...bFilter },
-        _sum: { paidAmount: true },
-      }),
-      this.prisma.packageSale.aggregate({
-        where: { createdAt: { gte: start, lt: end }, ...(tenantId ? { createdBy: { tenantId } } : {}) },
-        _sum: { profit: true },
-        _count: { id: true },
-      }),
       this.prisma.expense.aggregate({
         where: { expenseDate: { gte: start, lt: end }, voidedAt: null, ...bFilter },
         _sum: { amount: true },
@@ -181,19 +146,6 @@ export class DashboardService {
         orderBy: { _count: { id: 'desc' } },
         take: 3,
       }),
-      // Weekly chart (always last 7 days)
-      this.prisma.sale.findMany({
-        where: { createdAt: { gte: weekAgoStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
-        select: { total: true, createdAt: true },
-      }),
-      this.prisma.repair.findMany({
-        where: { paidAt: { gte: weekAgoStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
-        select: { paidAmount: true, paidAt: true },
-      }),
-      this.prisma.packageSale.findMany({
-        where: { createdAt: { gte: weekAgoStart, lt: todayEnd }, ...(tenantId ? { createdBy: { tenantId } } : {}) },
-        select: { profit: true, createdAt: true },
-      }),
       this.prisma.auditLog.findMany({
         where: { actorId: { in: tenantUserIds ?? [] } },
         orderBy: { createdAt: 'desc' },
@@ -232,19 +184,6 @@ export class DashboardService {
           ...(params.branchId ? { branchId: params.branchId } : {}),
         },
       }),
-      // Branch performance (scoped to tenant)
-      this.prisma.sale.groupBy({
-        by: ['branchId'],
-        where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...this.tenantSvc.branchScope(tenantId) },
-        _sum: { total: true },
-        _count: { id: true },
-      }),
-      this.prisma.repair.groupBy({
-        by: ['branchId'],
-        where: { paidAt: { gte: start, lt: end }, paymentStatus: 'PAID', ...this.tenantSvc.branchScope(tenantId) },
-        _sum: { paidAmount: true },
-        _count: { id: true },
-      }),
       // Per-branch open repairs (current state, not date-filtered)
       this.prisma.repair.groupBy({
         by: ['branchId'],
@@ -267,59 +206,25 @@ export class DashboardService {
       }),
     ]);
 
-    // ── COGS (raw SQL — Prisma ORM can't SUM a product of two columns) ────────
-    // Build tenant/branch filter fragment for raw queries
-    const saleBranchSql: Prisma.Sql = params.branchId
-      ? Prisma.sql`AND s."branchId" = ${params.branchId}`
-      : tenantId
-        ? Prisma.sql`AND s."branchId" IN (SELECT id FROM "Branch" WHERE "tenantId" = ${tenantId})`
-        : Prisma.sql``;
-    const repairBranchSql: Prisma.Sql = params.branchId
-      ? Prisma.sql`AND r."branchId" = ${params.branchId}`
-      : tenantId
-        ? Prisma.sql`AND r."branchId" IN (SELECT id FROM "Branch" WHERE "tenantId" = ${tenantId})`
-        : Prisma.sql``;
+    // ── Money (shared with /reports/profit and daily closing) ─────────────────
+    const rangeStart = new Date(Math.min(start.getTime(), weekAgoStart.getTime()));
+    const rangeEnd   = new Date(Math.max(end.getTime(), todayEnd.getTime()));
+    const moneyRows = await loadPeriodMoney(this.prisma, {
+      start: rangeStart, end: rangeEnd, branchWhere: bFilter, branchId: params.branchId, tenantId,
+    });
+    const inPeriod = (r: MoneyRow) => r.date >= start && r.date < end;
+    const money = summarizeMoney(moneyRows, inPeriod);
 
-    const [posCOGSRow, repairCOGSRow] = await Promise.all([
-      this.prisma.$queryRaw<[{ cogs: number }]>(Prisma.sql`
-        SELECT COALESCE(SUM(si."costPrice"::float8 * si.quantity), 0) as cogs
-        FROM "SaleItem" si
-        JOIN "Sale" s ON s.id = si."saleId"
-        WHERE s."createdAt" >= ${start}
-          AND s."createdAt" < ${end}
-          AND s.status != 'VOIDED'
-          ${saleBranchSql}
-      `),
-      this.prisma.$queryRaw<[{ parts: number; labor: number }]>(Prisma.sql`
-        SELECT
-          COALESCE(SUM(COALESCE(rp."costPrice", rp.price)::float8 * rp.quantity), 0) as parts,
-          COALESCE(SUM(r."actualLaborCost"::float8), 0)                               as labor
-        FROM "Repair" r
-        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id AND rp."isVoided" = false
-        WHERE r."paidAt" >= ${start}
-          AND r."paidAt" < ${end}
-          AND r."paymentStatus" = 'PAID'
-          ${repairBranchSql}
-      `),
-    ]);
-
-    const posCOGS    = Number(posCOGSRow[0]?.cogs ?? 0);
-    const repairCOGS = Number(repairCOGSRow[0]?.parts ?? 0) + Number(repairCOGSRow[0]?.labor ?? 0);
-
-    // ── Financial ─────────────────────────────────────────────────────────────
-    const salesRevenue   = Number(salesAgg._sum.total ?? 0);
-    const repairRevenue  = Number(repairPaymentsAgg._sum.paidAmount ?? 0);
-    const packageRevenue = Number(packageSalesAgg._sum.profit ?? 0);
-    const totalRevenue   = salesRevenue + repairRevenue + packageRevenue;
+    const salesRevenue   = money.posRevenue;
+    const repairRevenue  = money.repairRevenue;
+    const packageRevenue = money.packageProfit;
+    const totalRevenue   = money.totalRevenue;
     const totalExpenses  = Number(expensesAgg._sum.amount ?? 0);
-    const grossProfit    = (salesRevenue - posCOGS) + (repairRevenue - repairCOGS) + packageRevenue;
-
-    const cashIn =
-      Number(salesByMethod.find(r => r.paymentMethod === 'CASH')?._sum.total ?? 0) +
-      Number(repairsByMethod.find(r => r.paymentMethod === 'CASH')?._sum.paidAmount ?? 0);
-    const transferIn =
-      Number(salesByMethod.find(r => r.paymentMethod === 'TRANSFER')?._sum.total ?? 0) +
-      Number(repairsByMethod.find(r => r.paymentMethod === 'TRANSFER')?._sum.paidAmount ?? 0);
+    const posCOGS        = money.posCOGS;
+    const repairCOGS     = money.repairCOGS;
+    const grossProfit    = money.grossProfit;
+    const cashIn         = money.byMethod['CASH'] ?? 0;
+    const transferIn     = money.byMethod['TRANSFER'] ?? 0;
 
     // ── Unpaid debt ────────────────────────────────────────────────────────────
     const debtRemaining = unpaidDebtRepairs.map((r) => {
@@ -348,26 +253,16 @@ export class DashboardService {
       const d = new Date(weekAgoStart.getTime() + i * 24 * 60 * 60 * 1000);
       weeklyMap.set(toThaiDate(d), { sales: 0, repairs: 0, packages: 0 });
     }
-    weeklySales.forEach(s => {
-      const e = weeklyMap.get(toThaiDate(s.createdAt));
-      if (e) e.sales += Number(s.total);
+    const weeklyRevenue = Array.from(weeklyMap.keys()).map((date) => {
+      const day = summarizeMoney(moneyRows, (r) => bangkokDay(r.date) === date);
+      return {
+        date,
+        sales: day.posRevenue,
+        repairs: day.repairRevenue,
+        packages: day.packageProfit,
+        total: day.totalRevenue,
+      };
     });
-    weeklyRepairPmts.forEach(r => {
-      if (!r.paidAt) return;
-      const e = weeklyMap.get(toThaiDate(r.paidAt));
-      if (e) e.repairs += Number(r.paidAmount ?? 0);
-    });
-    weeklyPackageSales.forEach(p => {
-      const e = weeklyMap.get(toThaiDate(p.createdAt));
-      if (e) e.packages += Number(p.profit);
-    });
-    const weeklyRevenue = Array.from(weeklyMap.entries()).map(([date, v]) => ({
-      date,
-      sales: v.sales,
-      repairs: v.repairs,
-      packages: v.packages,
-      total: v.sales + v.repairs + v.packages,
-    }));
 
     // ── Top products ──────────────────────────────────────────────────────────
     const productIds = topProductGroups.map(p => p.productId);
@@ -407,16 +302,11 @@ export class DashboardService {
 
     // ── Branch performance ────────────────────────────────────────────────────
     const branchMap        = new Map(branches.map(b => [b.id, b.name]));
-    const branchSalesMap   = new Map(salesByBranch.map(s => [s.branchId ?? '', Number(s._sum.total ?? 0)]));
-    const branchRepMap     = new Map(repairsByBranch.map(r => [r.branchId ?? '', Number(r._sum.paidAmount ?? 0)]));
+    const branchMoney      = (bid: string) => summarizeMoney(moneyRows, (r) => inPeriod(r) && r.branchId === bid);
     const branchOpenMap    = new Map(openRepairsByBranch.map(r => [r.branchId ?? '', r._count.id]));
     const branchOverdueMap = new Map(overdueRepairsByBranch.map(r => [r.branchId ?? '', r._count.id]));
     // Include ALL registered branches, even those with zero activity today
-    const allBranchIds = new Set([
-      ...branches.map(b => b.id),
-      ...salesByBranch.map(s => s.branchId ?? ''),
-      ...repairsByBranch.map(r => r.branchId ?? ''),
-    ]);
+    const allBranchIds = new Set(branches.map(b => b.id));
     const branchPerformance = isOwner
       ? Array.from(allBranchIds)
           .filter(bid => bid) // exclude empty-string placeholder
@@ -425,12 +315,13 @@ export class DashboardService {
             const openRepairs    = branchOpenMap.get(bid) ?? 0;
             const health: 'NORMAL' | 'WARNING' | 'CRITICAL' =
               overdueRepairs > 0 ? 'CRITICAL' : openRepairs > 5 ? 'WARNING' : 'NORMAL';
+            const bm = branchMoney(bid);
             return {
               branchId:      bid,
               name:          branchMap.get(bid) ?? 'ไม่ระบุสาขา',
-              salesRevenue:  branchSalesMap.get(bid) ?? 0,
-              repairRevenue: branchRepMap.get(bid) ?? 0,
-              totalRevenue:  (branchSalesMap.get(bid) ?? 0) + (branchRepMap.get(bid) ?? 0),
+              salesRevenue:  bm.posRevenue,
+              repairRevenue: bm.repairRevenue,
+              totalRevenue:  bm.posRevenue + bm.repairRevenue,
               openRepairs,
               overdueRepairs,
               health,
@@ -444,13 +335,16 @@ export class DashboardService {
       finance: {
         totalRevenue,
         salesRevenue,
-        salesCount:    salesAgg._count.id,
+        salesCount:    money.salesCount,
+        salesRefunds:  money.posRefunds,
         repairRevenue,
-        repairCount:   repairPaymentsAgg._count.id,
+        repairCount:   money.repairPaymentCount,
+        repairDeposits:     money.repairDeposits,
+        repairDebtPayments: money.repairDebtPayments,
         packageRevenue,
-        packageCount:  packageSalesAgg._count.id,
+        packageCount:  money.packageCount,
         totalExpenses,
-        // COGS and profit — mirrors /reports/profit calculation exactly
+        // COGS and profit — same calculation as /reports/profit (common/money/period-money.ts)
         posCOGS,
         repairCOGS,
         grossProfit,
@@ -517,36 +411,19 @@ export class DashboardService {
     const tScope = this.tenantSvc.scope(tenantId);
 
     const [
-      todaySalesAgg, todayRepairAgg, todayExpensesAgg,
+      todayExpensesAgg,
       newCustomersCount,
-      monthlySalesAgg, monthlyRepairAgg, monthlyExpensesAgg,
+      monthlyExpensesAgg,
       openRepairCount, overdueRepairCount, unpaidDebtRepairs,
       outOfStockCount, lowStockResult,
       recentSales,
-      pastWeekSalesAgg,
     ] = await Promise.all([
-      this.prisma.sale.aggregate({
-        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bScope },
-        _sum: { total: true },
-      }),
-      this.prisma.repair.aggregate({
-        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID', ...bScope },
-        _sum: { paidAmount: true },
-      }),
       this.prisma.expense.aggregate({
         where: { expenseDate: { gte: todayStart, lt: todayEnd }, voidedAt: null, ...bScope },
         _sum: { amount: true },
       }),
       this.prisma.customer.count({
         where: { createdAt: { gte: todayStart, lt: todayEnd }, ...tScope },
-      }),
-      this.prisma.sale.aggregate({
-        where: { createdAt: { gte: monthStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bScope },
-        _sum: { total: true },
-      }),
-      this.prisma.repair.aggregate({
-        where: { paidAt: { gte: monthStart, lt: todayEnd }, paymentStatus: 'PAID', ...bScope },
-        _sum: { paidAmount: true },
       }),
       this.prisma.expense.aggregate({
         where: { expenseDate: { gte: monthStart, lt: todayEnd }, voidedAt: null, ...bScope },
@@ -559,8 +436,11 @@ export class DashboardService {
         where: { dueDate: { lt: now }, status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] }, ...bScope },
       }),
       this.prisma.repair.findMany({
-        where: { status: 'COMPLETED', paymentStatus: { not: 'PAID' }, ...bScope },
-        select: { finalCost: true, estimateCost: true, deposit: true },
+        where: { status: 'DELIVERED', paymentStatus: { in: ['PENDING', 'PARTIAL'] }, ...bScope },
+        select: {
+          finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
+          additionalPayments: { select: { amount: true } },
+        },
       }),
       this.prisma.product.count({ where: { isActive: true, stock: 0, ...tScope } }),
       tenantId
@@ -582,101 +462,58 @@ export class DashboardService {
           customer: { select: { name: true } },
         },
       }),
-      this.prisma.sale.aggregate({
-        where: { createdAt: { gte: weekAgoStart, lt: todayStart }, status: { not: 'VOIDED' }, ...bScope },
-        _sum: { total: true },
-      }),
     ]);
 
-    // COGS queries for today and this month (mirrors /reports/profit calculation)
-    const saleBSql: Prisma.Sql = tenantId
-      ? Prisma.sql`AND s."branchId" IN (SELECT id FROM "Branch" WHERE "tenantId" = ${tenantId})`
-      : Prisma.sql``;
-    const repairBSql: Prisma.Sql = tenantId
-      ? Prisma.sql`AND r."branchId" IN (SELECT id FROM "Branch" WHERE "tenantId" = ${tenantId})`
-      : Prisma.sql``;
+    // Same money rules as getOverview / reports (common/money/period-money.ts)
+    const moneyRows = await loadPeriodMoney(this.prisma, {
+      start: new Date(Math.min(monthStart.getTime(), weekAgoStart.getTime())), end: todayEnd,
+      branchWhere: bScope, tenantId,
+    });
+    const today   = summarizeMoney(moneyRows, (r) => r.date >= todayStart && r.date < todayEnd);
+    const monthly = summarizeMoney(moneyRows, (r) => r.date >= monthStart && r.date < todayEnd);
+    const pastWeek = summarizeMoney(moneyRows, (r) => r.date >= weekAgoStart && r.date < todayStart);
 
-    const [todayPosCOGSRow, todayRepairCOGSRow, monthlyPosCOGSRow, monthlyRepairCOGSRow] = await Promise.all([
-      this.prisma.$queryRaw<[{ cogs: number }]>(Prisma.sql`
-        SELECT COALESCE(SUM(si."costPrice"::float8 * si.quantity), 0) as cogs
-        FROM "SaleItem" si
-        JOIN "Sale" s ON s.id = si."saleId"
-        WHERE s."createdAt" >= ${todayStart} AND s."createdAt" < ${todayEnd}
-          AND s.status != 'VOIDED' ${saleBSql}
-      `),
-      this.prisma.$queryRaw<[{ parts: number; labor: number }]>(Prisma.sql`
-        SELECT
-          COALESCE(SUM(COALESCE(rp."costPrice", rp.price)::float8 * rp.quantity), 0) as parts,
-          COALESCE(SUM(r."actualLaborCost"::float8), 0)                               as labor
-        FROM "Repair" r
-        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id AND rp."isVoided" = false
-        WHERE r."paidAt" >= ${todayStart} AND r."paidAt" < ${todayEnd}
-          AND r."paymentStatus" = 'PAID' ${repairBSql}
-      `),
-      this.prisma.$queryRaw<[{ cogs: number }]>(Prisma.sql`
-        SELECT COALESCE(SUM(si."costPrice"::float8 * si.quantity), 0) as cogs
-        FROM "SaleItem" si
-        JOIN "Sale" s ON s.id = si."saleId"
-        WHERE s."createdAt" >= ${monthStart} AND s."createdAt" < ${todayEnd}
-          AND s.status != 'VOIDED' ${saleBSql}
-      `),
-      this.prisma.$queryRaw<[{ parts: number; labor: number }]>(Prisma.sql`
-        SELECT
-          COALESCE(SUM(COALESCE(rp."costPrice", rp.price)::float8 * rp.quantity), 0) as parts,
-          COALESCE(SUM(r."actualLaborCost"::float8), 0)                               as labor
-        FROM "Repair" r
-        LEFT JOIN "RepairPart" rp ON rp."repairId" = r.id AND rp."isVoided" = false
-        WHERE r."paidAt" >= ${monthStart} AND r."paidAt" < ${todayEnd}
-          AND r."paymentStatus" = 'PAID' ${repairBSql}
-      `),
-    ]);
-
-    const todayPosCOGS    = Number(todayPosCOGSRow[0]?.cogs ?? 0);
-    const todayRepairCOGS = Number(todayRepairCOGSRow[0]?.parts ?? 0) + Number(todayRepairCOGSRow[0]?.labor ?? 0);
-    const monthlyPosCOGS    = Number(monthlyPosCOGSRow[0]?.cogs ?? 0);
-    const monthlyRepairCOGS = Number(monthlyRepairCOGSRow[0]?.parts ?? 0) + Number(monthlyRepairCOGSRow[0]?.labor ?? 0);
-
-    const todaySalesRevenue  = Number(todaySalesAgg._sum.total ?? 0);
-    const todayRepairRevenue = Number(todayRepairAgg._sum.paidAmount ?? 0);
-    const todayRevenue       = todaySalesRevenue + todayRepairRevenue;
+    const todaySalesRevenue  = today.posRevenue;
+    const todayRevenue       = today.totalRevenue;
     const todayExpenses      = Number(todayExpensesAgg._sum.amount ?? 0);
-    const todayGrossProfit   = (todaySalesRevenue - todayPosCOGS) + (todayRepairRevenue - todayRepairCOGS);
+    const monthlyExpenses    = Number(monthlyExpensesAgg._sum.amount ?? 0);
 
-    const monthlySalesRevenue  = Number(monthlySalesAgg._sum.total ?? 0);
-    const monthlyRepairRevenue = Number(monthlyRepairAgg._sum.paidAmount ?? 0);
-    const monthlyRevenue       = monthlySalesRevenue + monthlyRepairRevenue;
-    const monthlyExpenses      = Number(monthlyExpensesAgg._sum.amount ?? 0);
-    const monthlyGrossProfit   = (monthlySalesRevenue - monthlyPosCOGS) + (monthlyRepairRevenue - monthlyRepairCOGS);
-
-    const unpaidDebtCount = unpaidDebtRepairs.length;
+    const unpaidDebtCount = unpaidDebtRepairs.filter((r) =>
+      Number(r.finalCost ?? r.estimateCost ?? 0) - Number(r.deposit ?? 0) - Number(r.paidAmount ?? 0)
+        - r.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0) > 0,
+    ).length;
     const lowStockCount   = Number((lowStockResult as [{ count: bigint }])[0]?.count ?? 0);
 
-    const past6DaysSalesTotal = Number(pastWeekSalesAgg._sum.total ?? 0);
+    const past6DaysSalesTotal = pastWeek.posRevenue;
     const avgDailySales       = past6DaysSalesTotal / 6;
 
     return {
       today: {
-        salesRevenue:  todaySalesRevenue,
-        repairRevenue: todayRepairRevenue,
-        totalRevenue:  todayRevenue,
-        posCOGS:       todayPosCOGS,
-        repairCOGS:    todayRepairCOGS,
-        totalCOGS:     todayPosCOGS + todayRepairCOGS,
-        grossProfit:   todayGrossProfit,
+        salesRevenue:  today.posRevenue,
+        salesRefunds:  today.posRefunds,
+        repairRevenue: today.repairRevenue,
+        packageRevenue: today.packageProfit,
+        totalRevenue:  today.totalRevenue,
+        posCOGS:       today.posCOGS,
+        repairCOGS:    today.repairCOGS,
+        totalCOGS:     today.posCOGS + today.repairCOGS,
+        grossProfit:   today.grossProfit,
         totalExpenses: todayExpenses,
-        netProfit:     todayGrossProfit - todayExpenses,
+        netProfit:     today.grossProfit - todayExpenses,
         newCustomers:  newCustomersCount,
       },
       monthly: {
-        salesRevenue:  monthlySalesRevenue,
-        repairRevenue: monthlyRepairRevenue,
-        totalRevenue:  monthlyRevenue,
-        posCOGS:       monthlyPosCOGS,
-        repairCOGS:    monthlyRepairCOGS,
-        totalCOGS:     monthlyPosCOGS + monthlyRepairCOGS,
-        grossProfit:   monthlyGrossProfit,
+        salesRevenue:  monthly.posRevenue,
+        salesRefunds:  monthly.posRefunds,
+        repairRevenue: monthly.repairRevenue,
+        packageRevenue: monthly.packageProfit,
+        totalRevenue:  monthly.totalRevenue,
+        posCOGS:       monthly.posCOGS,
+        repairCOGS:    monthly.repairCOGS,
+        totalCOGS:     monthly.posCOGS + monthly.repairCOGS,
+        grossProfit:   monthly.grossProfit,
         totalExpenses: monthlyExpenses,
-        netProfit:     monthlyGrossProfit - monthlyExpenses,
+        netProfit:     monthly.grossProfit - monthlyExpenses,
       },
       recentSales: recentSales.map(s => ({
         id:            s.id,
