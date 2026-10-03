@@ -182,7 +182,7 @@ function OverviewTab({ tenant }: { tenant: Tenant }) {
         {tenant.notes && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
             <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-2">หมายเหตุ</p>
-            <p className="text-slate-300 text-sm leading-relaxed">{tenant.notes}</p>
+            <TenantNotes notes={tenant.notes} />
           </div>
         )}
       </div>
@@ -535,6 +535,40 @@ function ActivityTab({ tenantId }: { tenantId: string }) {
   )
 }
 
+// Shops that signed up themselves store their signup choices as JSON in notes
+const BUSINESS_TYPE_LABEL: Record<string, string> = {
+  mobile_repair: 'ร้านซ่อมมือถือ',
+  mobile_shop:   'ร้านขายมือถือ',
+  both:          'ขายและซ่อมมือถือ',
+  accessories:   'ร้านอุปกรณ์มือถือ',
+}
+
+function TenantNotes({ notes }: { notes: string }) {
+  let signup: { businessType?: string | null; themeColor?: string | null; themePreset?: string | null } | null = null
+  try {
+    const parsed = JSON.parse(notes)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) signup = parsed
+  } catch { /* plain text note */ }
+
+  if (!signup) return <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">{notes}</p>
+
+  return (
+    <div className="space-y-1 text-sm text-slate-300">
+      <p>
+        <span className="text-slate-500">ประเภทธุรกิจ: </span>
+        {signup.businessType ? BUSINESS_TYPE_LABEL[signup.businessType] ?? signup.businessType : '—'}
+      </p>
+      <p className="flex items-center gap-1.5">
+        <span className="text-slate-500">ธีมที่เลือกตอนสมัคร: </span>
+        {signup.themeColor && /^#[0-9a-f]{3,8}$/i.test(signup.themeColor) && (
+          <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: signup.themeColor }} />
+        )}
+        {signup.themePreset === 'dark' ? 'โหมดมืด' : signup.themePreset === 'light' ? 'โหมดสว่าง' : signup.themePreset ?? '—'}
+      </p>
+    </div>
+  )
+}
+
 // ── Tab: Settings ─────────────────────────────────────────────────────────────
 
 function TenantSettingsTab({ tenant }: { tenant: Tenant }) {
@@ -559,7 +593,7 @@ function TenantSettingsTab({ tenant }: { tenant: Tenant }) {
       {tenant.notes && (
         <div>
           <p className="text-slate-500 text-xs mb-1">Notes</p>
-          <p className="text-slate-300 text-sm">{tenant.notes}</p>
+          <TenantNotes notes={tenant.notes} />
         </div>
       )}
     </div>
