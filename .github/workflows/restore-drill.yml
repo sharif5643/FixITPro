@@ -76,6 +76,13 @@ jobs:
             pg=$(docker ps --format "{{.Names}}" | grep "^postgres-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
             echo "shops with LINE notify on | customers linked to LINE:"
             [ -n "$pg" ] && docker exec "$pg" psql -U fixitpro -d fixitpro -Atc "SELECT COUNT(*) FILTER (WHERE \"lineNotifyEnabled\"), (SELECT COUNT(*) FROM \"Customer\" WHERE \"lineUserId\" IS NOT NULL) FROM \"ShopSettings\"" || true
+            echo "--- backend containers and their volumes (all, incl. stopped) ---"
+            for c in $(docker ps -a --format "{{.Names}}" | grep -i backend); do
+              echo "$c: $(docker inspect -f "{{.State.Status}} created={{.Created}}" "$c")"
+              docker inspect -f "{{range .Mounts}}  {{.Destination}} <- {{.Name}}{{.Source}}{{println}}{{end}}" "$c"
+            done
+            echo "--- docker volumes for uploads/backups ---"
+            docker volume ls --format "{{.Name}}" | grep -iE "upload|backup" || true
             echo "--- in-app nightly backup (backend container, /app/backups) ---"
             for c in $(docker ps --format "{{.Names}}" | grep -i backend); do
               echo "container: $c"
