@@ -22,6 +22,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import generatePayload from 'promptpay-qr'
 import { formatThaiMoney, cn, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/auth.store'
 import type { Sale, SerialNumber, PaymentMethod, ShopSettings } from '@/types'
 import type { CartItem } from '@/store/cart.store'
 
@@ -266,6 +267,20 @@ export function CheckoutDialog({
     staleTime: 5 * 60_000,
   })
 
+  // ── Seller (sale commission) ──────────────────────────────────────────────
+  // Shown only when the shop pays sale commission and the cart has items that count
+  const { data: sellerInfo } = useQuery<{ enabled: boolean; scope: 'PHONE' | 'ALL'; sellers: { id: string; name: string }[] }>({
+    queryKey: ['commission-sellers'],
+    queryFn: async () => (await api.get('/commission/sellers')).data,
+    enabled: open,
+    staleTime: 60_000,
+  })
+  const [sellerId, setSellerId] = useState('')
+  const myId = useAuthStore((s) => s.user?.id)
+  const otherSellers = (sellerInfo?.sellers ?? []).filter((s) => s.id !== myId)
+  const showSeller = !!sellerInfo?.enabled && otherSellers.length > 0
+    && cartItems.some((i) => sellerInfo.scope === 'ALL' || i.product.type === 'PHONE')
+
   // ── Split payment state ───────────────────────────────────────────────────
   const [splitMode, setSplitMode]     = useState(false)
   const [leg1Method, setLeg1Method]   = useState<PaymentMethod>('CASH')
@@ -315,6 +330,7 @@ export function CheckoutDialog({
         customerPhone: initialCustomerPhone ?? '',
         note:          '',
       })
+      setSellerId('')
 
       // Reset split-mode state
       setSplitMode(false)
@@ -343,6 +359,7 @@ export function CheckoutDialog({
         customerPhone: data.customerPhone?.trim() || undefined,
         discount,
         note:          data.note?.trim() || undefined,
+        sellerId:      showSeller && sellerId ? sellerId : undefined,
         shiftId:       shiftId ?? undefined,
         branchId:      branchId ?? undefined,
         items: cartItems.map((i) => ({
@@ -631,6 +648,21 @@ export function CheckoutDialog({
                 <Input placeholder="0XX-XXX-XXXX" {...register('customerPhone')} />
               </div>
             </div>
+
+            {showSeller && (
+              <div className="space-y-1.5">
+                <Label htmlFor="checkout-seller">พนักงานขาย (รับค่าคอม)</Label>
+                <select
+                  id="checkout-seller"
+                  value={sellerId}
+                  onChange={(e) => setSellerId(e.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">ฉันเอง (คนที่กดขาย)</option>
+                  {otherSellers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            )}
 
             {/* Note */}
             <div className="space-y-1.5">

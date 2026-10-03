@@ -106,7 +106,7 @@ export class UpdateSettingsDto {
   promptpayId?: string;
 
   @IsOptional()
-  @IsIn(['NONE', 'PERCENT_TOTAL', 'PERCENT_LABOR', 'FIXED'])
+  @IsIn(['NONE', 'PERCENT_TOTAL', 'PERCENT_LABOR', 'FIXED', 'BY_TYPE'])
   techCommissionType?: string;
 
   @IsOptional()

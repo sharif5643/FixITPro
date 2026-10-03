@@ -56,6 +56,11 @@ export class CreateSaleDto {
   @IsString()
   customerId?: string;
 
+  /** Staff member who made the sale, when not the person at the till (sale commission) */
+  @IsOptional()
+  @IsString()
+  sellerId?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)

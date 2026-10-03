@@ -83,7 +83,7 @@ const SHOP_SECTIONS: NavSection[] = [
   ]},
   { key: 'team', label: 'ทีมงาน', open: false, items: [
     { href: '/technicians', icon: HardHat,     label: 'ประสิทธิภาพช่าง', permission: 'technician.view' },
-    { href: '/technicians/commission', icon: Coins,     label: 'ค่าคอมช่าง', permission: 'reports.view' },
+    { href: '/technicians/commission', icon: Coins,     label: 'ค่าคอมมิชชั่น', permission: 'reports.view' },
     { href: '/employees',   icon: UserCog,     label: 'พนักงาน',          ownerOnly: true, module: 'user_management' },
     { href: '/roles',       icon: ShieldAlert, label: 'สิทธิ์การใช้งาน', ownerOnly: true, module: 'user_management' },
     { href: '/branches',    icon: GitBranch,   label: 'สาขา',             permission: 'branches.manage', ownerOnly: true, module: 'user_management' },
