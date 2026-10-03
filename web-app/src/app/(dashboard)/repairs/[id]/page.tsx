@@ -230,10 +230,10 @@ function RepairsContent() {
 
   // ── List view — app style ─────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] -m-4 sm:-m-6 lg:-m-8 pb-10">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] -m-4 sm:-m-6 pb-10">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-[#1E293B] px-5 pb-4 pt-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] border-b border-transparent dark:border-slate-700/60 sticky top-0 z-10">
+      <div className="bg-white dark:bg-[#1E293B] px-5 pb-4 pt-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] border-b border-transparent dark:border-slate-700/60 sticky -top-4 sm:-top-6 z-10">
         <div className="flex items-center gap-2 mb-4">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-[#111]">งานซ่อม</h1>
