@@ -78,8 +78,10 @@ export class LineMessagingService {
     tenantId: string | null,
   ): Promise<void> {
     try {
+      // Only the repair's own shop: without a tenant this used to pick any shop's LINE settings.
+      if (!tenantId) return;
       const settings = await this.prisma.shopSettings.findFirst({
-        where: tenantId ? { tenantId } : {},
+        where: { tenantId },
         select: { lineChannelAccessToken: true, lineNotifyEnabled: true, shopName: true },
       });
 

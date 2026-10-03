@@ -7,8 +7,8 @@ import {
   Res,
   UseGuards,
   HttpCode,
-  ForbiddenException,
-} from '@nestjs/common';
+  ForbiddenException, UseInterceptors } from '@nestjs/common';
+import { SuperAdminAuditInterceptor } from '../super-admin/super-admin-audit.interceptor';
 import { IsArray, ArrayNotEmpty, IsString, IsNotEmpty, IsBoolean, IsIn } from 'class-validator';
 import { Response } from 'express';
 import { TenantBackupService } from './tenant-backup.service';
@@ -48,6 +48,7 @@ class StartRestoreDto {
 
 @Controller('super-admin/backups')
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(SuperAdminAuditInterceptor)
 export class TenantBackupController {
   constructor(
     private readonly backupSvc: TenantBackupService,

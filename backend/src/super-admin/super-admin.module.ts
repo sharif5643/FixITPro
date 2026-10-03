@@ -17,6 +17,7 @@ import { DataRepairController } from './data-repair/data-repair.controller';
 import { DataRepairService } from './data-repair/data-repair.service';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { PlanLimitsModule } from '../plan-limits/plan-limits.module';
+import { SuperAdminAuditInterceptor } from './super-admin-audit.interceptor';
 
 @Module({
   imports: [AuditLogModule, PlanLimitsModule],
@@ -31,6 +32,7 @@ import { PlanLimitsModule } from '../plan-limits/plan-limits.module';
     DataRepairController,
   ],
   providers: [
+    SuperAdminAuditInterceptor,
     TenantsService,
     PaymentsService,
     BranchesService,

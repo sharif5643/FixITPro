@@ -15,6 +15,8 @@ const mockPrisma = {
   shopSettings: {
     findFirst: jest.fn(),
     upsert: jest.fn(),
+    update: jest.fn(),
+    create: jest.fn(),
   },
 };
 
@@ -66,22 +68,24 @@ describe('SettingsService', () => {
   });
 
   describe('updateSettings', () => {
-    it('calls upsert with correct data', async () => {
-      mockPrisma.shopSettings.upsert.mockResolvedValue({ ...mockShop, shopPhone: '08-000-0000' });
-
+    it('reads and updates the platform row (no tenant), never a shop\'s row', async () => {
+      mockPrisma.shopSettings.findFirst.mockResolvedValue({ ...mockShop, id: 7 });
       await service.updateSettings({ shopPhone: '08-000-0000' });
-
-      expect(mockPrisma.shopSettings.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 1 },
-          update: expect.objectContaining({ shopPhone: '08-000-0000' }),
-        }),
+      expect(mockPrisma.shopSettings.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tenantId: null } }),
       );
+      expect(mockPrisma.shopSettings.update).toHaveBeenCalledWith({
+        where: { id: 7 }, data: expect.objectContaining({ shopPhone: '08-000-0000' }),
+      });
+      expect(mockPrisma.shopSettings.upsert).not.toHaveBeenCalled();
     });
 
-    it('returns updated settings', async () => {
-      mockPrisma.shopSettings.upsert.mockResolvedValue(mockShop);
+    it('creates the platform row (tenantId null) when there is none', async () => {
+      mockPrisma.shopSettings.findFirst.mockResolvedValueOnce(null).mockResolvedValue(mockShop);
       const result = await service.updateSettings({ shopName: 'NewName' });
+      expect(mockPrisma.shopSettings.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ tenantId: null, shopName: 'NewName' }),
+      });
       expect(result.shop).not.toBeNull();
     });
   });
