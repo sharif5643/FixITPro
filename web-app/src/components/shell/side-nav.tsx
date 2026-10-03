@@ -145,6 +145,8 @@ const ROLE_LABEL: Record<string, string> = {
   CASHIER: 'แคชเชียร์', TECHNICIAN: 'ช่างซ่อม', STOCK_STAFF: 'พนักงานสต็อก',
 }
 
+type GroupRef = Pick<NavSection, 'key' | 'label' | 'open'>
+const PINS_SECTION: GroupRef = { key: 'pins', label: 'ใช้บ่อย', open: true }
 const MAX_PINS = 6
 
 // localStorage can throw (private mode, blocked storage) — every access is best-effort.
@@ -203,19 +205,19 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
     return true
   }
 
-  // Remembered open/closed groups; a group holding the current page is always open.
+  // Remembered open/closed groups. The user's choice always wins, even for the group holding the
+  // current page (a closed group shows a dot instead).
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [pins, setPins] = useState<string[]>([])
   useEffect(() => {
     setOpenGroups(readJson('fi-nav-groups', {}))
     setPins(readJson(pinsKey, []))
   }, [pinsKey])
-  function isOpen(section: NavSection) {
+  function isOpen(section: GroupRef) {
     if (!section.label) return true
-    if (section.items.some((i) => isVisible(i) && isActive(i))) return true
     return openGroups[section.key] ?? section.open ?? true
   }
-  function toggleGroup(section: NavSection) {
+  function toggleGroup(section: GroupRef) {
     const next = { ...openGroups, [section.key]: !isOpen(section) }
     setOpenGroups(next)
     writeJson('fi-nav-groups', next)
@@ -226,6 +228,7 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
     writeJson(pinsKey, next)
   }
 
+  const pinsOpen = isOpen(PINS_SECTION)
   const pinnedItems = canPin
     ? pins.map((href) => allVisible.find((i) => i.href === href)).filter((i): i is NavItem => !!i)
     : []
@@ -280,6 +283,7 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
     const visible = section.items.filter(isVisible)
     if (visible.length === 0) return null
     const open = isOpen(section)
+    const holdsActive = !open && visible.some(isActive)
     return (
       <div key={section.key} className="mb-0.5">
         {section.label && !collapsed && (
@@ -289,7 +293,10 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
             aria-expanded={open}
             className="mx-3 mt-4 mb-1 flex w-[calc(100%-1.5rem)] items-center justify-between rounded-lg px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 select-none">{section.label}</span>
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 select-none">
+              {section.label}
+              {holdsActive && <span className="h-1.5 w-1.5 rounded-full bg-blue-600" aria-label="หน้าปัจจุบันอยู่ในกลุ่มนี้" />}
+            </span>
             {open
               ? <ChevronDown  className="h-3.5 w-3.5 text-slate-400" />
               : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
@@ -309,12 +316,24 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
       {pinnedItems.length > 0 && (
         <div className="mb-0.5">
           {!collapsed && (
-            <p className="mx-4 mt-4 mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 select-none">
-              <Star className="h-3 w-3 fill-current" />ใช้บ่อย
-            </p>
+            <button
+              type="button"
+              onClick={() => toggleGroup(PINS_SECTION)}
+              aria-expanded={pinsOpen}
+              className="mx-3 mt-4 mb-1 flex w-[calc(100%-1.5rem)] items-center justify-between rounded-lg px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            >
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 select-none">
+                <Star className="h-3 w-3 fill-current" />ใช้บ่อย
+              </span>
+              {pinsOpen
+                ? <ChevronDown  className="h-3.5 w-3.5 text-slate-400" />
+                : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
+            </button>
           )}
           {collapsed && <div className="mx-3 my-2 border-t border-slate-100 dark:border-slate-700/60" />}
-          <div className="px-2 space-y-0.5">{pinnedItems.map((item) => renderItem(item, 'pin-'))}</div>
+          {(pinsOpen || collapsed) && (
+            <div className="px-2 space-y-0.5">{pinnedItems.map((item) => renderItem(item, 'pin-'))}</div>
+          )}
         </div>
       )}
       {sections.slice(1).map(renderSection)}
