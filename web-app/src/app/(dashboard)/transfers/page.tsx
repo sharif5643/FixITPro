@@ -54,7 +54,7 @@ function getDialogConfig(kind: ActionKind): {
     }
     case 'receive':  return {
       title:       'ยืนยันรับสินค้า',
-      description: 'เมื่อกดยืนยัน ระบบจะเพิ่มสต๊อกเข้าสาขาปลายทางและลดสต๊อกจากสาขาต้นทาง',
+      description: 'เมื่อกดยืนยัน ระบบจะเพิ่มสต็อกเข้าสาขาปลายทางและลดสต็อกจากสาขาต้นทาง',
       icon:        PackageCheck,
       variant:     'success' as const,
       confirmLabel:'รับสินค้าแล้ว',
@@ -228,7 +228,7 @@ function TransfersContent() {
       invalidate()
       qc.invalidateQueries({ queryKey: ['branch-stock'] })
       qc.invalidateQueries({ queryKey: ['products'] })
-      toast.success('รับสินค้าแล้ว สต๊อกถูกอัปเดตเรียบร้อย')
+      toast.success('รับสินค้าแล้ว สต็อกถูกอัปเดตเรียบร้อย')
       closeDialog()
     },
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
@@ -280,7 +280,7 @@ function TransfersContent() {
   return (
     <div className="max-w-5xl space-y-5">
       <PageHeader
-        title="โอนสต๊อก"
+        title="โอนสต็อก"
         icon={ArrowRightLeft}
         subtitle="จัดการคำขอโอนสินค้าระหว่างสาขา"
       />

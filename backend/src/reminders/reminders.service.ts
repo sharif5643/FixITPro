@@ -386,7 +386,7 @@ export class RemindersService implements OnModuleInit {
       id:         `transfer-pending-${t.id}`,
       type:       'TRANSFER_PENDING',
       severity,
-      title:      `รอการอนุมัติโอนสต๊อก: ${t.transferNumber}`,
+      title:      `รอการอนุมัติโอนสต็อก: ${t.transferNumber}`,
       message:    `${t.product?.name ?? '?'} × ${t.quantity} — ${t.toBranch?.name ?? '?'} ขอมา · ${this.ageLabel(ageMin)}`,
       entityType: 'StockTransfer',
       entityId:   t.id,

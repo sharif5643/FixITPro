@@ -43,7 +43,7 @@ function getDialogConfig(kind: ActionKind): DialogConfig {
     }
     case 'receive':  return {
       title: 'ยืนยันรับสินค้า',
-      description: 'เมื่อกดยืนยัน ระบบจะเพิ่มสต๊อกเข้าสาขาปลายทางและลดสต๊อกจากสาขาต้นทาง',
+      description: 'เมื่อกดยืนยัน ระบบจะเพิ่มสต็อกเข้าสาขาปลายทางและลดสต็อกจากสาขาต้นทาง',
       variant: 'success', confirmLabel: 'รับสินค้าแล้ว',
     }
     case 'cancel':   return {
@@ -163,8 +163,8 @@ describe('Confirm calls the correct mutation', () => {
 
   it('reject action calls rejectMut with reason', () => {
     const muts = makeMuts()
-    handleConfirm('reject', 'ไม่มีสต๊อก', muts)
-    expect(muts.reject).toHaveBeenCalledWith('ไม่มีสต๊อก')
+    handleConfirm('reject', 'ไม่มีสต็อก', muts)
+    expect(muts.reject).toHaveBeenCalledWith('ไม่มีสต็อก')
   })
 
   it('cancel action calls cancelMut with reason', () => {
@@ -199,7 +199,7 @@ describe('Reject requireReason validation', () => {
   })
 
   it('confirm button enabled when reason has content', () => {
-    expect(isConfirmDisabled(false, true, 'ไม่มีสต๊อก')).toBe(false)
+    expect(isConfirmDisabled(false, true, 'ไม่มีสต็อก')).toBe(false)
   })
 
   it('confirm button also disabled when loading regardless of reason', () => {
@@ -218,8 +218,8 @@ describe('Receive dialog text warns about stock movement', () => {
   })
 
   it('description mentions stock increase and decrease', () => {
-    expect(cfg.description).toContain('เพิ่มสต๊อก')
-    expect(cfg.description).toContain('ลดสต๊อก')
+    expect(cfg.description).toContain('เพิ่มสต็อก')
+    expect(cfg.description).toContain('ลดสต็อก')
   })
 
   it('variant is success', () => {

@@ -65,6 +65,15 @@ Shared-vs-tenant tables:
 Refunds/exchanges: `SalesService.lockAndValidateRefund` locks the sale row and caps refund price per unit at what the
 customer paid (line total / qty) and total refunds at the bill total. The UI default comes from `web-app/src/lib/refund.ts`.
 
+## Money on dashboards and reports
+
+`backend/src/common/money/period-money.ts` is the single definition used by `/dashboard/overview`,
+`/dashboard/owner-summary`, `/reports/profit` and `/reports/daily-closing`:
+POS = bill totals (after discounts) − refunds paid in the period, cost minus refunded items;
+repairs = money received (deposit at intake, payment at pickup incl. partial, later debt
+payments); packages count their profit; cash/transfer split from payment legs.
+Covered by `test/money-consistency.e2e-spec.ts` (all screens must equal shift expected cash).
+
 ## Carrier wallet / package sales
 
 - One `CarrierWallet` per (tenantId, carrier) — created on first use. Movement types: OPENING / TOPUP / DEDUCTION / ADJUSTMENT.

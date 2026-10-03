@@ -678,7 +678,7 @@ export default function ProfitReportPage() {
                   <p className="font-semibold text-orange-700">− {formatThaiMoney(data.expenses.total)}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500 text-xs">Net Margin</p>
+                  <p className="text-slate-500 text-xs">อัตรากำไรสุทธิ</p>
                   <p className={`font-semibold ${netPositive ? 'text-green-700' : 'text-red-700'}`}>
                     {data.summary.netMargin.toFixed(1)}%
                   </p>

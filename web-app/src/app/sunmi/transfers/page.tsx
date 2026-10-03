@@ -41,7 +41,7 @@ function getDialogConfig(kind: ActionKind) {
     }
     case 'receive':  return {
       title: 'ยืนยันรับสินค้า',
-      description: 'เมื่อกดยืนยัน ระบบจะเพิ่มสต๊อกเข้าสาขาปลายทางและลดสต๊อกจากสาขาต้นทาง',
+      description: 'เมื่อกดยืนยัน ระบบจะเพิ่มสต็อกเข้าสาขาปลายทางและลดสต็อกจากสาขาต้นทาง',
       icon: PackageCheck, variant: 'success' as const, confirmLabel: 'รับสินค้าแล้ว',
     }
     case 'cancel':   return {
@@ -139,7 +139,7 @@ export default function SunmiTransfersPage() {
     onSuccess: () => {
       invalidate()
       qc.invalidateQueries({ queryKey: ['products'] })
-      toast.success('รับสินค้าแล้ว สต๊อกถูกอัปเดตเรียบร้อย')
+      toast.success('รับสินค้าแล้ว สต็อกถูกอัปเดตเรียบร้อย')
       closeDialog()
     },
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),

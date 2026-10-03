@@ -50,7 +50,7 @@ const REMINDER_TYPE_LABEL: Record<string, string> = {
   VIP_REPAIR:            'VIP',
   URGENT_REPAIR:         'งานด่วน',
   PARTS_REQUEST_PENDING: 'รอชิ้นส่วน',
-  TRANSFER_PENDING:      'รอโอนสต๊อก',
+  TRANSFER_PENDING:      'รอโอนสต็อก',
   PICKUP_WAITING:        'รอรับเครื่อง',
 }
 
@@ -266,7 +266,7 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
       qc.invalidateQueries({ queryKey: ['stock-transfers'] })
       qc.invalidateQueries({ queryKey: ['operational-alerts'] })
       qc.invalidateQueries({ queryKey: ['products'] })
-      toast.success('รับสินค้าแล้ว สต๊อกถูกอัปเดตเรียบร้อย')
+      toast.success('รับสินค้าแล้ว สต็อกถูกอัปเดตเรียบร้อย')
       setQuickAction(null)
       dismiss(id, 'WARNING')
     },
@@ -514,7 +514,7 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
             description={
               quickAction.kind === 'approve'
                 ? 'ต้องการอนุมัติให้สาขาต้นทางจัดส่งสินค้านี้หรือไม่?'
-                : 'เมื่อกดยืนยัน ระบบจะเพิ่มสต๊อกเข้าสาขาปลายทางและลดสต๊อกจากสาขาต้นทาง'
+                : 'เมื่อกดยืนยัน ระบบจะเพิ่มสต็อกเข้าสาขาปลายทางและลดสต็อกจากสาขาต้นทาง'
             }
             variant={quickAction.kind === 'receive' ? 'success' : 'info'}
             confirmLabel={quickAction.kind === 'approve' ? 'อนุมัติ' : 'รับสินค้าแล้ว'}
@@ -648,7 +648,7 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
           description={
             quickAction.kind === 'approve'
               ? 'ต้องการอนุมัติให้สาขาต้นทางจัดส่งสินค้านี้หรือไม่?'
-              : 'เมื่อกดยืนยัน ระบบจะเพิ่มสต๊อกเข้าสาขาปลายทางและลดสต๊อกจากสาขาต้นทาง'
+              : 'เมื่อกดยืนยัน ระบบจะเพิ่มสต็อกเข้าสาขาปลายทางและลดสต็อกจากสาขาต้นทาง'
           }
           variant={quickAction.kind === 'receive' ? 'success' : 'info'}
           confirmLabel={quickAction.kind === 'approve' ? 'อนุมัติ' : 'รับสินค้าแล้ว'}

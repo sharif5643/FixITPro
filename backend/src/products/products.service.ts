@@ -99,7 +99,7 @@ export class ProductsService {
 
     // Block OWNER in global mode trying to create product with stock
     if (isPrivileged && !effectiveBranchId && initialStock > 0) {
-      throw new BadRequestException('กรุณาเลือกสาขาก่อนเพิ่มสต๊อกสินค้า');
+      throw new BadRequestException('กรุณาเลือกสาขาก่อนเพิ่มสต็อกสินค้า');
     }
 
     // Verify branch belongs to this tenant before assigning stock

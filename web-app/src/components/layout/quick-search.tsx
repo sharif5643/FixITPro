@@ -17,7 +17,7 @@ const NAV_ITEMS = [
   { href: '/products',               label: 'สินค้า',                section: 'สินค้า' },
   { href: '/categories',             label: 'หมวดหมู่สินค้า',         section: 'สินค้า' },
   { href: '/barcode-print',          label: 'พิมพ์ Barcode',          section: 'สินค้า' },
-  { href: '/transfers',              label: 'โอนสต๊อก',              section: 'สินค้า' },
+  { href: '/transfers',              label: 'โอนสต็อก',              section: 'สินค้า' },
   { href: '/customers',              label: 'ลูกค้า',                section: 'ลูกค้า' },
   { href: '/debt',                   label: 'หนี้ค้างชำระ',           section: 'ลูกค้า' },
   { href: '/reports/daily-closing',  label: 'รายงานปิดวัน',          section: 'รายงาน' },
@@ -38,7 +38,7 @@ const NAV_ITEMS = [
   { href: '/backup',                 label: 'Backup ข้อมูล',          section: 'จัดการ' },
   { href: '/audit-logs',             label: 'ประวัติกิจกรรม',         section: 'จัดการ' },
   { href: '/settings',               label: 'ตั้งค่า',               section: 'จัดการ' },
-  { href: '/subscription',           label: 'Subscription',           section: 'จัดการ' },
+  { href: '/subscription',           label: 'แพ็กเกจ / ต่ออายุ',      section: 'จัดการ' },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────

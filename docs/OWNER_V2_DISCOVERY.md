@@ -96,7 +96,7 @@
 
 ## 2. Current Menu Structure
 
-Source: `src/components/layout/sidebar.tsx`
+Source: `src/components/shell/side-nav.tsx` (the old `components/layout/sidebar.tsx` was removed 2026-10)
 
 ### 2.1 Desktop Sidebar (w=60, dark slate, fixed left)
 
