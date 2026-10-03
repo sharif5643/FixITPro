@@ -51,7 +51,10 @@ export class LineWebhookController {
         throw new UnauthorizedException('Invalid LINE signature');
       }
     } else {
-      this.logger.warn('LINE_CHANNEL_SECRET not set — webhook signature verification disabled');
+      // Fail closed: without the secret anyone could post fake events and link a LINE account
+      // to any customer's phone number, then receive that customer's repair updates.
+      this.logger.warn('LINE_CHANNEL_SECRET not set — webhook events rejected');
+      throw new UnauthorizedException('LINE webhook is not configured');
     }
 
     const events = body.events ?? [];
