@@ -34,7 +34,15 @@ const RepairDetailDialog = dynamic(
 // ── Config ────────────────────────────────────────────────────────────────────
 
 // Labels come from REPAIR_LABEL so the filter chips and the status badges say the same thing.
-const FILTER_TABS: Array<{ value: RepairStatus | 'ALL'; dot?: string }> = [
+// 'ACTIVE' (the default) hides jobs that are finished: handed back or cancelled.
+type StatusFilter = RepairStatus | 'ALL' | 'ACTIVE'
+const CLOSED_STATUSES: string[] = ['DELIVERED', 'CANCELLED']
+const FILTER_TAB_LABEL: Record<string, string> = { ACTIVE: 'งานค้าง', ALL: 'ทั้งหมด' }
+const parseFilter = (s: string | null): StatusFilter =>
+  s && FILTER_TABS.some(t => t.value === s) ? (s as StatusFilter) : 'ACTIVE'
+
+const FILTER_TABS: Array<{ value: StatusFilter; dot?: string }> = [
+  { value: 'ACTIVE' },
   { value: 'ALL' },
   { value: 'RECEIVED',         dot: 'bg-blue-500'    },
   { value: 'DIAGNOSING',       dot: 'bg-yellow-500'  },
@@ -63,10 +71,7 @@ function RepairsContent() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
 
-  const [statusFilter, setStatusFilter] = useState<RepairStatus | 'ALL'>(() => {
-    const s = searchParams.get('status')
-    return s && FILTER_TABS.some(t => t.value === s) ? (s as RepairStatus | 'ALL') : 'ALL'
-  })
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => parseFilter(searchParams.get('status')))
 
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedRepairId, setSelectedRepairId] = useState<string | null>(null)
@@ -87,9 +92,7 @@ function RepairsContent() {
 
   // Sync status filter whenever the URL query string changes (back/forward, sidebar links)
   useEffect(() => {
-    const s = searchParams.get('status')
-    const next = s && FILTER_TABS.some(t => t.value === s) ? (s as RepairStatus | 'ALL') : 'ALL'
-    setStatusFilter(next)
+    setStatusFilter(parseFilter(searchParams.get('status')))
   }, [searchParams])
 
   // Open QR scanner when ?scan=1
@@ -119,14 +122,19 @@ function RepairsContent() {
   })
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { ALL: repairs.length }
-    repairs.forEach((r) => { counts[r.status] = (counts[r.status] ?? 0) + 1 })
+    const counts: Record<string, number> = { ALL: repairs.length, ACTIVE: 0 }
+    repairs.forEach((r) => {
+      counts[r.status] = (counts[r.status] ?? 0) + 1
+      if (!CLOSED_STATUSES.includes(r.status)) counts.ACTIVE += 1
+    })
     return counts
   }, [repairs])
 
   const filtered = useMemo(() => {
     let list = repairs
-    if (statusFilter !== 'ALL') list = list.filter((r) => r.status === statusFilter)
+    // Searching looks through finished jobs too (a customer asking about an old repair)
+    if (statusFilter === 'ACTIVE') { if (!search.trim()) list = list.filter((r) => !CLOSED_STATUSES.includes(r.status)) }
+    else if (statusFilter !== 'ALL') list = list.filter((r) => r.status === statusFilter)
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter((r) =>
@@ -319,7 +327,7 @@ function RepairsContent() {
           {FILTER_TABS.map((tab) => {
             const count = statusCounts[tab.value] ?? 0
             const active = statusFilter === tab.value
-            if (tab.value !== 'ALL' && count === 0) return null
+            if (tab.value !== 'ALL' && tab.value !== 'ACTIVE' && count === 0) return null
             return (
               <button
                 key={tab.value}
@@ -332,7 +340,7 @@ function RepairsContent() {
                 {tab.dot && !active && (
                   <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', tab.dot)} />
                 )}
-                {tab.value === 'ALL' ? 'ทั้งหมด' : REPAIR_LABEL[tab.value]}
+                {FILTER_TAB_LABEL[tab.value] ?? REPAIR_LABEL[tab.value]}
                 <span className={cn(
                   'inline-flex items-center justify-center min-w-[16px] h-4 rounded-full px-1 text-[10px] font-bold',
                   active ? 'bg-[#111]/10 text-[#111]' : 'bg-slate-200 text-slate-500',
