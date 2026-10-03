@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { RepairsService } from './repairs.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { WarrantiesService } from '../warranties/warranties.service';
@@ -74,6 +75,7 @@ describe('RepairsService — Workflow tests (RC1)', () => {
         { provide: LineMessagingService,      useValue: lineMsg },
         { provide: AccountingService,         useValue: accounting },
         { provide: RepairAccountingAdapter,   useValue: repairAccounting },
+        { provide: NotificationsService,      useValue: { notify: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
 

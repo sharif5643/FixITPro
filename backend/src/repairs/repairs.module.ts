@@ -10,9 +10,10 @@ import { LineMessagingModule } from '../line-messaging/line-messaging.module';
 import { AccountingModule } from '../accounting/accounting.module';
 import { PlanLimitsModule } from '../plan-limits/plan-limits.module';
 import { JournalModule } from '../journal/journal.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports:     [AuditLogModule, WarrantiesModule, LineMessagingModule, AccountingModule, PlanLimitsModule, JournalModule],
+  imports:     [AuditLogModule, WarrantiesModule, LineMessagingModule, AccountingModule, PlanLimitsModule, JournalModule, NotificationsModule],
   controllers: [RepairsController],
   providers:   [RepairsService, RepairAccountingAdapter, TenantActiveGuard, PermissionGuard],
   exports:     [RepairsService],

@@ -1434,8 +1434,12 @@ model Notification {
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  // Set when the notification is for one person only (e.g. a technician's new job)
+  userId String?
+
   @@index([isRead, createdAt])
   @@index([type, entityId])
+  @@index([userId])
   @@index([createdAt])
   @@index([branchId])
   @@index([tenantId])
