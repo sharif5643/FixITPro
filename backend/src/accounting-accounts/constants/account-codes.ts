@@ -3,6 +3,7 @@ export const ACCOUNT_CODES = {
   CASH:           '1100',
   BANK:           '1110',
   CLEARING:       '1120',
+  CARRIER_WALLET: '1130',
   REPAIR_AR:      '1200',
   OTHER_AR:       '1210',
   INVENTORY:      '1300',

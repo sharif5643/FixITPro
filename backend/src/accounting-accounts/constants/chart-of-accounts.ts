@@ -13,6 +13,7 @@ export const CHART_OF_ACCOUNTS_TEMPLATE: readonly AccountTemplate[] = [
   { code: '1100', nameTh: 'เงินสดในมือ',            name: 'Cash on Hand',             type: 'ASSET',     sortOrder: 10  },
   { code: '1110', nameTh: 'เงินฝากธนาคาร',           name: 'Bank Deposit',             type: 'ASSET',     sortOrder: 20  },
   { code: '1120', nameTh: 'Transfer/Card Clearing', name: 'Transfer/Card Clearing',   type: 'ASSET',     sortOrder: 30  },
+  { code: '1130', nameTh: 'เงินในกระเป๋าค่ายมือถือ',  name: 'Carrier Wallet Balance',   type: 'ASSET',     sortOrder: 35  },
   { code: '1200', nameTh: 'ลูกหนี้งานซ่อม',           name: 'Repair Accounts Receivable', type: 'ASSET',  sortOrder: 40  },
   { code: '1210', nameTh: 'ลูกหนี้อื่น',              name: 'Other Accounts Receivable', type: 'ASSET',   sortOrder: 50  },
   { code: '1300', nameTh: 'สินค้าคงเหลือ',            name: 'Inventory',                type: 'ASSET',     sortOrder: 60  },
@@ -29,4 +30,4 @@ export const CHART_OF_ACCOUNTS_TEMPLATE: readonly AccountTemplate[] = [
   { code: '6200', nameTh: 'ค่าใช้จ่ายอื่น',           name: 'Other Expenses',           type: 'EXPENSE',   sortOrder: 520 },
 ] as const;
 
-export const COA_TEMPLATE_COUNT = CHART_OF_ACCOUNTS_TEMPLATE.length; // 17
+export const COA_TEMPLATE_COUNT = CHART_OF_ACCOUNTS_TEMPLATE.length; // 18
