@@ -18,6 +18,10 @@ export interface CreateNotifData {
 /** Staff-management alerts (password reset requests, permission and branch changes) are for owners and managers only. */
 export const MANAGEMENT_ONLY_TYPES = ['PASSWORD_RESET_REQUEST', 'ROLE_PERMISSION_CHANGED', 'USER_ASSIGNED_TO_BRANCH'];
 
+/** The unread badge counts only recent alerts; older unread ones stay in the list. */
+export const UNREAD_WINDOW_DAYS = 30;
+export const unreadSince = () => new Date(Date.now() - UNREAD_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
 export const LARGE_REFUND_THRESHOLD        = 1_000;
 export const SHIFT_MISMATCH_THRESHOLD      = 100;
 export const HIGH_VALUE_CUSTOMER_THRESHOLD = 50_000;
@@ -298,7 +302,7 @@ export class NotificationsService implements OnModuleInit {
   }
 
   async getUnreadCount(tenantId: string | null, branchId: string | null, role: string, userId: string | null = null) {
-    const where = { isRead: false, ...this.notificationScope(tenantId, branchId, role, userId) };
+    const where = { isRead: false, createdAt: { gte: unreadSince() }, ...this.notificationScope(tenantId, branchId, role, userId) };
     const count = await this.prisma.notification.count({ where });
     return { count };
   }
