@@ -11,7 +11,12 @@ export interface CreateNotifData {
   entityId?: string;
   branchId?: string;
   tenantId?: string | null;
+  /** Only this user sees it */
+  userId?: string;
 }
+
+/** Staff-management alerts (password reset requests, permission and branch changes) are for owners and managers only. */
+export const MANAGEMENT_ONLY_TYPES = ['PASSWORD_RESET_REQUEST', 'ROLE_PERMISSION_CHANGED', 'USER_ASSIGNED_TO_BRANCH'];
 
 export const LARGE_REFUND_THRESHOLD        = 1_000;
 export const SHIFT_MISMATCH_THRESHOLD      = 100;
@@ -49,6 +54,7 @@ export class NotificationsService implements OnModuleInit {
             entityId: data.entityId,
             isRead:   false,
             tenantId: data.tenantId ?? null,
+            userId:   data.userId   ?? null,
           },
           select: { id: true },
         });
@@ -64,6 +70,7 @@ export class NotificationsService implements OnModuleInit {
           entityId:   data.entityId   ?? null,
           branchId:   data.branchId   ?? null,
           tenantId:   data.tenantId   ?? null,
+          userId:     data.userId     ?? null,
         },
       });
     } catch (err) {
@@ -240,17 +247,21 @@ export class NotificationsService implements OnModuleInit {
     tenantId: string | null,
     branchId: string | null,
     role:     string,
+    userId:   string | null,
   ): Record<string, any> {
     const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
+    // Notifications addressed to one user are hidden from everyone else
+    const forMe = { OR: [{ userId: null }, ...(userId ? [{ userId }] : [])] };
 
     // SUPER_ADMIN bypass: no tenant filter, no branch filter
-    if (!tenantId) return {};
+    if (!tenantId) return { AND: [forMe] };
 
-    if (isElevated) return { tenantId };
+    if (isElevated) return { tenantId, AND: [forMe] };
 
+    const roleTypes = role === 'MANAGER' ? [] : [{ type: { notIn: MANAGEMENT_ONLY_TYPES } }];
     return {
       tenantId,
-      OR: [{ branchId }, { branchId: null }],
+      AND: [{ OR: [{ branchId }, { branchId: null }] }, forMe, ...roleTypes],
     };
   }
 
@@ -261,12 +272,13 @@ export class NotificationsService implements OnModuleInit {
     tenantId: string | null,
     branchId: string | null,
     role:     string,
+    userId:   string | null = null,
   ) {
     const page  = Math.max(1, parseInt(query.page  ?? '1'));
     const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20')));
     const skip  = (page - 1) * limit;
 
-    const where: Record<string, any> = { ...this.notificationScope(tenantId, branchId, role) };
+    const where: Record<string, any> = { ...this.notificationScope(tenantId, branchId, role, userId) };
     if (query.isRead === 'true')  where.isRead = true;
     if (query.isRead === 'false') where.isRead = false;
     if (query.severity) where.severity = query.severity;
@@ -285,24 +297,25 @@ export class NotificationsService implements OnModuleInit {
     return { items, total, page, limit };
   }
 
-  async getUnreadCount(tenantId: string | null, branchId: string | null, role: string) {
-    const where = { isRead: false, ...this.notificationScope(tenantId, branchId, role) };
+  async getUnreadCount(tenantId: string | null, branchId: string | null, role: string, userId: string | null = null) {
+    const where = { isRead: false, ...this.notificationScope(tenantId, branchId, role, userId) };
     const count = await this.prisma.notification.count({ where });
     return { count };
   }
 
-  async markRead(id: string, tenantId: string | null, branchId: string | null, role: string) {
+  async markRead(id: string, tenantId: string | null, branchId: string | null, role: string, userId: string | null = null) {
     try {
       const notif = await this.prisma.notification.findUnique({
         where:  { id },
-        select: { branchId: true, tenantId: true },
+        select: { branchId: true, tenantId: true, userId: true },
       });
       if (!notif) return null;
+      if (notif.userId && notif.userId !== userId) return null;
 
       // Verify the notification belongs to this caller's tenant
       if (tenantId && notif.tenantId !== tenantId) return null;
 
-      const scope = this.notificationScope(tenantId, branchId, role);
+      const scope = this.notificationScope(tenantId, branchId, role, userId);
       if (Object.keys(scope).length > 0) {
         const isOwn = notif.branchId === branchId || notif.branchId === null;
         if (!isOwn && !(role === 'OWNER' || role === 'SUPER_ADMIN')) return null;
@@ -316,8 +329,8 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
-  async markAllRead(tenantId: string | null, branchId: string | null, role: string) {
-    const where = { isRead: false, ...this.notificationScope(tenantId, branchId, role) };
+  async markAllRead(tenantId: string | null, branchId: string | null, role: string, userId: string | null = null) {
+    const where = { isRead: false, ...this.notificationScope(tenantId, branchId, role, userId) };
     const { count } = await this.prisma.notification.updateMany({
       where,
       data: { isRead: true, readAt: new Date() },

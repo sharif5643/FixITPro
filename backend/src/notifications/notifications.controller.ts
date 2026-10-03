@@ -16,8 +16,9 @@ export class NotificationsController {
     @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
+    @CurrentUser('id')       userId: string,
   ) {
-    return this.notificationsService.getUnreadCount(tenantId, branchId, role);
+    return this.notificationsService.getUnreadCount(tenantId, branchId, role, userId);
   }
 
   @Get()
@@ -26,8 +27,9 @@ export class NotificationsController {
     @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
+    @CurrentUser('id')       userId: string,
   ) {
-    return this.notificationsService.findAll(query, tenantId, branchId, role);
+    return this.notificationsService.findAll(query, tenantId, branchId, role, userId);
   }
 
   @RequirePermission('notification.manage')
@@ -36,8 +38,9 @@ export class NotificationsController {
     @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
+    @CurrentUser('id')       userId: string,
   ) {
-    return this.notificationsService.markAllRead(tenantId, branchId, role);
+    return this.notificationsService.markAllRead(tenantId, branchId, role, userId);
   }
 
   @RequirePermission('notification.view')
@@ -47,7 +50,8 @@ export class NotificationsController {
     @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') branchId: string | null,
     @CurrentUser('role')     role: string,
+    @CurrentUser('id')       userId: string,
   ) {
-    return this.notificationsService.markRead(id, tenantId, branchId, role);
+    return this.notificationsService.markRead(id, tenantId, branchId, role, userId);
   }
 }

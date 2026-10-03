@@ -7,16 +7,18 @@ import { formatDistanceToNow } from 'date-fns'
 import { th } from 'date-fns/locale'
 import api from '@/lib/api'
 
-interface Notif { id:string; type:string; title:string; message:string; isRead:boolean; createdAt:string; repairId?:string }
+interface Notif { id:string; type:string; title:string; message:string; isRead:boolean; createdAt:string; entityType?:string|null; entityId?:string|null }
 
 const TABS = ['ทั้งหมด','งานซ่อม','ระบบ','สต็อก'] as const
 type Tab = typeof TABS[number]
 
-const TYPE_TAB: Record<string,Tab> = {
-  REPAIR_READY:'งานซ่อม', WAITING_PARTS:'งานซ่อม',
-  CUSTOMER_CHAT:'งานซ่อม', LOW_STOCK:'สต็อก', SYSTEM:'ระบบ',
+function tabOf(n: Notif): Tab {
+  if (n.entityType === 'Repair' || n.type.startsWith('REPAIR') || n.type === 'WAITING_PARTS' || n.type === 'CUSTOMER_CHAT') return 'งานซ่อม'
+  if (n.type.includes('STOCK')) return 'สต็อก'
+  return 'ระบบ'
 }
 const TYPE_ICON: Record<string,React.ReactNode> = {
+  REPAIR_ASSIGNED: <Wrench      className="h-5 w-5 text-purple-600"/>,
   REPAIR_READY:  <Wrench        className="h-5 w-5 text-brand-success"/>,
   WAITING_PARTS: <Package       className="h-5 w-5 text-orange-500"/>,
   CUSTOMER_CHAT: <MessageSquare className="h-5 w-5 text-brand-info"/>,
@@ -24,17 +26,10 @@ const TYPE_ICON: Record<string,React.ReactNode> = {
   SYSTEM:        <Info          className="h-5 w-5 text-slate-500"/>,
 }
 const TYPE_BG: Record<string,string> = {
-  REPAIR_READY:'bg-emerald-50', WAITING_PARTS:'bg-orange-50',
+  REPAIR_ASSIGNED:'bg-purple-50', REPAIR_READY:'bg-emerald-50', WAITING_PARTS:'bg-orange-50',
   CUSTOMER_CHAT:'bg-blue-50', LOW_STOCK:'bg-red-50', SYSTEM:'bg-slate-100',
 }
 
-const DEMO: Notif[] = [
-  { id:'1', type:'REPAIR_READY',  title:'งานซ่อมเสร็จแล้ว',    message:'R-2024-0006 พร้อมส่งมอบให้ลูกค้า', isRead:false, createdAt:new Date(Date.now()-5*60000).toISOString() },
-  { id:'2', type:'LOW_STOCK',     title:'สินค้าใกล้หมด',         message:'จอ iPhone 14 เหลือ 2 ชิ้น',         isRead:false, createdAt:new Date(Date.now()-30*60000).toISOString() },
-  { id:'3', type:'CUSTOMER_CHAT', title:'ลูกค้าทักแชท',          message:'สมชาย ใจดี ส่งข้อความใหม่',          isRead:true,  createdAt:new Date(Date.now()-3600000).toISOString() },
-  { id:'4', type:'WAITING_PARTS', title:'นัดหมายส่งมอบ',         message:'R-2024-0007 นัดรับเครื่อง 10.00 น.', isRead:true,  createdAt:new Date(Date.now()-2*3600000).toISOString() },
-  { id:'5', type:'SYSTEM',        title:'อัปเดตระบบ',             message:'FixIT+ v2.0 พร้อมใช้งานแล้ว',        isRead:true,  createdAt:new Date(Date.now()-3*3600000).toISOString() },
-]
 
 export default function NotificationsPage() {
   const router  = useRouter()
@@ -43,17 +38,26 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // The API returns { items, total }; show only real notifications
     api.get('/notifications?limit=50').then(r=>{
-      const list = r.data?.data ?? r.data ?? []
-      setNotifs(Array.isArray(list) && list.length>0 ? list : DEMO)
-    }).catch(()=>setNotifs(DEMO)).finally(()=>setLoading(false))
+      const list = r.data?.items ?? r.data?.data ?? r.data ?? []
+      setNotifs(Array.isArray(list) ? list : [])
+    }).catch(()=>setNotifs([])).finally(()=>setLoading(false))
   }, [])
 
-  const visible = tab === 'ทั้งหมด' ? notifs : notifs.filter(n=>(TYPE_TAB[n.type]??'ระบบ')===tab)
+  const visible = tab === 'ทั้งหมด' ? notifs : notifs.filter(n=>tabOf(n)===tab)
   const unread  = notifs.filter(n=>!n.isRead).length
 
+  function markRead(id: string) {
+    setNotifs(prev=>prev.map(n=>n.id===id ? {...n,isRead:true} : n))
+    api.patch(`/notifications/${id}/read`).catch(()=>{})
+  }
   function markAll() {
-    setNotifs(prev=>prev.map(n=>({...n,isRead:true})))
+    notifs.filter(n=>!n.isRead).forEach(n=>markRead(n.id))
+  }
+  function open(n: Notif) {
+    if (!n.isRead) markRead(n.id)
+    if (n.entityType === 'Repair' && n.entityId) router.push(`/staff/repairs/${n.entityId}`)
   }
 
   return (
@@ -66,7 +70,7 @@ export default function NotificationsPage() {
           <h1 className="flex-1 text-lg font-bold text-brand-black">แจ้งเตือน</h1>
           {unread>0 && <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">{unread}</span>}
           {unread>0 && (
-            <button onClick={markAll} className="text-xs font-semibold text-brand-yellow">Mark all as read</button>
+            <button onClick={markAll} className="text-xs font-semibold text-brand-yellow">อ่านทั้งหมด</button>
           )}
         </div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
@@ -88,7 +92,7 @@ export default function NotificationsPage() {
           </div>
         ) : visible.map(n => (
           <button key={n.id}
-            onClick={()=>n.repairId && router.push(`/staff/repairs/${n.repairId}`)}
+            onClick={()=>open(n)}
             className={`flex items-start gap-3 rounded-2xl p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-transform ${
               n.isRead ? 'bg-white' : 'bg-white border-l-[3px] border-brand-yellow'
             }`}>

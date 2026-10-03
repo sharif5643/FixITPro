@@ -10,6 +10,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { WarrantiesService } from '../warranties/warranties.service';
 import { LineMessagingService } from '../line-messaging/line-messaging.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { CreateRepairDto } from './dto/create-repair.dto';
 import { UpdateRepairDto } from './dto/update-repair.dto';
@@ -59,7 +60,43 @@ export class RepairsService {
     private lineMsg: LineMessagingService,
     private accounting: AccountingService,
     private repairAccounting: RepairAccountingAdapter,
+    private notifications: NotificationsService,
   ) {}
+
+  /** A repair can only be given to an active technician or manager of the same shop. */
+  private async assertAssignableTechnician(technicianId: string, tenantId?: string | null) {
+    const tech = await this.prisma.user.findFirst({
+      where: {
+        id: technicianId,
+        isActive: true,
+        role: { in: ['TECHNICIAN', 'MANAGER', 'OWNER'] as any[] },
+        ...(tenantId ? { tenantId } : {}),
+      },
+      select: { id: true },
+    });
+    if (!tech) throw new BadRequestException('ไม่พบช่างที่เลือก หรือช่างไม่ได้อยู่ในร้านนี้');
+  }
+
+  /** Tell the technician they have a new job; only they see it. Never blocks the caller. */
+  private notifyAssigned(
+    repair: { id: string; ticketNumber: string; deviceBrand: string; deviceModel: string; branchId?: string | null },
+    technicianId: string,
+    actorId: string | undefined,
+    actorName: string | undefined,
+    tenantId: string | null | undefined,
+  ) {
+    if (technicianId === actorId) return; // took the job themselves
+    this.notifications.notify({
+      type: 'REPAIR_ASSIGNED',
+      title: 'มีงานซ่อมมอบหมายให้คุณ',
+      message: `${repair.ticketNumber} · ${repair.deviceBrand} ${repair.deviceModel}${actorName ? ` (จาก ${actorName})` : ''}`,
+      entityType: 'Repair',
+      entityId: repair.id,
+      branchId: repair.branchId ?? undefined,
+      tenantId: tenantId ?? null,
+      userId: technicianId,
+    }).catch(() => {});
+  }
 
   private async assertBranchActive(branchId: string) {
     const branch = await this.prisma.branch.findUnique({
@@ -155,6 +192,7 @@ export class RepairsService {
   async create(dto: CreateRepairDto, actorId?: string, actorName?: string, branchId?: string, tenantId?: string | null) {
     const effectiveBranchId = await this.resolveEffectiveBranchId(branchId, tenantId);
     await this.assertBranchActive(effectiveBranchId);
+    if (dto.technicianId) await this.assertAssignableTechnician(dto.technicianId, tenantId);
 
     const repair = await this.prisma.$transaction(async (tx) => {
       const customerId = await this.resolveCustomerIdInTx(tx, dto, tenantId ?? null);
@@ -245,6 +283,7 @@ export class RepairsService {
         entityId: repair.id,
         afterData: { technicianId: dto.technicianId, ticketNumber: repair.ticketNumber },
       });
+      this.notifyAssigned(repair as any, dto.technicianId, actorId, actorName, tenantId);
     }
 
     // LINE notify: "รับงานใหม่" — fire-and-forget, never block create
@@ -342,6 +381,9 @@ export class RepairsService {
 
   async update(id: string, dto: UpdateRepairDto, actorId?: string, actorName?: string, tenantId?: string | null) {
     const repair = await this.findOne(id, tenantId);
+    if (dto.technicianId && dto.technicianId !== repair.technicianId) {
+      await this.assertAssignableTechnician(dto.technicianId, tenantId);
+    }
 
     // PART 6: DELIVERED repairs are locked — payment already processed and shift-linked
     if (repair.status === 'DELIVERED' && dto.status !== undefined) {
@@ -611,6 +653,7 @@ export class RepairsService {
           ticketNumber: repair.ticketNumber,
         },
       });
+      if (dto.technicianId) this.notifyAssigned(repair as any, dto.technicianId, actorId, actorName, tenantId);
     }
     return updated;
   }
