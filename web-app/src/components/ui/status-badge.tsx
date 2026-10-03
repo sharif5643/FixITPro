@@ -64,7 +64,8 @@ export function StatusBadge({
 
 // ── Repair status badge ───────────────────────────────────────────────────────
 
-const REPAIR_LABEL: Record<string, string> = {
+/** One wording for repair statuses, shared by the badge and the repairs page filters. */
+export const REPAIR_LABEL: Record<string, string> = {
   RECEIVED:         'รับงาน',
   DIAGNOSING:       'ตรวจสอบ',
   WAITING_PARTS:    'รออะไหล่',

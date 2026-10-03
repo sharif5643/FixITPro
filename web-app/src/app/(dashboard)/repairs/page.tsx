@@ -15,9 +15,9 @@ import { toast } from 'sonner'
 import { RepairFormDialog } from '@/components/repairs/repair-form-dialog'
 import { RepairKanbanBoard } from '@/components/repairs/repair-kanban-board'
 import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
-import { RepairStatusBadge } from '@/components/ui/status-badge'
+import { RepairStatusBadge, REPAIR_LABEL } from '@/components/ui/status-badge'
 import { QcDialog } from '@/components/repairs/qc-dialog'
-import { cn } from '@/lib/utils'
+import { cn, formatThaiMoney } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar, GlobalModeBanner } from '@/components/layout/branch-context-bar'
 import { useAuthStore } from '@/store/auth.store'
@@ -33,43 +33,22 @@ const RepairDetailDialog = dynamic(
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const FILTER_TABS: Array<{ value: RepairStatus | 'ALL'; label: string; dot?: string }> = [
-  { value: 'ALL',              label: 'ทั้งหมด' },
-  { value: 'RECEIVED',         label: 'รับงานใหม่',    dot: 'bg-blue-500'    },
-  { value: 'DIAGNOSING',       label: 'ตรวจวินิจฉัย', dot: 'bg-yellow-500'  },
-  { value: 'IN_PROGRESS',      label: 'กำลังซ่อม',    dot: 'bg-purple-500'  },
-  { value: 'WAITING_PARTS',    label: 'รออะไหล่',     dot: 'bg-orange-500'  },
-  { value: 'WAITING_APPROVAL', label: 'รออนุมัติ',    dot: 'bg-amber-500'   },
-  { value: 'QC_PENDING',       label: 'รอ QC',         dot: 'bg-indigo-500'  },
-  { value: 'COMPLETED',        label: 'ซ่อมเสร็จ',    dot: 'bg-green-500'   },
-  { value: 'READY_PICKUP',     label: 'รอลูกค้ารับ',  dot: 'bg-emerald-500' },
-  { value: 'DELIVERED',        label: 'ส่งมอบแล้ว',   dot: 'bg-slate-400'   },
-  { value: 'CANCELLED',        label: 'ยกเลิก',        dot: 'bg-red-400'     },
-]
-
-const STAT_CARDS = [
-  { value: 'ALL' as const,           label: 'ทั้งหมด',     icon: '🔧' },
-  { value: 'RECEIVED' as const,      label: 'รับงานใหม่',  icon: '📥' },
-  { value: 'IN_PROGRESS' as const,   label: 'กำลังซ่อม',   icon: '⚙️' },
-  { value: 'WAITING_PARTS' as const, label: 'รออะไหล่',    icon: '📦' },
-  { value: 'COMPLETED' as const,     label: 'ซ่อมเสร็จ',   icon: '✅' },
-  { value: 'DELIVERED' as const,     label: 'ส่งมอบแล้ว',  icon: '📤' },
+// Labels come from REPAIR_LABEL so the filter chips and the status badges say the same thing.
+const FILTER_TABS: Array<{ value: RepairStatus | 'ALL'; dot?: string }> = [
+  { value: 'ALL' },
+  { value: 'RECEIVED',         dot: 'bg-blue-500'    },
+  { value: 'DIAGNOSING',       dot: 'bg-yellow-500'  },
+  { value: 'IN_PROGRESS',      dot: 'bg-purple-500'  },
+  { value: 'WAITING_PARTS',    dot: 'bg-orange-500'  },
+  { value: 'WAITING_APPROVAL', dot: 'bg-amber-500'   },
+  { value: 'QC_PENDING',       dot: 'bg-indigo-500'  },
+  { value: 'COMPLETED',        dot: 'bg-green-500'   },
+  { value: 'READY_PICKUP',     dot: 'bg-emerald-500' },
+  { value: 'DELIVERED',        dot: 'bg-slate-400'   },
+  { value: 'CANCELLED',        dot: 'bg-red-400'     },
 ]
 
 const VIEW_MODE_KEY = 'repairViewMode'
-
-const STATUS_LABEL: Record<string, string> = {
-  RECEIVED:         'รับงานใหม่',
-  DIAGNOSING:       'ตรวจวินิจฉัย',
-  IN_PROGRESS:      'กำลังซ่อม',
-  WAITING_PARTS:    'รออะไหล่',
-  WAITING_APPROVAL: 'รออนุมัติ',
-  QC_PENDING:       'รอ QC',
-  COMPLETED:        'ซ่อมเสร็จ',
-  READY_PICKUP:     'รอลูกค้ารับ',
-  DELIVERED:        'ส่งมอบแล้ว',
-  CANCELLED:        'ยกเลิก',
-}
 
 const PAY_STATUS_LABEL: Record<string, string> = {
   PENDING: 'ค้างชำระ',
@@ -187,7 +166,7 @@ function RepairsContent() {
       r.deviceImei ?? '',
       r.issue ?? '',
       r.technician?.name ?? '',
-      STATUS_LABEL[r.status] ?? r.status,
+      REPAIR_LABEL[r.status] ?? r.status,
       r.finalCost   != null ? Number(r.finalCost).toFixed(2)   : '',
       r.deposit     != null ? Number(r.deposit).toFixed(2)     : '',
       r.paidAmount  != null ? Number(r.paidAmount).toFixed(2)  : '',
@@ -279,10 +258,10 @@ function RepairsContent() {
 
   // ── List view — app style ─────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] -m-4 sm:-m-6 lg:-m-8 pb-10">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-[#0F172A] -m-4 sm:-m-6 pb-10">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-[#1E293B] px-5 pb-4 pt-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] border-b border-transparent dark:border-slate-700/60 sticky top-0 z-10">
+      <div className="bg-white dark:bg-[#1E293B] px-5 pb-4 pt-6 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] border-b border-transparent dark:border-slate-700/60 sticky -top-4 sm:-top-6 z-10">
         <div className="flex items-center gap-2 mb-4">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-[#111]">งานซ่อม</h1>
@@ -353,7 +332,7 @@ function RepairsContent() {
                 {tab.dot && !active && (
                   <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', tab.dot)} />
                 )}
-                {tab.label}
+                {tab.value === 'ALL' ? 'ทั้งหมด' : REPAIR_LABEL[tab.value]}
                 <span className={cn(
                   'inline-flex items-center justify-center min-w-[16px] h-4 rounded-full px-1 text-[10px] font-bold',
                   active ? 'bg-[#111]/10 text-[#111]' : 'bg-slate-200 text-slate-500',
@@ -366,37 +345,7 @@ function RepairsContent() {
         </div>
       </div>
 
-      {/* ── Stats strip ──────────────────────────────────────────────────────── */}
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide px-5 py-4">
-        {STAT_CARDS.map((s) => {
-          const count = statusCounts[s.value] ?? 0
-          const active = statusFilter === s.value
-          return (
-            <button
-              key={s.value}
-              onClick={() => setStatusFilter(s.value)}
-              className={cn(
-                'shrink-0 rounded-2xl p-3 text-left transition-all min-w-[86px] active:scale-[0.97]',
-                active
-                  ? 'bg-[#FFC107] shadow-[0_4px_16px_rgba(255,193,7,0.4)]'
-                  : 'bg-white dark:bg-[#1E293B] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.40)]',
-              )}
-            >
-              <p className="text-lg mb-1 leading-none">{s.icon}</p>
-              <p className={cn(
-                'text-2xl font-extrabold tabular-nums leading-none',
-                active ? 'text-[#111]' : 'text-slate-800',
-              )}>
-                {isLoading ? '—' : count}
-              </p>
-              <p className={cn('text-[10px] mt-1 leading-tight', active ? 'text-[#111]/70' : 'text-slate-400')}>
-                {s.label}
-              </p>
-            </button>
-          )
-        })}
-      </div>
-
+      <div className="h-4" />
       {isGlobalMode && (
         <div className="px-5 mb-2">
           <GlobalModeBanner action="ไม่สามารถสร้างงานซ่อมในโหมดทุกสาขา" />
@@ -437,6 +386,9 @@ function RepairsContent() {
         ) : (
           filtered.map((repair) => {
             const isNew = (Date.now() - new Date(repair.receivedAt).getTime()) < 24 * 60 * 60 * 1000
+            const price = Number(repair.finalCost ?? repair.estimateCost ?? 0)
+            // Handed over but not fully paid: the shop is owed money
+            const owes  = repair.status === 'DELIVERED' && repair.paymentStatus !== 'PAID'
             return (
               <button
                 key={repair.id}
@@ -480,6 +432,16 @@ function RepairsContent() {
                 {/* Right side */}
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
                   <RepairStatusBadge status={repair.status} />
+                  {price > 0 && (
+                    <span className="text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">
+                      {formatThaiMoney(price)}
+                    </span>
+                  )}
+                  {owes && (
+                    <span className="text-[10px] font-semibold text-red-600 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded-full">
+                      {PAY_STATUS_LABEL[repair.paymentStatus]}
+                    </span>
+                  )}
                   <div className="flex items-center gap-1 text-[10px] text-slate-400">
                     <Clock className="h-3 w-3" />
                     <span className="whitespace-nowrap">
