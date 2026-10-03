@@ -325,15 +325,16 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
     }, [products, category, favorites])
 
     const filtered = useMemo(() => {
-      if (!search.trim()) return categoryFiltered
-      const q = search.toLowerCase()
-      return categoryFiltered.filter(
+      const q = search.trim().toLowerCase()
+      const matched = !q ? categoryFiltered : categoryFiltered.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
           p.sku.toLowerCase().includes(q) ||
           (p.barcode?.toLowerCase().includes(q) ?? false),
       )
-    }, [categoryFiltered, search])
+      // Sellable items first; out-of-stock ones move to the end (order otherwise kept)
+      return [...matched].sort((a, b) => Number(stockOf(a) === 0) - Number(stockOf(b) === 0))
+    }, [categoryFiltered, search, stockOf])
 
     const favoriteProducts = useMemo(
       () => products.filter((p) => p.isActive && favorites.includes(p.id)),
@@ -620,7 +621,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
                       รายการโปรด
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-2.5">
                     {favoriteProducts.map((p) => (
                       <ProductCard
                         key={p.id}
@@ -651,7 +652,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
                       {category === 'ALL' ? 'สินค้าทั้งหมด' : TYPE_LABEL[category] ?? category}
                     </p>
                   )}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-2.5">
                     {filtered.map((p) => (
                       <ProductCard
                         key={p.id}

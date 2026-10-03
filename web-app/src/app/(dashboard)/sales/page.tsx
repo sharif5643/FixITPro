@@ -391,7 +391,7 @@ export default function SalesPage() {
         <div className={cn(
           'flex flex-col bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]',
           mobileTab === 'products' ? 'flex flex-1 min-w-0' : 'hidden',
-          'lg:flex lg:w-[380px] lg:shrink-0 lg:flex-none',
+          'lg:flex lg:flex-1 lg:min-w-0',  // products get the most room
         )}>
           <ProductSearch
             ref={searchRef}
@@ -404,7 +404,7 @@ export default function SalesPage() {
         <div className={cn(
           'flex flex-col bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)]',
           mobileTab === 'cart' ? 'flex flex-1 min-w-0' : 'hidden',
-          'lg:flex lg:flex-1 lg:min-w-0',
+          'lg:flex lg:w-[340px] xl:w-[380px] lg:shrink-0',
         )}>
           <CartPanel
             onCheckout={() => { setPreSelectedPayment(null); setCheckoutOpen(true) }}

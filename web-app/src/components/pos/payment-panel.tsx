@@ -70,11 +70,12 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
     const total    = Math.max(0, subtotal - discount)
     const totalQty = items.reduce((s, i) => s + i.quantity, 0)
 
-    const amountPaid     = method === 'CASH' ? (Number(cashInput) || 0) : total
+    // An empty cash box shows the total as its placeholder, so treat it as exact cash
+    // (before, the box read "100" but checkout stayed disabled until a number was typed)
+    const amountPaid     = method === 'CASH' ? (cashInput.trim() === '' ? total : Number(cashInput) || 0) : total
     const change         = amountPaid - total
     const hasZeroPrice   = items.some((i) => Number(i.product.price) === 0)
     const canCheckout    = items.length > 0 && !hasZeroPrice && (method !== 'CASH' || change >= 0)
-    const cashInputFloat = Number(cashInput)
 
     // Reset cash input when switching method or when total changes
     useEffect(() => { setCashInput('') }, [method, total])
@@ -280,7 +281,7 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
 
     function handleCheckout() {
       if (!canCheckout) return
-      onCheckout({ paymentMethod: method, amountPaid: method === 'CASH' ? cashInputFloat : total })
+      onCheckout({ paymentMethod: method, amountPaid })
     }
 
     function handleTestPrint() {
