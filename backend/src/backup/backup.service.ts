@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -18,7 +19,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 @Injectable()
-export class BackupService {
+export class BackupService implements OnApplicationBootstrap {
   private readonly logger = new Logger(BackupService.name);
   private readonly backupDir: string;
   private readonly retentionDays: number;
@@ -33,6 +34,28 @@ export class BackupService {
     if (!fs.existsSync(this.backupDir)) {
       fs.mkdirSync(this.backupDir, { recursive: true });
     }
+  }
+
+  /**
+   * Catch-up: every deploy recreates the container, and a nightly run was missed on
+   * 2026-10-03 (no file, logs gone with the old container). On start-up in production, if the
+   * newest database backup is older than 26 hours (or there is none), take one now.
+   */
+  onApplicationBootstrap() {
+    if (process.env.NODE_ENV !== 'production') return;
+    setTimeout(() => {
+      this.catchUpBackup().catch((e) => this.logger.error('[Catch-up] backup check failed', (e as Error).message));
+    }, 3 * 60 * 1000).unref?.();
+  }
+
+  async catchUpBackup(maxAgeHours = 26): Promise<boolean> {
+    const newest = (await this.listBackups())
+      .filter((f) => f.filename.endsWith('.sql') || f.filename.endsWith('.dump'))
+      .reduce<Date | null>((d, f) => (!d || f.modifiedAt > d ? f.modifiedAt : d), null);
+    if (newest && Date.now() - newest.getTime() < maxAgeHours * 3600_000) return false;
+    this.logger.warn(`[Catch-up] newest backup is ${newest ? newest.toISOString() : 'missing'} — backing up now`);
+    await this.scheduledBackup();
+    return true;
   }
 
   // 03:00 Bangkok time. The container runs in UTC, so a bare EVERY_DAY_AT_2AM fired at
