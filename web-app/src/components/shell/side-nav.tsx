@@ -203,7 +203,8 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
     return true
   }
 
-  // Remembered open/closed groups; a group holding the current page is always open.
+  // Remembered open/closed groups. The user's choice always wins, even for the group holding the
+  // current page (a closed group shows a dot instead).
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [pins, setPins] = useState<string[]>([])
   useEffect(() => {
@@ -212,7 +213,6 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
   }, [pinsKey])
   function isOpen(section: NavSection) {
     if (!section.label) return true
-    if (section.items.some((i) => isVisible(i) && isActive(i))) return true
     return openGroups[section.key] ?? section.open ?? true
   }
   function toggleGroup(section: NavSection) {
@@ -280,6 +280,7 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
     const visible = section.items.filter(isVisible)
     if (visible.length === 0) return null
     const open = isOpen(section)
+    const holdsActive = !open && visible.some(isActive)
     return (
       <div key={section.key} className="mb-0.5">
         {section.label && !collapsed && (
@@ -289,7 +290,10 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
             aria-expanded={open}
             className="mx-3 mt-4 mb-1 flex w-[calc(100%-1.5rem)] items-center justify-between rounded-lg px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 select-none">{section.label}</span>
+            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 select-none">
+              {section.label}
+              {holdsActive && <span className="h-1.5 w-1.5 rounded-full bg-blue-600" aria-label="หน้าปัจจุบันอยู่ในกลุ่มนี้" />}
+            </span>
             {open
               ? <ChevronDown  className="h-3.5 w-3.5 text-slate-400" />
               : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}

@@ -17,8 +17,11 @@ interface Props {
 }
 
 export function OwnerCommandHeader({ userName, currentShift, loading, onRefresh }: Props) {
-  const now  = thaiToday()
-  const hour = now.getHours()
+  // thaiToday() is shifted to Bangkok time, so read it with UTC getters; local getters add the
+  // browser's offset again (a Thai browser showed "evening" in the morning).
+  const bkk  = thaiToday()
+  const hour = bkk.getUTCHours()
+  const now  = new Date(bkk.getUTCFullYear(), bkk.getUTCMonth(), bkk.getUTCDate())
   const greeting = hour < 12 ? 'อรุณสวัสดิ์' : hour < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น'
   const firstName = userName?.split(' ')[0] ?? 'เจ้าของ'
 

@@ -34,9 +34,10 @@ export function FinancialHealth({ summary, loading }: Props) {
   const expenseRatioPct = today && today.grossProfit > 0
     ? Math.min(100, Math.round((today.totalExpenses / today.grossProfit) * 100)) : null
 
+  // No split to show until there is revenue today
   const salesShare  = today && today.totalRevenue > 0
-    ? Math.round((today.salesRevenue / today.totalRevenue) * 100) : 50
-  const repairShare = 100 - salesShare
+    ? Math.round((today.salesRevenue / today.totalRevenue) * 100) : null
+  const repairShare = salesShare !== null ? 100 - salesShare : null
 
   function marginColor(pct: number | null, goodThreshold: number, warnThreshold: number) {
     if (pct === null) return 'text-slate-400'
@@ -78,6 +79,7 @@ export function FinancialHealth({ summary, loading }: Props) {
           </div>
 
           {/* Revenue split bar */}
+          {salesShare !== null && (
           <div>
             <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 mb-1">
               <span>POS {salesShare}%</span>
@@ -92,6 +94,7 @@ export function FinancialHealth({ summary, loading }: Props) {
               <div className="bg-violet-500 flex-1" />
             </div>
           </div>
+          )}
 
           {/* P&L rows */}
           <div>
