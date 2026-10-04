@@ -140,12 +140,12 @@ export default function ContactPage() {
       <section className="py-16 bg-gradient-to-r from-blue-600 to-purple-700">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <h2 className="text-3xl font-bold text-white mb-4">พร้อมเริ่มทดลองใช้?</h2>
-          <p className="text-blue-100 mb-8">สมัครฟรี 30 วัน ไม่ต้องรอ ไม่ต้องนัด</p>
+          <p className="text-blue-100 mb-8">สมัครฟรี 14 วัน ไม่ต้องรอ ไม่ต้องนัด</p>
           <Link
             href="/register"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-blue-700 font-bold text-lg hover:bg-blue-50 transition-colors"
           >
-            ทดลองใช้ฟรี 30 วัน <ArrowRight className="h-5 w-5" />
+            ทดลองใช้ฟรี 14 วัน <ArrowRight className="h-5 w-5" />
           </Link>
         </div>
       </section>

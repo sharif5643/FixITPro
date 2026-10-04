@@ -115,7 +115,7 @@ export default function RegisterPage() {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">สมัครสำเร็จ!</h2>
           <p className="text-slate-500 mb-6">
-            ระบบ FixITPro พร้อมใช้งานแล้ว ทดลองได้ฟรี 30 วัน
+            ระบบ FixITPro พร้อมใช้งานแล้ว ทดลองได้ฟรี 14 วัน
             <br />กำลังพาคุณไปหน้าเข้าสู่ระบบ…
           </p>
           <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700 mb-8">
@@ -139,7 +139,7 @@ export default function RegisterPage() {
           <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg mb-4">
             <Wrench className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">สมัครทดลองใช้ฟรี 30 วัน</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">สมัครทดลองใช้ฟรี 14 วัน</h1>
           <p className="text-slate-500">ไม่ต้องใช้บัตรเครดิต · ยกเลิกได้ทุกเมื่อ</p>
         </div>
 
@@ -353,7 +353,7 @@ export default function RegisterPage() {
                 กำลังสร้างบัญชี…
               </>
             ) : (
-              <>สมัครทดลองใช้ฟรี 30 วัน <ChevronRight className="h-5 w-5" /></>
+              <>สมัครทดลองใช้ฟรี 14 วัน <ChevronRight className="h-5 w-5" /></>
             )}
           </button>
 

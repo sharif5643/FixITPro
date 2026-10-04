@@ -456,6 +456,9 @@ function PaymentRow({
       <td className="py-3 px-4">
         <p className="text-white font-medium text-sm">{payment.tenant.shopName}</p>
         <p className="text-slate-500 text-xs">{payment.tenant.email}</p>
+        {payment.submittedById && (
+          <span className="inline-block mt-1 px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300 text-[10px] font-medium">ร้านส่งเอง</span>
+        )}
       </td>
 
       {/* Plan + Duration */}
@@ -489,6 +492,12 @@ function PaymentRow({
             <Calendar className="h-3 w-3" />
             {fmt(payment.paymentDate)}
           </div>
+        )}
+        {payment.slipUrl && (
+          <a href={payment.slipUrl} target="_blank" rel="noreferrer"
+            className="inline-block text-xs font-medium text-violet-300 hover:text-violet-200 underline">
+            ดูสลิป
+          </a>
         )}
       </td>
 

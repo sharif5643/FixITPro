@@ -8,7 +8,7 @@ import {
 
 export const metadata: Metadata = {
   title: 'FixITPro — ระบบจัดการร้านมือถือครบวงจร',
-  description: 'ระบบ POS ขาย ซ่อม สต็อก ลูกค้า รายงาน หลายสาขา สำหรับร้านมือถือไทย ทดลองใช้ฟรี 30 วัน',
+  description: 'ระบบ POS ขาย ซ่อม สต็อก ลูกค้า รายงาน หลายสาขา สำหรับร้านมือถือไทย ทดลองใช้ฟรี 14 วัน',
 }
 
 // ── Hero ──────────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ function Hero() {
               href="/register"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold text-lg shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 hover:opacity-90 transition-all"
             >
-              ทดลองใช้ฟรี 30 วัน
+              ทดลองใช้ฟรี 14 วัน
               <ArrowRight className="h-5 w-5" />
             </Link>
             <Link
@@ -259,7 +259,7 @@ function Workflow() {
     {
       step: '01',
       title: 'สมัครและตั้งค่าร้าน',
-      desc: 'สมัครฟรี 30 วัน ตั้งชื่อร้าน เพิ่มสินค้า เพิ่มพนักงาน พร้อมใช้งานทันที',
+      desc: 'สมัครฟรี 14 วัน ตั้งชื่อร้าน เพิ่มสินค้า เพิ่มพนักงาน พร้อมใช้งานทันที',
       icon: Smartphone,
     },
     {
@@ -346,7 +346,7 @@ function PricingPreview() {
           <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
             ราคาโปร่งใส ไม่มีค่าใช้จ่ายซ่อน
           </h2>
-          <p className="text-lg text-slate-500">ทดลองใช้ฟรี 30 วัน ทุกแพ็กเกจ</p>
+          <p className="text-lg text-slate-500">ทดลองใช้ฟรี 14 วัน ทุกแพ็กเกจ</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
@@ -457,14 +457,14 @@ function CtaSection() {
           พร้อมยกระดับร้านมือถือของคุณ?
         </h2>
         <p className="text-lg text-slate-500 mb-10">
-          เริ่มต้นทดลองใช้ฟรี 30 วัน ไม่ต้องใช้บัตรเครดิต ยกเลิกได้ทุกเมื่อ
+          เริ่มต้นทดลองใช้ฟรี 14 วัน ไม่ต้องใช้บัตรเครดิต ยกเลิกได้ทุกเมื่อ
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
             href="/register"
             className="inline-flex items-center justify-center gap-2 px-10 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-lg shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 hover:opacity-90 transition-all"
           >
-            ทดลองใช้ฟรี 30 วัน
+            ทดลองใช้ฟรี 14 วัน
             <ArrowRight className="h-5 w-5" />
           </Link>
           <Link

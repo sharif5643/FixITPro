@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsBoolean, IsNumber, Min, Max } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsNumber, Min, Max, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateSettingsDto {
@@ -11,6 +11,8 @@ export class UpdateSettingsDto {
   @IsOptional() @IsString()  receiptFooter?: string;
   @IsOptional() @IsString()  paperWidth?: string;
   @IsOptional() @IsString()  paymentQrUrl?: string;
+  @IsOptional() @IsString() @MaxLength(30)  promptpayId?: string;
+  @IsOptional() @IsString() @MaxLength(1000) renewalBankInfo?: string;
   @IsOptional() @IsNumber()  @Type(() => Number) @Min(0) @Max(100) vatPercent?: number;
   @IsOptional() @IsNumber()  @Type(() => Number) @Min(0) defaultDeposit?: number;
   @IsOptional() @IsNumber()  @Type(() => Number) @Min(0) lowStockAlert?: number;

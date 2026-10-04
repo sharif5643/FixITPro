@@ -205,7 +205,7 @@ export default function AboutPage() {
       {/* CTA */}
       <section className="py-16 bg-gradient-to-r from-blue-600 to-purple-700">
         <div className="mx-auto max-w-3xl px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">เริ่มต้นวันนี้ ฟรี 30 วัน</h2>
+          <h2 className="text-3xl font-bold text-white mb-4">เริ่มต้นวันนี้ ฟรี 14 วัน</h2>
           <p className="text-blue-100 mb-8">สมัครใช้งานได้เลย ไม่ต้องนัดหมาย ไม่ต้องรอ</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register" className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-white text-blue-700 font-bold text-lg hover:bg-blue-50 transition-colors">

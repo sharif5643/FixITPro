@@ -7,6 +7,7 @@ import { OfflineBanner } from '@/components/offline-banner'
 import { useSyncQueue } from '@/hooks/use-sync-queue'
 import { SunmiErrorBoundary } from '@/components/sunmi/sunmi-error-boundary'
 import { ReminderPopup } from '@/components/alerts/reminder-popup'
+import { SubscriptionBanner } from '@/components/layout/subscription-banner'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,7 @@ function SunmiLayoutWithSync({ children }: { children: React.ReactNode }) {
   return (
     <>
       <OfflineBanner />
+      <SubscriptionBanner />
       <ReminderPopup variant="sunmi" />
       {children}
     </>

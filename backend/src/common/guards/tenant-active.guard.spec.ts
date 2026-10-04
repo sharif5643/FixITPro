@@ -4,10 +4,11 @@ import { ExecutionContext } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { TenantActiveGuard } from './tenant-active.guard';
 
-// GRACE_DAYS = 2 (production code in tenant-active.guard.ts)
-// Grace window: [expiryDate, expiryDate + 2 days)
-// expired 0–1 days ago → allowed (within grace)
-// expired 2+ days ago  → blocked (grace ended)
+// TENANT_GRACE_DAYS = 7 (common/tenant-access.ts), the same number the web app shows
+// Grace window: [expiryDate, expiryDate + 7 days)
+// expired 0–6 days ago → allowed (within grace)
+// expired 7+ days ago  → blocked (grace ended)
+// SUSPENDED            → blocked at once
 
 const mockPrisma = {
   tenant: { findUnique: jest.fn() },
@@ -67,30 +68,30 @@ describe('TenantActiveGuard', () => {
     expect(mockPrisma.tenant.findUnique).not.toHaveBeenCalled();
   });
 
-  it('should allow writes when tenant expired 1 day ago (within 2-day grace)', async () => {
-    // gracePeriodEnd = expiryDate + 2 days = tomorrow → now < tomorrow → allowed
+  it('should allow writes when tenant expired 6 days ago (within 7-day grace)', async () => {
+    // gracePeriodEnd = expiryDate + 7 days = tomorrow → now < tomorrow → allowed
     mockPrisma.tenant.findUnique.mockResolvedValue({
-      expiryDate: daysFromNow(-1),
+      expiryDate: daysFromNow(-6),
     });
     const ctx = makeContext({ role: 'OWNER', tenantId: 't1' }, 'POST');
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
 
-  it('should block writes when tenant expired 2 days ago (grace boundary — blocked)', async () => {
-    // gracePeriodEnd = expiryDate + 2 days = now - 1 min → now > gracePeriodEnd → blocked
-    // Using daysAndMinutesAgo(2, 1) avoids same-millisecond flakiness from setDate alone.
+  it('should block writes when tenant expired 7 days ago (grace boundary — blocked)', async () => {
+    // gracePeriodEnd = expiryDate + 7 days = now - 1 min → now > gracePeriodEnd → blocked
+    // Using daysAndMinutesAgo(7, 1) avoids same-millisecond flakiness from setDate alone.
     mockPrisma.tenant.findUnique.mockResolvedValue({
-      expiryDate: daysAndMinutesAgo(2, 1),
+      expiryDate: daysAndMinutesAgo(7, 1),
     });
     const ctx = makeContext({ role: 'OWNER', tenantId: 't1' }, 'POST');
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
     await expect(guard.canActivate(ctx)).rejects.toThrow('แพ็กเกจหมดอายุแล้ว');
   });
 
-  it('should block writes when tenant expired 3 days ago (past 2-day grace)', async () => {
-    // gracePeriodEnd = expiryDate + 2 days = yesterday → now > yesterday → blocked
+  it('should block writes when tenant expired 8 days ago (past 7-day grace)', async () => {
+    // gracePeriodEnd = expiryDate + 7 days = yesterday → now > yesterday → blocked
     mockPrisma.tenant.findUnique.mockResolvedValue({
-      expiryDate: daysFromNow(-3),
+      expiryDate: daysFromNow(-8),
     });
     const ctx = makeContext({ role: 'OWNER', tenantId: 't1' }, 'POST');
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
@@ -104,5 +105,17 @@ describe('TenantActiveGuard', () => {
     const ctx = makeContext({ role: 'OWNER', tenantId: 't1' }, 'POST');
     await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
     await expect(guard.canActivate(ctx)).rejects.toThrow('แพ็กเกจหมดอายุแล้ว');
+  });
+
+  it('should block writes for a suspended shop even before its expiry date', async () => {
+    mockPrisma.tenant.findUnique.mockResolvedValue({ status: 'SUSPENDED', expiryDate: daysFromNow(30) });
+    const ctx = makeContext({ role: 'OWNER', tenantId: 't1' }, 'POST');
+    await expect(guard.canActivate(ctx)).rejects.toThrow('ร้านถูกระงับ');
+  });
+
+  it('should allow writes for an active shop with no expiry date', async () => {
+    mockPrisma.tenant.findUnique.mockResolvedValue({ status: 'ACTIVE', expiryDate: null });
+    const ctx = makeContext({ role: 'OWNER', tenantId: 't1' }, 'POST');
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
 });

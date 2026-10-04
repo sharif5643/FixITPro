@@ -368,6 +368,9 @@ model TenantPayment {
   paymentDate      DateTime?
   paymentAmount    Decimal?  @db.Decimal(10, 2)
   paymentNote      String?
+  // Sent by the shop itself from the renewal page (null when the Super Admin entered it)
+  slipUrl          String?
+  submittedById    String?
 
   status      PaymentStatus @default(PENDING)
   adminNote   String?
@@ -926,6 +929,8 @@ model ShopSettings {
   lineChannelAccessToken  String?
   lineNotifyEnabled       Boolean  @default(false)
   promptpayId             String?
+  // Platform row only: bank accounts shown to shops on the renewal page
+  renewalBankInfo         String?
   // Technician pay per repair for the commission report:
   // NONE | PERCENT_TOTAL (of the job price) | PERCENT_LABOR (of price minus parts) | FIXED (per job)
   techCommissionType      String   @default("NONE")

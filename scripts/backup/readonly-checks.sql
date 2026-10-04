@@ -39,4 +39,19 @@ GROUP BY t.id, t.plan, t."createdAt" ORDER BY t."createdAt";
 \echo '--- 8. Overrides that have an expiry date ---'
 SELECT "tenantId", "moduleKey", enabled, "expiresAt" FROM "TenantModule" WHERE "expiresAt" IS NOT NULL ORDER BY 1, 2;
 
+\echo '--- 9. Shop status and expiry (who the new read-only rule would touch today) ---'
+SELECT t.id, t.plan, t.status, t."expiryDate"::date AS expiry,
+       CASE WHEN t.status = 'SUSPENDED' THEN 'READ-ONLY (suspended)'
+            WHEN t."expiryDate" IS NOT NULL AND now() > t."expiryDate" + interval '7 days' THEN 'READ-ONLY (expired > 7d)'
+            WHEN t."expiryDate" IS NOT NULL AND now() > t."expiryDate" + interval '2 days' THEN 'blocked today, saves after change (2d -> 7d)'
+            ELSE 'can save' END AS after_change
+FROM "Tenant" t ORDER BY t."createdAt";
+
+\echo '--- 10. Package prices (shown on the renewal page) ---'
+SELECT key, name, price, "isActive" FROM "Package" ORDER BY "sortOrder", key;
+
+\echo '--- 11. Platform payment settings and pending payments ---'
+SELECT count(*) AS platform_rows, max("promptpayId") IS NOT NULL AS has_promptpay FROM "ShopSettings" WHERE "tenantId" IS NULL;
+SELECT status, count(*) FROM "TenantPayment" GROUP BY status;
+
 ROLLBACK;

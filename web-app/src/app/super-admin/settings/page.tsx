@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Settings, Shield, Bell, Globe, Database, Save, Loader2, CheckCircle2 } from 'lucide-react'
+import { Settings, Shield, Bell, Globe, Database, Save, Loader2, CheckCircle2, Landmark } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import api from '@/lib/api'
-import type { SystemSettings } from '@/types'
+import type { SystemSettings, SystemSettingsShop } from '@/types'
 import { cn } from '@/lib/utils'
 
 function ReadOnlyRow({ label, value }: { label: string; value: string | boolean }) {
@@ -39,12 +39,11 @@ export default function SettingsPage() {
   const [editing,     setEditing]     = useState(false)
 
   const startEdit = () => {
-    if (!data?.shop) return
-    setShopName(data.shop.shopName ?? '')
-    setShopPhone(data.shop.shopPhone ?? '')
-    setShopEmail(data.shop.shopEmail ?? '')
-    setShopAddress(data.shop.shopAddress ?? '')
-    setTaxId(data.shop.taxId ?? '')
+    setShopName(data?.shop?.shopName ?? 'FixITPro')
+    setShopPhone(data?.shop?.shopPhone ?? '')
+    setShopEmail(data?.shop?.shopEmail ?? '')
+    setShopAddress(data?.shop?.shopAddress ?? '')
+    setTaxId(data?.shop?.taxId ?? '')
     setEditing(true)
   }
 
@@ -82,7 +81,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-bold text-white">System Settings</h1>
           <p className="text-slate-400 text-sm mt-0.5">การตั้งค่าระดับแพลตฟอร์ม</p>
         </div>
-        {data.shop && !editing && (
+        {!editing && (
           <Button size="sm" onClick={startEdit} className="bg-violet-600 hover:bg-violet-700">
             <Settings className="h-3.5 w-3.5 mr-1.5" />
             แก้ไขข้อมูลร้าน
@@ -162,11 +161,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {!data.shop ? (
-            <div className="px-5 py-6 text-center">
-              <p className="text-slate-500 text-sm">ไม่พบข้อมูล ShopSettings (row id=1)</p>
-            </div>
-          ) : editing ? (
+          {editing ? (
             <div className="p-5 space-y-4">
               {([
                 { label: 'ชื่อร้าน',  value: shopName,    set: setShopName },
@@ -201,6 +196,10 @@ export default function SettingsPage() {
                 </Button>
               </div>
             </div>
+          ) : !data.shop ? (
+            <div className="px-5 py-6 text-center">
+              <p className="text-slate-500 text-sm">ยังไม่ได้ตั้งค่าข้อมูลแพลตฟอร์ม — กด &quot;แก้ไขข้อมูลร้าน&quot;</p>
+            </div>
           ) : (
             <div className="divide-y divide-slate-800/50">
               <ReadOnlyRow label="ชื่อร้าน"          value={data.shop.shopName ?? '—'} />
@@ -213,7 +212,87 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        <RenewalPaymentCard shop={data.shop} />
       </div>
+    </div>
+  )
+}
+
+/** Where shops send money when they renew; shown on the shop's renewal page (/billing). */
+function RenewalPaymentCard({ shop }: { shop: SystemSettingsShop | null }) {
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [promptpayId, setPromptpayId] = useState('')
+  const [bankInfo, setBankInfo] = useState('')
+
+  const mutation = useMutation({
+    mutationFn: () => api.patch('/super-admin/settings', {
+      ...(shop ? {} : { shopName: 'FixITPro' }),
+      promptpayId: promptpayId.trim(),
+      renewalBankInfo: bankInfo.trim(),
+    }),
+    onSuccess: () => {
+      toast.success('บันทึกบัญชีรับชำระแล้ว')
+      qc.invalidateQueries({ queryKey: ['sa-settings'] })
+      setEditing(false)
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
+  })
+
+  const missing = !shop?.promptpayId && !shop?.renewalBankInfo
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden lg:col-span-2">
+      <div className="px-5 py-4 border-b border-slate-800 flex items-center gap-3">
+        <div className="h-8 w-8 rounded-lg bg-slate-800 flex items-center justify-center">
+          <Landmark className="h-4 w-4 text-slate-400" />
+        </div>
+        <div className="flex-1">
+          <p className="text-white font-semibold text-sm">บัญชีรับชำระค่าบริการ</p>
+          <p className="text-slate-500 text-xs">แสดงให้ร้านเห็นในหน้าต่ออายุ เพื่อโอนเงินแล้วแนบสลิป</p>
+        </div>
+        {!editing && (
+          <Button size="sm" variant="ghost" className="text-violet-300 hover:text-white"
+            onClick={() => { setPromptpayId(shop?.promptpayId ?? ''); setBankInfo(shop?.renewalBankInfo ?? ''); setEditing(true) }}>
+            แก้ไข
+          </Button>
+        )}
+      </div>
+      {editing ? (
+        <div className="p-5 space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-slate-400 text-xs">พร้อมเพย์ (เบอร์โทรหรือเลขบัตรประชาชน / เลขนิติบุคคล)</Label>
+            <Input value={promptpayId} onChange={(e) => setPromptpayId(e.target.value)} placeholder="เช่น 0812345678"
+              className="bg-slate-800 border-slate-700 text-white text-sm" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-slate-400 text-xs">บัญชีธนาคาร (บรรทัดละบัญชี)</Label>
+            <textarea value={bankInfo} onChange={(e) => setBankInfo(e.target.value)} rows={3}
+              placeholder={'เช่น กสิกรไทย 123-4-56789-0 ชื่อบัญชี ...'}
+              className="w-full rounded-md bg-slate-800 border border-slate-700 text-white text-sm px-3 py-2" />
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="text-slate-400 hover:text-white">ยกเลิก</Button>
+            <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending} className="bg-violet-600 hover:bg-violet-700">
+              {mutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+              บันทึก
+            </Button>
+          </div>
+        </div>
+      ) : missing ? (
+        <div className="px-5 py-4 text-sm text-amber-300">
+          ยังไม่ได้ตั้งค่า — หน้าต่ออายุจะบอกร้านให้ติดต่อทาง LINE เพื่อขอเลขบัญชีแทน
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-800/50">
+          <ReadOnlyRow label="พร้อมเพย์" value={shop?.promptpayId || '—'} />
+          <div className="px-5 py-3">
+            <p className="text-slate-400 text-sm mb-1">บัญชีธนาคาร</p>
+            <p className="text-white text-sm whitespace-pre-line">{shop?.renewalBankInfo || '—'}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
