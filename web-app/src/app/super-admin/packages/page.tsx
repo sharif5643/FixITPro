@@ -26,20 +26,28 @@ const MODULE_LABEL: Record<string, string> = {
   line_notify:     'แจ้งเตือน LINE',
   report:          'รายงาน',
   user_management: 'จัดการผู้ใช้',
+  package_sales:   'ขายซิม / แพ็กเกจ',
+  accounting:      'บัญชี',
 }
 
 const PLAN_ACCENT: Record<string, string> = {
   TRIAL:      'border-amber-500/40 bg-amber-500/5',
+  LITE:       'border-cyan-500/40 bg-cyan-500/5',
   BASIC:      'border-blue-500/40 bg-blue-500/5',
   PRO:        'border-violet-500/40 bg-violet-500/5',
+  BUSINESS:   'border-emerald-500/40 bg-emerald-500/5',
   ENTERPRISE: 'border-emerald-500/40 bg-emerald-500/5',
+  PRIVATE:    'border-rose-500/40 bg-rose-500/5',
 }
 
 const PLAN_HEADER: Record<string, string> = {
   TRIAL:      'text-amber-300',
+  LITE:       'text-cyan-300',
   BASIC:      'text-blue-300',
   PRO:        'text-violet-300',
+  BUSINESS:   'text-emerald-300',
   ENTERPRISE: 'text-emerald-300',
+  PRIVATE:    'text-rose-300',
 }
 
 // ── Edit Package Meta Dialog ──────────────────────────────────────────────────

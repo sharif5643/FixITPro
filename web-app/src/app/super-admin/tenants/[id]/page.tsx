@@ -25,7 +25,7 @@ import type {
   Tenant, TenantPlan, TenantRenewal, TenantPayment,
   SuperAdminBranch, SuperAdminUser, AuditLogEntry, TenantModuleStatus,
 } from '@/types'
-import { TENANT_PLAN_LABEL, PAYMENT_STATUS_LABEL } from '@/types'
+import { TENANT_PLAN_LABEL, PAYMENT_STATUS_LABEL, CURRENT_PLANS } from '@/types'
 import { cn } from '@/lib/utils'
 
 type Tab = 'overview' | 'branches' | 'users' | 'subscription' | 'payments' | 'activity' | 'settings' | 'modules'
@@ -56,7 +56,7 @@ function PlanDialog({
   open: boolean; onClose: () => void; tenant: Tenant; action: 'activate' | 'renew'
 }) {
   const qc = useQueryClient()
-  const [plan, setPlan] = useState<TenantPlan>(tenant.plan ?? 'BASIC')
+  const [plan, setPlan] = useState<TenantPlan>(tenant.plan ?? 'LITE')
   const [durationType, setDurationType] = useState<'preset' | 'custom'>('preset')
   const [duration, setDuration] = useState(365)
   const [customDate, setCustomDate] = useState('')
@@ -92,7 +92,7 @@ function PlanDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                {(['TRIAL', 'BASIC', 'PRO', 'ENTERPRISE'] as TenantPlan[]).map((p) => (
+                {CURRENT_PLANS.map((p) => (
                   <SelectItem key={p} value={p} className="focus:bg-slate-700 focus:text-white">
                     {TENANT_PLAN_LABEL[p]}
                   </SelectItem>

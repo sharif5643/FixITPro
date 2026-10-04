@@ -85,7 +85,7 @@ export default function SuperAdminDashboard() {
 
   // Package distribution
   const planDist = useMemo(() => {
-    const counts: Record<string, number> = { TRIAL: 0, BASIC: 0, PRO: 0, ENTERPRISE: 0 }
+    const counts: Record<string, number> = { TRIAL: 0, LITE: 0, PRO: 0, BUSINESS: 0, PRIVATE: 0 }
     tenants.filter(t => t.status === 'ACTIVE').forEach(t => { counts[t.plan] = (counts[t.plan] ?? 0) + 1 })
     const total = Object.values(counts).reduce((a, b) => a + b, 0)
     return Object.entries(counts)
