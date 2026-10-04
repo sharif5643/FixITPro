@@ -1,8 +1,10 @@
 import {
   Injectable,
+  Optional,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
@@ -18,7 +20,7 @@ const PO_INCLUDE = {
   branch:    { select: { id: true, name: true } },
   items: {
     include: {
-      product: { select: { id: true, name: true, sku: true, stock: true } },
+      product: { select: { id: true, name: true, sku: true, stock: true, type: true } },
     },
   },
   payments: { orderBy: { paidAt: 'desc' as const } },
@@ -32,6 +34,7 @@ export class PurchaseOrdersService {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private accounting: AccountingService,
+    @Optional() private opsAccounting?: OpsAccountingAdapter,
   ) {}
 
   private async generatePoNumber(): Promise<string> {
@@ -227,6 +230,8 @@ export class PurchaseOrdersService {
 
     // Effective branch: explicit dto override → PO's locked branch → undefined (single-branch legacy)
     const effectiveBranchId = dto.branchId ?? po.branchId ?? undefined;
+    // Stock that came in, for the journal posted after the receipt commits
+    const received: { movementId: string; amount: number; name: string; type?: string | null }[] = [];
 
     await this.prisma.$transaction(async (tx) => {
       for (const recv of itemsToReceive) {
@@ -285,7 +290,7 @@ export class PurchaseOrdersService {
           });
         }
 
-        await tx.stockMovement.create({
+        const movement = await tx.stockMovement.create({
           data: {
             type: 'IN',
             quantity: recv.quantity,
@@ -295,6 +300,12 @@ export class PurchaseOrdersService {
             referenceType: 'PURCHASE_ORDER',
             referenceId: poId,
           },
+        });
+        received.push({
+          movementId: movement.id,
+          amount: Number(poItem.unitCost) * recv.quantity,
+          name: poItem.product.name,
+          type: (poItem.product as { type?: string | null }).type,
         });
       }
 
@@ -311,6 +322,13 @@ export class PurchaseOrdersService {
         data: { status: allReceived ? 'RECEIVED' : 'PARTIAL_RECEIVED' },
       });
     });
+
+    for (const r of received) {
+      await this.opsAccounting?.recordPurchaseReceipt({
+        tenantId, branchId: effectiveBranchId ?? null, movementId: r.movementId, poNumber: po.poNumber,
+        productName: r.name, productType: r.type, amount: r.amount, actorId,
+      });
+    }
 
     const result = await this.findOne(poId, tenantId);
     await this.auditLog.log({
@@ -369,7 +387,7 @@ export class PurchaseOrdersService {
     const newPaymentStatus =
       newPaidTotal >= Number(po.total) - 0.001 ? 'PAID' : 'PARTIAL_PAID';
 
-    await this.prisma.$transaction(async (tx) => {
+    const payment = await this.prisma.$transaction(async (tx) => {
       const payment = await tx.supplierPayment.create({
         data: {
           purchaseOrderId: poId,
@@ -398,6 +416,12 @@ export class PurchaseOrdersService {
           note:          po.poNumber,
         }, tx);
       }
+      return payment;
+    });
+
+    await this.opsAccounting?.recordSupplierPayment({
+      tenantId, branchId: po.branchId ?? null, paymentId: payment.id, poNumber: po.poNumber,
+      paymentMethod: dto.paymentMethod, amount: dto.amount, actorId: userId,
     });
 
     const result = await this.findOne(poId);

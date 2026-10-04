@@ -75,6 +75,14 @@ export const JOURNAL_SOURCE = {
   // Expense accounting (Phase 4B.4D — not yet implemented)
   EXPENSE_PAYMENT:                 'EXPENSE_PAYMENT',
   EXPENSE_REVERSAL:                'EXPENSE_REVERSAL',
+  // Purchasing, SIM/package sales and manual cash drawer entries (OpsAccountingAdapter)
+  PO_RECEIVE:                      'PO_RECEIVE',
+  PO_PAYMENT:                      'PO_PAYMENT',
+  PACKAGE_SALE:                    'PACKAGE_SALE',
+  WALLET_TOPUP:                    'WALLET_TOPUP',
+  DRAWER_WITHDRAWAL:               'DRAWER_WITHDRAWAL',
+  DRAWER_DEPOSIT:                  'DRAWER_DEPOSIT',
+  DRAWER_REVERSAL:                 'DRAWER_REVERSAL',
   // Repair cancellation deposit refund (Phase 4B.4J)
   REPAIR_DEPOSIT_REFUND:           'REPAIR_DEPOSIT_REFUND',
   // Repair cancellation of DELIVERED repairs — reversals (Phase 4B.4L)

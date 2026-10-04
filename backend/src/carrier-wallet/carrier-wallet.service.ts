@@ -2,7 +2,10 @@ import {
   Injectable,
   BadRequestException,
   Logger,
+  Optional,
 } from '@nestjs/common';
+import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
+import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { PackageSaleDto } from './dto/package-sale.dto';
@@ -42,7 +45,48 @@ function isReceiptNumberConflict(err: unknown) {
 export class CarrierWalletService {
   private readonly logger = new Logger(CarrierWalletService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private accounting?: AccountingService,
+    @Optional() private opsAccounting?: OpsAccountingAdapter,
+  ) {}
+
+  /** The branch a SIM/package sale or top-up belongs to, from its shift. */
+  private async branchOfShift(shiftId?: string | null): Promise<string | null> {
+    if (!shiftId) return null;
+    const shift = await this.prisma.shift.findUnique({ where: { id: shiftId }, select: { branchId: true } });
+    return shift?.branchId ?? null;
+  }
+
+  /**
+   * After a SIM/package sale commits: the money goes into the cash drawer ledger (cash into
+   * the open drawer, other methods as unassigned records like every sale) and into the books.
+   * Neither step can undo the sale.
+   */
+  private async afterPackageSale(
+    sale: { id: string; receiptNumber: string; carrier: string; saleType: string; packageAmount: number; walletDeduction: number; profit: number; paymentMethod: string },
+    shiftId: string | null | undefined, userId: string, tenantId: TenantId,
+  ) {
+    try {
+      const branchId = await this.branchOfShift(shiftId);
+      if (branchId && this.accounting) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.PACKAGE_SALE,
+          sourceId:      sale.id,
+          paymentMethod: sale.paymentMethod as any,
+          amount:        sale.packageAmount,
+          direction:     'IN',
+          branchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   userId,
+          note:          sale.receiptNumber,
+        });
+      }
+      await this.opsAccounting?.recordPackageSale({ tenantId, branchId, sale, actorId: userId });
+    } catch (err) {
+      this.logger.warn(`PackageSale ${sale.receiptNumber}: drawer/journal posting failed: ${(err as Error).message}`);
+    }
+  }
 
   // ── Balances ─────────────────────────────────────────────────────────────────
 
@@ -109,7 +153,7 @@ export class CarrierWalletService {
 
     await this.ensureWallets(tenantId, [dto.carrier]);
 
-    return this.withReceiptRetry(() => this.prisma.$transaction(async (tx) => {
+    const done = await this.withReceiptRetry(() => this.prisma.$transaction(async (tx) => {
       // Read wallet first to get id and a snapshot balance for error messages.
       const walletRow = await this.getWallet(tx, tenantId, dto.carrier);
 
@@ -189,6 +233,8 @@ export class CarrierWalletService {
         walletBalance:   newBalance,
       };
     }));
+    await this.afterPackageSale(done as any, dto.shiftId, userId, tenantId);
+    return done;
   }
 
   // ── Top-up ────────────────────────────────────────────────────────────────────
@@ -196,7 +242,7 @@ export class CarrierWalletService {
   async topup(dto: TopupDto, userId: string, tenantId: TenantId) {
     await this.ensureWallets(tenantId, [dto.carrier]);
 
-    return this.prisma.$transaction(async (tx) => {
+    const done = await this.prisma.$transaction(async (tx) => {
       const wallet = await this.getWallet(tx, tenantId, dto.carrier);
 
       // Atomic increment so a concurrent sale's decrement is not overwritten
@@ -207,7 +253,7 @@ export class CarrierWalletService {
       const newBalance     = Number(updated.balance);
       const currentBalance = Math.round((newBalance - dto.amount) * 100) / 100;
 
-      await tx.carrierWalletMovement.create({
+      const movement = await tx.carrierWalletMovement.create({
         data: {
           carrier:       dto.carrier as any,
           type:          'TOPUP',
@@ -226,8 +272,13 @@ export class CarrierWalletService {
         `Topup carrier=${dto.carrier} amount=${dto.amount} newBalance=${newBalance}`,
       );
 
-      return { carrier: dto.carrier, balance: newBalance };
+      return { carrier: dto.carrier, balance: newBalance, movementId: movement.id };
     });
+    await this.opsAccounting?.recordWalletTopup({
+      tenantId, branchId: await this.branchOfShift(dto.shiftId).catch(() => null),
+      movementId: done.movementId, carrier: dto.carrier, amount: dto.amount, actorId: userId,
+    });
+    return { carrier: done.carrier, balance: done.balance };
   }
 
   // ── SIM card sale (no carrier wallet deduction) ───────────────────────────────
@@ -252,7 +303,7 @@ export class CarrierWalletService {
       ? Math.max(0, dto.amountPaid - dto.packageAmount)
       : 0;
 
-    return this.withReceiptRetry(() => this.prisma.$transaction(async (tx) => {
+    const done = await this.withReceiptRetry(() => this.prisma.$transaction(async (tx) => {
       const receiptNumber = await this.generateReceiptNumber(tx);
       const sale = await tx.packageSale.create({
         data: {
@@ -287,6 +338,8 @@ export class CarrierWalletService {
         change:          Number(sale.change),
       };
     }));
+    await this.afterPackageSale(done as any, dto.shiftId, userId, tenantId);
+    return done;
   }
 
   // ── Package sales listing with filter ─────────────────────────────────────────
