@@ -26,4 +26,17 @@ FROM "Tenant" t ORDER BY t."createdAt";
 \echo '--- 6. TenantPlan enum values ---'
 SELECT unnest(enum_range(NULL::"TenantPlan"))::text;
 
+\echo '--- 7. Per shop: modules it ends up WITHOUT (package + overrides, expired overrides ignored) ---'
+SELECT t.id, t.plan, string_agg(m.key, ', ' ORDER BY m.key) AS missing
+FROM "Tenant" t CROSS JOIN "AppModule" m
+WHERE NOT (
+  (EXISTS (SELECT 1 FROM "PackageModule" pm WHERE pm."packageKey" = t.plan::text AND pm."moduleKey" = m.key)
+   AND NOT EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = m.key AND NOT tm.enabled AND (tm."expiresAt" IS NULL OR tm."expiresAt" > now())))
+  OR EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = m.key AND tm.enabled AND (tm."expiresAt" IS NULL OR tm."expiresAt" > now()))
+)
+GROUP BY t.id, t.plan, t."createdAt" ORDER BY t."createdAt";
+
+\echo '--- 8. Overrides that have an expiry date ---'
+SELECT "tenantId", "moduleKey", enabled, "expiresAt" FROM "TenantModule" WHERE "expiresAt" IS NOT NULL ORDER BY 1, 2;
+
 ROLLBACK;
