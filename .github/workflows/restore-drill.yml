@@ -93,6 +93,13 @@ jobs:
             done
           '
 
+      - name: Read-only database checks
+        # scripts/backup/readonly-checks.sql runs inside BEGIN READ ONLY ... ROLLBACK
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 \
+            'pg=$(docker ps --format "{{.Names}}" | grep "^postgres-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1); docker exec -i "$pg" psql -U fixitpro -d fixitpro -A -F " | " -v ON_ERROR_STOP=1' \
+            < scripts/backup/readonly-checks.sql || true
+
       - name: Fresh backup
         if: ${{ inputs.backup_first }}
         run: |

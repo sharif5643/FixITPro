@@ -13,11 +13,11 @@ const MODULE_META: Record<string, {
   pos:             { label: 'ขายสินค้า (POS)',       description: 'ระบบขายสินค้าหน้าร้าน Point of Sale',      plan: 'TRIAL',      planLabel: 'ทดลองใช้'        },
   repair:          { label: 'งานซ่อม',               description: 'รับซ่อม, รับประกัน, เคลมสินค้า, ช่าง',  plan: 'TRIAL',      planLabel: 'ทดลองใช้'        },
   stock:           { label: 'คลังสินค้า',            description: 'สินค้า, สต็อก, Serial/IMEI, บาร์โค้ด',   plan: 'TRIAL',      planLabel: 'ทดลองใช้'        },
-  crm:             { label: 'ลูกค้าสัมพันธ์ (CRM)', description: 'ระบบลูกค้า, ติดตาม, ประวัติการซื้อ',     plan: 'BASIC',      planLabel: 'เบสิก'            },
-  report:          { label: 'รายงาน',                description: 'รายงาน, วิเคราะห์ข้อมูลเชิงลึก',         plan: 'BASIC',      planLabel: 'เบสิก'            },
+  crm:             { label: 'ลูกค้าสัมพันธ์ (CRM)', description: 'ระบบลูกค้า, ติดตาม, ประวัติการซื้อ',     plan: 'LITE',       planLabel: 'ไลท์'             },
+  report:          { label: 'รายงาน',                description: 'รายงาน, วิเคราะห์ข้อมูลเชิงลึก',         plan: 'LITE',       planLabel: 'ไลท์'             },
   finance:         { label: 'การเงิน',               description: 'ค่าใช้จ่าย, ซัพพลายเออร์, สั่งซื้อ',    plan: 'PRO',        planLabel: 'โปร'              },
   line_notify:     { label: 'แจ้งเตือน LINE',        description: 'ส่งแจ้งเตือนอัตโนมัติผ่าน LINE',         plan: 'PRO',        planLabel: 'โปร'              },
-  user_management: { label: 'จัดการผู้ใช้',          description: 'พนักงาน, บทบาท, สาขา, สิทธิ์',          plan: 'ENTERPRISE', planLabel: 'เอ็นเตอร์ไพรส์'  },
+  user_management: { label: 'จัดการผู้ใช้',          description: 'พนักงาน, บทบาท, สาขา, สิทธิ์',          plan: 'BUSINESS',   planLabel: 'บิสิเนส'          },
   accounting:      { label: 'Accounting (บัญชี)',     description: 'ระบบบัญชีคู่ (Double-Entry Journal)',     plan: 'BUSINESS',   planLabel: 'บิสิเนส'          },
 }
 
