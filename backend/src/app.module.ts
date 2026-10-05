@@ -29,6 +29,7 @@ import { CarrierWalletModule } from './carrier-wallet/carrier-wallet.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PushModule } from './push/push.module';
 import { BackupModule } from './backup/backup.module';
 import { WarrantiesModule } from './warranties/warranties.module';
 import { TechniciansModule } from './technicians/technicians.module';
@@ -109,6 +110,7 @@ import { TenantBackupModule }             from './tenant-backup/tenant-backup.mo
     CarrierWalletModule,
     ExpensesModule,
     AuditLogModule,
+    PushModule,
     NotificationsModule,
     BackupModule,
     WarrantiesModule,

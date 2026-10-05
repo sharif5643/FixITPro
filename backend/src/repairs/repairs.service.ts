@@ -110,8 +110,6 @@ export class RepairsService {
           userId: t.id,
         });
       }
-      this.lineMsg.notifyStaff(tenantId, techs.map((t) => t.id),
-        `🔧 งานซ่อมใหม่ ยังไม่มีช่างรับ\n${repair.ticketNumber} · ${repair.deviceBrand} ${repair.deviceModel}`).catch(() => {});
     } catch (err) {
       this.logger.warn(`notifyBranchTechnicians failed for ${repair.ticketNumber}: ${(err as Error).message}`);
     }
@@ -143,10 +141,6 @@ export class RepairsService {
       where: { type: 'REPAIR_NEW', entityId: repair.id, isRead: false },
       data:  { isRead: true },
     }).catch(() => {});
-    if (tenantId) {
-      this.lineMsg.notifyStaff(tenantId, [technicianId],
-        `🔧 มีงานซ่อมมอบหมายให้คุณ\n${repair.ticketNumber} · ${repair.deviceBrand} ${repair.deviceModel}${actorName ? `\nจาก ${actorName}` : ''}`).catch(() => {});
-    }
   }
 
   private async assertBranchActive(branchId: string) {

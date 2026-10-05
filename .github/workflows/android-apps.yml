@@ -125,15 +125,25 @@ jobs:
           EOF
 
       - name: Build APKs
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           set -euo pipefail
           chmod +x android/gradlew
           VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
           VERSION_NAME="2.${GITHUB_RUN_NUMBER}"
           mkdir -p "$RUNNER_TEMP/apks"
+          # Lock-screen notifications: only when the Firebase config (secret GOOGLE_SERVICES_JSON)
+          # has this app's package; otherwise the app is built without them and works as before.
           build() {
-            local flavor=$1 Flavor=$2 url=$3 id=$4 name=$5 file=$6
-            CAPACITOR_SERVER_URL="$url" CAPACITOR_APP_ID="$id" CAPACITOR_APP_NAME="$name" npx cap sync android
+            local flavor=$1 Flavor=$2 url=$3 id=$4 name=$5 file=$6 push=0
+            rm -f android/app/google-services.json
+            if [ -n "${GOOGLE_SERVICES_JSON:-}" ] && printf '%s' "$GOOGLE_SERVICES_JSON" | grep -q "\"$id\""; then
+              printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+              push=1
+            fi
+            echo "$name: lock-screen notifications $([ $push = 1 ] && echo ON || echo off)"
+            CAPACITOR_PUSH=$push CAPACITOR_SERVER_URL="$url" CAPACITOR_APP_ID="$id" CAPACITOR_APP_NAME="$name" npx cap sync android
             (cd android && ./gradlew --no-daemon -q "assemble${Flavor}Release" \
               -PappVersionCode="$VERSION_CODE" -PappVersionName="$VERSION_NAME")
             cp "android/app/build/outputs/apk/$flavor/release/app-$flavor-release.apk" "$RUNNER_TEMP/apks/$file"

@@ -6,10 +6,12 @@ import { useAuthStore } from '@/store/auth.store'
 import { StaffBottomNav } from '@/components/staff/staff-bottom-nav'
 import { SubscriptionBanner } from '@/components/layout/subscription-banner'
 import { NewJobAlert } from '@/components/alerts/new-job-alert'
+import { PushSetup } from '@/components/alerts/push-setup'
 import api from '@/lib/api'
 
 const AUTH_PAGES = ['/staff/login', '/staff/register', '/staff/splash', '/staff/change-password']
 const AUTH_TIMEOUT_MS = 10_000
+const staffRepairHref = (id: string) => `/staff/repairs/${id}`
 
 export default function StaffLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -114,7 +116,8 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
       {user.role !== 'SUPER_ADMIN' && (
         <div className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] empty:hidden"><SubscriptionBanner /></div>
       )}
-      <NewJobAlert repairHref={(id) => `/staff/repairs/${id}`} />
+      <NewJobAlert repairHref={staffRepairHref} />
+      <PushSetup repairHref={staffRepairHref} />
       <main className="pb-[calc(70px+env(safe-area-inset-bottom))]">{children}</main>
       <StaffBottomNav />
     </div>

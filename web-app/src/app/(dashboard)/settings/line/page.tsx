@@ -15,8 +15,6 @@ import { SectionCard } from '@/components/ui/section-card'
 import { Card, CardContent } from '@/components/ui/card'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
-import { useAuthStore } from '@/store/auth.store'
-import { LineLinkCard } from '@/components/line/line-link-card'
 
 export default function LineSettingsPage() {
   const qc = useQueryClient()
@@ -31,10 +29,6 @@ export default function LineSettingsPage() {
   const [enabled, setEnabled] = useState(false)
   const [showToken, setShowToken] = useState(false)
   const [tokenDirty, setTokenDirty] = useState(false)
-  const [secret, setSecret] = useState('')
-  const [oaId, setOaId] = useState('')
-  const tenantId = useAuthStore((st) => st.user?.tenantId)
-  const secretIsSet = (settings?.lineChannelSecret ?? '').startsWith('****')
 
   const tokenIsSet = (settings?.lineChannelAccessToken ?? '').startsWith('****')
 
@@ -44,13 +38,11 @@ export default function LineSettingsPage() {
       setToken(settings.lineChannelAccessToken ?? '')
       setEnabled(settings.lineNotifyEnabled ?? false)
       setTokenDirty(false)
-      setSecret('')
-      setOaId(settings.lineOaId ?? '')
     }
   }, [settings])
 
   const mutation = useMutation({
-    mutationFn: (data: { lineChannelAccessToken?: string; lineNotifyEnabled: boolean; lineChannelSecret?: string; lineOaId?: string }) =>
+    mutationFn: (data: { lineChannelAccessToken?: string; lineNotifyEnabled: boolean }) =>
       api.patch('/settings', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] })
@@ -71,17 +63,13 @@ export default function LineSettingsPage() {
     mutation.mutate({
       // Only send token if user typed a new value (not the masked placeholder)
       ...(isNewToken ? { lineChannelAccessToken: token.trim() } : {}),
-      ...(secret.trim() ? { lineChannelSecret: secret.trim() } : {}),
-      lineOaId: oaId.trim(),
       lineNotifyEnabled: enabled,
     })
   }
 
-  // This shop's own webhook, verified with its own channel secret
-  const webhookPath = `/api/v1/public/line/webhook/${tenantId ?? ''}`
   const webhookUrl = typeof window !== 'undefined'
-    ? `${window.location.origin.replace(':3001', ':3000')}${webhookPath}`
-    : webhookPath
+    ? `${window.location.origin.replace(':3001', ':3000')}/api/v1/public/line/webhook`
+    : '/api/v1/public/line/webhook'
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -101,10 +89,9 @@ export default function LineSettingsPage() {
               <ol className="list-decimal list-inside space-y-1 text-blue-700 dark:text-blue-400">
                 <li>สร้าง LINE Official Account ที่ <a href="https://manager.line.biz" target="_blank" rel="noopener" className="underline">manager.line.biz</a></li>
                 <li>ไปที่ Settings → Messaging API → Enable</li>
-                <li>ที่ <a href="https://developers.line.biz/console" target="_blank" rel="noopener" className="underline">LINE Developers Console</a> → Messaging API: คัดลอก Channel Access Token (Long-lived) และ Channel Secret (แท็บ Basic settings)</li>
-                <li>วาง Token, Secret และ LINE OA ID (เช่น @123abcd) ในช่องด้านล่าง แล้วบันทึก</li>
-                <li>วาง Webhook URL ด้านล่างใน Messaging API → Webhook settings แล้วเปิด “Use webhook”</li>
-                <li>ใน LINE Official Account Manager ปิด “ข้อความตอบกลับอัตโนมัติ” เพื่อให้ระบบตอบแทน</li>
+                <li>คัดลอก Channel Access Token (Long-lived)</li>
+                <li>วาง Token ในช่องด้านล่าง</li>
+                <li>ตั้งค่า Webhook URL ใน LINE Developer Console</li>
               </ol>
             </div>
           </div>
@@ -170,29 +157,6 @@ export default function LineSettingsPage() {
               Long-lived token จาก LINE Developer Console → Messaging API
               {tokenIsSet && !tokenDirty && ' · คลิกเพื่อเปลี่ยน token ใหม่'}
             </p>
-          </div>
-
-          {/* Channel secret: verifies this shop's webhook */}
-          <div className="space-y-1.5">
-            <Label htmlFor="line-secret" className="flex items-center gap-2">
-              Channel Secret
-              {secretIsSet && !secret && (
-                <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-normal">
-                  <CheckCircle2 className="h-3.5 w-3.5" />ตั้งค่าแล้ว
-                </span>
-              )}
-            </Label>
-            <Input id="line-secret" type="password" value={secret} onChange={(e) => setSecret(e.target.value)}
-              placeholder={secretIsSet ? 'พิมพ์ใหม่เพื่อเปลี่ยน' : 'Channel Secret จากแท็บ Basic settings'}
-              className="font-mono text-xs" autoComplete="off" />
-            <p className="text-xs text-muted-foreground">ใช้ยืนยันว่าข้อความที่เข้ามามาจาก LINE OA ของร้านจริง</p>
-          </div>
-
-          {/* OA ID: add-friend link for staff and customers */}
-          <div className="space-y-1.5">
-            <Label htmlFor="line-oa">LINE OA ID</Label>
-            <Input id="line-oa" value={oaId} onChange={(e) => setOaId(e.target.value)} placeholder="@123abcd" className="text-sm" />
-            <p className="text-xs text-muted-foreground">ใช้ทำปุ่ม “เพิ่มเพื่อน” ให้พนักงานและลูกค้า</p>
           </div>
 
           {/* Webhook URL */}
@@ -261,19 +225,6 @@ export default function LineSettingsPage() {
               )}
             </div>
           ))}
-        </div>
-      </SectionCard>
-
-      {/* Job alerts for staff */}
-      <SectionCard title="แจ้งเตือนช่างทาง LINE">
-        <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
-          <p>เมื่อมีงานซ่อมมอบหมายให้ช่าง หรือรับงานโดยยังไม่เลือกช่าง ระบบจะส่ง LINE ถึงช่างที่เชื่อมไว้ (เด้งแม้ล็อกจอ)</p>
-          <ol className="list-decimal list-inside space-y-1">
-            <li>พนักงานเปิดแอป FixITPro Staff → โปรไฟล์ → “เชื่อม LINE”</li>
-            <li>เพิ่มเพื่อน LINE OA ของร้าน แล้วส่งรหัส FIX-xxxxxx ที่แอปแสดง</li>
-            <li>ระบบตอบกลับว่าเชื่อมสำเร็จ — เสร็จ</li>
-          </ol>
-          <div className="max-w-sm"><LineLinkCard /></div>
         </div>
       </SectionCard>
 

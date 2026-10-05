@@ -9,7 +9,6 @@ import {
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { toast } from 'sonner'
-import { LineLinkCard } from '@/components/line/line-link-card'
 
 const MENU_ITEMS = [
   { icon: User,        label: 'ข้อมูลส่วนตัว',  href: '/staff/profile/edit'    },
@@ -73,7 +72,6 @@ export default function StaffProfilePage() {
 
       {/* Menu */}
       <div className="px-5 py-4">
-        <div className="mb-4"><LineLinkCard /></div>
         <div className="rounded-2xl bg-white shadow-card overflow-hidden">
           {MENU_ITEMS.map((item, idx) => {
             const Icon = item.icon

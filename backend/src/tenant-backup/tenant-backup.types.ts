@@ -125,12 +125,10 @@ export const USER_EXCLUDED_FIELDS = [
   'password',
   'googleId',
   'lineUserId',
-  'lineNotifyId',
 ] as const;
 
 export const SHOP_SETTINGS_EXCLUDED_FIELDS = [
   'lineChannelAccessToken',
-  'lineChannelSecret',
 ] as const;
 
 // Globally unique constraints that prevent restore to different tenant

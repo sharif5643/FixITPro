@@ -78,6 +78,9 @@ services:
       BACKUP_S3_ACCESS_KEY_ID:      "${BACKUP_S3_ACCESS_KEY_ID:-}"
       BACKUP_S3_SECRET_ACCESS_KEY:  "${BACKUP_S3_SECRET_ACCESS_KEY:-}"
       BACKUP_S3_PREFIX:             "${BACKUP_S3_PREFIX:-backups/}"
+      # Lock-screen notifications on the Android apps (Firebase service-account JSON, as is or
+      # base64). Empty → the apps just show alerts while open.
+      FIREBASE_SERVICE_ACCOUNT:     "${FIREBASE_SERVICE_ACCOUNT:-}"
     labels:
       # Explicit Traefik service port so the Docker provider resolves the service URL correctly.
       # Without this, Traefik v3 may fail to link the auto-generated router to the container.

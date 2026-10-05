@@ -392,6 +392,21 @@ model TenantPayment {
   @@index([status, createdAt])
 }
 
+/// A phone that gets notifications (Firebase) for the account signed in on it
+model PushDevice {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  platform   String   @default("android")
+  app        String?
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId   String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 model User {
   id          String    @id @default(cuid())
   email       String?   @unique
@@ -410,10 +425,8 @@ model User {
   passwordResetById     String?
   lastPasswordChangedAt DateTime?
 
-  googleId     String? @unique
-  lineUserId   String? @unique
-  // Id on the shop's LINE Official Account, for job alerts (set by sending a link code to the OA)
-  lineNotifyId String?
+  googleId   String? @unique
+  lineUserId String? @unique
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -470,6 +483,7 @@ model User {
 
   quotationsProposed  PartnerRepairQuotation[] @relation("QuotationsProposedByUser")
   quotationsResponded PartnerRepairQuotation[] @relation("QuotationsRespondedByUser")
+  pushDevices         PushDevice[]
 
   @@index([role, isActive])
   @@index([tenantId])
@@ -930,9 +944,6 @@ model ShopSettings {
   showLogo                Boolean  @default(true)
   lineChannelAccessToken  String?
   lineNotifyEnabled       Boolean  @default(false)
-  // The shop's own LINE Official Account: secret verifies its webhook, OA ID (e.g. @123abcd) for add-friend links
-  lineChannelSecret       String?
-  lineOaId                String?
   promptpayId             String?
   // Platform row only: bank accounts shown to shops on the renewal page
   renewalBankInfo         String?

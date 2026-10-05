@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Body, UseGuards, Res, Req, UnauthorizedException, Query } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Res, Req, UnauthorizedException, Query, Optional } from '@nestjs/common';
+import { PushService } from '../push/push.service';
 import { Request, Response } from 'express';
 import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
@@ -35,6 +36,7 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private config: ConfigService,
+    @Optional() private push?: PushService,
   ) {}
 
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string, role: string, tenantExpiryDate?: string | null) {
@@ -117,6 +119,11 @@ export class AuthController {
     const raw = req.cookies?.[REFRESH_COOKIE];
     if (raw) {
       try { await this.authService.revokeRefreshToken(raw); } catch { /* best-effort */ }
+    }
+    // Signing out on a phone: stop sending that phone this account's notifications
+    const pushToken = req.headers['x-push-token'];
+    if (typeof pushToken === 'string' && pushToken.length >= 20) {
+      await this.push?.forgetPhone(pushToken).catch(() => {});
     }
     res.clearCookie('access_token',    { path: '/' });
     res.clearCookie(REFRESH_COOKIE,    { path: '/api/v1/auth' });

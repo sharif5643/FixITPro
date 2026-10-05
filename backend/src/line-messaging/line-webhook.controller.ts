@@ -6,7 +6,6 @@ import {
   HttpCode,
   Logger,
   Req,
-  Param,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
@@ -76,37 +75,6 @@ export class LineWebhookController {
       }
     }
 
-    return { status: 'ok' };
-  }
-
-  /**
-   * Webhook of one shop's own LINE Official Account (URL shown on Settings → LINE).
-   * Verified with that shop's channel secret; staff link codes and customer phone numbers
-   * are matched inside that shop only.
-   */
-  @Post('webhook/:tenantId')
-  @HttpCode(200)
-  async shopWebhook(
-    @Param('tenantId') tenantId: string,
-    @Body() body: { events?: LineEvent[] },
-    @Headers('x-line-signature') signature: string,
-    @Req() req: Request,
-  ) {
-    const secret = await this.lineMessaging.channelSecretOf(tenantId);
-    const rawBody = (req as any).rawBody as Buffer | undefined;
-    if (!secret || !rawBody || !signature) throw new UnauthorizedException('LINE webhook is not configured');
-    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
-    const a = Buffer.from(signature);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      this.logger.warn(`LINE webhook signature mismatch for tenant ${tenantId}`);
-      throw new UnauthorizedException('Invalid LINE signature');
-    }
-    for (const event of body.events ?? []) {
-      const userId = event.source?.userId;
-      if (!userId || event.type !== 'message' || event.message?.type !== 'text') continue;
-      await this.lineMessaging.handleShopText(tenantId, userId, event.message.text?.trim() ?? '', event.replyToken);
-    }
     return { status: 'ok' };
   }
 

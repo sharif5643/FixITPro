@@ -29,10 +29,6 @@ export class SettingsService {
       const raw: string = (result as any).lineChannelAccessToken;
       (result as any).lineChannelAccessToken = `****${raw.slice(-6)}`;
     }
-    if ((result as any).lineChannelSecret) {
-      const raw: string = (result as any).lineChannelSecret;
-      (result as any).lineChannelSecret = `****${raw.slice(-4)}`;
-    }
     return result;
   }
 
@@ -71,9 +67,6 @@ export class SettingsService {
     if (updateData.lineChannelAccessToken === '') {
       updateData.lineChannelAccessToken = undefined;
     }
-    if (updateData.lineChannelSecret?.startsWith('****')) delete updateData.lineChannelSecret;
-    if (updateData.lineChannelSecret !== undefined) updateData.lineChannelSecret = updateData.lineChannelSecret.trim() || (null as any);
-    if (updateData.lineOaId !== undefined) updateData.lineOaId = updateData.lineOaId.trim() || (null as any);
 
     const result = await this.prisma.shopSettings.upsert({
       where:  { tenantId },
@@ -86,7 +79,6 @@ export class SettingsService {
       const raw: string = (result as any).lineChannelAccessToken;
       (result as any).lineChannelAccessToken = `****${raw.slice(-6)}`;
     }
-    if ((result as any).lineChannelSecret) (result as any).lineChannelSecret = '****';
 
     await this.auditLog.log({
       actorId,
@@ -94,7 +86,7 @@ export class SettingsService {
       action:     'SETTINGS_UPDATED',
       entityType: 'ShopSettings',
       entityId:   String(result.id),
-      afterData:  { ...updateData, lineChannelAccessToken: updateData.lineChannelAccessToken ? '****' : undefined, lineChannelSecret: updateData.lineChannelSecret ? '****' : undefined },
+      afterData:  { ...updateData, lineChannelAccessToken: updateData.lineChannelAccessToken ? '****' : undefined },
     });
 
     await this.notif.notify({
