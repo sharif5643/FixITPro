@@ -10,6 +10,8 @@ const PUBLIC_PATHS = [
   '/track',
   // Public website routes
   '/register', '/features', '/pricing', '/billing', '/contact', '/about',
+  // App downloads and the files that make the site installable (manifest, icons)
+  '/download', '/manifest.webmanifest', '/icons/',
 ]
 
 // Routes that are the public website root (exact match)

@@ -51,8 +51,10 @@ android {
         applicationId "com.fixitpro.pos"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.1.0"
+        // CI passes -PappVersionCode / -PappVersionName (.github/workflows/android-apps.yml)
+        versionCode((project.findProperty('appVersionCode') ?: '2') as Integer)
+        versionName((project.findProperty('appVersionName') ?: '1.1.0') as String)
+        manifestPlaceholders = [appLabel: "FixITPro"]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -68,17 +70,20 @@ android {
             dimension "env"
             applicationId "com.fixitpro.dev"
             versionNameSuffix "-dev"
+            manifestPlaceholders = [appLabel: "FixITPro DEV"]
         }
         // PROD flavor — SUNMI POS app (stock, sales, print receipts)
         prod {
             dimension "env"
             applicationId "com.fixitpro.pos"
+            manifestPlaceholders = [appLabel: "FixITPro POS"]
         }
         // STAFF flavor — staff/owner mobile app (repairs, chat, profile)
         staff {
             dimension "env"
             applicationId "com.fixitpro.staff"
             versionNameSuffix "-staff"
+            manifestPlaceholders = [appLabel: "FixITPro Staff"]
         }
     }
 

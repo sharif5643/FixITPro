@@ -1,0 +1,195 @@
+name: Android apps (POS + Staff)
+
+# Builds the two Android apps and, when publish is on, puts them on
+# https://fixitpro.in.th/download for shops to install:
+#   FixITPro POS   (com.fixitpro.pos)   → SUNMI devices and shop tablets, opens fixitpro.in.th
+#                                          (SUNMI hardware goes to the SUNMI screens by itself)
+#   FixITPro Staff (com.fixitpro.staff) → staff/owner phones, opens fixitpro.in.th/staff
+# Both are thin WebView shells: new features reach them with every web deploy; a new
+# APK is only needed when the Android side itself changes.
+#
+# Signing: one release key, created on the first run and kept on the server
+# (/root/fixitpro-android, root-only). Every later build is signed with the same key, so
+# installed apps update in place. The key never appears in logs or in the repository.
+
+on:
+  # Build check (no publishing) when the Android side changes
+  pull_request:
+    paths:
+      - 'web-app/android/**'
+      - 'web-app/capacitor.config.ts'
+      - '.github/workflows/android-apps.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the APKs to fixitpro.in.th/download'
+        type: boolean
+        default: true
+
+concurrency:
+  group: android-apps
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: web-app
+    env:
+      SERVER: root@91.98.151.10
+      KEY_DIR: /root/fixitpro-android
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web-app/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup SSH
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        working-directory: .
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat >> ~/.ssh/known_hosts << 'EOF'
+          |1|QXt+ufjmCnRMQgRYn79oNLOLCMk=|MbbxthlQVmKY3M5MBmDVm1r6rk4= ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC1POudJbT9sdzW8+y1VcJaD2wl5Su74uaxJyOdE1NyzMOSS69Iz2ABRMDhGN3tblP7cldNMHFetyuz/yLy3VA6KCIWWzvgFVGUGOX9ic61b0iqOs2PiGs5cGAX4qfcPaxu8gIjxWSneXpJ5gjNpBUlp4z5V0feOH6d3tgWmXpAtxpaQ/4/X4zJ2GJvnCjvWVaFc3H/hg+rhCGFjfbBfKPUIM1nhWV0E7PuxUvTZGKhQMqF+SFMGOTFYAmBys0cKbFwoXjBGERwhD/ibQo/xWUWP0ujUSy9mULA0IYwEyktekfa8IkgBqC7BALAwIuT6r0uiiNX84Adwbg/HOt793Qyke6qpuFmQ4uVLum/cmjVdAkuQvw5KNCmgpAhSa6ULA7nuZu+RXQFjXo0LgY+jSuY39qHHK0nbhtpkemAH1No6wmJ48gKXlOeIO15XEl1tjSsQh2X7f2dzgnhUco5acOqvY249efxJh73YgaBTAdP+0E+wp7BwK7szvZg+4UBt5s=
+          |1|DvsnTBCxLHm8F065S5GQgbFtQ7A=|p3bzmY/gf4hK9k12IVBMYJRUmW0= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJXdI/T+EG5TAdAn1+taAQ11ZngzxKD1IfntVnXaH9du
+          |1|ibmwetm0PAiC8BgSyTtf4uTAKd8=|eE9sCjfTwZLn5uRd6FLxn8RF2do= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLrzre/wkU0criEqkVfDAb3Dx1xjcWhPtoWGVXr7hKPyWz32Zd5rIuLBoqRrf+Llc9ODEUj6Zumb/3ummYQCjHc=
+          EOF
+
+      - name: Throwaway signing key (pull request build check only)
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          PASS=$(openssl rand -hex 24)
+          echo "::add-mask::$PASS"
+          keytool -genkeypair -keystore "$RUNNER_TEMP/release.jks" -storetype PKCS12 -alias fixitpro \
+            -keyalg RSA -keysize 2048 -validity 30 -storepass "$PASS" -keypass "$PASS" \
+            -dname "CN=FixITPro, O=FixITPro PR check, C=TH" >/dev/null 2>&1
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=fixitpro\nkeyPassword=%s\n' "$RUNNER_TEMP/release.jks" "$PASS" "$PASS" > android/key.properties
+
+      - name: Release signing key (created once, kept on the server)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          SSH="ssh -i $HOME/.ssh/deploy_key -o ConnectTimeout=30"
+          SCP="scp -i $HOME/.ssh/deploy_key -o ConnectTimeout=30 -q"
+          JKS="$RUNNER_TEMP/release.jks"; ENVF="$RUNNER_TEMP/key.env"
+          if $SSH "$SERVER" "test -s $KEY_DIR/release.jks && test -s $KEY_DIR/key.env"; then
+            $SCP "$SERVER:$KEY_DIR/release.jks" "$JKS"
+            $SCP "$SERVER:$KEY_DIR/key.env" "$ENVF"
+            echo "Using the existing release key"
+          else
+            PASS=$(openssl rand -hex 24)
+            echo "::add-mask::$PASS"
+            keytool -genkeypair -keystore "$JKS" -storetype PKCS12 -alias fixitpro \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$PASS" -keypass "$PASS" \
+              -dname "CN=FixITPro, O=FixITPro, C=TH" >/dev/null 2>&1
+            printf 'STORE_PASSWORD=%s\n' "$PASS" > "$ENVF"
+            $SSH "$SERVER" "mkdir -p $KEY_DIR && chmod 700 $KEY_DIR"
+            $SCP "$JKS" "$ENVF" "$SERVER:$KEY_DIR/"
+            $SSH "$SERVER" "chmod 600 $KEY_DIR/release.jks $KEY_DIR/key.env"
+            echo "Created a new release key and stored it on the server"
+          fi
+          PASS=$(grep '^STORE_PASSWORD=' "$ENVF" | cut -d= -f2-)
+          echo "::add-mask::$PASS"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=fixitpro\nkeyPassword=%s\n' "$JKS" "$PASS" "$PASS" > android/key.properties
+          rm -f "$ENVF"
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Offline page (shown only if the app cannot reach the server)
+        run: |
+          mkdir -p out
+          cat > out/index.html << 'EOF'
+          <!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>FixITPro</title></head>
+          <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f172a;color:#fff;text-align:center">
+          <div><h2>เชื่อมต่อ FixITPro ไม่ได้</h2><p>ตรวจสอบอินเทอร์เน็ต แล้วลองเปิดแอปใหม่</p>
+          <button onclick="location.reload()" style="padding:12px 24px;border:0;border-radius:12px;background:#f97316;color:#fff;font-size:16px">ลองใหม่</button></div>
+          </body></html>
+          EOF
+
+      - name: Build APKs
+        run: |
+          set -euo pipefail
+          chmod +x android/gradlew
+          VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
+          VERSION_NAME="2.${GITHUB_RUN_NUMBER}"
+          mkdir -p "$RUNNER_TEMP/apks"
+          build() {
+            local flavor=$1 Flavor=$2 url=$3 id=$4 name=$5 file=$6
+            CAPACITOR_SERVER_URL="$url" CAPACITOR_APP_ID="$id" CAPACITOR_APP_NAME="$name" npx cap sync android
+            (cd android && ./gradlew --no-daemon -q "assemble${Flavor}Release" \
+              -PappVersionCode="$VERSION_CODE" -PappVersionName="$VERSION_NAME")
+            cp "android/app/build/outputs/apk/$flavor/release/app-$flavor-release.apk" "$RUNNER_TEMP/apks/$file"
+          }
+          build prod  Prod  "https://fixitpro.in.th/login"        com.fixitpro.pos   "FixITPro POS"   FixITPro-POS.apk
+          build staff Staff "https://fixitpro.in.th/staff/splash" com.fixitpro.staff "FixITPro Staff" FixITPro-Staff.apk
+
+          # What the download page shows
+          cd "$RUNNER_TEMP/apks"
+          meta() { printf '{"file":"%s","version":"%s","versionCode":%s,"size":%s,"sha256":"%s"}' \
+            "$1" "$VERSION_NAME" "$VERSION_CODE" "$(stat -c %s "$1")" "$(sha256sum "$1" | cut -d' ' -f1)"; }
+          printf '{"builtAt":"%s","commit":"%s","pos":%s,"staff":%s}\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${GITHUB_SHA::7}" "$(meta FixITPro-POS.apk)" "$(meta FixITPro-Staff.apk)" > apps.json
+          cat apps.json
+
+      - name: Check the APKs are signed with the release key
+        run: |
+          set -euo pipefail
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          for f in "$RUNNER_TEMP"/apks/*.apk; do
+            "$APKSIGNER" verify --print-certs "$f" | grep -q "CN=FixITPro" || { echo "Not signed with the release key: $f"; exit 1; }
+            echo "OK $(basename "$f")"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fixitpro-android-${{ github.run_number }}
+          path: ${{ runner.temp }}/apks/
+          retention-days: 30
+
+      - name: Publish to fixitpro.in.th/download
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+        run: |
+          set -euo pipefail
+          SSH="ssh -i $HOME/.ssh/deploy_key -o ConnectTimeout=30"
+          SCP="scp -i $HOME/.ssh/deploy_key -o ConnectTimeout=30 -q"
+          $SSH "$SERVER" "mkdir -p $KEY_DIR/out"
+          $SCP "$RUNNER_TEMP"/apks/* "$SERVER:$KEY_DIR/out/"
+          # Into the web container's downloads volume (kept across deploys). APKs first, then
+          # apps.json, so the page never points at a file that is not there yet.
+          $SSH "$SERVER" 'set -e
+            c=$(docker ps --format "{{.Names}}" | grep "^frontend-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
+            [ -n "$c" ] || { echo "frontend container not found"; exit 1; }
+            for f in FixITPro-POS.apk FixITPro-Staff.apk apps.json; do
+              docker cp "'"$KEY_DIR"'/out/$f" "$c:/app/public/downloads/$f.tmp"
+              docker exec -u 0 "$c" sh -c "chmod 644 /app/public/downloads/$f.tmp && mv /app/public/downloads/$f.tmp /app/public/downloads/$f"
+            done
+            echo "Published into $c"'
+
+      - name: Verify the download
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+        working-directory: .
+        run: |
+          set -euo pipefail
+          for f in apps.json FixITPro-POS.apk FixITPro-Staff.apk; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "https://fixitpro.in.th/downloads/$f" --max-time 30)
+            echo "$f → HTTP $code"
+            [ "$code" = "200" ] || exit 1
+          done
