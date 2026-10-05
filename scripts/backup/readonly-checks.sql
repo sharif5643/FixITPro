@@ -118,4 +118,9 @@ SELECT count(*) AS serial_products FROM "Product" WHERE "hasSerial" AND "isActiv
 SELECT (SELECT count(*) FROM "Shift" WHERE "openedAt" > now() - interval '90 days') AS shifts,
        (SELECT count(*) FROM "CashDrawerSession" WHERE "openedAt" > now() - interval '90 days') AS drawer_sessions;
 
+\echo '--- 17. After PR #32: push devices table ---'
+SELECT migration_name, finished_at IS NOT NULL AS applied FROM "_prisma_migrations" WHERE migration_name = '20261005000003_push_devices';
+SELECT count(*) AS push_devices FROM "PushDevice";
+SELECT count(*) AS migrations_total FROM "_prisma_migrations" WHERE finished_at IS NOT NULL;
+
 ROLLBACK;
