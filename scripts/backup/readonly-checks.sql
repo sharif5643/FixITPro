@@ -123,4 +123,11 @@ SELECT migration_name, finished_at IS NOT NULL AS applied FROM "_prisma_migratio
 SELECT count(*) AS push_devices FROM "PushDevice";
 SELECT count(*) AS migrations_total FROM "_prisma_migrations" WHERE finished_at IS NOT NULL;
 
+\echo '--- 18. Staff whose branch is not an active branch of their own shop (shown as a raw id) ---'
+SELECT u.role, u."tenantId", u."branchId", b."tenantId" AS branch_tenant, b."isActive", b.status, b.name IS NOT NULL AS has_name
+FROM "User" u LEFT JOIN "Branch" b ON b.id = u."branchId"
+WHERE u."branchId" IS NOT NULL
+  AND (b.id IS NULL OR b."tenantId" IS DISTINCT FROM u."tenantId" OR NOT b."isActive" OR b.status <> 'ACTIVE');
+SELECT b.id, b."tenantId", b."isActive", b.status FROM "Branch" b WHERE b.id = 'cmqhppo2c0014jwr0t9ul5314';
+
 ROLLBACK;
