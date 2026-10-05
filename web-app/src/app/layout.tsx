@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter, Noto_Sans_Thai, Prompt } from 'next/font/google'
 import './globals.css'
 import { Providers } from '@/components/providers'
@@ -26,6 +26,16 @@ const prompt = Prompt({
 export const metadata: Metadata = {
   title:       'FixITPro - ระบบร้านมือถือ',
   description: 'ระบบจัดการร้านมือถือ ขาย ซ่อม อุปกรณ์',
+  // Installable from the browser (see app/manifest.ts); iPhone uses the apple-* tags
+  icons: {
+    icon:  [{ url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
+  },
+  appleWebApp: { capable: true, title: 'FixITPro', statusBarStyle: 'default' },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#FF8A00',
 }
 
 export default function RootLayout({

@@ -44,6 +44,7 @@ export function PublicFooter() {
                 { href: '/about',   label: 'เกี่ยวกับเรา' },
                 { href: '/contact', label: 'ติดต่อเรา' },
                 { href: '/billing', label: 'ต่ออายุบริการ' },
+                { href: '/download', label: 'ดาวน์โหลดแอป' },
               ].map(l => (
                 <li key={l.href}>
                   <Link href={l.href} className="text-sm hover:text-white transition-colors">{l.label}</Link>

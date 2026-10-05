@@ -219,6 +219,18 @@ export default function HardwarePage() {
         }
       />
 
+      {/* Android apps for SUNMI / tablets / staff phones */}
+      <a href="/download" target="_blank" rel="noreferrer"
+        className="flex items-center justify-between gap-3 rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-700/40 dark:bg-orange-950/30 px-4 py-3 hover:bg-orange-100 dark:hover:bg-orange-950/50 transition-colors">
+        <div>
+          <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">ดาวน์โหลดแอป FixITPro</p>
+          <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">แอป POS สำหรับเครื่อง SUNMI/แท็บเล็ต · แอปพนักงานสำหรับมือถือ · ติดตั้งจากเว็บบน iPhone และคอมพิวเตอร์</p>
+        </div>
+        <span className="flex items-center gap-1.5 rounded-md bg-orange-500 text-white text-xs font-medium px-3 py-1.5 shrink-0">
+          <Download className="h-3.5 w-3.5" />เปิดหน้าดาวน์โหลด
+        </span>
+      </a>
+
       {allDone && (
         <div className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium ${
           summary.fail > 0
