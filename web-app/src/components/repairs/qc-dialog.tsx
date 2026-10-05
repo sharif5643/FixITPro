@@ -44,12 +44,14 @@ interface QcChecklist {
 }
 
 interface QcDialogProps {
-  repair: Repair
+  repair: Pick<Repair, 'id' | 'ticketNumber' | 'deviceBrand' | 'deviceModel'>
   open: boolean
   onClose: () => void
+  /** Refresh the caller's own view of the repair (the SUNMI / staff screens use other query keys) */
+  onDone?: () => void
 }
 
-export function QcDialog({ repair, open, onClose }: QcDialogProps) {
+export function QcDialog({ repair, open, onClose, onDone }: QcDialogProps) {
   const queryClient = useQueryClient()
   const [checks, setChecks] = useState<QcChecklist>({
     touchScreen: false,
@@ -76,6 +78,7 @@ export function QcDialog({ repair, open, onClose }: QcDialogProps) {
       } else {
         toast.warning('QC ไม่ผ่าน — งานซ่อมส่งกลับ IN_PROGRESS')
       }
+      onDone?.()
       onClose()
     },
     onError: (err: any) => {

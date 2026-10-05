@@ -22,3 +22,23 @@ export function useAppShell() {
   const to = (sunmiPath: string) => (inStaff ? STAFF_PATHS[sunmiPath] ?? sunmiPath : sunmiPath)
   return { inStaff, to, home: to('/sunmi'), pos: to('/sunmi/sales') }
 }
+
+// ── Full web menu from inside an app ─────────────────────────────────────────
+// The SUNMI and staff screens hold the day-to-day work; settings, reports, accounting and staff
+// management live in the web menu. An owner or manager can open it from the app and come back.
+
+const FROM_APP_KEY = 'fixitpro:from-app'
+
+/** Remember where to come back to, then the caller navigates to the web page. */
+export function markOpenedFromApp(returnTo: string) {
+  try { sessionStorage.setItem(FROM_APP_KEY, returnTo) } catch { /* storage blocked */ }
+}
+
+/** The app screen the web menu was opened from (this tab only), or null. */
+export function openedFromApp(): string | null {
+  try { return sessionStorage.getItem(FROM_APP_KEY) } catch { return null }
+}
+
+export function clearOpenedFromApp() {
+  try { sessionStorage.removeItem(FROM_APP_KEY) } catch { /* storage blocked */ }
+}

@@ -1,5 +1,7 @@
 'use client'
 
+import { QcDialog } from '@/components/repairs/qc-dialog'
+import { statusChoices } from '@/lib/repair-status-flow'
 import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -9,7 +11,7 @@ import {
   User, Wrench, AlertTriangle, Shield,
   Search, Pencil, Check, X, Trash2, Plus,
   CreditCard, Banknote, RotateCcw, Camera, Info, Lock,
-  ArrowRightLeft, History, ChevronDown,
+  ArrowRightLeft, History, ChevronDown, ShieldCheck,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -63,10 +65,6 @@ const STATUS_FLOW = [
   'READY_PICKUP', 'DELIVERED',
 ]
 
-const CHANGEABLE_STATUSES = [
-  'RECEIVED', 'DIAGNOSING', 'WAITING_APPROVAL', 'WAITING_PARTS',
-  'IN_PROGRESS', 'COMPLETED', 'READY_PICKUP', 'CANCELLED',
-]
 
 const PRODUCT_TYPE_LABEL: Record<string, string> = {
   PHONE: 'มือถือ', SIM: 'ซิม', ACCESSORY: 'อุปกรณ์เสริม', PART: 'อะไหล่',
@@ -160,6 +158,8 @@ export default function RepairDetailPage() {
   const [payAmount, setPayAmount]                   = useState('')
   const [payWarrantyDays, setPayWarrantyDays]       = useState(DEFAULT_WARRANTY_DAYS)
   const [payLater, setPayLater]                     = useState(false)
+  const [qcOpen, setQcOpen]                         = useState(false)
+  const canQc = hasPermission('repairs.qc.perform')
   const [reverseOpen, setReverseOpen]               = useState(false)
   const [reverseReason, setReverseReason]           = useState('')
   const [addPayOpen, setAddPayOpen]                 = useState(false)
@@ -1242,11 +1242,19 @@ export default function RepairDetailPage() {
       {/* ── Bottom actions ──────────────────────────────────────────────────────── */}
       <div className="fixed left-0 right-0 bg-[#F8F9FB] px-5 pt-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
         style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))', paddingBottom: '12px' }}>
+        {repair.status === 'QC_PENDING' && canQc && (
+          <button onClick={() => setQcOpen(true)}
+            className="mb-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 text-sm font-bold text-white">
+            <ShieldCheck className="h-4 w-4" /> ตรวจ QC
+          </button>
+        )}
+        <QcDialog repair={repair} open={qcOpen} onClose={() => setQcOpen(false)}
+          onDone={() => queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })} />
         {repair.status !== 'DELIVERED' && repair.status !== 'CANCELLED' && (
           <div className="flex gap-2 mb-2">
             <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
               className="flex-1 h-10 rounded-xl bg-white border border-[#E5E7EB] px-3 text-sm font-medium text-[#111] outline-none">
-              {CHANGEABLE_STATUSES.map((s) => (
+              {statusChoices(repair.status).map((s) => (
                 <option key={s} value={s}>{STATUS_LABEL[s]}</option>
               ))}
             </select>

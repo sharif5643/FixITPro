@@ -6,18 +6,21 @@ import { useQuery } from '@tanstack/react-query'
 import { Home, ShoppingCart, Wrench, Package, Bell, ArrowRightLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
+import { useAppAccess } from '@/hooks/useAppAccess'
 
-const ITEMS = [
+const ITEMS: { href: string; icon: React.ElementType; label: string; exact: boolean; needs?: keyof ReturnType<typeof useAppAccess> }[] = [
   { href: '/sunmi',               icon: Home,         label: 'หน้าหลัก',  exact: true },
-  { href: '/sunmi/sales',         icon: ShoppingCart, label: 'ขาย',        exact: false },
-  { href: '/sunmi/repairs',       icon: Wrench,       label: 'งานซ่อม',   exact: false },
-  { href: '/sunmi/stock',         icon: Package,      label: 'สต็อก',      exact: false },
-  { href: '/sunmi/transfers',     icon: ArrowRightLeft, label: 'โอนสต็อก',  exact: false },
+  { href: '/sunmi/sales',         icon: ShoppingCart, label: 'ขาย',        exact: false, needs: 'pos' },
+  { href: '/sunmi/repairs',       icon: Wrench,       label: 'งานซ่อม',   exact: false, needs: 'repairs' },
+  { href: '/sunmi/stock',         icon: Package,      label: 'สต็อก',      exact: false, needs: 'stock' },
+  { href: '/sunmi/transfers',     icon: ArrowRightLeft, label: 'โอนสต็อก',  exact: false, needs: 'transfers' },
   { href: '/sunmi/notifications', icon: Bell,           label: 'แจ้งเตือน', exact: false },
 ]
 
 export function MobileBottomNav() {
   const pathname = usePathname()
+  // Same permission + module rules as the web menu
+  const access   = useAppAccess()
 
   const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ['notifications', 'unread-count'],
@@ -38,7 +41,7 @@ export function MobileBottomNav() {
       className="flex items-stretch bg-slate-900 border-t border-slate-700/50 shrink-0 select-none"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      {ITEMS.map(({ href, icon: Icon, label, exact }) => {
+      {ITEMS.filter((i) => !i.needs || access[i.needs]).map(({ href, icon: Icon, label, exact }) => {
         const active = exact ? pathname === href : pathname.startsWith(href)
         const isBell = href === '/sunmi/notifications'
 

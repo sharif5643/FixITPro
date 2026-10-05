@@ -71,6 +71,14 @@ interface CheckoutSheetProps {
   onSuccess:    (result: PackageSaleResult, opts: PrintPackageSaleOptions) => void
 }
 
+type SaleType = 'PROMO' | 'TOPUP' | 'SIM_SALE' | 'BUNDLE'
+const SALE_TYPE_LABEL: Record<SaleType, string> = {
+  PROMO:    'สมัครโปร',
+  TOPUP:    'เติมแพ็ก',
+  SIM_SALE: 'ขายซิม',
+  BUNDLE:   'ซิม + โปร',
+}
+
 function CheckoutSheet({
   carrier, shiftId, settings, cashierName, walletBalance, onClose, onSuccess,
 }: CheckoutSheetProps) {
@@ -84,6 +92,11 @@ function CheckoutSheet({
   const [payLater,     setPayLater]     = useState(false)
   const [debtorName,   setDebtorName]   = useState('')
   const [debtorPhone,  setDebtorPhone]  = useState('')
+  // Same choices as the web: package types deduct the carrier wallet; a SIM card is sold at its cost
+  const [saleType,     setSaleType]     = useState<SaleType>('PROMO')
+  const [dealerCost,   setDealerCost]   = useState('')
+  const [simCost,      setSimCost]      = useState('35')
+  const isSim = saleType === 'SIM_SALE'
 
   useEffect(() => pushBackHandler(onClose), [onClose])
   useEffect(() => { if (method !== 'CASH') setAmountPaid('') }, [method])
@@ -92,15 +105,18 @@ function CheckoutSheet({
     ? selectedPreset
     : (Number(customPrice) || 0)
 
-  const walletDeduction = Math.round(price * 0.97 * 100) / 100
-  const profit          = Math.round(price * 0.03 * 100) / 100
+  const walletDeduction = isSim
+    ? Number(simCost) || 0
+    : dealerCost !== '' ? Math.round(Number(dealerCost) * 100) / 100 : Math.round(price * 0.97 * 100) / 100
+  const profit          = Math.round((price - walletDeduction) * 100) / 100
+  const costTooHigh     = !isSim && dealerCost !== '' && walletDeduction > price
   const paidNum         = Number(amountPaid) || 0
   const change          = method === 'CASH' ? Math.max(0, paidNum - price) : 0
-  const insufficient    = price > 0 && walletDeduction > walletBalance
+  const insufficient    = !isSim && price > 0 && walletDeduction > walletBalance
   const { phone: debtorPhoneNorm, openDebt, checking: checkingDebt } = useOpenPackageDebt(debtorPhone || phoneNumber, payLater)
   const paidNow         = payLater ? Math.min(method === 'CASH' ? paidNum : (Number(amountPaid) || 0), price) : 0
   const owed            = payLater ? Math.max(0, price - paidNow) : 0
-  const canSubmit       = !!shiftId && price > 0 && !insufficient
+  const canSubmit       = !!shiftId && price > 0 && !insufficient && !costTooHigh
     && (payLater
       ? !!debtorPhoneNorm && !openDebt && !checkingDebt
       : (method !== 'CASH' ? true : paidNum >= price))
@@ -113,9 +129,12 @@ function CheckoutSheet({
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.post('/carrier-wallet/package-sale', {
+      api.post(isSim ? '/carrier-wallet/sim-sale' : '/carrier-wallet/package-sale', {
         carrier,
         packageAmount: price,
+        ...(isSim
+          ? { costPrice: walletDeduction }
+          : { saleType, ...(dealerCost !== '' ? { dealerCost: walletDeduction } : {}) }),
         paymentMethod: method,
         amountPaid:    payLater ? paidNow : method === 'CASH' ? paidNum : price,
         ...(payLater ? { payLater: true, debtorName: debtorName.trim() || undefined, debtorPhone: debtorPhoneNorm ?? undefined } : {}),
@@ -136,7 +155,7 @@ function CheckoutSheet({
         packageAmount:   result.packageAmount,
         walletDeduction: result.walletDeduction,
         profit:          result.profit,
-        walletBalance:   result.walletBalance,
+        walletBalance:   result.walletBalance ?? walletBalance, // a SIM card sale leaves the wallet as it was
         phoneNumber:     phoneNumber.trim() || undefined,
         note:            note.trim() || undefined,
         paymentMethod:   method,
@@ -186,6 +205,17 @@ function CheckoutSheet({
             </div>
           </div>
 
+          {/* Sale type — as on the web */}
+          <div className="grid grid-cols-4 gap-2">
+            {(Object.keys(SALE_TYPE_LABEL) as SaleType[]).map((t) => (
+              <button key={t} type="button" onClick={() => setSaleType(t)}
+                className={`py-2.5 rounded-xl text-xs font-bold border-2 ${
+                  saleType === t ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600'}`}>
+                {SALE_TYPE_LABEL[t]}
+              </button>
+            ))}
+          </div>
+
           {/* Package amount — presets */}
           <div className="space-y-2">
             <p className="text-sm font-semibold text-slate-600">เลือกราคาแพ็กเกจ</p>
@@ -221,6 +251,18 @@ function CheckoutSheet({
             />
           </div>
 
+          {/* Cost: SIM card cost, or a carrier deduction other than the usual 97% */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-600">
+              {isSim ? 'ต้นทุนซิม (บาท)' : 'หักกระเป๋าจริง (บาท) — เว้นว่างถ้าหัก 97%'}
+            </label>
+            <input type="number" inputMode="decimal" min="0"
+              value={isSim ? simCost : dealerCost}
+              onChange={(e) => (isSim ? setSimCost : setDealerCost)(e.target.value)}
+              placeholder={isSim ? '35' : price ? String(Math.round(price * 0.97 * 100) / 100) : 'อัตโนมัติ'}
+              className="w-full h-12 px-3 border-2 border-slate-200 rounded-xl text-lg font-bold bg-white focus:outline-none focus:border-blue-500 tabular-nums" />
+          </div>
+
           {/* Profit breakdown */}
           {price > 0 && (
             <div className="bg-slate-50 rounded-2xl p-4 space-y-2">
@@ -229,18 +271,21 @@ function CheckoutSheet({
                 <span className="font-bold text-slate-900">{formatThaiMoney(price)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">หักกระเป๋า (97%)</span>
+                <span className="text-slate-500">{isSim ? 'ต้นทุนซิม' : dealerCost !== '' ? 'หักกระเป๋า (กำหนดเอง)' : 'หักกระเป๋า (97%)'}</span>
                 <span className={`font-semibold ${insufficient ? 'text-red-600' : 'text-slate-700'}`}>
                   {formatThaiMoney(walletDeduction)}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">กำไร (3%)</span>
+                <span className="text-slate-500">กำไร</span>
                 <span className="font-semibold text-green-600 flex items-center gap-1">
                   <TrendingUp className="h-3 w-3" />
                   {formatThaiMoney(profit)}
                 </span>
               </div>
+              {costTooHigh && (
+                <p className="text-xs text-red-600 font-medium">ต้นทุนต้องไม่เกินราคาขาย</p>
+              )}
               {insufficient && (
                 <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-2">
                   <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />

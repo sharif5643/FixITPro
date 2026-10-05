@@ -3,8 +3,10 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { Wrench, Clock, ShoppingCart, Package, LogOut, Printer, Timer, Wifi, BarChart2, BookOpen, Receipt, AlertCircle } from 'lucide-react'
+import { Wrench, Clock, ShoppingCart, Package, LogOut, Printer, Timer, Wifi, BarChart2, BookOpen, Receipt, AlertCircle, LayoutDashboard } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
+import { useAppAccess } from '@/hooks/useAppAccess'
+import { markOpenedFromApp } from '@/lib/app-shell'
 import { formatThaiMoney } from '@/lib/utils'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -12,9 +14,11 @@ import api from '@/lib/api'
 import { MobileBottomNav } from '@/components/sunmi/mobile-bottom-nav'
 import type { ShopSettings } from '@/types'
 
-const MENUS = [
+type MenuNeed = keyof ReturnType<typeof useAppAccess>
+const MENUS: { href: string; icon: React.ElementType; label: string; desc: string; bg: string; cardBg: string; text: string; needs: MenuNeed }[] = [
   {
     href:    '/sunmi/repair-intake',
+    needs:   'intake',
     icon:    Wrench,
     label:   'รับงานซ่อม',
     desc:    'สร้างงานซ่อมใหม่',
@@ -24,6 +28,7 @@ const MENUS = [
   },
   {
     href:    '/sunmi/repairs',
+    needs:   'repairs',
     icon:    Clock,
     label:   'งานซ่อมค้าง',
     desc:    'ดู / อัพเดท / รับชำระ',
@@ -33,6 +38,7 @@ const MENUS = [
   },
   {
     href:    '/sunmi/sales',
+    needs:   'pos',
     icon:    ShoppingCart,
     label:   'ขายสินค้า',
     desc:    'สแกนบาร์โค้ด / คิดเงิน',
@@ -42,6 +48,7 @@ const MENUS = [
   },
   {
     href:    '/sunmi/stock',
+    needs:   'stock',
     icon:    Package,
     label:   'จัดการสต็อก',
     desc:    'ตรวจ / เพิ่ม / สร้างสินค้า',
@@ -51,6 +58,7 @@ const MENUS = [
   },
   {
     href:    '/sunmi/sim-sales',
+    needs:   'sim',
     icon:    Wifi,
     label:   'ขาย SIM / เน็ต',
     desc:    'เติมเน็ต / ซิมการ์ด',
@@ -60,6 +68,7 @@ const MENUS = [
   },
   {
     href:    '/sunmi/dashboard',
+    needs:   'reports',
     icon:    BarChart2,
     label:   'แดชบอร์ด',
     desc:    'ยอดขาย / บิล / สรุปวันนี้',
@@ -74,9 +83,10 @@ export default function SunmiHomePage() {
   const user        = useAuthStore((s) => s.user)
   const clearAuth   = useAuthStore((s) => s.clearAuth)
   const isOwnerOrMgr = user?.role === 'OWNER' || user?.role === 'MANAGER'
-  const hasPerm      = useAuthStore((s) => s.hasPermission)
-  const canTakeDebt  = hasPerm('repair.close')
-  const canExpense   = hasPerm('expenses.manage')
+  // Same permission + module rules as the web menu
+  const access       = useAppAccess()
+  const canTakeDebt  = access.debt
+  const canExpense   = access.expenses
 
   const { data: settings } = useQuery<ShopSettings>({
     queryKey: ['settings'],
@@ -114,7 +124,7 @@ export default function SunmiHomePage() {
       {/* Menu cards */}
       <div className="flex-1 bg-slate-100 rounded-t-3xl px-4 pt-6 pb-6">
         <div className="grid grid-cols-2 gap-3 mb-3">
-          {MENUS.map((m) => {
+          {MENUS.filter((m) => access[m.needs]).map((m) => {
             const Icon = m.icon
             return (
               <Link
@@ -187,6 +197,23 @@ export default function SunmiHomePage() {
               บันทึก
             </span>
           </Link>
+        )}
+
+        {/* Full web menu — settings, reports, accounting, staff, renewal; a bar there leads back */}
+        {isOwnerOrMgr && (
+          <button
+            onClick={() => { markOpenedFromApp('/sunmi'); router.push('/dashboard') }}
+            className="flex w-full items-center gap-3 px-4 py-3.5 rounded-2xl mb-3 active:scale-95 transition-transform bg-slate-50 border border-slate-200 text-left"
+          >
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-slate-800">
+              <LayoutDashboard className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-slate-800 text-sm">เมนูเต็ม</p>
+              <p className="text-xs text-slate-500 mt-0.5">ตั้งค่าร้าน · รายงาน · บัญชี · พนักงาน · ต่ออายุ</p>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 bg-slate-800 text-white">เปิด</span>
+          </button>
         )}
 
         {/* Shift status card */}

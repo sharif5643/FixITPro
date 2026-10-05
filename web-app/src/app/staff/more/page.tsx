@@ -1,10 +1,13 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ChevronRight, Settings, Users, Building2, BarChart3, Bell, Shield, LogOut, UserCircle, History, Wrench, Wallet, Clock, Wifi, AlertCircle, Receipt } from 'lucide-react'
+import { ChevronRight, Settings, Users, Building2, BarChart3, Bell, Shield, LogOut, UserCircle, History, Wrench, Wallet, Clock, Wifi, AlertCircle, Receipt, LayoutDashboard } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { toast } from 'sonner'
+import { AppVersion } from '@/components/app/app-version'
+import { markOpenedFromApp } from '@/lib/app-shell'
+import { useAppAccess } from '@/hooks/useAppAccess'
 
 export default function MorePage() {
   const router    = useRouter()
@@ -15,9 +18,7 @@ export default function MorePage() {
   const roleTH   = user?.role==='OWNER'?'เจ้าของร้าน':user?.role==='MANAGER'?'ผู้จัดการ':user?.role==='TECHNICIAN'?'ช่าง':'พนักงาน'
   const isOwner      = user?.role==='OWNER'||user?.role==='SUPER_ADMIN'
   const isTech       = user?.role==='TECHNICIAN'
-  const hasPerm      = useAuthStore((s)=>s.hasPermission)
-  const hasModule    = useAuthStore((s)=>s.hasModule)
-  const hasDrawerPerm = hasPerm('cash_drawer.view_balance')
+  const access       = useAppAccess()
 
   async function logout() {
     await api.post('/auth/logout').catch(()=>{})
@@ -38,19 +39,19 @@ export default function MorePage() {
       // Same screens as the SUNMI POS; shown with the same permission / module rules as the web menu
       title: 'ขายและรับเงิน',
       items: [
-        { icon:<Clock className="h-5 w-5 text-emerald-500"/>, label:'เปิด/ปิดกะ', to:'/staff/shift' },
-        ...(hasModule('package_sales') ? [{ icon:<Wifi className="h-5 w-5 text-sky-500"/>, label:'ขายซิม / แพ็กเกจ', to:'/staff/sim' }] : []),
-        ...(hasPerm('repair.close') ? [{ icon:<AlertCircle className="h-5 w-5 text-red-500"/>, label:'ลูกหนี้ / ค้างจ่าย', to:'/staff/debt' }] : []),
-        ...(hasPerm('expenses.manage') && hasModule('finance') ? [{ icon:<Receipt className="h-5 w-5 text-orange-500"/>, label:'ค่าใช้จ่าย', to:'/staff/expenses' }] : []),
+        ...(access.shift ? [{ icon:<Clock className="h-5 w-5 text-emerald-500"/>, label:'เปิด/ปิดกะ', to:'/staff/shift' }] : []),
+        ...(access.sim ? [{ icon:<Wifi className="h-5 w-5 text-sky-500"/>, label:'ขายซิม / แพ็กเกจ', to:'/staff/sim' }] : []),
+        ...(access.debt ? [{ icon:<AlertCircle className="h-5 w-5 text-red-500"/>, label:'ลูกหนี้ / ค้างจ่าย', to:'/staff/debt' }] : []),
+        ...(access.expenses ? [{ icon:<Receipt className="h-5 w-5 text-orange-500"/>, label:'ค่าใช้จ่าย', to:'/staff/expenses' }] : []),
       ],
     },
     {
       title: 'จัดการ',
       items: [
-        { icon:<Users className="h-5 w-5 text-purple-500"/>,       label:'ลูกค้า',         to:'/staff/customers' },
-        { icon:<BarChart3 className="h-5 w-5 text-brand-info"/>,   label:'รายงาน',         to:'/staff/reports' },
+        ...(access.customers ? [{ icon:<Users className="h-5 w-5 text-purple-500"/>, label:'ลูกค้า', to:'/staff/customers' }] : []),
+        ...(access.reports ? [{ icon:<BarChart3 className="h-5 w-5 text-brand-info"/>, label:'รายงาน', to:'/staff/reports' }] : []),
         { icon:<Bell className="h-5 w-5 text-amber-500"/>,         label:'แจ้งเตือน',      to:'/staff/notifications' },
-        ...(hasDrawerPerm ? [{ icon:<Wallet className="h-5 w-5 text-amber-500"/>, label:'ลิ้นชักเงินสด', to:'/staff/cash-drawer' }] : []),
+        ...(access.drawer ? [{ icon:<Wallet className="h-5 w-5 text-amber-500"/>, label:'ลิ้นชักเงินสด', to:'/staff/cash-drawer' }] : []),
         ...(isOwner ? [{ icon:<Building2 className="h-5 w-5 text-brand-yellow"/>, label:'Dashboard เจ้าของ', to:'/staff/owner' }] : []),
       ],
     },
@@ -58,8 +59,10 @@ export default function MorePage() {
       title: 'ระบบ',
       items: [
         { icon:<Shield className="h-5 w-5 text-brand-success"/>,   label:'เปลี่ยนรหัสผ่าน', to:'/staff/change-password' },
-        // Shop settings live on the web dashboard and need settings.manage; there is no /help page
-        ...(isOwner ? [{ icon:<Settings className="h-5 w-5 text-slate-500"/>, label:'ตั้งค่าร้าน', to:'/settings' }] : []),
+        // Shop settings live on the web dashboard; same permission as there
+        ...(access.settings ? [{ icon:<Settings className="h-5 w-5 text-slate-500"/>, label:'ตั้งค่าร้าน', to:'/settings', web:true }] : []),
+        // Reports, accounting, staff, renewals... — the web menu, with a bar to come back
+        ...(isOwner || user?.role==='MANAGER' ? [{ icon:<LayoutDashboard className="h-5 w-5 text-blue-500"/>, label:'เมนูเต็ม (เว็บ)', to:'/dashboard', web:true }] : []),
       ],
     },
   ]
@@ -86,12 +89,12 @@ export default function MorePage() {
       </div>
 
       <div className="p-5 flex flex-col gap-4">
-        {SECTIONS.map(sec => (
+        {SECTIONS.filter(sec => sec.items.length > 0).map(sec => (
           <div key={sec.title}>
             <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{sec.title}</p>
             <div className="rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.06)] overflow-hidden">
               {sec.items.map((item,i) => (
-                <button key={item.label} onClick={()=>router.push(item.to)}
+                <button key={item.label} onClick={()=>{ if ('web' in item && item.web) markOpenedFromApp('/staff/more'); router.push(item.to) }}
                   className={`flex w-full items-center gap-3 px-4 py-3.5 active:bg-[#F8F9FB] ${i>0?'border-t border-slate-50':''}`}>
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#F8F9FB]">
                     {item.icon}
@@ -112,7 +115,7 @@ export default function MorePage() {
 
         <div className="flex flex-col items-center gap-1 pb-2">
           <p className="text-xs font-bold text-slate-400">FixIT<span className="text-brand-yellow">+</span></p>
-          <p className="text-[10px] text-slate-300">Version 2.0.0</p>
+          <AppVersion className="text-[10px] text-slate-300" />
         </div>
       </div>
     </div>

@@ -5,8 +5,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { Search, X, ChevronRight, Printer, Banknote, Smartphone, CreditCard, Info, RefreshCw, Wrench, Package, Plus, Minus, Trash2, Camera, ChevronLeft } from 'lucide-react'
+import { Search, X, ChevronRight, Printer, Banknote, Smartphone, CreditCard, Info, RefreshCw, Wrench, Package, Plus, Minus, Trash2, Camera, ChevronLeft, ShieldCheck } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
+import { canMoveRepair } from '@/lib/repair-status-flow'
+import { QcDialog } from '@/components/repairs/qc-dialog'
 import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
@@ -51,7 +53,7 @@ const STATUS_COLOR: Record<RepairStatus, string> = {
 }
 
 const NEXT_STATUS: Partial<Record<RepairStatus, RepairStatus>> = {
-  RECEIVED:         'IN_PROGRESS',
+  RECEIVED:         'DIAGNOSING',
   DIAGNOSING:       'IN_PROGRESS',
   WAITING_APPROVAL: 'APPROVED',
   APPROVED:         'IN_PROGRESS',
@@ -66,31 +68,18 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: React.Elemen
 ]
 
 // ── Status transition rules ────────────────────────────────────────────────────
-// Mirrors backend enforcement: forward-only, CANCELLED allowed from any non-terminal status,
-// DELIVERED is fully locked and must go through /repairs/:id/payment.
+// The API's own map (lib/repair-status-flow); QC_PENDING → COMPLETED goes through the QC check.
 
-const STATUS_ORDER: RepairStatus[] = [
-  'RECEIVED', 'DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED',
-  'WAITING_PARTS', 'IN_PROGRESS', 'COMPLETED',
-]
-
-function canTransitionStatus(from: RepairStatus, to: RepairStatus): boolean {
-  if (from === 'DELIVERED' || from === 'CANCELLED') return false
-  if (to === 'DELIVERED') return false
-  if (to === 'CANCELLED') return true
-  const fromIdx = STATUS_ORDER.indexOf(from)
-  const toIdx   = STATUS_ORDER.indexOf(to)
-  return fromIdx !== -1 && toIdx !== -1 && toIdx > fromIdx
-}
+const canTransitionStatus = (from: RepairStatus, to: RepairStatus) => canMoveRepair(from, to)
 
 type TabKey = 'ALL' | 'NEW' | 'IN_PROGRESS' | 'WAITING_PARTS' | 'COMPLETED' | 'DELIVERED' | 'CANCELLED'
 
 const TABS: { key: TabKey; label: string; statuses: RepairStatus[] }[] = [
-  { key: 'ALL',          label: 'ทั้งหมด',    statuses: ['RECEIVED','DIAGNOSING','WAITING_APPROVAL','APPROVED','WAITING_PARTS','IN_PROGRESS','COMPLETED','CANCELLED'] },
+  { key: 'ALL',          label: 'ทั้งหมด',    statuses: ['RECEIVED','DIAGNOSING','WAITING_APPROVAL','APPROVED','WAITING_PARTS','IN_PROGRESS','QC_PENDING','COMPLETED','READY_PICKUP','CANCELLED'] },
   { key: 'NEW',          label: 'ใหม่',        statuses: ['RECEIVED','DIAGNOSING','WAITING_APPROVAL','APPROVED'] },
-  { key: 'IN_PROGRESS',  label: 'กำลังซ่อม',  statuses: ['IN_PROGRESS'] },
+  { key: 'IN_PROGRESS',  label: 'กำลังซ่อม',  statuses: ['IN_PROGRESS', 'QC_PENDING'] },
   { key: 'WAITING_PARTS',label: 'รออะไหล่',   statuses: ['WAITING_PARTS'] },
-  { key: 'COMPLETED',    label: 'เสร็จแล้ว',  statuses: ['COMPLETED'] },
+  { key: 'COMPLETED',    label: 'เสร็จแล้ว',  statuses: ['COMPLETED', 'READY_PICKUP'] },
   { key: 'DELIVERED',    label: 'ส่งคืนแล้ว', statuses: ['DELIVERED'] },
   { key: 'CANCELLED',    label: 'ยกเลิก',      statuses: ['CANCELLED'] },
 ]
@@ -148,6 +137,10 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const effectivePaid = payLater ? Math.min(paidNum, remaining) : paymentMethod === 'CASH' ? paidNum : remaining
   const owed          = payLater ? Math.max(0, remaining - effectivePaid) : 0
   const nextStatus    = NEXT_STATUS[repair.status]
+  // Payment / handover is allowed from both (same as the API)
+  const isReady       = repair.status === 'COMPLETED' || repair.status === 'READY_PICKUP'
+  const canQc         = useAuthStore((st) => st.hasPermission)('repairs.qc.perform')
+  const [qcOpen, setQcOpen] = useState(false)
 
   const { data: currentShift } = useQuery<{ id: string } | null>({
     queryKey: ['shifts', 'current'],
@@ -342,7 +335,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                 info: 'ข้อมูล', update: 'อัพเดท', deliver: 'ส่งมอบ',
                 addpay: 'รับเงิน+', parts: 'อะไหล่',
               }
-              const deliverDisabled = t === 'deliver' && repair.status !== 'COMPLETED' && repair.status !== 'DELIVERED'
+              const deliverDisabled = t === 'deliver' && !isReady && repair.status !== 'DELIVERED'
               const addpayDisabled = t === 'addpay' && repair.status !== 'DELIVERED'
               const disabled = deliverDisabled || addpayDisabled
               return (
@@ -436,7 +429,15 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
             {/* UPDATE tab */}
             {panelTab === 'update' && (
               <div className="space-y-3">
-                {nextStatus && repair.status !== 'COMPLETED' ? (
+                {repair.status === 'QC_PENDING' && canQc && (
+                  <button onClick={() => setQcOpen(true)}
+                    className="w-full h-14 rounded-2xl bg-indigo-600 text-white font-bold text-base active:bg-indigo-700 flex items-center justify-center gap-2">
+                    <ShieldCheck className="h-5 w-5" />ตรวจ QC
+                  </button>
+                )}
+                <QcDialog repair={repair} open={qcOpen} onClose={() => setQcOpen(false)}
+                  onDone={() => { onMutated(); onClose() }} />
+                {nextStatus && !isReady ? (
                   <button
                     onClick={() => statusMutation.mutate(nextStatus)}
                     disabled={isPending}
@@ -448,14 +449,14 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   </button>
                 ) : (
                   <p className="text-sm text-slate-400 text-center py-4">
-                    {repair.status === 'COMPLETED' ? 'ซ่อมเสร็จแล้ว — ไปที่แท็บ "ส่งมอบ"' : 'ไม่มีสถานะถัดไป'}
+                    {isReady ? 'ซ่อมเสร็จแล้ว — ไปที่แท็บ "ส่งมอบ"' : repair.status === 'QC_PENDING' ? 'รอตรวจ QC — กดปุ่ม "ตรวจ QC" ด้านบน' : 'ไม่มีสถานะถัดไป'}
                   </p>
                 )}
 
                 {/* All status options */}
                 <div className="space-y-2">
                   <p className="text-xs text-slate-400 font-medium">เปลี่ยนสถานะเป็น:</p>
-                  {(['DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED', 'WAITING_PARTS', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as RepairStatus[]).map((s) => {
+                  {(['DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED', 'WAITING_PARTS', 'IN_PROGRESS', 'QC_PENDING', 'COMPLETED', 'READY_PICKUP', 'CANCELLED'] as RepairStatus[]).map((s) => {
                     const isCurrent = repair.status === s
                     const isBlocked = !canTransitionStatus(repair.status, s)
                     return (
@@ -483,7 +484,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
             )}
 
             {/* DELIVER tab */}
-            {panelTab === 'deliver' && repair.status === 'COMPLETED' && (
+            {panelTab === 'deliver' && isReady && (
               <div className="space-y-4">
                 {/* Shift warning */}
                 {currentShift === null && (

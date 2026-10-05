@@ -1,5 +1,7 @@
 'use client'
 
+import { BackToAppBar } from '@/components/app/back-to-app-bar'
+import { openedFromApp } from '@/lib/app-shell'
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { SideNav, TopBar, BottomTabBar } from '@/components/shell'
@@ -130,7 +132,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (meStatus !== 'done') return
     if (!user) return
 
-    if (Platform.isSunmiShell()) {
+    // On a SUNMI the web menu is shown only when opened from the app's "เมนูเต็ม" button
+    if (Platform.isSunmiShell() && !openedFromApp()) {
       router.replace('/sunmi')
       return
     }
@@ -207,6 +210,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <CapacitorBridge />
       <SideNav open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        <BackToAppBar />
         <SubscriptionBanner />
         <NewJobAlert repairHref={dashboardRepairHref} />
         <PushSetup repairHref={dashboardRepairHref} />
