@@ -72,4 +72,11 @@ JOIN eff e ON e.tenant = t.id
 JOIN eff cur ON cur.tenant = t.id AND cur.plan = t.plan::text AND cur.module = e.module
 GROUP BY t.id, t.plan, e.plan, t."createdAt" ORDER BY t."createdAt", e.plan;
 
+\echo '--- 14. After deploy: new migrations and columns ---'
+SELECT migration_name, finished_at IS NOT NULL AS applied FROM "_prisma_migrations"
+ WHERE migration_name IN ('20261004000005_renewal_payments','20261005000001_package_sale_credit') ORDER BY 1;
+SELECT count(*) AS migrations_total FROM "_prisma_migrations" WHERE finished_at IS NOT NULL;
+SELECT count(*) AS package_sale_debt_payments FROM "PackageSaleDebtPayment";
+SELECT indexname FROM pg_indexes WHERE indexname = 'PackageSale_one_open_debt_per_phone';
+
 ROLLBACK;
