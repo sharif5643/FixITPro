@@ -23,6 +23,8 @@ export interface ShopSettings {
   showLogo: boolean
   promptpayId?: string | null
   lineChannelAccessToken?: string | null
+  lineChannelSecret?: string | null
+  lineOaId?: string | null
   lineNotifyEnabled: boolean
 }
 

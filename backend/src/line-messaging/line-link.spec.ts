@@ -12,14 +12,14 @@ describe('LINE customer linking', () => {
 
   it('links when exactly one customer has the phone number', async () => {
     const prisma = prismaWith([{ id: 'c1' }]);
-    const svc = new LineMessagingService(prisma as any, {} as any);
+    const svc = new LineMessagingService(prisma as any, {} as any, {} as any);
     await expect(svc.linkLineUser('U1', '0812345678', 't1')).resolves.toBe(true);
     expect(prisma.customer.update).toHaveBeenCalledWith({ where: { id: 'c1' }, data: { lineUserId: 'U1' } });
   });
 
   it('does not link when several customers match (cannot tell whose updates to send)', async () => {
     const prisma = prismaWith([{ id: 'c1' }, { id: 'c2' }]);
-    const svc = new LineMessagingService(prisma as any, {} as any);
+    const svc = new LineMessagingService(prisma as any, {} as any, {} as any);
     await expect(svc.linkLineUser('U1', '0812345678', null)).resolves.toBe(false);
     expect(prisma.customer.update).not.toHaveBeenCalled();
   });
@@ -35,5 +35,33 @@ describe('LINE customer linking', () => {
     )).rejects.toBeInstanceOf(UnauthorizedException);
     expect(link).not.toHaveBeenCalled();
     if (saved !== undefined) process.env.LINE_CHANNEL_SECRET = saved;
+  });
+});
+
+describe('LineMessagingService.notifyStaff', () => {
+  const make = (settings: any, users: any[]) => {
+    const prisma = {
+      shopSettings: { findFirst: jest.fn().mockResolvedValue(settings) },
+      user: { findMany: jest.fn().mockResolvedValue(users) },
+    };
+    const svc = new LineMessagingService(prisma as any, {} as any, {} as any);
+    const push = jest.spyOn(svc as any, 'pushMessage').mockResolvedValue(true);
+    return { svc, prisma, push };
+  };
+
+  it('sends to each linked staff member with the shop token', async () => {
+    const { svc, prisma, push } = make({ lineChannelAccessToken: 'tok', lineNotifyEnabled: true }, [{ lineNotifyId: 'U1' }, { lineNotifyId: 'U2' }]);
+    await expect(svc.notifyStaff('t1', ['a', 'b', 'c'], 'งานใหม่')).resolves.toBe(2);
+    expect(push).toHaveBeenCalledWith('tok', 'U1', 'งานใหม่');
+    // Only active staff of this shop who linked LINE
+    expect(prisma.user.findMany.mock.calls[0][0].where).toMatchObject({ tenantId: 't1', isActive: true, lineNotifyId: { not: null } });
+  });
+
+  it('sends nothing when the shop has LINE off or no token', async () => {
+    for (const settings of [null, { lineChannelAccessToken: 'tok', lineNotifyEnabled: false }, { lineChannelAccessToken: null, lineNotifyEnabled: true }]) {
+      const { svc, push } = make(settings, [{ lineNotifyId: 'U1' }]);
+      await expect(svc.notifyStaff('t1', ['a'], 'x')).resolves.toBe(0);
+      expect(push).not.toHaveBeenCalled();
+    }
   });
 });

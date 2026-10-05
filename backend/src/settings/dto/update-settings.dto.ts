@@ -6,6 +6,7 @@ import {
   IsIn,
   Min,
   Max,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -100,6 +101,17 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   lineNotifyEnabled?: boolean;
+
+  // The shop's own LINE Official Account: channel secret (verifies its webhook) and OA ID (@xxxx)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  lineChannelSecret?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  lineOaId?: string;
 
   @IsOptional()
   @IsString()

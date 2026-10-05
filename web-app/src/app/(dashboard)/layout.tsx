@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { SideNav, TopBar, BottomTabBar } from '@/components/shell'
+import { NewJobAlert } from '@/components/alerts/new-job-alert'
 import { SubscriptionBanner } from '@/components/layout/subscription-banner'
 import { CapacitorBridge } from '@/components/apk/capacitor-bridge'
 import { useAuthStore } from '@/store/auth.store'
@@ -204,6 +205,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <SideNav open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <SubscriptionBanner />
+        <NewJobAlert repairHref={(id) => `/repairs/${id}`} />
         <div className={hasOwnMobileHeader && pathname === '/dashboard' ? 'hidden md:block' : undefined}>
           <TopBar onMenuToggle={() => setSidebarOpen((o) => !o)} />
         </div>

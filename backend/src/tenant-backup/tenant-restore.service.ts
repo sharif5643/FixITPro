@@ -502,7 +502,7 @@ export class TenantRestoreService {
 
       // ShopSettings (exclude sensitive field)
       for (const ss of withDates(shopSettings)) {
-        const data = omit(ss as Record<string, unknown>, ['lineChannelAccessToken']);
+        const data = omit(ss as Record<string, unknown>, ['lineChannelAccessToken', 'lineChannelSecret']);
         await tx.shopSettings.create({ data: data as Parameters<typeof tx.shopSettings.create>[0]['data'] });
       }
 

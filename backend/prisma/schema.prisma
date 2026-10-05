@@ -410,8 +410,10 @@ model User {
   passwordResetById     String?
   lastPasswordChangedAt DateTime?
 
-  googleId   String? @unique
-  lineUserId String? @unique
+  googleId     String? @unique
+  lineUserId   String? @unique
+  // Id on the shop's LINE Official Account, for job alerts (set by sending a link code to the OA)
+  lineNotifyId String?
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -928,6 +930,9 @@ model ShopSettings {
   showLogo                Boolean  @default(true)
   lineChannelAccessToken  String?
   lineNotifyEnabled       Boolean  @default(false)
+  // The shop's own LINE Official Account: secret verifies its webhook, OA ID (e.g. @123abcd) for add-friend links
+  lineChannelSecret       String?
+  lineOaId                String?
   promptpayId             String?
   // Platform row only: bank accounts shown to shops on the renewal page
   renewalBankInfo         String?
