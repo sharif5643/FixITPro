@@ -20,6 +20,21 @@ export const PLAN_LIMITS: Record<TenantPlan, PlanLimits> = {
 export class PlanLimitsService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * Why a shop cannot move to a plan, or null: it has more open branches than the plan
+   * allows. The same rule the Super Admin renew dialog has always applied.
+   */
+  async planChangeBlock(tenantId: string, newPlan: TenantPlan): Promise<string | null> {
+    const limit = PLAN_LIMITS[newPlan]?.branches;
+    if (limit === undefined || !isFinite(limit)) return null;
+    const branches = await this.prisma.branch.count({
+      where: { tenantId, status: { notIn: ['SUSPENDED', 'REJECTED'] } },
+    });
+    return branches > limit
+      ? `แพ็กเกจ ${newPlan} รองรับสูงสุด ${limit} สาขา แต่ร้านมี ${branches} สาขา — เลือกแพ็กเกจที่รองรับจำนวนสาขา หรือติดต่อผู้ดูแลระบบ`
+      : null;
+  }
+
   async getLimitsForTenant(tenantId: string): Promise<PlanLimits & { plan: TenantPlan }> {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },

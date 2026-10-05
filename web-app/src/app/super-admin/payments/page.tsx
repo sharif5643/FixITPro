@@ -469,6 +469,11 @@ function PaymentRow({
         <p className="text-slate-500 text-xs mt-1">
           {payment.customExpiryDate ? `ถึง ${fmt(payment.customExpiryDate)}` : `${payment.duration} วัน`}
         </p>
+        {payment.plan !== payment.tenant.plan && (
+          <p className="text-amber-300 text-[11px] mt-1">
+            เปลี่ยนแพ็กเกจจาก {TENANT_PLAN_LABEL[payment.tenant.plan]}
+          </p>
+        )}
       </td>
 
       {/* Payment info */}

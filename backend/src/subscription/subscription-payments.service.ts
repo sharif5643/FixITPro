@@ -3,6 +3,8 @@ import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { PrismaService } from '../database/prisma.service';
 import { uploadsBaseDir } from '../common/storage-paths';
+import { ModulesService } from '../modules/modules.service';
+import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 
 /** Plans a shop can pick itself on the renewal page; others (TRIAL, PRIVATE…) renew their own plan only. */
 export const SELF_RENEW_PLANS = ['LITE', 'PRO', 'BUSINESS'] as const;
@@ -31,7 +33,11 @@ export const SLIP_MAX_BYTES = 5 * 1024 * 1024;
 export class SubscriptionPaymentsService {
   private readonly logger = new Logger(SubscriptionPaymentsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private modules: ModulesService,
+    private planLimits: PlanLimitsService,
+  ) {}
 
   private async plansFor(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({
@@ -45,6 +51,18 @@ export class SubscriptionPaymentsService {
       select: { key: true, name: true, description: true, price: true, isActive: true, sortOrder: true },
       orderBy: { sortOrder: 'asc' },
     });
+    // What the shop would lose by renewing onto each plan: its modules on that plan versus
+    // now (its own overrides stay either way). Renewing never removes data, only features.
+    const [current, appModules] = await Promise.all([
+      this.modules.modulesForPlan(tenantId, tenant.plan),
+      this.prisma.appModule.findMany({ select: { key: true, name: true } }),
+    ]);
+    const label = (k: string) => appModules.find((m) => m.key === k)?.name ?? k;
+    const losesFor = new Map<string, { key: string; name: string }[]>();
+    for (const key of keys) {
+      const onPlan = new Set(await this.modules.modulesForPlan(tenantId, key));
+      losesFor.set(key, current.filter((m) => !onPlan.has(m)).map((m) => ({ key: m, name: label(m) })));
+    }
     const plans = [...keys]
       .map((key) => {
         const p = packages.find((x) => x.key === key);
@@ -56,6 +74,7 @@ export class SubscriptionPaymentsService {
           description: p?.description ?? null,
           monthlyPrice: p?.price != null ? Number(p.price) : null,
           current:     key === tenant.plan,
+          loses:       losesFor.get(key) ?? [],
           sortOrder:   p?.sortOrder ?? 999,
         };
       })
@@ -104,7 +123,7 @@ export class SubscriptionPaymentsService {
   async submit(
     tenantId: string,
     userId: string,
-    dto: { plan: string; months: number; amount: number; reference?: string; note?: string },
+    dto: { plan: string; months: number; amount: number; reference?: string; note?: string; confirmLoses?: boolean },
     slip: { buffer: Buffer; mimetype: string; size: number } | undefined,
   ) {
     if (!slip) throw new BadRequestException('กรุณาแนบสลิปการโอนเงิน');
@@ -114,8 +133,17 @@ export class SubscriptionPaymentsService {
 
     const term = RENEW_TERMS.find((t) => t.months === dto.months);
     if (!term) throw new BadRequestException('ระยะเวลาไม่ถูกต้อง');
-    const { plans } = await this.plansFor(tenantId);
-    if (!plans.some((p) => p.key === dto.plan)) throw new BadRequestException('แพ็กเกจนี้ต่ออายุเองไม่ได้ กรุณาติดต่อผู้ดูแลระบบ');
+    const { tenant, plans } = await this.plansFor(tenantId);
+    const chosen = plans.find((p) => p.key === dto.plan);
+    if (!chosen) throw new BadRequestException('แพ็กเกจนี้ต่ออายุเองไม่ได้ กรุณาติดต่อผู้ดูแลระบบ');
+    if (dto.plan !== tenant.plan) {
+      const blocked = await this.planLimits.planChangeBlock(tenantId, dto.plan as any);
+      if (blocked) throw new BadRequestException(blocked);
+    }
+    // Moving to a plan with fewer modules hides those features after approval: only on purpose
+    if (chosen.loses.length > 0 && !dto.confirmLoses) {
+      throw new BadRequestException(`แพ็กเกจ ${chosen.name} ไม่มี: ${chosen.loses.map((m) => m.name).join(', ')} — กรุณายืนยันก่อนส่ง หรือเลือกแพ็กเกจเดิม`);
+    }
 
     const pending = await this.prisma.tenantPayment.findFirst({ where: { tenantId, status: 'PENDING' }, select: { id: true } });
     if (pending) throw new ConflictException('มีรายการชำระเงินรอตรวจสอบอยู่แล้ว กรุณารอทีมงานตรวจสอบก่อน');
@@ -133,7 +161,13 @@ export class SubscriptionPaymentsService {
         paymentAmount:    dto.amount,
         paymentDate:      new Date(),
         paymentReference: dto.reference?.trim() || null,
-        paymentNote:      ['ร้านส่งสลิปเองจากหน้าต่ออายุ', `${term.months} เดือน`, dto.note?.trim()].filter(Boolean).join(' · '),
+        paymentNote:      [
+          'ร้านส่งสลิปเองจากหน้าต่ออายุ',
+          `${term.months} เดือน`,
+          dto.plan !== tenant.plan ? `เปลี่ยนแพ็กเกจ ${tenant.plan} → ${dto.plan}` : null,
+          chosen.loses.length ? `ร้านยืนยันแล้วว่าจะไม่มี: ${chosen.loses.map((m) => m.name).join(', ')}` : null,
+          dto.note?.trim(),
+        ].filter(Boolean).join(' · '),
         slipUrl:          `/api/v1/files/${tenantId}/slips/${filename}`,
         submittedById:    userId,
       },

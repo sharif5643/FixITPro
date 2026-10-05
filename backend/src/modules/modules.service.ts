@@ -30,27 +30,40 @@ export class ModulesService {
 
     if (!tenant) return [];
 
-    // Base set from package
+    const keys = await this.applyOverrides(tenant.plan, tenant.moduleOverrides);
+    await this.redis.set(cacheKey(tenantId), JSON.stringify(keys), CACHE_TTL_SEC);
+    return keys;
+  }
+
+  /**
+   * The modules a shop would have on a given plan, with its own overrides kept. Used to show
+   * what a shop would gain or lose by renewing onto another plan.
+   */
+  async modulesForPlan(tenantId: string, plan: string): Promise<string[]> {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { moduleOverrides: { select: { moduleKey: true, enabled: true, expiresAt: true } } },
+    });
+    return this.applyOverrides(plan, tenant?.moduleOverrides ?? []);
+  }
+
+  /** The package's modules, then the shop's overrides (expired overrides are ignored). */
+  private async applyOverrides(
+    plan: string,
+    overrides: { moduleKey: string; enabled: boolean; expiresAt: Date | null }[],
+  ): Promise<string[]> {
     const packageModules = await this.prisma.packageModule.findMany({
-      where: { packageKey: tenant.plan },
+      where: { packageKey: plan },
       select: { moduleKey: true },
     });
     const enabled = new Set(packageModules.map((pm) => pm.moduleKey));
-
-    // Apply per-tenant overrides (expired overrides are ignored)
     const now = new Date();
-    for (const override of tenant.moduleOverrides) {
+    for (const override of overrides) {
       if (override.expiresAt && override.expiresAt < now) continue;
-      if (override.enabled) {
-        enabled.add(override.moduleKey);
-      } else {
-        enabled.delete(override.moduleKey);
-      }
+      if (override.enabled) enabled.add(override.moduleKey);
+      else enabled.delete(override.moduleKey);
     }
-
-    const keys = Array.from(enabled);
-    await this.redis.set(cacheKey(tenantId), JSON.stringify(keys), CACHE_TTL_SEC);
-    return keys;
+    return Array.from(enabled);
   }
 
   async invalidateCache(tenantId: string) {

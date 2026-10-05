@@ -54,4 +54,22 @@ SELECT key, name, price, "isActive" FROM "Package" ORDER BY "sortOrder", key;
 SELECT count(*) AS platform_rows, max("promptpayId") IS NOT NULL AS has_promptpay FROM "ShopSettings" WHERE "tenantId" IS NULL;
 SELECT status, count(*) FROM "TenantPayment" GROUP BY status;
 
+\echo '--- 12. Modules in each package ---'
+SELECT "packageKey", string_agg("moduleKey", ', ' ORDER BY "moduleKey") FROM "PackageModule" GROUP BY 1 ORDER BY 1;
+
+\echo '--- 13. Per shop: modules it would LOSE if renewed onto each plan (overrides kept) ---'
+WITH eff AS (
+  SELECT t.id AS tenant, p.key AS plan, m.key AS module,
+    ((EXISTS (SELECT 1 FROM "PackageModule" pm WHERE pm."packageKey" = p.key AND pm."moduleKey" = m.key)
+      AND NOT EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = m.key AND NOT tm.enabled AND (tm."expiresAt" IS NULL OR tm."expiresAt" > now())))
+     OR EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = m.key AND tm.enabled AND (tm."expiresAt" IS NULL OR tm."expiresAt" > now()))) AS has
+  FROM "Tenant" t CROSS JOIN (SELECT key FROM "Package" WHERE key IN ('LITE','PRO','BUSINESS','PRIVATE')) p CROSS JOIN "AppModule" m
+)
+SELECT t.id, t.plan AS now_plan, e.plan AS renew_as,
+       coalesce(string_agg(e.module, ', ' ORDER BY e.module) FILTER (WHERE cur.has AND NOT e.has), '-') AS would_lose
+FROM "Tenant" t
+JOIN eff e ON e.tenant = t.id
+JOIN eff cur ON cur.tenant = t.id AND cur.plan = t.plan::text AND cur.module = e.module
+GROUP BY t.id, t.plan, e.plan, t."createdAt" ORDER BY t."createdAt", e.plan;
+
 ROLLBACK;

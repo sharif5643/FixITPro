@@ -17,7 +17,11 @@ import { getTenantExpiryState } from '@/lib/tenant-expiry'
 
 // ── Types (GET /subscription/renewal-options, GET /subscription/payments) ─────
 
-interface RenewPlan { key: string; name: string; description: string | null; monthlyPrice: number | null; current: boolean }
+interface RenewPlan {
+  key: string; name: string; description: string | null; monthlyPrice: number | null; current: boolean
+  /** Modules the shop has now but would not have on this plan */
+  loses: { key: string; name: string }[]
+}
 interface RenewTerm { months: number; days: number; discountPct: number }
 interface RenewalOptions {
   payTo: { promptpayId: string | null; bankInfo: string | null; contactPhone: string | null }
@@ -219,6 +223,7 @@ function RenewFlow() {
   const [reference, setReference] = useState('')
   const [slip, setSlip] = useState<File | null>(null)
   const [copied, setCopied] = useState(false)
+  const [confirmLoses, setConfirmLoses] = useState(false)
 
   const { data: opts, isLoading, isError } = useQuery<RenewalOptions>({
     queryKey: ['renewal-options'],
@@ -251,6 +256,7 @@ function RenewFlow() {
       fd.append('months', String(months))
       fd.append('amount', amount)
       if (reference.trim()) fd.append('reference', reference.trim())
+      if (plan?.loses.length) fd.append('confirmLoses', String(confirmLoses))
       fd.append('slip', slip!)
       return (await api.post('/subscription/payments', fd, { headers: { 'Content-Type': 'multipart/form-data' } })).data
     },
@@ -271,7 +277,8 @@ function RenewFlow() {
   }
 
   const amountNum = Number(amount)
-  const canSend = !!planKey && !!slip && amountNum > 0 && !submit.isPending
+  const needsConfirm = !!plan && plan.loses.length > 0
+  const canSend = !!planKey && !!slip && amountNum > 0 && !submit.isPending && (!needsConfirm || confirmLoses)
 
   return (
     <>
@@ -313,7 +320,7 @@ function RenewFlow() {
                   <button
                     key={p.key}
                     type="button"
-                    onClick={() => setPlanKey(p.key)}
+                    onClick={() => { setPlanKey(p.key); setConfirmLoses(false) }}
                     className={`relative text-left rounded-xl border-2 p-4 transition-all ${planKey === p.key ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
                   >
                     {p.current && (
@@ -328,6 +335,12 @@ function RenewFlow() {
                         ? <>฿{formatPrice(p.monthlyPrice)}<span className="text-xs font-normal text-slate-400">/เดือน</span></>
                         : <span className="text-sm">ราคาตามที่ตกลงกับทีมงาน</span>}
                     </p>
+                    {p.loses.length > 0 && (
+                      <p className="text-xs text-red-600 mt-2">
+                        <AlertTriangle className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />
+                        เมนูที่ใช้อยู่จะหายไป: {p.loses.map((m) => m.name).join(', ')}
+                      </p>
+                    )}
                   </button>
                 ))}
               </div>
@@ -433,6 +446,16 @@ function RenewFlow() {
                 }} />
             </label>
           </Card>
+
+          {needsConfirm && plan && (
+            <label className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 cursor-pointer">
+              <input type="checkbox" className="mt-1 h-4 w-4" checked={confirmLoses} onChange={(e) => setConfirmLoses(e.target.checked)} />
+              <span className="text-sm text-red-800">
+                เข้าใจแล้วว่าเมื่อเปลี่ยนเป็นแพ็กเกจ {plan.name} เมนูต่อไปนี้จะใช้ไม่ได้: <b>{plan.loses.map((m) => m.name).join(', ')}</b>
+                <span className="block text-xs text-red-700 mt-1">ข้อมูลเดิมไม่หาย ถ้าเปลี่ยนกลับเป็นแพ็กเกจที่ใหญ่ขึ้น เมนูจะกลับมา</span>
+              </span>
+            </label>
+          )}
 
           <button
             type="button"

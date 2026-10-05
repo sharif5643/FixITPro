@@ -10,6 +10,8 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { RejectPaymentDto } from './dto/reject-payment.dto';
 import { TenantPlan } from '@prisma/client';
+import { ModulesService } from '../../modules/modules.service';
+import { PlanLimitsService } from '../../plan-limits/plan-limits.service';
 
 const DAY_MS = 86_400_000;
 
@@ -23,7 +25,11 @@ const PAYMENT_INCLUDE = {
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private modules: ModulesService,
+    private planLimits: PlanLimitsService,
+  ) {}
 
   async stats() {
     const [total, pending, verified, rejected, activated] = await Promise.all([
@@ -143,6 +149,12 @@ export class PaymentsService {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: payment.tenantId } });
     if (!tenant) throw new NotFoundException('ไม่พบข้อมูลร้าน');
 
+    // Same downgrade safety as the renew dialog: the shop's branches must fit the new plan
+    if (payment.plan !== tenant.plan) {
+      const blocked = await this.planLimits.planChangeBlock(tenant.id, payment.plan as TenantPlan);
+      if (blocked) throw new BadRequestException(blocked);
+    }
+
     const now = new Date();
     let newExpiryDate: Date;
     if (payment.customExpiryDate) {
@@ -152,7 +164,7 @@ export class PaymentsService {
       newExpiryDate = new Date(base.getTime() + payment.duration * DAY_MS);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Claim the payment first so two clicks (or two admins) cannot both activate it.
       const claimed = await tx.tenantPayment.updateMany({
         where: { id, activatedAt: null },
@@ -195,5 +207,8 @@ export class PaymentsService {
       );
       return updated;
     });
+    // The plan may have changed: the shop's modules must follow now, not when the cache expires
+    await this.modules.invalidateCache(payment.tenantId);
+    return result;
   }
 }

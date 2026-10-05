@@ -50,8 +50,8 @@ describe('Expired and suspended shops; shops renewing themselves (e2e)', () => {
 
   afterAll(async () => {
     await setShop(original).catch(() => {});
-    await prisma.tenantRenewal.deleteMany({ where: { tenantId: IDS.tenantA, action: 'PAYMENT_ACTIVATE', createdAt: { gte: new Date(Date.now() - DAY) } } });
-    await prisma.tenantPayment.deleteMany({ where: { tenantId: IDS.tenantA, submittedById: { not: null } } });
+    await prisma.tenantRenewal.deleteMany({ where: { tenantId: { in: [IDS.tenantA, IDS.tenantB] }, action: 'PAYMENT_ACTIVATE', createdAt: { gte: new Date(Date.now() - DAY) } } });
+    await prisma.tenantPayment.deleteMany({ where: { tenantId: { in: [IDS.tenantA, IDS.tenantB] }, submittedById: { not: null } } });
     await prisma.customer.deleteMany({ where: { tenantId: IDS.tenantA, name: `TA ${run}` } });
     await prisma.auditLog.deleteMany({ where: { actorId: adminId } });
     await prisma.user.delete({ where: { id: adminId } }).catch(() => {});
@@ -60,6 +60,8 @@ describe('Expired and suspended shops; shops renewing themselves (e2e)', () => {
   });
 
   afterEach(() => setShop({ status: 'ACTIVE', expiryDate: original.expiryDate }));
+
+  const modulesOf = async (cookie: string) => (await authGet(app, '/api/v1/auth/me', cookie).expect(200)).body.enabledModules as string[];
 
   it('TA-01: the 7 grace days after expiry still save; after them the shop is read-only', async () => {
     await setShop({ expiryDate: new Date(Date.now() - 4 * DAY) });
@@ -141,6 +143,45 @@ describe('Expired and suspended shops; shops renewing themselves (e2e)', () => {
 
     const mine = (await authGet(app, '/api/v1/subscription/payments', owner).expect(200)).body;
     expect(mine.find((p: any) => p.id === sent.id).activatedAt).toBeTruthy();
+  });
+
+  it('TA-06: renewing onto a smaller plan says which menus go, and is refused if the branches do not fit', async () => {
+    await setShop({ plan: 'PRO' });
+    const plans = (await authGet(app, '/api/v1/subscription/renewal-options', owner).expect(200)).body.plans;
+    const of = (k: string) => plans.find((p: any) => p.key === k);
+    expect(of('PRO').loses).toEqual([]);                                  // same plan: nothing changes
+    expect(of('BUSINESS').loses).toEqual([]);                             // bigger plan: nothing lost
+    expect(of('LITE').loses.map((m: any) => m.key)).toEqual(expect.arrayContaining(['finance', 'line_notify']));
+
+    // Shop A has 2 branches; LITE allows 1 — refused even when the owner accepts losing menus
+    const res = await sendSlip(owner, { plan: 'LITE', months: '1', amount: '500', confirmLoses: 'true' }).expect(400);
+    expect(res.body.message).toContain('สาขา');
+  });
+
+  it('TA-07: a smaller plan needs the owner\'s confirmation; after approval the menus follow at once', async () => {
+    const ownerB = (await loginAs(app, CREDS.ownerB.email, CREDS.ownerB.password)).cookies;
+    const before = await prisma.tenant.findUniqueOrThrow({ where: { id: IDS.tenantB }, select: { plan: true, expiryDate: true } });
+    try {
+      expect(before.plan).toBe('PRO');
+      expect(await modulesOf(ownerB)).toContain('finance');              // also fills the module cache
+
+      const refused = await sendSlip(ownerB, { plan: 'LITE', months: '1', amount: '500' }).expect(400);
+      expect(refused.body.message).toContain('ยืนยัน');
+      const sent = (await sendSlip(ownerB, { plan: 'LITE', months: '1', amount: '500', confirmLoses: 'true' }).expect(201)).body;
+      const row = await prisma.tenantPayment.findUniqueOrThrow({ where: { id: sent.id } });
+      expect(row.paymentNote).toContain('PRO → LITE');
+
+      const patch = (p: string) => request(app.getHttpServer()).patch(p).set('Cookie', admin).send({});
+      await patch(`/api/v1/super-admin/payments/${sent.id}/verify`).expect(200);
+      await patch(`/api/v1/super-admin/payments/${sent.id}/activate`).expect(200);
+      expect(await modulesOf(ownerB)).not.toContain('finance');          // not after a 5-minute cache
+    } finally {
+      // Back to PRO through the Super Admin route, which also clears the module cache
+      await request(app.getHttpServer()).patch(`/api/v1/super-admin/tenants/${IDS.tenantB}/change-plan`)
+        .set('Cookie', admin).send({ plan: before.plan }).expect(200);
+      await prisma.tenant.update({ where: { id: IDS.tenantB }, data: { expiryDate: before.expiryDate, status: 'ACTIVE' } });
+    }
+    expect(await modulesOf(ownerB)).toContain('finance');
   });
 
   it('TA-05: an expired shop can still log out and log back in', async () => {

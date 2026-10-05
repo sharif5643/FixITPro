@@ -17,8 +17,9 @@ import {
   Min,
   Max,
   MaxLength,
+  IsBoolean,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 class UpdateSubscriptionDto {
   @IsOptional() @IsString()                           planName?: string;
@@ -47,6 +48,8 @@ class SubmitPaymentDto {
   @Type(() => Number) @IsNumber() @IsPositive() @Max(10_000_000)    amount: number;
   @IsOptional() @IsString() @MaxLength(100)                         reference?: string;
   @IsOptional() @IsString() @MaxLength(500)                         note?: string;
+  // Multipart sends strings: "true" means the owner accepted losing modules on a smaller plan
+  @IsOptional() @Transform(({ value }) => value === true || value === 'true') @IsBoolean() confirmLoses?: boolean;
 }
 
 @UseGuards(JwtAuthGuard, RolesGuard)
