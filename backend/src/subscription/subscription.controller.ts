@@ -1,4 +1,7 @@
-import { Controller, Get, Patch, Post, Param, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Param, Body, UseGuards, Req, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { SubscriptionPaymentsService, SLIP_MAX_BYTES, RENEW_TERMS } from './subscription-payments.service';
 import { SubscriptionService } from './subscription.service';
 import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -12,8 +15,11 @@ import {
   IsIn,
   IsPositive,
   Min,
+  Max,
+  MaxLength,
+  IsBoolean,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 class UpdateSubscriptionDto {
   @IsOptional() @IsString()                           planName?: string;
@@ -36,13 +42,46 @@ class AddAddonDto {
   @IsOptional() @IsString()                           note?: string;
 }
 
+class SubmitPaymentDto {
+  @IsString() @MaxLength(20)                                        plan: string;
+  @Type(() => Number) @IsIn(RENEW_TERMS.map((t) => t.months))       months: number;
+  @Type(() => Number) @IsNumber() @IsPositive() @Max(10_000_000)    amount: number;
+  @IsOptional() @IsString() @MaxLength(100)                         reference?: string;
+  @IsOptional() @IsString() @MaxLength(500)                         note?: string;
+  // Multipart sends strings: "true" means the owner accepted losing modules on a smaller plan
+  @IsOptional() @Transform(({ value }) => value === true || value === 'true') @IsBoolean() confirmLoses?: boolean;
+}
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('subscription')
 export class SubscriptionController {
   constructor(
     private subscriptionService: SubscriptionService,
     private planLimits: PlanLimitsService,
+    private payments: SubscriptionPaymentsService,
   ) {}
+
+  // ── The shop renews itself: pick a plan, transfer, send the slip ────────────
+  // No TenantActiveGuard on this controller: an expired or suspended shop must still be able to pay.
+
+  @Roles('OWNER')
+  @Get('renewal-options')
+  renewalOptions(@Req() req: any) {
+    return this.payments.options(req.user.tenantId);
+  }
+
+  @Roles('OWNER')
+  @Get('payments')
+  myPayments(@Req() req: any) {
+    return this.payments.list(req.user.tenantId);
+  }
+
+  @Roles('OWNER')
+  @Post('payments')
+  @UseInterceptors(FileInterceptor('slip', { storage: memoryStorage(), limits: { fileSize: SLIP_MAX_BYTES } }))
+  submitPayment(@Body() dto: SubmitPaymentDto, @UploadedFile() slip: Express.Multer.File | undefined, @Req() req: any) {
+    return this.payments.submit(req.user.tenantId, req.user.id, dto, slip);
+  }
 
   @Get()
   getSubscription(@Req() req: any) {

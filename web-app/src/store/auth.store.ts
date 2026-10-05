@@ -11,6 +11,7 @@ export interface AuthUser {
   branchId?: string | null
   forcePasswordChange?: boolean
   tenantExpiryDate?: string | null
+  tenantStatus?: string | null
   shopName?: string | null
 }
 

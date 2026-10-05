@@ -12,6 +12,7 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { ActivateTenantDto } from './dto/activate-tenant.dto';
 import { RenewTenantDto } from './dto/renew-tenant.dto';
 import { TenantPlan } from '@prisma/client';
+import { ModulesService } from '../../modules/modules.service';
 
 const DAY_MS = 86_400_000;
 
@@ -20,6 +21,7 @@ export class TenantsService {
   constructor(
     private prisma: PrismaService,
     private planLimits: PlanLimitsService,
+    private modules: ModulesService,
   ) {}
 
   async findAll(filter?: string) {
@@ -153,7 +155,7 @@ export class TenantsService {
       ? new Date(dto.customExpiryDate)
       : new Date(Date.now() + (dto.duration ?? 30) * DAY_MS);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.tenant.update({
         where: { id },
         data: { status: 'ACTIVE', plan: dto.plan, startDate, expiryDate },
@@ -172,6 +174,8 @@ export class TenantsService {
 
       return updated;
     });
+    await this.modules.invalidateCache(id); // plan may have changed
+    return result;
   }
 
   async renew(id: string, dto: RenewTenantDto) {
@@ -209,7 +213,7 @@ export class TenantsService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.tenant.update({
         where: { id },
         data: { status: 'ACTIVE', plan: newPlan, expiryDate: newExpiryDate },
@@ -228,6 +232,8 @@ export class TenantsService {
 
       return updated;
     });
+    await this.modules.invalidateCache(id); // plan may have changed
+    return result;
   }
 
   async suspend(id: string) {
@@ -273,7 +279,9 @@ export class TenantsService {
     if (!PLAN_LIMITS[plan]) throw new BadRequestException(`แผน ${plan} ไม่รองรับ`);
     const tenant = await this.prisma.tenant.findUnique({ where: { id } });
     if (!tenant) throw new NotFoundException('ไม่พบข้อมูลร้าน');
-    return this.prisma.tenant.update({ where: { id }, data: { plan } });
+    const updated = await this.prisma.tenant.update({ where: { id }, data: { plan } });
+    await this.modules.invalidateCache(id);
+    return updated;
   }
 
   async stats() {

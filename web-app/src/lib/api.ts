@@ -1,6 +1,7 @@
 import axios, { AxiosRequestConfig } from 'axios'
 import { useBranchStore } from '@/store/branch.store'
 import { useAuthStore } from '@/store/auth.store'
+import { TENANT_BLOCKED_EVENT, TENANT_BLOCK_CODES } from '@/lib/tenant-expiry'
 
 interface RetryConfig extends AxiosRequestConfig {
   _retryCount?: number
@@ -47,6 +48,12 @@ api.interceptors.response.use(
     // On 403 (permission denied): refresh permissions silently so UI reflects reality
     // without forcing a re-login. Don't retry the original request — it will still fail.
     if (status === 403 && typeof window !== 'undefined' && !isLoginOrRegister) {
+      // Expired or suspended shop: not a permission problem. The page shows the server's
+      // message; the package banner refreshes so the reason stays on screen.
+      if (TENANT_BLOCK_CODES.includes(error.response?.data?.code)) {
+        window.dispatchEvent(new Event(TENANT_BLOCKED_EVENT))
+        return Promise.reject(error)
+      }
       try {
         await useAuthStore.getState().refreshPermissions()
       } catch { /* silent */ }

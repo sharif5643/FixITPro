@@ -41,6 +41,8 @@ export class SettingsService {
             receiptFooter: shop.receiptFooter ?? null,
             paperWidth: shop.paperWidth,
             paymentQrUrl: shop.paymentQrUrl ?? null,
+            promptpayId: shop.promptpayId ?? null,
+            renewalBankInfo: shop.renewalBankInfo ?? null,
             vatPercent: Number(shop.vatPercent),
             defaultDeposit: Number(shop.defaultDeposit),
             lowStockAlert: shop.lowStockAlert,

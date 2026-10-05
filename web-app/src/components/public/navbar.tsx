@@ -82,7 +82,7 @@ export function PublicNavbar() {
               href="/register"
               className="text-sm font-semibold px-5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:opacity-90 transition-all"
             >
-              ทดลองใช้ฟรี 30 วัน
+              ทดลองใช้ฟรี 14 วัน
             </Link>
           </div>
 
@@ -120,7 +120,7 @@ export function PublicNavbar() {
                 เข้าสู่ระบบ
               </Link>
               <Link href="/register" className="block text-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-                ทดลองใช้ฟรี 30 วัน
+                ทดลองใช้ฟรี 14 วัน
               </Link>
             </div>
           </div>

@@ -47,6 +47,13 @@ export class AuthController {
     res.cookie(REFRESH_COOKIE,   refreshToken,  { httpOnly: true,  secure, sameSite, path: '/api/v1/auth', maxAge: refreshMs });
     res.cookie('tenant_role',    role,          { httpOnly: false, secure, sameSite, path: '/', maxAge: accessMs });
 
+    this.setExpiryCookie(res, tenantExpiryDate);
+  }
+
+  private setExpiryCookie(res: Response, tenantExpiryDate?: string | null) {
+    const secure   = process.env.COOKIE_SECURE === 'true';
+    const sameSite = (process.env.COOKIE_SAMESITE ?? 'lax') as 'strict' | 'lax' | 'none';
+    const accessMs = parseExpiryToSeconds(process.env.JWT_EXPIRES_IN ?? '8h') * 1000;
     if (tenantExpiryDate) {
       const expMs = new Date(tenantExpiryDate).getTime();
       res.cookie('tenant_expiry_ts', String(expMs), { httpOnly: false, secure, sameSite, path: '/', maxAge: accessMs });
@@ -135,8 +142,12 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getProfile(@CurrentUser('id') userId: string) {
-    return this.authService.getProfile(userId);
+  async getProfile(@CurrentUser('id') userId: string, @Res({ passthrough: true }) res: Response) {
+    const profile = await this.authService.getProfile(userId);
+    // Keep the expiry cookie the web middleware reads in step with the shop: a renewal or a
+    // new expiry date set by the Super Admin takes effect on the next page load, not next login.
+    if (profile) this.setExpiryCookie(res, profile.tenantExpiryDate);
+    return profile;
   }
 
   // ── Google OAuth ─────────────────────────────────────────────────────────────

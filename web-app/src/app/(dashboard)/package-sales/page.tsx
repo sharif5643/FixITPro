@@ -7,13 +7,14 @@ import { th } from 'date-fns/locale'
 import { toast } from 'sonner'
 import {
   Wifi, TrendingUp, Banknote, Smartphone, CreditCard,
-  Plus, X, Loader2, Phone, Wallet, ArrowDownLeft, Printer, ScanLine, SlidersHorizontal,
+  Plus, X, Loader2, Phone, Wallet, ArrowDownLeft, Printer, ScanLine, SlidersHorizontal, Clock,
 } from 'lucide-react'
 import Barcode from 'react-barcode'
 import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
 import { apiErrorMessage, formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
+import { PackageDebtList, useOpenPackageDebt, OpenDebtWarning } from '@/components/package-sales/package-debts'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,8 @@ interface PackageSaleRow {
   paymentMethod:   PayMethod
   amountPaid:      number
   change:          number
+  creditAmount?:   number
+  amountDue?:      number
   phoneNumber:     string | null
   note:            string | null
   cashierName:     string
@@ -91,7 +94,12 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
   const [customPrice,  setCustomPrice]  = useState('')
   const [costPrice,    setCostPrice]    = useState('35')
   const [dealerCost,   setDealerCost]   = useState('')
-  const [payMethod,    setPayMethod]    = useState<PayMethod>('CASH')
+  const [payMethod,    setPayMethod]    = useState<PayMethod | 'LATER'>('CASH')
+  // Pay later ("ค้างจ่าย"): who owes, and what (if anything) they pay now
+  const [debtorName,   setDebtorName]   = useState('')
+  const [debtorPhone,  setDebtorPhone]  = useState('')
+  const [paidNow,      setPaidNow]      = useState('')
+  const [paidNowBy,    setPaidNowBy]    = useState<'CASH' | 'TRANSFER'>('CASH')
   const [amountPaid,   setAmountPaid]   = useState('')
   const [phoneNumber,  setPhoneNumber]  = useState('')
   const [note,         setNote]         = useState('')
@@ -113,8 +121,14 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
   const change       = payMethod === 'CASH' ? Math.max(0, paidNum - price) : 0
   const insufficient = saleType !== 'SIM_SALE' && price > 0 && deduction > walletBal
   const dealerCostTooHigh = saleType !== 'SIM_SALE' && dealerCost !== '' && pkgDeduction > price
+  const payLater     = payMethod === 'LATER'
+  const { phone: debtorPhoneNorm, openDebt, checking: checkingDebt } = useOpenPackageDebt(debtorPhone || phoneNumber, payLater)
+  const paidNowNum   = Math.min(Number(paidNow) || 0, price)
+  const owed         = Math.max(0, price - paidNowNum)
   const canSubmit    = !!shiftId && price > 0 && !insufficient && !dealerCostTooHigh
-    && (payMethod !== 'CASH' || paidNum >= price)
+    && (payLater
+      ? !!debtorPhoneNorm && !openDebt && !checkingDebt
+      : (payMethod !== 'CASH' || paidNum >= price))
 
   // Handle barcode scanner input (USB scanner = fast keystrokes + Enter)
   function handleScanKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -137,12 +151,17 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
     }
   }
 
+  // How it is paid: in full by one method, or on credit with an optional part paid now
+  const payment = payLater
+    ? { paymentMethod: paidNowBy, amountPaid: paidNowNum, payLater: true,
+        debtorName: debtorName.trim() || undefined, debtorPhone: debtorPhoneNorm ?? undefined }
+    : { paymentMethod: payMethod, amountPaid: payMethod === 'CASH' ? paidNum : price }
+
   const mutation = useMutation({
     mutationFn: (): Promise<unknown> => {
       if (saleType === 'SIM_SALE') {
         return api.post('/carrier-wallet/sim-sale', {
-          carrier, packageAmount: price, costPrice: cost,
-          paymentMethod: payMethod, amountPaid: payMethod === 'CASH' ? paidNum : price,
+          carrier, packageAmount: price, costPrice: cost, ...payment,
           phoneNumber: phoneNumber.trim() || undefined,
           note: note.trim() || undefined, shiftId, cashierName,
         })
@@ -150,13 +169,13 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
       return api.post('/carrier-wallet/package-sale', {
         carrier, packageAmount: price, saleType,
         dealerCost: dealerCost !== '' ? Math.round(pkgDeduction * 100) / 100 : undefined,
-        paymentMethod: payMethod, amountPaid: payMethod === 'CASH' ? paidNum : price,
+        ...payment,
         phoneNumber: phoneNumber.trim() || undefined,
         note: note.trim() || undefined, shiftId, cashierName,
       })
     },
     onSuccess: () => {
-      toast.success('บันทึกการขายแล้ว')
+      toast.success(payLater && owed > 0 ? `บันทึกแล้ว — ค้างจ่าย ${formatThaiMoney(owed)}` : 'บันทึกการขายแล้ว')
       onDone()
     },
     onError: (err: any) => toast.error(apiErrorMessage(err)),
@@ -347,15 +366,16 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
           {/* Payment */}
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-700">ช่องทางรับเงิน</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {([
                 { v: 'CASH', label: 'เงินสด', icon: Banknote },
                 { v: 'TRANSFER', label: 'โอนเงิน', icon: Smartphone },
                 { v: 'CARD', label: 'บัตร', icon: CreditCard },
+                { v: 'LATER', label: 'ค้างจ่าย', icon: Clock },
               ] as const).map(({ v, label, icon: Icon }) => (
                 <button
                   key={v}
-                  onClick={() => setPayMethod(v as PayMethod)}
+                  onClick={() => setPayMethod(v)}
                   className={`flex flex-col items-center py-3 rounded-xl border-2 text-xs font-semibold transition-colors ${
                     payMethod === v ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                   }`}
@@ -378,6 +398,47 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
               {change > 0 && (
                 <p className="text-lg font-bold text-emerald-700 text-right">เงินทอน: {formatThaiMoney(change)}</p>
               )}
+            </div>
+          )}
+
+          {payLater && price > 0 && (
+            <div className="space-y-3 rounded-xl border-2 border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-semibold text-amber-800">ค้างจ่าย — ลูกค้า 1 คนค้างได้ครั้งละ 1 รายการ</p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-700">เบอร์ลูกค้า *</span>
+                  <input type="tel" inputMode="tel" placeholder={phoneNumber || '0812345678'}
+                    value={debtorPhone} onChange={e => setDebtorPhone(e.target.value)}
+                    className="w-full h-10 px-3 border border-slate-200 rounded-lg text-sm bg-white" />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-700">ชื่อลูกค้า</span>
+                  <input value={debtorName} onChange={e => setDebtorName(e.target.value)} placeholder="ไม่บังคับ"
+                    className="w-full h-10 px-3 border border-slate-200 rounded-lg text-sm bg-white" />
+                </label>
+              </div>
+              {!debtorPhone && phoneNumber && debtorPhoneNorm && (
+                <p className="text-xs text-slate-500">ใช้เบอร์ที่เติม {phoneNumber} เป็นเบอร์ลูกค้า</p>
+              )}
+              {!debtorPhoneNorm && <p className="text-xs text-red-600">ใส่เบอร์ลูกค้าอย่างน้อย 9 หลัก</p>}
+              {openDebt && <OpenDebtWarning debt={openDebt} />}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-700">จ่ายตอนนี้ (ถ้ามี)</span>
+                  <input type="number" inputMode="numeric" placeholder="0"
+                    value={paidNow} onChange={e => setPaidNow(e.target.value)}
+                    className="w-full h-10 px-3 border border-slate-200 rounded-lg text-sm bg-white tabular-nums" />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-700">จ่ายด้วย</span>
+                  <select value={paidNowBy} onChange={e => setPaidNowBy(e.target.value as 'CASH' | 'TRANSFER')}
+                    className="w-full h-10 px-2 border border-slate-200 rounded-lg text-sm bg-white">
+                    <option value="CASH">เงินสด</option>
+                    <option value="TRANSFER">โอนเงิน</option>
+                  </select>
+                </label>
+              </div>
+              <p className="text-right text-base font-bold text-red-600">ค้างจ่าย {formatThaiMoney(owed)}</p>
             </div>
           )}
 
@@ -687,7 +748,7 @@ export default function PackageSalesPage() {
   const [showTopup,         setShowTopup]         = useState(false)
   const [showAdjust,        setShowAdjust]        = useState(false)
   const [showPrintBarcodes, setShowPrintBarcodes] = useState(false)
-  const [activeTab,         setActiveTab]         = useState<'sales' | 'topups'>('sales')
+  const [activeTab,         setActiveTab]         = useState<'sales' | 'topups' | 'debts'>('sales')
   // Today in Bangkok time (UTC date is still "yesterday" before 07:00)
   const [filterDate,   setFilterDate]   = useState(() => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10))
   const [filterCarrier, setFilterCarrier] = useState('')
@@ -850,8 +911,16 @@ export default function PackageSalesPage() {
             >
               <Wallet className="h-3.5 w-3.5" /> ประวัติเติมกระเป๋า
             </button>
+            <button
+              onClick={() => setActiveTab('debts')}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                activeTab === 'debts' ? 'bg-amber-500 text-white' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Clock className="h-3.5 w-3.5" /> ค้างจ่าย
+            </button>
           </div>
-          <div className="flex flex-wrap gap-3">
+          {activeTab !== 'debts' && <div className="flex flex-wrap gap-3">
             <div className="flex items-center gap-2">
               <label className="text-sm font-semibold text-slate-600">วันที่</label>
               <input
@@ -886,8 +955,12 @@ export default function PackageSalesPage() {
                 </select>
               </div>
             )}
-          </div>
+          </div>}
         </div>
+
+        {activeTab === 'debts' && (
+          <PackageDebtList shiftId={shift?.id} cashierName={user?.name ?? ''} />
+        )}
 
         {/* Sales Table */}
         {activeTab === 'sales' && (
@@ -929,7 +1002,12 @@ export default function PackageSalesPage() {
                           {row.carrier}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-right tabular-nums font-semibold">{formatThaiMoney(row.packageAmount)}</td>
+                      <td className="py-3 px-4 text-right tabular-nums font-semibold">
+                        {formatThaiMoney(row.packageAmount)}
+                        {!!row.amountDue && row.amountDue > 0 && (
+                          <span className="block text-[11px] font-semibold text-red-600">ค้าง {formatThaiMoney(row.amountDue)}</span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-right tabular-nums font-semibold text-emerald-700">{formatThaiMoney(row.profit)}</td>
                       <td className="py-3 px-4 text-slate-500">{row.phoneNumber ?? '—'}</td>
                       <td className="py-3 px-4 text-slate-600">{row.createdBy?.name ?? row.cashierName}</td>

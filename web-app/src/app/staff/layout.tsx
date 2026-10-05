@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuthStore } from '@/store/auth.store'
 import { StaffBottomNav } from '@/components/staff/staff-bottom-nav'
+import { SubscriptionBanner } from '@/components/layout/subscription-banner'
 import api from '@/lib/api'
 
 const AUTH_PAGES = ['/staff/login', '/staff/register', '/staff/splash', '/staff/change-password']
@@ -109,6 +110,9 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-brand-light">
+      {user.role !== 'SUPER_ADMIN' && (
+        <div className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] empty:hidden"><SubscriptionBanner /></div>
+      )}
       <main className="pb-[calc(70px+env(safe-area-inset-bottom))]">{children}</main>
       <StaffBottomNav />
     </div>

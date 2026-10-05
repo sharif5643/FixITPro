@@ -11,6 +11,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/page-header'
+import { PackageDebtList } from '@/components/package-sales/package-debts'
+import { useAuthStore } from '@/store/auth.store'
 import { formatThaiMoney } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
@@ -681,6 +683,14 @@ export default function DebtPage() {
   const [paying,     setPaying]     = useState<OutstandingRepair | null>(null)
   const [receipt,    setReceipt]    = useState<PaymentResult | null>(null)
   const { branchId } = useBranchContext()
+  const user = useAuthStore((st) => st.user)
+  const [kind, setKind] = useState<'repair' | 'sim'>('repair')
+  const { data: currentShift } = useQuery<{ id: string } | null>({
+    queryKey: ['shifts', 'current'],
+    queryFn:  async () => (await api.get('/shifts/current')).data,
+    staleTime: 30_000,
+    enabled:  kind === 'sim',
+  })
 
   const { data: repairs = [], isLoading } = useQuery<OutstandingRepair[]>({
     queryKey: ['repairs-outstanding', branchId],
@@ -717,6 +727,28 @@ export default function DebtPage() {
     queryClient.invalidateQueries({ queryKey: ['debt-summary'] })
   }
 
+  const kindSwitch = (
+    <div className="flex gap-2">
+      {([['repair', 'งานซ่อม'], ['sim', 'ซิม / แพ็กเกจ']] as const).map(([k, label]) => (
+        <button key={k} onClick={() => setKind(k)}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold ${kind === k ? 'bg-blue-600 text-white' : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60'}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
+  // SIM / package sales sold on credit ("ค้างจ่าย")
+  if (kind === 'sim') {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="หนี้ค้างชำระ" icon={AlertCircle} subtitle="ซิม / แพ็กเกจที่ขายแบบค้างจ่าย" />
+        {kindSwitch}
+        <PackageDebtList shiftId={currentShift?.id} cashierName={user?.name ?? ''} />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -733,6 +765,8 @@ export default function DebtPage() {
           ) : undefined
         }
       />
+
+      {kindSwitch}
 
       {/* Summary chips */}
       {!isLoading && repairs.length > 0 && (

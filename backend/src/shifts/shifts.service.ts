@@ -174,7 +174,7 @@ export class ShiftsService {
       }),
       this.prisma.packageSale.findMany({
         where: { shiftId },
-        select: { packageAmount: true, profit: true, paymentMethod: true },
+        select: { packageAmount: true, profit: true, paymentMethod: true, creditAmount: true },
       }),
       this.prisma.expense.aggregate({
         where: { shiftId, paymentMethod: 'CASH', voidedAt: null },
@@ -226,9 +226,13 @@ export class ShiftsService {
 
     const packageSaleTotalAmount = packageSales.reduce((sum, p) => sum + Number(p.packageAmount), 0);
     const packageSaleProfit = packageSales.reduce((sum, p) => sum + Number(p.profit), 0);
+    // Only cash actually received: a credit ("ค้างจ่าย") sale brings in what was paid at the
+    // counter, and repayments of earlier credit sales taken in this shift add theirs
+    const cashPackageDebtPayments = await this.getCashPackageDebtPayments(shiftId);
     const cashPackageSales = packageSales
       .filter((p) => p.paymentMethod === 'CASH')
-      .reduce((sum, p) => sum + Number(p.packageAmount), 0);
+      .reduce((sum, p) => sum + Number(p.packageAmount) - Number(p.creditAmount ?? 0), 0)
+      + cashPackageDebtPayments;
 
     // Expected cash = opening + CASH sales + CASH repairs (final + deposits + debt payments) + CASH package sales
     //                 − CASH supplier payments − CASH expenses − CASH refunds
@@ -305,6 +309,8 @@ export class ShiftsService {
           totalAmount: packageSaleTotalAmount,
           totalProfit: packageSaleProfit,
           byCarrier: packageSalesByCarrier,
+          cashReceived: cashPackageSales,
+          cashDebtPayments: cashPackageDebtPayments,
         },
         cashDeposits,
         cashDebtPayments,
@@ -319,6 +325,15 @@ export class ShiftsService {
 
   // Cash taken in this shift outside sales/final repair payments: repair deposits at intake and
   // debt payments (RepairAdditionalPayment). Both belong in the drawer's expected cash.
+  /** Cash taken in this shift for SIM/package sales sold earlier on credit. */
+  private async getCashPackageDebtPayments(shiftId: string) {
+    const agg = await this.prisma.packageSaleDebtPayment.aggregate({
+      where: { shiftId, paymentMethod: 'CASH' },
+      _sum: { amount: true },
+    });
+    return Number(agg?._sum?.amount ?? 0);
+  }
+
   private async getCashRepairInflows(shiftId: string) {
     const [deposits, debtPayments] = await Promise.all([
       this.prisma.repair.aggregate({
@@ -364,7 +379,7 @@ export class ShiftsService {
       }),
       this.prisma.packageSale.findMany({
         where: { shiftId: shift.id },
-        select: { packageAmount: true, profit: true, paymentMethod: true },
+        select: { packageAmount: true, profit: true, paymentMethod: true, creditAmount: true },
       }),
       this.prisma.expense.aggregate({
         where: { shiftId: shift.id, paymentMethod: 'CASH', voidedAt: null },
@@ -393,7 +408,11 @@ export class ShiftsService {
     }, 0);
     const cashRepairs = repairPayments.filter(r => r.paymentMethod === 'CASH').reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0);
     const cashSupplierPayments = supplierPayments.filter(p => p.paymentMethod === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0);
-    const cashPackageSales = packageSales.filter(p => p.paymentMethod === 'CASH').reduce((sum, p) => sum + Number(p.packageAmount), 0);
+    const cashPackageDebtPayments = await this.getCashPackageDebtPayments(shift.id);
+    const cashPackageSales = packageSales
+      .filter(p => p.paymentMethod === 'CASH')
+      .reduce((sum, p) => sum + Number(p.packageAmount) - Number(p.creditAmount ?? 0), 0)
+      + cashPackageDebtPayments;
     const cashExpenses = Number(cashExpensesAgg._sum.amount ?? 0);
     const cashRefunds  = Number(cashRefundsAgg._sum.totalRefund ?? 0);
     const { cashDeposits, cashDebtPayments } = repairInflows;
@@ -413,6 +432,7 @@ export class ShiftsService {
       packageSaleRevenue,
       packageSaleAmount,
       packageSalesByCarrier,
+      cashPackageDebtPayments,
       cashDeposits,
       cashDebtPayments,
       cashExpenses,

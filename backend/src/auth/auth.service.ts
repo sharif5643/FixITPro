@@ -98,13 +98,15 @@ export class AuthService {
 
     let tenantExpiryDate: string | null = null;
     let shopName: string | null = null;
+    let tenantStatus: string | null = null;
     if (tenantId) {
       const tenant = await this.prisma.tenant.findUnique({
         where: { id: tenantId },
-        select: { expiryDate: true, shopName: true },
+        select: { expiryDate: true, shopName: true, status: true },
       });
       tenantExpiryDate = tenant?.expiryDate?.toISOString() ?? null;
       shopName = tenant?.shopName ?? null;
+      tenantStatus = tenant?.status ?? null;
     }
 
     const enabledModules = await this.modulesService.getEnabledModules(tenantId);
@@ -122,6 +124,7 @@ export class AuthService {
         branchId,
         forcePasswordChange: user.forcePasswordChange,
         tenantExpiryDate,
+        tenantStatus,
         shopName,
       },
       permissions,
@@ -283,13 +286,15 @@ export class AuthService {
 
     let tenantExpiryDate: string | null = null;
     let shopName: string | null = null;
+    let tenantStatus: string | null = null;
     if (user.tenantId) {
       const tenant = await this.prisma.tenant.findUnique({
         where: { id: user.tenantId },
-        select: { expiryDate: true, shopName: true },
+        select: { expiryDate: true, shopName: true, status: true },
       });
       tenantExpiryDate = tenant?.expiryDate?.toISOString() ?? null;
       shopName = tenant?.shopName ?? null;
+      tenantStatus = tenant?.status ?? null;
     }
 
     const enabledModules = await this.modulesService.getEnabledModules(user.tenantId ?? null);
@@ -303,6 +308,7 @@ export class AuthService {
       branchId: user.branchId,
       forcePasswordChange: user.forcePasswordChange,
       tenantExpiryDate,
+      tenantStatus,
       shopName,
       permissions,
       enabledModules,

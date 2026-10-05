@@ -182,6 +182,7 @@ export class SettingsService {
       if (userIds.length) {
         await tx.reminderSnooze.deleteMany({ where: { userId: { in: userIds } } });
         await tx.auditLog.deleteMany({ where: { actorId: { in: userIds } } });
+        await tx.packageSaleDebtPayment.deleteMany({ where: { packageSale: { createdById: { in: userIds } } } });
         await tx.packageSale.deleteMany({ where: { createdById: { in: userIds } } });
         await tx.carrierWalletMovement.deleteMany({ where: { createdById: { in: userIds } } });
       }
@@ -268,6 +269,7 @@ export class SettingsService {
       await tx.expenseCategory.deleteMany({ where: { tenantId } });
 
       // 21. Carrier wallets of this tenant (sales/movements by other users of this tenant too)
+      await tx.packageSaleDebtPayment.deleteMany({ where: { packageSale: { tenantId } } });
       await tx.packageSale.deleteMany({ where: { tenantId } });
       await tx.carrierWalletMovement.deleteMany({ where: { tenantId } });
       await tx.carrierWallet.updateMany({ where: { tenantId }, data: { balance: 0 } });

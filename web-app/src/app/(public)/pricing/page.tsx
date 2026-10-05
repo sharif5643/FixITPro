@@ -7,7 +7,7 @@ import {
 
 export const metadata: Metadata = {
   title: 'ราคาและแพ็กเกจ — FixITPro',
-  description: 'แพ็กเกจ FixITPro ราคาโปร่งใส เหมาะสำหรับทุกขนาดร้าน ทดลองใช้ฟรี 30 วัน',
+  description: 'แพ็กเกจ FixITPro ราคาโปร่งใส เหมาะสำหรับทุกขนาดร้าน ทดลองใช้ฟรี 14 วัน',
 }
 
 type Plan = {
@@ -197,7 +197,7 @@ export default function PricingPage() {
             เลือกแพ็กเกจที่เหมาะกับร้านคุณ
           </h1>
           <p className="text-xl text-slate-400 max-w-xl mx-auto">
-            ทดลองใช้ฟรี 30 วัน ทุกแพ็กเกจ ไม่ต้องใช้บัตรเครดิต
+            ทดลองใช้ฟรี 14 วัน ทุกแพ็กเกจ ไม่ต้องใช้บัตรเครดิต
           </p>
         </div>
       </section>
@@ -244,7 +244,7 @@ export default function PricingPage() {
           <h2 className="text-2xl font-bold text-slate-900 text-center mb-10">คำถามที่พบบ่อย</h2>
           <div className="space-y-5">
             {[
-              { q: 'ทดลองฟรีนานแค่ไหน?', a: 'ทดลองใช้ฟรี 30 วันเต็ม ทุกแพ็กเกจ ไม่มีข้อจำกัดฟีเจอร์ ไม่ต้องใส่ข้อมูลบัตรเครดิต' },
+              { q: 'ทดลองฟรีนานแค่ไหน?', a: 'ทดลองใช้ฟรี 14 วันเต็ม ทุกแพ็กเกจ ไม่มีข้อจำกัดฟีเจอร์ ไม่ต้องใส่ข้อมูลบัตรเครดิต' },
               { q: 'ถ้าต้องการเปลี่ยนแพ็กเกจทำอย่างไร?', a: 'เปลี่ยนได้ทุกเมื่อ ไม่มีค่าใช้จ่ายเพิ่มเติม ยอดที่จ่ายไปแล้วจะคำนวณตามสัดส่วน' },
               { q: 'ชำระเงินอย่างไร?', a: 'โอนผ่านธนาคาร พร้อมเพย์ หรือ QR Code ส่ง Slip มาแล้วทีมงานอนุมัติภายใน 1 ชั่วโมง (เวลาทำการ)' },
               { q: 'ข้อมูลปลอดภัยหรือไม่?', a: 'ข้อมูลทั้งหมดเข้ารหัส สำรองข้อมูลอัตโนมัติทุกวัน เก็บบน Server ที่ปลอดภัย' },
@@ -262,13 +262,13 @@ export default function PricingPage() {
       <section className="py-16 bg-gradient-to-r from-blue-600 to-purple-700">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <h2 className="text-3xl font-bold text-white mb-4">ยังไม่แน่ใจ? ทดลองใช้ฟรีก่อนได้เลย</h2>
-          <p className="text-blue-100 mb-8">30 วัน เต็ม ฟีเจอร์ครบ ยกเลิกได้ทุกเมื่อ</p>
+          <p className="text-blue-100 mb-8">14 วัน เต็ม ฟีเจอร์ครบ ยกเลิกได้ทุกเมื่อ</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/register"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-white text-blue-700 font-bold text-lg hover:bg-blue-50 transition-colors"
             >
-              ทดลองใช้ฟรี 30 วัน <ArrowRight className="h-5 w-5" />
+              ทดลองใช้ฟรี 14 วัน <ArrowRight className="h-5 w-5" />
             </Link>
             <Link
               href="/contact"

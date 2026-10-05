@@ -161,6 +161,9 @@ export interface TenantPayment {
   paymentDate?: string
   paymentAmount?: number
   paymentNote?: string
+  /** Sent by the shop from its renewal page */
+  slipUrl?: string | null
+  submittedById?: string | null
   status: PaymentStatus
   adminNote?: string
   verifiedAt?: string
@@ -1058,6 +1061,8 @@ export interface SystemSettingsShop {
   receiptFooter?: string | null
   paperWidth: string
   paymentQrUrl?: string | null
+  promptpayId?: string | null
+  renewalBankInfo?: string | null
   vatPercent: number
   defaultDeposit: number
   lowStockAlert: number

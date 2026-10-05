@@ -24,6 +24,7 @@ export const ACCOUNTING_SOURCE = {
   REPAIR_FINAL_PAYMENT_REFUND:         'REPAIR_FINAL_PAYMENT_REFUND',
   REPAIR_ADDITIONAL_PAYMENT_REFUND:    'REPAIR_ADDITIONAL_PAYMENT_REFUND',
   PACKAGE_SALE:              'PACKAGE_SALE',
+  PACKAGE_DEBT_PAYMENT:      'PACKAGE_DEBT_PAYMENT',
 } as const;
 
 export type AccountingSource = (typeof ACCOUNTING_SOURCE)[keyof typeof ACCOUNTING_SOURCE];
@@ -60,6 +61,7 @@ const SOURCE_TO_DB_TYPE: Record<
   REPAIR_ADDITIONAL_PAYMENT: 'DEPOSIT',
   EXPENSE_PAYMENT:           'WITHDRAWAL',
   PACKAGE_SALE:              'DEPOSIT',
+  PACKAGE_DEBT_PAYMENT:      'DEPOSIT',
   SUPPLIER_PAYMENT:          'WITHDRAWAL',
   CASH_WITHDRAWAL:           'WITHDRAWAL',
   CASH_DEPOSIT:              'DEPOSIT',
@@ -80,6 +82,7 @@ const SOURCE_TO_REASON: Record<AccountingSource, string> = {
   REPAIR_ADDITIONAL_PAYMENT: 'ค่าบริการเพิ่มเติม',
   EXPENSE_PAYMENT:           'ค่าใช้จ่าย',
   PACKAGE_SALE:              'ขายซิม/แพ็กเกจ',
+  PACKAGE_DEBT_PAYMENT:      'รับชำระค้างจ่ายซิม/แพ็กเกจ',
   SUPPLIER_PAYMENT:          'จ่ายซัพพลายเออร์',
   CASH_WITHDRAWAL:           'เบิกเงิน',
   CASH_DEPOSIT:              'เติมเงิน',

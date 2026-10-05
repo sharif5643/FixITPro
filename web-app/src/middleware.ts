@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
 // Routes that are the public website root (exact match)
 const PUBLIC_EXACT = ['/']
 
+// Same 7 days as GRACE_DAYS in lib/tenant-expiry.ts and the API guard
 const GRACE_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 // Decode JWT exp claim without verifying signature.

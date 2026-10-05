@@ -20,6 +20,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let status  = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Internal server error';
     let retryAfter: number | undefined;
+    let code: string | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -27,6 +28,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       if (typeof body === 'object' && body !== null) {
         if ('message' in body) message = (body as any).message;
         if ('retryAfter' in body) retryAfter = (body as any).retryAfter;
+        if (typeof (body as any).code === 'string') code = (body as any).code;
       } else if (typeof body === 'string') {
         message = body;
       }
@@ -50,6 +52,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
     };
     if (retryAfter !== undefined) responseBody.retryAfter = retryAfter;
+    // A machine-readable reason the web app can act on (e.g. TENANT_EXPIRED)
+    if (code !== undefined) responseBody.code = code;
 
     response.status(status).json(responseBody);
   }

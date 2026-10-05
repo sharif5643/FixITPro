@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { graceEndOf } from '../common/tenant-access';
 
 const SUB_ID = 1;
 const TRIAL_DAYS = 30;
@@ -29,8 +30,7 @@ export class SubscriptionService {
     const now = new Date();
     if (expiryDate >= now) return { effectiveStatus: status, graceDaysRemaining: 0 };
 
-    const gracePeriodEnd = new Date(expiryDate);
-    gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
+    const gracePeriodEnd = graceEndOf(expiryDate);
 
     if (gracePeriodEnd > now) {
       const graceDays = Math.ceil((gracePeriodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
