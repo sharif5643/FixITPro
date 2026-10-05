@@ -44,4 +44,18 @@ describe('Packages exist for every current plan (e2e)', () => {
       expect(keys).toEqual(expect.arrayContaining(['pos', 'repair', 'stock']));
     }
   });
+
+  it('PLAN-03: every package includes SIM / package sales, so every shop sees the SIM screens', async () => {
+    const packages = await prisma.package.findMany({ select: { key: true } });
+    for (const { key } of packages) {
+      expect(await prisma.packageModule.count({ where: { packageKey: key, moduleKey: 'package_sales' } })).toBe(1);
+    }
+    for (const plan of ['TRIAL', 'LITE', 'PRO', 'BUSINESS', 'PRIVATE'] as const) {
+      await prisma.tenant.update({ where: { id: IDS.tenantA }, data: { plan } });
+      await app.get(ModulesService).invalidateCache(IDS.tenantA);
+      const enabled = (await authGet(app, '/api/v1/modules/enabled', manager).expect(200)).body;
+      const keys: string[] = Array.isArray(enabled) ? enabled : enabled.modules ?? enabled.enabledModules ?? [];
+      expect(keys).toContain('package_sales');
+    }
+  });
 });

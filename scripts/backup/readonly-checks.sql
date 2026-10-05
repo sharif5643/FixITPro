@@ -79,4 +79,11 @@ SELECT count(*) AS migrations_total FROM "_prisma_migrations" WHERE finished_at 
 SELECT count(*) AS package_sale_debt_payments FROM "PackageSaleDebtPayment";
 SELECT indexname FROM pg_indexes WHERE indexname = 'PackageSale_one_open_debt_per_phone';
 
+\echo '--- 15. package_sales for every package: per shop, has it now / switched off by override / gains it ---'
+SELECT t.id, t.plan, t.status,
+  EXISTS (SELECT 1 FROM "PackageModule" pm WHERE pm."packageKey" = t.plan::text AND pm."moduleKey" = 'package_sales') AS in_package,
+  (SELECT tm.enabled FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = 'package_sales' AND (tm."expiresAt" IS NULL OR tm."expiresAt" > now())) AS override
+FROM "Tenant" t ORDER BY t."createdAt";
+SELECT key, "isActive" FROM "AppModule" WHERE key = 'package_sales';
+
 ROLLBACK;
