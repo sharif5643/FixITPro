@@ -18,7 +18,8 @@ interface Transaction {
   reason?: string
   note?: string
   createdAt: string
-  performedBy: { name: string }
+  // The API returns who did it as actorUser
+  actorUser?: { name: string } | null
 }
 
 interface Participant {
@@ -111,8 +112,8 @@ export default function SessionPage() {
           <ArrowLeft className="h-5 w-5 text-slate-600" />
         </button>
         <div>
-          <h1 className="text-lg font-bold text-slate-800">{session.cashDrawer.name}</h1>
-          <p className="text-xs text-slate-400">เปิด {fmtTime(session.openedAt)} โดย {session.openedBy.name}</p>
+          <h1 className="text-lg font-bold text-slate-800">{session.cashDrawer?.name ?? 'ลิ้นชักเงินสด'}</h1>
+          <p className="text-xs text-slate-400">เปิด {fmtTime(session.openedAt)} โดย {session.openedBy?.name ?? '—'}</p>
         </div>
         <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">
           <span className="h-1.5 w-1.5 rounded-full bg-green-500" />เปิดอยู่
@@ -171,7 +172,7 @@ export default function SessionPage() {
                 <div className="flex items-center gap-2">
                   <div className={`h-2 w-2 rounded-full ${p.leftAt ? 'bg-slate-300' : 'bg-green-400'}`} />
                   <span className={p.leftAt ? 'text-slate-400' : 'text-slate-700 font-medium'}>
-                    {p.user.name}
+                    {p.user?.name ?? '—'}
                   </span>
                 </div>
                 <span className="text-xs text-slate-400">
@@ -230,7 +231,7 @@ export default function SessionPage() {
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
                       <Clock className="h-3 w-3" />
-                      {fmtTime(tx.createdAt)} • {tx.performedBy.name}
+                      {fmtTime(tx.createdAt)} • {tx.actorUser?.name ?? '—'}
                       {tx.reason && ` • ${tx.reason}`}
                     </div>
                   </div>

@@ -37,9 +37,11 @@ export default function CashDrawerPage() {
 
   const hasSession = !!session
 
-  function fmt(n?: number) {
-    if (n == null) return '—'
-    return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  // Money arrives from the API as a decimal string ("500.00")
+  function fmt(n?: number | string | null) {
+    const v = typeof n === 'string' ? parseFloat(n) : n
+    if (v == null || isNaN(v)) return '—'
+    return v.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
   return (
