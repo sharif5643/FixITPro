@@ -12,6 +12,10 @@ import {
   ShoppingCart, ChevronRight, History, Printer,
 } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
+import { SerialPicker } from '@/components/pos/checkout-dialog'
+import { useAppBranch } from '@/hooks/useAppBranch'
+import { AppBranchBar } from '@/components/app/app-branch-bar'
+import { useAppShell } from '@/lib/app-shell'
 import { BarcodeScannerDialog } from '@/components/sunmi/barcode-scanner-dialog'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
@@ -205,9 +209,16 @@ function CheckoutSheet({
   const [searching, setSearching]   = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
 
+  // Phones and other IMEI / serial items: pick which units are sold (the API requires it)
+  const serialItems = items.filter((i) => i.product.hasSerial)
+  const [serialIds, setSerialIds] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(serialItems.map((i) => [i.product.id, i.serialIds ?? []])))
+  const serialsDone = serialItems.every((i) => (serialIds[i.product.id]?.length ?? 0) === i.quantity)
+
   const paidNum   = Number(amountPaid) || 0
   const change    = method === 'CASH' ? Math.max(0, paidNum - total) : 0
-  const canSubmit = !!shiftId && (method !== 'CASH' ? true : paidNum >= total)
+  const branch    = useAppBranch()
+  const canSubmit = !!shiftId && serialsDone && !branch.needsPick && (method !== 'CASH' ? true : paidNum >= total)
 
   useEffect(() => pushBackHandler(onClose), [onClose])
   useEffect(() => { if (method !== 'CASH') setAmountPaid('') }, [method])
@@ -243,6 +254,7 @@ function CheckoutSheet({
     mutationFn: () =>
       api.post('/sales', {
         shiftId,
+        branchId:      branch.branchId,
         paymentMethod: method,
         amountPaid:    method === 'CASH' ? paidNum : total,
         discount,
@@ -254,6 +266,7 @@ function CheckoutSheet({
           quantity:  i.quantity,
           price:     Number(i.product.price),
           discount:  itemDiscounts.get(i.product.id) ?? 0,
+          serialIds: i.product.hasSerial ? serialIds[i.product.id] ?? [] : undefined,
         })),
       }),
     onSuccess: (res) => onSuccess(res.data as Sale),
@@ -298,6 +311,16 @@ function CheckoutSheet({
               <span className="text-blue-700">{formatThaiMoney(total)}</span>
             </div>
           </div>
+
+          {serialItems.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-slate-700">เลือก IMEI / Serial ที่ขาย</p>
+              {serialItems.map((item) => (
+                <SerialPicker key={item.product.id} item={item} selected={serialIds[item.product.id] ?? []}
+                  onSelect={(ids) => setSerialIds((m) => ({ ...m, [item.product.id]: ids }))} />
+              ))}
+            </div>
+          )}
 
           {/* Customer (optional) */}
           <div className="space-y-2">
@@ -453,6 +476,8 @@ function CheckoutSheet({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SunmiSalesPage() {
+  const shell = useAppShell()
+  const branch = useAppBranch()
   const queryClient   = useQueryClient()
   const user          = useAuthStore((s) => s.user)
   const items         = useCartStore((s) => s.items)
@@ -527,7 +552,7 @@ export default function SunmiSalesPage() {
     nameTimer.current = setTimeout(async () => {
       setNameLoading(true)
       try {
-        const res = await api.get('/products', { params: { search: nameQuery.trim(), limit: 20 } })
+        const res = await api.get('/products', { params: { search: nameQuery.trim(), limit: 20, ...(branch.canPick && branch.branchId ? { branchId: branch.branchId } : {}) } })
         const list: Product[] = Array.isArray(res.data) ? res.data : res.data?.items ?? []
         setNameResults(list)
       } catch {} finally {
@@ -556,7 +581,7 @@ export default function SunmiSalesPage() {
     if (!trimmed) return
     setNotFoundCode(null)
     try {
-      const res = await api.get('/products', { params: { search: trimmed, limit: 10 } })
+      const res = await api.get('/products', { params: { search: trimmed, limit: 10, ...(branch.canPick && branch.branchId ? { branchId: branch.branchId } : {}) } })
       const list: Product[] = Array.isArray(res.data) ? res.data : res.data?.items ?? []
       const exact = list.find((p) => p.barcode === trimmed || p.sku === trimmed) ?? list[0]
       if (exact) {
@@ -668,13 +693,14 @@ export default function SunmiSalesPage() {
         showBack
         aboveScroll={
           <div className="bg-slate-100 px-3 pt-2.5 pb-2 space-y-2">
+            <AppBranchBar className="rounded-xl" />
 
             {/* Shift warning */}
             {currentShift === null && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between gap-2">
                 <p className="text-sm text-amber-800 font-semibold">กรุณาเปิดกะก่อนขายสินค้า</p>
                 <Link
-                  href="/sunmi/shifts"
+                  href={shell.to('/sunmi/shifts')}
                   className="px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-bold active:bg-amber-600"
                 >
                   เปิดกะ
@@ -875,7 +901,7 @@ export default function SunmiSalesPage() {
                     </button>
                   )}
                   <Link
-                    href="/sunmi/sales/history"
+                    href={shell.to('/sunmi/sales/history')}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold active:bg-slate-200"
                   >
                     <History className="h-4 w-4" />
@@ -963,9 +989,9 @@ export default function SunmiSalesPage() {
             setTimeout(() => inputRef.current?.focus(), 100)
           }}
           successNavItems={[
-            { label: 'ขายต่อ',         href: '/sunmi/sales' },
-            { label: 'ประวัติการขาย',   href: '/sunmi/sales/history' },
-            { label: 'กลับหน้าหลัก',   href: '/sunmi' },
+            { label: 'ขายต่อ',         href: shell.to('/sunmi/sales') },
+            { label: 'ประวัติการขาย',   href: shell.to('/sunmi/sales/history') },
+            { label: 'กลับหน้าหลัก',   href: shell.to('/sunmi') },
           ]}
         />
       )}

@@ -10,6 +10,7 @@ import {
   Wifi, TrendingUp, Phone, Wallet, AlertTriangle,
 } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
+import { useAppShell } from '@/lib/app-shell'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import { useAuthStore } from '@/store/auth.store'
 import {
@@ -397,6 +398,7 @@ function CheckoutSheet({
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function SimSalesPage() {
+  const shell = useAppShell()
   const user = useAuthStore((s) => s.user)
   const qc   = useQueryClient()
 
@@ -508,8 +510,8 @@ export default function SimSalesPage() {
           onShare={async () => sharePackageSale(receiptOpts)}
           onClose={() => setReceiptOpts(null)}
           successNavItems={[
-            { label: 'เติมเน็ต / SIM ต่อ', href: '/sunmi/sim-sales' },
-            { label: 'กลับหน้าหลัก',       href: '/sunmi' },
+            { label: 'เติมเน็ต / SIM ต่อ', href: shell.to('/sunmi/sim-sales') },
+            { label: 'กลับหน้าหลัก',       href: shell.to('/sunmi') },
           ]}
         />
       )}

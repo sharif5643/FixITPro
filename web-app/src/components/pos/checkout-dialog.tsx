@@ -100,7 +100,8 @@ function SerialSelectionStep({
   )
 }
 
-function SerialPicker({
+/** Pick which IMEI / serial numbers leave the shop — the web POS and the SUNMI / staff POS share it. */
+export function SerialPicker({
   item,
   selected,
   onSelect,

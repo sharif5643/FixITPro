@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ChevronRight, Settings, Users, Building2, BarChart3, Bell, Shield, LogOut, UserCircle, History, CreditCard, Wrench, Wallet } from 'lucide-react'
+import { ChevronRight, Settings, Users, Building2, BarChart3, Bell, Shield, LogOut, UserCircle, History, Wrench, Wallet, Clock, Wifi, AlertCircle, Receipt } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { toast } from 'sonner'
@@ -15,7 +15,9 @@ export default function MorePage() {
   const roleTH   = user?.role==='OWNER'?'เจ้าของร้าน':user?.role==='MANAGER'?'ผู้จัดการ':user?.role==='TECHNICIAN'?'ช่าง':'พนักงาน'
   const isOwner      = user?.role==='OWNER'||user?.role==='SUPER_ADMIN'
   const isTech       = user?.role==='TECHNICIAN'
-  const hasDrawerPerm = useAuthStore((s)=>s.hasPermission)('cash_drawer.view_balance')
+  const hasPerm      = useAuthStore((s)=>s.hasPermission)
+  const hasModule    = useAuthStore((s)=>s.hasModule)
+  const hasDrawerPerm = hasPerm('cash_drawer.view_balance')
 
   async function logout() {
     await api.post('/auth/logout').catch(()=>{})
@@ -30,6 +32,16 @@ export default function MorePage() {
         { icon:<UserCircle className="h-5 w-5 text-brand-info"/>,  label:'ข้อมูลส่วนตัว', to:'/staff/profile' },
         ...(isTech ? [{ icon:<Wrench className="h-5 w-5 text-amber-500"/>, label:'งานของฉัน', to:'/staff/technician' }] : []),
         { icon:<History className="h-5 w-5 text-slate-500"/>,      label:'ประวัติงาน',     to:'/staff/repairs' },
+      ],
+    },
+    {
+      // Same screens as the SUNMI POS; shown with the same permission / module rules as the web menu
+      title: 'ขายและรับเงิน',
+      items: [
+        { icon:<Clock className="h-5 w-5 text-emerald-500"/>, label:'เปิด/ปิดกะ', to:'/staff/shift' },
+        ...(hasModule('package_sales') ? [{ icon:<Wifi className="h-5 w-5 text-sky-500"/>, label:'ขายซิม / แพ็กเกจ', to:'/staff/sim' }] : []),
+        ...(hasPerm('repair.close') ? [{ icon:<AlertCircle className="h-5 w-5 text-red-500"/>, label:'ลูกหนี้ / ค้างจ่าย', to:'/staff/debt' }] : []),
+        ...(hasPerm('expenses.manage') && hasModule('finance') ? [{ icon:<Receipt className="h-5 w-5 text-orange-500"/>, label:'ค่าใช้จ่าย', to:'/staff/expenses' }] : []),
       ],
     },
     {

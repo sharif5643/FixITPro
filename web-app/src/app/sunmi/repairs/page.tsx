@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { Search, X, ChevronRight, Printer, Banknote, Smartphone, CreditCard, Info, RefreshCw, Wrench, Package, Plus, Minus, Trash2, Camera, ChevronLeft } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
+import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
 import { useAuthStore } from '@/store/auth.store'
@@ -122,10 +123,13 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const [previewImg, setPreviewImg]       = useState<string | null>(null)
   const [previewIdx, setPreviewIdx]       = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
-  const [finalCost, setFinalCost]         = useState(String(repair.estimateCost ?? 0))
+  // Same starting price as the web and the API: the quoted total, else the final cost, else the estimate
+  const [finalCost, setFinalCost]         = useState(String(repair.estimatedTotal ?? repair.finalCost ?? repair.estimateCost ?? 0))
   // UX-2: confirm dialog state before irreversible delivery + payment
   const [confirmDeliverOpen, setConfirmDeliverOpen] = useState(false)
   const [amountPaid, setAmountPaid]       = useState('')
+  const [warrantyDays, setWarrantyDays]   = useState(DEFAULT_WARRANTY_DAYS)
+  const [payLater, setPayLater]           = useState(false)
   const [deliveryPreview, setDeliveryPreview] = useState<PrintRepairDeliveryOptions | null>(null)
   const [addPayAmount, setAddPayAmount]   = useState('')
   const [addPayMethod, setAddPayMethod]   = useState<PaymentMethod>('CASH')
@@ -140,7 +144,9 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const remaining     = Math.max(0, finalNum - deposit)
   const paidNum       = Number(amountPaid) || 0
   const change        = Math.max(0, paidNum - remaining)
-  const effectivePaid = paymentMethod === 'CASH' ? paidNum : remaining
+  // Pay later: what is paid today (any method, may be 0); otherwise cash tendered or the exact balance
+  const effectivePaid = payLater ? Math.min(paidNum, remaining) : paymentMethod === 'CASH' ? paidNum : remaining
+  const owed          = payLater ? Math.max(0, remaining - effectivePaid) : 0
   const nextStatus    = NEXT_STATUS[repair.status]
 
   const { data: currentShift } = useQuery<{ id: string } | null>({
@@ -212,6 +218,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
         paymentMethod,
         finalCost: finalNum,
         amountPaid: effectivePaid,
+        warrantyDays: warrantyDaysValue(warrantyDays),
+        ...(payLater && owed > 0 ? { allowPartial: true } : {}),
       }),
     onSuccess: () => {
       toast.success('ส่งมอบและรับชำระสำเร็จ')
@@ -525,9 +533,11 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   ))}
                 </div>
 
-                {paymentMethod === 'CASH' && (
+                <PayLaterToggle checked={payLater} onChange={setPayLater} owed={owed} />
+
+                {(paymentMethod === 'CASH' || payLater) && (
                   <div className="space-y-1">
-                    <label className="text-sm text-slate-600">รับเงินมา (บาท)</label>
+                    <label className="text-sm text-slate-600">{payLater ? 'จ่ายวันนี้ (บาท)' : 'รับเงินมา (บาท)'}</label>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -536,16 +546,18 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                       placeholder={String(remaining)}
                       className="w-full h-14 px-4 border border-slate-200 rounded-xl text-2xl font-bold bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
-                    {change > 0 && (
+                    {change > 0 && !payLater && (
                       <p className="text-sm font-bold text-green-700 text-right">เงินทอน: {formatThaiMoney(change)}</p>
                     )}
                   </div>
                 )}
 
+                <WarrantyDaysPicker value={warrantyDays} onChange={setWarrantyDays} />
+
                 {/* UX-2: open confirm dialog instead of mutating directly */}
                 <button
                   onClick={() => setConfirmDeliverOpen(true)}
-                  disabled={isPending || currentShift === null || (paymentMethod === 'CASH' && paidNum < remaining)}
+                  disabled={isPending || currentShift === null || (!payLater && paymentMethod === 'CASH' && paidNum < remaining)}
                   className="w-full h-16 rounded-2xl bg-green-600 text-white text-xl font-bold active:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2"
                 >
                   {deliverMutation.isPending
@@ -561,7 +573,9 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   buttonSize="lg"
                   variant="success"
                   title="ยืนยันส่งมอบและรับชำระ"
-                  description={`รับชำระ ${formatThaiMoney(remaining)} · ${paymentMethod === 'CASH' ? `เงินสด (ทอน ${formatThaiMoney(change)})` : paymentMethod} — ดำเนินการไม่สามารถย้อนกลับได้`}
+                  description={payLater && owed > 0
+                    ? `รับวันนี้ ${formatThaiMoney(effectivePaid)} · ค้างชำระ ${formatThaiMoney(owed)} — ดำเนินการไม่สามารถย้อนกลับได้`
+                    : `รับชำระ ${formatThaiMoney(remaining)} · ${paymentMethod === 'CASH' ? `เงินสด (ทอน ${formatThaiMoney(change)})` : paymentMethod} — ดำเนินการไม่สามารถย้อนกลับได้`}
                   confirmLabel="ยืนยันส่งมอบ"
                 />
               </div>

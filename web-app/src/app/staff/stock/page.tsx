@@ -1,5 +1,6 @@
 'use client'
 
+import { useAppBranch } from '@/hooks/useAppBranch'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Search, Package, AlertTriangle, Loader2, Plus, X } from 'lucide-react'
@@ -21,6 +22,7 @@ interface AddForm {
 }
 
 export default function StockPage() {
+  const appBranch = useAppBranch()
   const router = useRouter()
   const [tab,      setTab]      = useState<'products'|'parts'>('products')
   const [products, setProducts] = useState<Product[]>([])
@@ -68,6 +70,8 @@ export default function StockPage() {
         price,
         costPrice,
         stock,
+        // An owner's new stock goes into the branch picked in the app (staff: always their own)
+        ...(appBranch.canPick && appBranch.branchId ? { branchId: appBranch.branchId } : {}),
       })
       toast.success('เพิ่มสินค้าสำเร็จ')
       setShowAdd(false)

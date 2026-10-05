@@ -1,5 +1,6 @@
 'use client'
 
+import { useAppBranch } from '@/hooks/useAppBranch'
 import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -11,7 +12,6 @@ import {
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
-import { useAuthStore } from '@/store/auth.store'
 
 /* ─── Constants ────────────────────────────────────────────────────────────── */
 
@@ -113,7 +113,7 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 
 export default function CreateRepairPage() {
   const router = useRouter()
-  const { user } = useAuthStore()
+  const appBranch = useAppBranch()
 
   // ── Customer ──
   const [phoneSearch,   setPhoneSearch]   = useState('')
@@ -228,6 +228,9 @@ export default function CreateRepairPage() {
     setLoading(true)
     try {
       const issue = [issueTags.join(', '), issueDesc.trim()].filter(Boolean).join('\n')
+      const serialNo     = serial.trim()
+      const deviceId     = imei.trim() || (serialNo.length <= 20 ? serialNo : '')
+      const serialInNote = !!serialNo && serialNo !== deviceId
 
       const body: Record<string, unknown> = {
         ...(custId ? { customerId: custId } : { customerName: custName, customerPhone: custPhone }),
@@ -236,8 +239,8 @@ export default function CreateRepairPage() {
         deviceModel:  model,
         issue,
         ...(issueTags.length  && { issueTags }),
-        ...(imei               && { deviceImei:        imei        }),
-        ...(serial             && { serial                          }),
+        // The web keeps one "IMEI / Serial" field; a second (or too long) number goes into the note
+        ...(deviceId           && { deviceImei:        deviceId    }),
         ...(colorLabel         && { deviceColor:       colorLabel  }),
         ...(conditions.length  && { deviceConditions:  conditions  }),
         ...(accessories.length && { accessories:       accessories.join(', ') }),
@@ -250,9 +253,11 @@ export default function CreateRepairPage() {
         }),
         ...(parseFloat(discount) > 0 && { discount: parseFloat(discount) }),
         ...(dueDate            && { dueDate }),
-        ...(note.trim()        && { note: note.trim() }),
+        ...((note.trim() || serialInNote) && {
+          note: [serialInNote ? `Serial: ${serialNo}` : '', note.trim()].filter(Boolean).join('\n'),
+        }),
         ...(techId             && { technicianId: techId }),
-        ...(user?.branchId     && { branchId: user.branchId }),
+        ...(appBranch.branchId && { branchId: appBranch.branchId }),
       }
 
       const res      = await api.post('/repairs', body)

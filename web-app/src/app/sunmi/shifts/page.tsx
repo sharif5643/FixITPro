@@ -8,6 +8,7 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { CheckCircle2, ShoppingCart, Wifi, Plus, Printer } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
+import { useAppShell } from '@/lib/app-shell'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import {
   buildDailyClosingHtml, buildDailyClosingPreviewData, shareDailyClosing,
@@ -238,6 +239,7 @@ function WalletBalances({ shiftId }: { shiftId: string }) {
 
 export default function SunmiShiftsPage() {
   const router      = useRouter()
+  const shell       = useAppShell()
   const queryClient = useQueryClient()
 
   const [openBalance,   setOpenBalance]   = useState('0')
@@ -283,7 +285,7 @@ export default function SunmiShiftsPage() {
       toast.success('เปิดกะสำเร็จ')
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
       queryClient.invalidateQueries({ queryKey: ['carrier-wallet'] })
-      router.push('/sunmi/sales')
+      router.push(shell.pos)
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message
@@ -374,14 +376,14 @@ export default function SunmiShiftsPage() {
               </button>
             )}
             <button
-              onClick={() => router.push('/sunmi/sales')}
+              onClick={() => router.push(shell.pos)}
               className="w-full h-14 rounded-2xl bg-blue-600 text-white font-bold text-lg flex items-center justify-center gap-2 active:bg-blue-700"
             >
               <ShoppingCart className="h-5 w-5" />
               ไปหน้า POS
             </button>
             <button
-              onClick={() => router.push('/sunmi')}
+              onClick={() => router.push(shell.home)}
               className="w-full h-12 rounded-2xl border-2 border-slate-200 text-slate-700 font-medium flex items-center justify-center active:bg-slate-50"
             >
               กลับหน้าหลัก
@@ -398,8 +400,8 @@ export default function SunmiShiftsPage() {
           onShare={async () => shareDailyClosing(closingOpts)}
           onClose={() => setShowPrint(false)}
           successNavItems={[
-            { label: 'ไปหน้า POS',   href: '/sunmi/sales' },
-            { label: 'กลับหน้าหลัก', href: '/sunmi' },
+            { label: 'ไปหน้า POS',   href: shell.pos },
+            { label: 'กลับหน้าหลัก', href: shell.home },
           ]}
         />
       )}

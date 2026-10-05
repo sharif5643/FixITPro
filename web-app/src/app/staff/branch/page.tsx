@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MapPin, ChevronRight, Plus, Loader2, Wrench } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
+import { useBranchStore } from '@/store/branch.store'
 import api from '@/lib/api'
 
 interface Branch {
@@ -28,9 +29,10 @@ export default function SelectBranchPage() {
     }).finally(() => setLoading(false))
   }, [router])
 
+  // Same choice as the web's branch picker; sales, repairs and stock changes from the app use it
+  const setSelectedBranch = useBranchStore((s) => s.setSelectedBranch)
   function selectBranch(branch: Branch) {
-    localStorage.setItem('selectedBranchId',   branch.id)
-    localStorage.setItem('selectedBranchName', branch.name)
+    setSelectedBranch(branch.id)
     router.replace('/staff/home')
   }
 

@@ -1,5 +1,8 @@
 'use client'
 
+import { AppBranchBar } from '@/components/app/app-branch-bar'
+import { useAppBranch } from '@/hooks/useAppBranch'
+import { useAppShell } from '@/lib/app-shell'
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -44,9 +47,12 @@ function todayStr() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SunmiExpensesPage() {
+  const shell = useAppShell()
+  const branch = useAppBranch()
   const router       = useRouter()
   const user         = useAuthStore((s) => s.user)
-  const isOwnerOrMgr = user?.role === 'OWNER' || user?.role === 'MANAGER'
+  // Same rule as the web expenses page
+  const canManage = useAuthStore((s) => s.hasPermission)('expenses.manage')
   const qc           = useQueryClient()
 
   const [amount,      setAmount]      = useState('')
@@ -168,6 +174,7 @@ export default function SunmiExpensesPage() {
     if (!amt || amt <= 0)    { toast.error('กรุณากรอกจำนวนเงิน');  return }
     if (!categoryId)          { toast.error('กรุณาเลือกหมวดหมู่');  return }
     if (!description.trim())  { toast.error('กรุณากรอกรายละเอียด'); return }
+    if (branch.needsPick)     { toast.error('กรุณาเลือกสาขาก่อน');   return }
     createMutation.mutate({
       expenseDate:   td,
       amount:        amt,
@@ -175,15 +182,16 @@ export default function SunmiExpensesPage() {
       paymentMethod: payMethod,
       categoryId,
       note:          note.trim() || undefined,
+      ...(branch.branchId ? { branchId: branch.branchId } : {}),
     })
   }
 
   // ── Permission guard ──────────────────────────────────────────────────────────
 
-  if (!isOwnerOrMgr) {
+  if (!canManage) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-900">
-        <p className="text-slate-300 text-center px-8">ต้องการสิทธิ์เจ้าของร้านหรือผู้จัดการ</p>
+        <p className="text-slate-300 text-center px-8">ไม่มีสิทธิ์บันทึกค่าใช้จ่าย</p>
       </div>
     )
   }
@@ -192,6 +200,7 @@ export default function SunmiExpensesPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-900 select-none">
+      <AppBranchBar />
 
       {/* Header */}
       <div className="px-5 pt-10 pb-6">
@@ -438,8 +447,8 @@ export default function SunmiExpensesPage() {
           onShare={async () => shareExpenseSlip(printOpts)}
           onClose={() => setPrintOpts(null)}
           successNavItems={[
-            { label: 'บันทึกรายการใหม่', href: '/sunmi/expenses' },
-            { label: 'กลับหน้าหลัก',    href: '/sunmi' },
+            { label: 'บันทึกรายการใหม่', href: shell.to('/sunmi/expenses') },
+            { label: 'กลับหน้าหลัก',    href: shell.to('/sunmi') },
           ]}
         />
       )}

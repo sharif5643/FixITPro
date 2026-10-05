@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { Wrench, Clock, ShoppingCart, Package, LogOut, Printer, Timer, Wifi, BarChart2, BookOpen, Receipt } from 'lucide-react'
+import { Wrench, Clock, ShoppingCart, Package, LogOut, Printer, Timer, Wifi, BarChart2, BookOpen, Receipt, AlertCircle } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import { formatThaiMoney } from '@/lib/utils'
 import { format } from 'date-fns'
@@ -74,6 +74,9 @@ export default function SunmiHomePage() {
   const user        = useAuthStore((s) => s.user)
   const clearAuth   = useAuthStore((s) => s.clearAuth)
   const isOwnerOrMgr = user?.role === 'OWNER' || user?.role === 'MANAGER'
+  const hasPerm      = useAuthStore((s) => s.hasPermission)
+  const canTakeDebt  = hasPerm('repair.close')
+  const canExpense   = hasPerm('expenses.manage')
 
   const { data: settings } = useQuery<ShopSettings>({
     queryKey: ['settings'],
@@ -148,8 +151,27 @@ export default function SunmiHomePage() {
           </Link>
         )}
 
-        {/* Expense card — owner/manager only */}
-        {isOwnerOrMgr && (
+        {/* Debts: unpaid repairs and SIM / package sales — same permission as taking repair payments */}
+        {canTakeDebt && (
+          <Link
+            href="/sunmi/debt"
+            className="flex items-center gap-3 px-4 py-3.5 rounded-2xl mb-3 active:scale-95 transition-transform bg-red-50 border border-red-200"
+          >
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-red-500">
+              <AlertCircle className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-red-800 text-sm">ลูกหนี้ / ค้างจ่าย</p>
+              <p className="text-xs text-red-600 mt-0.5">รับชำระงานซ่อม · ซิม/แพ็กเกจ</p>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 bg-red-500 text-white">
+              รับเงิน
+            </span>
+          </Link>
+        )}
+
+        {/* Expense card — same permission as the web expenses page */}
+        {canExpense && (
           <Link
             href="/sunmi/expenses"
             className="flex items-center gap-3 px-4 py-3.5 rounded-2xl mb-3 active:scale-95 transition-transform bg-orange-50 border border-orange-200"

@@ -1,5 +1,7 @@
 'use client'
 
+import { AppBranchBar } from '@/components/app/app-branch-bar'
+import { useAppBranch } from '@/hooks/useAppBranch'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -319,6 +321,7 @@ interface AdjustScreenProps {
 
 function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps) {
   const queryClient = useQueryClient()
+  const branch      = useAppBranch()
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<AdjustData>({
     resolver: zodResolver(adjustSchema),
     defaultValues: { qty: 1 },
@@ -329,9 +332,10 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
   const newStock   = mode === 'IN' ? currentQty + qty : Math.max(0, currentQty - qty)
 
   const mutation = useMutation({
-    mutationFn: (data: AdjustData) =>
+    mutationFn: (data: AdjustData) => branch.needsPick ? Promise.reject(new Error('กรุณาเลือกสาขาก่อนปรับสต็อก')) :
       api.post('/stock/adjust', {
         productId: product.id,
+        ...(branch.branchId ? { branchId: branch.branchId } : {}),
         type:      mode,
         quantity:  data.qty,
         note:      data.note?.trim() || undefined,
@@ -350,7 +354,7 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message
-      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? err.message ?? 'เกิดข้อผิดพลาด'))
     },
   })
 
@@ -460,6 +464,7 @@ interface ProductFormScreenProps {
 function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: ProductFormScreenProps) {
   const isEditing  = !!product
   const queryClient = useQueryClient()
+  const branch      = useAppBranch()
 
   const [skuLoading,     setSkuLoading]     = useState(false)
   const [barcodeLoading, setBarcodeLoading] = useState(false)
@@ -518,6 +523,8 @@ function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: Pro
         barcode:     base.barcode?.trim()     || undefined,
         categoryId:  base.categoryId          || undefined,
         description: base.description?.trim() || undefined,
+        // New products start their stock in the chosen branch (an owner's choice; staff: their own)
+        ...(!isEditing && branch.canPick && branch.branchId ? { branchId: branch.branchId } : {}),
       }
       return isEditing
         ? api.patch(`/products/${product!.id}`, payload)
@@ -532,7 +539,7 @@ function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: Pro
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message
-      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? err.message ?? 'เกิดข้อผิดพลาด'))
     },
   })
 
@@ -657,6 +664,7 @@ interface BrowseScreenProps {
 }
 
 function BrowseScreen({ onSelectProduct, onNewProduct }: BrowseScreenProps) {
+  const branch = useAppBranch()
   const [search,          setSearch]          = useState('')
   const [type,            setType]            = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -669,11 +677,12 @@ function BrowseScreen({ onSelectProduct, onNewProduct }: BrowseScreenProps) {
   }
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
-    queryKey: ['products', 'browse', debouncedSearch, type],
+    queryKey: ['products', 'browse', debouncedSearch, type, branch.branchId],
     queryFn: async () => {
       const params: Record<string, string> = {}
       if (debouncedSearch) params.search = debouncedSearch
       if (type)            params.type   = type
+      if (branch.canPick && branch.branchId) params.branchId = branch.branchId
       return (await api.get('/products', { params })).data
     },
     staleTime: 30_000,
@@ -965,6 +974,7 @@ export default function SunmiStockPage() {
 
   const aboveScroll = isHomeOrBrowse ? (
     <>
+      <AppBranchBar />
       {/* Scan / barcode bar */}
       <div className="bg-white border-b border-slate-100 p-2.5 flex gap-2">
         <div className="relative flex-1">

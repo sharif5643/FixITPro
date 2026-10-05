@@ -1,5 +1,6 @@
 'use client'
 
+import { useAppBranch } from '@/hooks/useAppBranch'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -131,14 +132,9 @@ export default function HomePage() {
   const [weekly,     setWeekly]     = useState(last7Days())
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState(false)
-  const [branchName, setBranchName] = useState<string|null>(null)
-
-  useEffect(() => {
-    const sync = () => setBranchName(localStorage.getItem('selectedBranchName'))
-    sync()
-    window.addEventListener('focus', sync)
-    return () => window.removeEventListener('focus', sync)
-  }, [])
+  // The owner's chosen branch is what sales, repairs and stock changes from the app are recorded in
+  const appBranch  = useAppBranch()
+  const branchName = appBranch.branchName || null
 
   const load = useCallback(async () => {
     setLoading(true); setError(false)
@@ -250,13 +246,16 @@ export default function HomePage() {
 
           {/* Right: bell + branch */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => router.push('/staff/branch')}
-              className="flex h-9 items-center gap-1 rounded-full border border-[#E5E7EB] bg-[#F8F9FB] px-3 text-[11px] font-semibold text-slate-600 active:bg-slate-100"
-            >
-              {branchName ?? (isOwner ? 'ทุกสาขา' : 'สาขาหลัก')}
-              <span className="text-[9px]">▼</span>
-            </button>
+            {appBranch.canPick && (
+              <button
+                onClick={() => router.push('/staff/branch')}
+                className={`flex h-9 items-center gap-1 rounded-full border px-3 text-[11px] font-semibold active:bg-slate-100 ${
+                  appBranch.needsPick ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-[#E5E7EB] bg-[#F8F9FB] text-slate-600'}`}
+              >
+                {branchName ?? 'เลือกสาขา'}
+                <span className="text-[9px]">▼</span>
+              </button>
+            )}
             <button
               onClick={() => router.push('/staff/notifications')}
               className="relative flex h-10 w-10 items-center justify-center rounded-full bg-[#F8F9FB]"

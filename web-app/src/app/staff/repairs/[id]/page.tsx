@@ -1,5 +1,6 @@
 'use client'
 
+import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import {
@@ -157,6 +158,8 @@ export default function RepairDetailPage() {
   const [payOpen, setPayOpen]                       = useState(false)
   const [payMethod, setPayMethod]                   = useState<PayMethod>('CASH')
   const [payAmount, setPayAmount]                   = useState('')
+  const [payWarrantyDays, setPayWarrantyDays]       = useState(DEFAULT_WARRANTY_DAYS)
+  const [payLater, setPayLater]                     = useState(false)
   const [reverseOpen, setReverseOpen]               = useState(false)
   const [reverseReason, setReverseReason]           = useState('')
   const [addPayOpen, setAddPayOpen]                 = useState(false)
@@ -278,7 +281,7 @@ export default function RepairDetailPage() {
   })
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { paymentMethod: string; amountPaid: number }) =>
+    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays: number; allowPartial?: boolean }) =>
       api.post(`/repairs/${id}/payment`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })
@@ -389,8 +392,18 @@ export default function RepairDetailPage() {
 
   function handlePayment() {
     const amount = Number(payAmount)
+    if (payLater) {
+      // Pay later: today's amount may be 0; the rest is owed (same as the web's ค้างชำระ)
+      if (!(amount >= 0)) { toast.error('กรุณาระบุจำนวนเงิน'); return }
+      const paidToday = Math.min(amount, repairBalance)
+      paymentMutation.mutate({
+        paymentMethod: payMethod, amountPaid: paidToday, warrantyDays: warrantyDaysValue(payWarrantyDays),
+        ...(paidToday < repairBalance ? { allowPartial: true } : {}),
+      })
+      return
+    }
     if (!amount || amount < 0) { toast.error('กรุณาระบุจำนวนเงิน'); return }
-    paymentMutation.mutate({ paymentMethod: payMethod, amountPaid: amount })
+    paymentMutation.mutate({ paymentMethod: payMethod, amountPaid: amount, warrantyDays: warrantyDaysValue(payWarrantyDays) })
   }
 
   // ── Loading
@@ -1055,7 +1068,8 @@ export default function RepairDetailPage() {
                 </div>
                 {!hasShift && (
                   <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3">
-                    <Lock className="h-3.5 w-3.5 shrink-0" /> กรุณาเปิดกะก่อนรับเงิน
+                    <Lock className="h-3.5 w-3.5 shrink-0" /> <span className="flex-1">กรุณาเปิดกะก่อนรับเงิน</span>
+                    <button onClick={() => router.push('/staff/shift')} className="shrink-0 rounded-lg bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white">เปิดกะ</button>
                   </div>
                 )}
                 {!payOpen ? (
@@ -1085,14 +1099,18 @@ export default function RepairDetailPage() {
                       </label>
                       <input type="number" min={0}
                         value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
-                        readOnly={payMethod !== 'CASH'}
+                        readOnly={payMethod !== 'CASH' && !payLater}
                         className={`w-full h-12 rounded-xl px-3 text-lg font-bold text-center outline-none ${
-                          payMethod !== 'CASH' ? 'bg-slate-100 text-slate-500' : 'bg-[#F8F9FB]'
+                          payMethod !== 'CASH' && !payLater ? 'bg-slate-100 text-slate-500' : 'bg-[#F8F9FB]'
                         }`} />
                     </div>
 
+                    <PayLaterToggle checked={payLater} owed={Math.max(0, repairBalance - payAmountNum)}
+                      onChange={(v) => { setPayLater(v); setPayAmount(v ? '0' : String(repairBalance)) }} />
+                    <WarrantyDaysPicker value={payWarrantyDays} onChange={setPayWarrantyDays} />
+
                     {/* Cash change */}
-                    {payMethod === 'CASH' && (
+                    {payMethod === 'CASH' && !payLater && (
                       <div className={`flex justify-between items-center rounded-xl px-4 py-3 border ${
                         payChange < 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'
                       }`}>
@@ -1110,7 +1128,7 @@ export default function RepairDetailPage() {
                         className="flex-1 h-12 rounded-xl border border-slate-200 text-sm text-slate-600">
                         ยกเลิก
                       </button>
-                      <button onClick={handlePayment} disabled={paymentMutation.isPending || (payMethod === 'CASH' && payChange < 0)}
+                      <button onClick={handlePayment} disabled={paymentMutation.isPending || (!payLater && payMethod === 'CASH' && payChange < 0)}
                         className="flex-1 h-12 rounded-xl bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
                         {paymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4" /> ยืนยันรับเงิน</>}
                       </button>
