@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { MobileBottomNav } from './mobile-bottom-nav'
+import { useAppShell } from '@/lib/app-shell'
+import { cn } from '@/lib/utils'
 
 interface SunmiShellProps {
   title: string
@@ -34,9 +36,12 @@ export function SunmiShell({
   showBottomNav = true,
 }: SunmiShellProps) {
   const router = useRouter()
+  // Inside the staff app its own bottom bar stays; the screen ends above it
+  const { inStaff } = useAppShell()
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100 overflow-hidden">
+    <div className={cn('flex flex-col bg-slate-100 overflow-hidden',
+      inStaff ? 'h-[calc(100dvh-70px-env(safe-area-inset-bottom))]' : 'h-screen')}>
       {/* Top bar */}
       <header className="flex items-center h-14 px-2 bg-slate-900 shrink-0 select-none">
         {showBack ? (
@@ -63,7 +68,7 @@ export function SunmiShell({
       {belowScroll && <div className="shrink-0">{belowScroll}</div>}
 
       {/* Persistent bottom navigation */}
-      {showBottomNav && <MobileBottomNav />}
+      {showBottomNav && !inStaff && <MobileBottomNav />}
     </div>
   )
 }

@@ -1,5 +1,7 @@
 'use client'
 
+import { AppBranchBar } from '@/components/app/app-branch-bar'
+import { useAppBranch } from '@/hooks/useAppBranch'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -89,6 +91,7 @@ const schema = z.object({
   // Step 3 — Accessories + Details
   accessories:   z.array(z.string()).default([]),
   deposit:       z.coerce.number().min(0).default(0),
+  depositPaymentMethod: z.enum(['CASH', 'TRANSFER']).default('CASH'),
   estimateCost:  z.coerce.number().min(0).optional(),
   dueDate:       z.string().optional(),
   note:          z.string().optional(),
@@ -571,6 +574,22 @@ function StepDetails({
         </Field>
       </div>
 
+      {/* How the deposit was paid — counts toward the right drawer total (cash vs transfer) */}
+      {Number(watch('deposit') || 0) > 0 && (
+        <Field label="รับมัดจำเป็น">
+          <div className="grid grid-cols-2 gap-2">
+            {([['CASH', 'เงินสด'], ['TRANSFER', 'โอนเงิน']] as const).map(([value, label]) => (
+              <button key={value} type="button" onClick={() => setValue('depositPaymentMethod', value)}
+                className={`h-12 rounded-xl border-2 text-base font-semibold ${
+                  (watch('depositPaymentMethod') ?? 'CASH') === value
+                    ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-600'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
+
       {/* Due date */}
       <Field label="กำหนดวันเสร็จ">
         <div className="relative">
@@ -743,6 +762,7 @@ const TOTAL_STEPS = 5
 
 export default function RepairIntakePage() {
   const router  = useRouter()
+  const branch  = useAppBranch()
   const user    = useAuthStore((s) => s.user)
   const [step, setStep]       = useState(0)
   const [preview, setPreview]   = useState<PrintRepairIntakeOptions | null>(null)
@@ -816,25 +836,27 @@ export default function RepairIntakePage() {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
-      const condNote = data.conditionIssues.length > 0
-        ? `สภาพ: ${data.conditionIssues.join(', ')}${data.note ? '\n---\n' + data.note : ''}`
-        : data.note
+      if (branch.needsPick) throw new Error('กรุณาเลือกสาขาก่อนรับงาน')
+      // Same shape as the web form: conditions as a list, accessories as "a, b"
 
       const payload = {
         customerId:    data.customerId || undefined,
         customerName:  data.customerName.trim(),
         customerPhone: data.customerPhone?.trim() || undefined,
         technicianId:  data.technicianId || undefined,
+        branchId:      branch.branchId,
         deviceBrand:   data.deviceBrand.trim(),
         deviceModel:   data.deviceModel.trim(),
         deviceColor:   data.deviceColor?.trim() || undefined,
         deviceImei:    data.deviceImei?.trim() || undefined,
         issue:         data.issue.trim(),
-        accessories:   data.accessories.length > 0 ? JSON.stringify(data.accessories) : undefined,
+        accessories:   data.accessories.length > 0 ? data.accessories.join(', ') : undefined,
+        deviceConditions: data.conditionIssues.length > 0 ? data.conditionIssues : undefined,
         dueDate:       data.dueDate ? new Date(data.dueDate + 'T12:00:00').toISOString() : undefined,
         estimateCost:  data.estimateCost || undefined,
         deposit:       data.deposit ?? 0,
-        note:          condNote?.trim() || undefined,
+        ...(data.deposit ? { depositPaymentMethod: data.depositPaymentMethod ?? 'CASH' } : {}),
+        note:          data.note?.trim() || undefined,
       }
 
       if (!online) {
@@ -909,7 +931,7 @@ export default function RepairIntakePage() {
 
     onError: (err: any) => {
       const msg = err.response?.data?.message
-      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? err.message ?? 'เกิดข้อผิดพลาด'))
     },
   })
 
@@ -919,7 +941,7 @@ export default function RepairIntakePage() {
     <>
       <SunmiShell
         title={`รับงานซ่อม — ${STEP_LABELS[step]}`}
-        aboveScroll={<StepBar current={step} />}
+        aboveScroll={<><AppBranchBar /><StepBar current={step} /></>}
         belowScroll={
           <div className="bg-white border-t border-slate-100 px-4 py-3 flex gap-3 shrink-0">
             {step > 0 && (

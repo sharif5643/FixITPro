@@ -5,8 +5,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { Search, X, ChevronRight, Printer, Banknote, Smartphone, CreditCard, Info, RefreshCw, Wrench, Package, Plus, Minus, Trash2, Camera, ChevronLeft } from 'lucide-react'
+import { Search, X, ChevronRight, Printer, Banknote, Smartphone, CreditCard, Info, RefreshCw, Wrench, Package, Plus, Minus, Trash2, Camera, ChevronLeft, ShieldCheck } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
+import { canMoveRepair } from '@/lib/repair-status-flow'
+import { QcDialog } from '@/components/repairs/qc-dialog'
+import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
 import { useAuthStore } from '@/store/auth.store'
@@ -50,7 +53,7 @@ const STATUS_COLOR: Record<RepairStatus, string> = {
 }
 
 const NEXT_STATUS: Partial<Record<RepairStatus, RepairStatus>> = {
-  RECEIVED:         'IN_PROGRESS',
+  RECEIVED:         'DIAGNOSING',
   DIAGNOSING:       'IN_PROGRESS',
   WAITING_APPROVAL: 'APPROVED',
   APPROVED:         'IN_PROGRESS',
@@ -65,31 +68,18 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: React.Elemen
 ]
 
 // ── Status transition rules ────────────────────────────────────────────────────
-// Mirrors backend enforcement: forward-only, CANCELLED allowed from any non-terminal status,
-// DELIVERED is fully locked and must go through /repairs/:id/payment.
+// The API's own map (lib/repair-status-flow); QC_PENDING → COMPLETED goes through the QC check.
 
-const STATUS_ORDER: RepairStatus[] = [
-  'RECEIVED', 'DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED',
-  'WAITING_PARTS', 'IN_PROGRESS', 'COMPLETED',
-]
-
-function canTransitionStatus(from: RepairStatus, to: RepairStatus): boolean {
-  if (from === 'DELIVERED' || from === 'CANCELLED') return false
-  if (to === 'DELIVERED') return false
-  if (to === 'CANCELLED') return true
-  const fromIdx = STATUS_ORDER.indexOf(from)
-  const toIdx   = STATUS_ORDER.indexOf(to)
-  return fromIdx !== -1 && toIdx !== -1 && toIdx > fromIdx
-}
+const canTransitionStatus = (from: RepairStatus, to: RepairStatus) => canMoveRepair(from, to)
 
 type TabKey = 'ALL' | 'NEW' | 'IN_PROGRESS' | 'WAITING_PARTS' | 'COMPLETED' | 'DELIVERED' | 'CANCELLED'
 
 const TABS: { key: TabKey; label: string; statuses: RepairStatus[] }[] = [
-  { key: 'ALL',          label: 'ทั้งหมด',    statuses: ['RECEIVED','DIAGNOSING','WAITING_APPROVAL','APPROVED','WAITING_PARTS','IN_PROGRESS','COMPLETED','CANCELLED'] },
+  { key: 'ALL',          label: 'ทั้งหมด',    statuses: ['RECEIVED','DIAGNOSING','WAITING_APPROVAL','APPROVED','WAITING_PARTS','IN_PROGRESS','QC_PENDING','COMPLETED','READY_PICKUP','CANCELLED'] },
   { key: 'NEW',          label: 'ใหม่',        statuses: ['RECEIVED','DIAGNOSING','WAITING_APPROVAL','APPROVED'] },
-  { key: 'IN_PROGRESS',  label: 'กำลังซ่อม',  statuses: ['IN_PROGRESS'] },
+  { key: 'IN_PROGRESS',  label: 'กำลังซ่อม',  statuses: ['IN_PROGRESS', 'QC_PENDING'] },
   { key: 'WAITING_PARTS',label: 'รออะไหล่',   statuses: ['WAITING_PARTS'] },
-  { key: 'COMPLETED',    label: 'เสร็จแล้ว',  statuses: ['COMPLETED'] },
+  { key: 'COMPLETED',    label: 'เสร็จแล้ว',  statuses: ['COMPLETED', 'READY_PICKUP'] },
   { key: 'DELIVERED',    label: 'ส่งคืนแล้ว', statuses: ['DELIVERED'] },
   { key: 'CANCELLED',    label: 'ยกเลิก',      statuses: ['CANCELLED'] },
 ]
@@ -122,10 +112,13 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const [previewImg, setPreviewImg]       = useState<string | null>(null)
   const [previewIdx, setPreviewIdx]       = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
-  const [finalCost, setFinalCost]         = useState(String(repair.estimateCost ?? 0))
+  // Same starting price as the web and the API: the quoted total, else the final cost, else the estimate
+  const [finalCost, setFinalCost]         = useState(String(repair.estimatedTotal ?? repair.finalCost ?? repair.estimateCost ?? 0))
   // UX-2: confirm dialog state before irreversible delivery + payment
   const [confirmDeliverOpen, setConfirmDeliverOpen] = useState(false)
   const [amountPaid, setAmountPaid]       = useState('')
+  const [warrantyDays, setWarrantyDays]   = useState(DEFAULT_WARRANTY_DAYS)
+  const [payLater, setPayLater]           = useState(false)
   const [deliveryPreview, setDeliveryPreview] = useState<PrintRepairDeliveryOptions | null>(null)
   const [addPayAmount, setAddPayAmount]   = useState('')
   const [addPayMethod, setAddPayMethod]   = useState<PaymentMethod>('CASH')
@@ -140,8 +133,14 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const remaining     = Math.max(0, finalNum - deposit)
   const paidNum       = Number(amountPaid) || 0
   const change        = Math.max(0, paidNum - remaining)
-  const effectivePaid = paymentMethod === 'CASH' ? paidNum : remaining
+  // Pay later: what is paid today (any method, may be 0); otherwise cash tendered or the exact balance
+  const effectivePaid = payLater ? Math.min(paidNum, remaining) : paymentMethod === 'CASH' ? paidNum : remaining
+  const owed          = payLater ? Math.max(0, remaining - effectivePaid) : 0
   const nextStatus    = NEXT_STATUS[repair.status]
+  // Payment / handover is allowed from both (same as the API)
+  const isReady       = repair.status === 'COMPLETED' || repair.status === 'READY_PICKUP'
+  const canQc         = useAuthStore((st) => st.hasPermission)('repairs.qc.perform')
+  const [qcOpen, setQcOpen] = useState(false)
 
   const { data: currentShift } = useQuery<{ id: string } | null>({
     queryKey: ['shifts', 'current'],
@@ -212,6 +211,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
         paymentMethod,
         finalCost: finalNum,
         amountPaid: effectivePaid,
+        warrantyDays: warrantyDaysValue(warrantyDays),
+        ...(payLater && owed > 0 ? { allowPartial: true } : {}),
       }),
     onSuccess: () => {
       toast.success('ส่งมอบและรับชำระสำเร็จ')
@@ -334,7 +335,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                 info: 'ข้อมูล', update: 'อัพเดท', deliver: 'ส่งมอบ',
                 addpay: 'รับเงิน+', parts: 'อะไหล่',
               }
-              const deliverDisabled = t === 'deliver' && repair.status !== 'COMPLETED' && repair.status !== 'DELIVERED'
+              const deliverDisabled = t === 'deliver' && !isReady && repair.status !== 'DELIVERED'
               const addpayDisabled = t === 'addpay' && repair.status !== 'DELIVERED'
               const disabled = deliverDisabled || addpayDisabled
               return (
@@ -428,7 +429,15 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
             {/* UPDATE tab */}
             {panelTab === 'update' && (
               <div className="space-y-3">
-                {nextStatus && repair.status !== 'COMPLETED' ? (
+                {repair.status === 'QC_PENDING' && canQc && (
+                  <button onClick={() => setQcOpen(true)}
+                    className="w-full h-14 rounded-2xl bg-indigo-600 text-white font-bold text-base active:bg-indigo-700 flex items-center justify-center gap-2">
+                    <ShieldCheck className="h-5 w-5" />ตรวจ QC
+                  </button>
+                )}
+                <QcDialog repair={repair} open={qcOpen} onClose={() => setQcOpen(false)}
+                  onDone={() => { onMutated(); onClose() }} />
+                {nextStatus && !isReady ? (
                   <button
                     onClick={() => statusMutation.mutate(nextStatus)}
                     disabled={isPending}
@@ -440,14 +449,14 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   </button>
                 ) : (
                   <p className="text-sm text-slate-400 text-center py-4">
-                    {repair.status === 'COMPLETED' ? 'ซ่อมเสร็จแล้ว — ไปที่แท็บ "ส่งมอบ"' : 'ไม่มีสถานะถัดไป'}
+                    {isReady ? 'ซ่อมเสร็จแล้ว — ไปที่แท็บ "ส่งมอบ"' : repair.status === 'QC_PENDING' ? 'รอตรวจ QC — กดปุ่ม "ตรวจ QC" ด้านบน' : 'ไม่มีสถานะถัดไป'}
                   </p>
                 )}
 
                 {/* All status options */}
                 <div className="space-y-2">
                   <p className="text-xs text-slate-400 font-medium">เปลี่ยนสถานะเป็น:</p>
-                  {(['DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED', 'WAITING_PARTS', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as RepairStatus[]).map((s) => {
+                  {(['DIAGNOSING', 'WAITING_APPROVAL', 'APPROVED', 'WAITING_PARTS', 'IN_PROGRESS', 'QC_PENDING', 'COMPLETED', 'READY_PICKUP', 'CANCELLED'] as RepairStatus[]).map((s) => {
                     const isCurrent = repair.status === s
                     const isBlocked = !canTransitionStatus(repair.status, s)
                     return (
@@ -475,7 +484,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
             )}
 
             {/* DELIVER tab */}
-            {panelTab === 'deliver' && repair.status === 'COMPLETED' && (
+            {panelTab === 'deliver' && isReady && (
               <div className="space-y-4">
                 {/* Shift warning */}
                 {currentShift === null && (
@@ -525,9 +534,11 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   ))}
                 </div>
 
-                {paymentMethod === 'CASH' && (
+                <PayLaterToggle checked={payLater} onChange={setPayLater} owed={owed} />
+
+                {(paymentMethod === 'CASH' || payLater) && (
                   <div className="space-y-1">
-                    <label className="text-sm text-slate-600">รับเงินมา (บาท)</label>
+                    <label className="text-sm text-slate-600">{payLater ? 'จ่ายวันนี้ (บาท)' : 'รับเงินมา (บาท)'}</label>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -536,16 +547,18 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                       placeholder={String(remaining)}
                       className="w-full h-14 px-4 border border-slate-200 rounded-xl text-2xl font-bold bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
-                    {change > 0 && (
+                    {change > 0 && !payLater && (
                       <p className="text-sm font-bold text-green-700 text-right">เงินทอน: {formatThaiMoney(change)}</p>
                     )}
                   </div>
                 )}
 
+                <WarrantyDaysPicker value={warrantyDays} onChange={setWarrantyDays} />
+
                 {/* UX-2: open confirm dialog instead of mutating directly */}
                 <button
                   onClick={() => setConfirmDeliverOpen(true)}
-                  disabled={isPending || currentShift === null || (paymentMethod === 'CASH' && paidNum < remaining)}
+                  disabled={isPending || currentShift === null || (!payLater && paymentMethod === 'CASH' && paidNum < remaining)}
                   className="w-full h-16 rounded-2xl bg-green-600 text-white text-xl font-bold active:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2"
                 >
                   {deliverMutation.isPending
@@ -561,7 +574,9 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   buttonSize="lg"
                   variant="success"
                   title="ยืนยันส่งมอบและรับชำระ"
-                  description={`รับชำระ ${formatThaiMoney(remaining)} · ${paymentMethod === 'CASH' ? `เงินสด (ทอน ${formatThaiMoney(change)})` : paymentMethod} — ดำเนินการไม่สามารถย้อนกลับได้`}
+                  description={payLater && owed > 0
+                    ? `รับวันนี้ ${formatThaiMoney(effectivePaid)} · ค้างชำระ ${formatThaiMoney(owed)} — ดำเนินการไม่สามารถย้อนกลับได้`
+                    : `รับชำระ ${formatThaiMoney(remaining)} · ${paymentMethod === 'CASH' ? `เงินสด (ทอน ${formatThaiMoney(change)})` : paymentMethod} — ดำเนินการไม่สามารถย้อนกลับได้`}
                   confirmLabel="ยืนยันส่งมอบ"
                 />
               </div>

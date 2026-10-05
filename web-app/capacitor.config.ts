@@ -33,9 +33,14 @@ const SERVER_URL = process.env.CAPACITOR_SERVER_URL
 // to produce PROD vs DEV APKs that coexist on the same device.
 //   PROD: appId=com.fixitpro.pos  appName=FixITPro PROD
 //   DEV:  appId=com.fixitpro.dev  appName=FixITPro DEV
+// Set to 1 by the build when the app has a Firebase config (google-services.json): the web
+// code then turns on lock-screen notifications (see src/lib/push.ts).
+const WITH_PUSH = process.env.CAPACITOR_PUSH === '1'
+
 const config: CapacitorConfig = {
   appId: process.env.CAPACITOR_APP_ID || 'com.fixitpro.pos',
   appName: process.env.CAPACITOR_APP_NAME || 'FixITPro POS',
+  ...(WITH_PUSH ? { appendUserAgent: 'FixITProPush' } : {}),
 
   // Static export output dir — used when SERVER_URL is not set
   webDir: 'out',

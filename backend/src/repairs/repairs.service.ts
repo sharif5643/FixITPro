@@ -77,6 +77,44 @@ export class RepairsService {
     if (!tech) throw new BadRequestException('ไม่พบช่างที่เลือก หรือช่างไม่ได้อยู่ในร้านนี้');
   }
 
+  /**
+   * A job taken in without a technician: every active technician of that branch hears about
+   * it (their own notification each), so somebody picks it up. Cleared once it is assigned.
+   */
+  private async notifyBranchTechnicians(
+    repair: { id: string; ticketNumber: string; deviceBrand: string; deviceModel: string; branchId?: string | null },
+    actorId: string | undefined,
+    tenantId: string | null | undefined,
+  ) {
+    if (!tenantId || !repair.branchId) return;
+    try {
+      const techs = await this.prisma.user.findMany({
+        where: {
+          tenantId, role: 'TECHNICIAN', isActive: true,
+          // Technicians of this branch, or not tied to one branch
+          OR: [{ branchId: repair.branchId }, { branchId: null }],
+          ...(actorId ? { id: { not: actorId } } : {}),
+        },
+        select: { id: true },
+        take: 50,
+      });
+      for (const t of techs) {
+        await this.notifications.notify({
+          type: 'REPAIR_NEW',
+          title: 'มีงานซ่อมใหม่ ยังไม่มีช่างรับ',
+          message: `${repair.ticketNumber} · ${repair.deviceBrand} ${repair.deviceModel}`,
+          entityType: 'Repair',
+          entityId: repair.id,
+          branchId: repair.branchId ?? undefined,
+          tenantId,
+          userId: t.id,
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`notifyBranchTechnicians failed for ${repair.ticketNumber}: ${(err as Error).message}`);
+    }
+  }
+
   /** Tell the technician they have a new job; only they see it. notify() never throws. */
   private async notifyAssigned(
     repair: { id: string; ticketNumber: string; deviceBrand: string; deviceModel: string; branchId?: string | null },
@@ -98,6 +136,11 @@ export class RepairsService {
       tenantId: tenantId ?? null,
       userId: technicianId,
     });
+    // Somebody has it now: the "nobody has this job" alerts to the other technicians go away
+    await this.prisma.notification.updateMany({
+      where: { type: 'REPAIR_NEW', entityId: repair.id, isRead: false },
+      data:  { isRead: true },
+    }).catch(() => {});
   }
 
   private async assertBranchActive(branchId: string) {
@@ -286,6 +329,8 @@ export class RepairsService {
         afterData: { technicianId: dto.technicianId, ticketNumber: repair.ticketNumber },
       });
       await this.notifyAssigned(repair as any, dto.technicianId, actorId, actorName, tenantId);
+    } else {
+      await this.notifyBranchTechnicians(repair as any, actorId, (repair as any).branch?.tenantId ?? tenantId);
     }
 
     // LINE notify: "รับงานใหม่" — fire-and-forget, never block create

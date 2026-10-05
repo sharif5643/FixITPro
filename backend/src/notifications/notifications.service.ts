@@ -1,4 +1,5 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger, Optional } from '@nestjs/common';
+import { PushService } from '../push/push.service';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 
@@ -16,6 +17,9 @@ export interface CreateNotifData {
 }
 
 /** Staff-management alerts (password reset requests, permission and branch changes) are for owners and managers only. */
+/** Alerts for one person that also go to their phone's lock screen (when Firebase is set up). */
+export const PUSH_TYPES = new Set(['REPAIR_ASSIGNED', 'REPAIR_NEW']);
+
 export const MANAGEMENT_ONLY_TYPES = ['PASSWORD_RESET_REQUEST', 'ROLE_PERMISSION_CHANGED', 'USER_ASSIGNED_TO_BRANCH'];
 
 /** The unread badge counts only recent alerts; older unread ones stay in the list. */
@@ -33,6 +37,7 @@ export class NotificationsService implements OnModuleInit {
   constructor(
     private prisma:     PrismaService,
     private tenantSvc:  TenantService,
+    @Optional() private push?: PushService,
   ) {}
 
   onModuleInit() {
@@ -77,6 +82,13 @@ export class NotificationsService implements OnModuleInit {
           userId:     data.userId     ?? null,
         },
       });
+      if (data.userId && PUSH_TYPES.has(data.type) && this.push) {
+        // To the phone too; not awaited, a slow push service must not slow down the save
+        this.push.sendToUser(data.userId, {
+          title: data.title, body: data.message,
+          data: { type: data.type, entityType: data.entityType ?? '', entityId: data.entityId ?? '' },
+        }).catch(() => {});
+      }
     } catch (err) {
       this.logger.warn(`Failed to create notification: ${(err as Error).message}`);
     }

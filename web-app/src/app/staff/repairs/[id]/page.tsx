@@ -1,5 +1,8 @@
 'use client'
 
+import { QcDialog } from '@/components/repairs/qc-dialog'
+import { statusChoices } from '@/lib/repair-status-flow'
+import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import {
@@ -8,7 +11,7 @@ import {
   User, Wrench, AlertTriangle, Shield,
   Search, Pencil, Check, X, Trash2, Plus,
   CreditCard, Banknote, RotateCcw, Camera, Info, Lock,
-  ArrowRightLeft, History, ChevronDown,
+  ArrowRightLeft, History, ChevronDown, ShieldCheck,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -62,10 +65,6 @@ const STATUS_FLOW = [
   'READY_PICKUP', 'DELIVERED',
 ]
 
-const CHANGEABLE_STATUSES = [
-  'RECEIVED', 'DIAGNOSING', 'WAITING_APPROVAL', 'WAITING_PARTS',
-  'IN_PROGRESS', 'COMPLETED', 'READY_PICKUP', 'CANCELLED',
-]
 
 const PRODUCT_TYPE_LABEL: Record<string, string> = {
   PHONE: 'มือถือ', SIM: 'ซิม', ACCESSORY: 'อุปกรณ์เสริม', PART: 'อะไหล่',
@@ -157,6 +156,10 @@ export default function RepairDetailPage() {
   const [payOpen, setPayOpen]                       = useState(false)
   const [payMethod, setPayMethod]                   = useState<PayMethod>('CASH')
   const [payAmount, setPayAmount]                   = useState('')
+  const [payWarrantyDays, setPayWarrantyDays]       = useState(DEFAULT_WARRANTY_DAYS)
+  const [payLater, setPayLater]                     = useState(false)
+  const [qcOpen, setQcOpen]                         = useState(false)
+  const canQc = hasPermission('repairs.qc.perform')
   const [reverseOpen, setReverseOpen]               = useState(false)
   const [reverseReason, setReverseReason]           = useState('')
   const [addPayOpen, setAddPayOpen]                 = useState(false)
@@ -278,7 +281,7 @@ export default function RepairDetailPage() {
   })
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { paymentMethod: string; amountPaid: number }) =>
+    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays: number; allowPartial?: boolean }) =>
       api.post(`/repairs/${id}/payment`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })
@@ -389,8 +392,18 @@ export default function RepairDetailPage() {
 
   function handlePayment() {
     const amount = Number(payAmount)
+    if (payLater) {
+      // Pay later: today's amount may be 0; the rest is owed (same as the web's ค้างชำระ)
+      if (!(amount >= 0)) { toast.error('กรุณาระบุจำนวนเงิน'); return }
+      const paidToday = Math.min(amount, repairBalance)
+      paymentMutation.mutate({
+        paymentMethod: payMethod, amountPaid: paidToday, warrantyDays: warrantyDaysValue(payWarrantyDays),
+        ...(paidToday < repairBalance ? { allowPartial: true } : {}),
+      })
+      return
+    }
     if (!amount || amount < 0) { toast.error('กรุณาระบุจำนวนเงิน'); return }
-    paymentMutation.mutate({ paymentMethod: payMethod, amountPaid: amount })
+    paymentMutation.mutate({ paymentMethod: payMethod, amountPaid: amount, warrantyDays: warrantyDaysValue(payWarrantyDays) })
   }
 
   // ── Loading
@@ -1055,7 +1068,8 @@ export default function RepairDetailPage() {
                 </div>
                 {!hasShift && (
                   <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3">
-                    <Lock className="h-3.5 w-3.5 shrink-0" /> กรุณาเปิดกะก่อนรับเงิน
+                    <Lock className="h-3.5 w-3.5 shrink-0" /> <span className="flex-1">กรุณาเปิดกะก่อนรับเงิน</span>
+                    <button onClick={() => router.push('/staff/shift')} className="shrink-0 rounded-lg bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white">เปิดกะ</button>
                   </div>
                 )}
                 {!payOpen ? (
@@ -1085,14 +1099,18 @@ export default function RepairDetailPage() {
                       </label>
                       <input type="number" min={0}
                         value={payAmount} onChange={(e) => setPayAmount(e.target.value)}
-                        readOnly={payMethod !== 'CASH'}
+                        readOnly={payMethod !== 'CASH' && !payLater}
                         className={`w-full h-12 rounded-xl px-3 text-lg font-bold text-center outline-none ${
-                          payMethod !== 'CASH' ? 'bg-slate-100 text-slate-500' : 'bg-[#F8F9FB]'
+                          payMethod !== 'CASH' && !payLater ? 'bg-slate-100 text-slate-500' : 'bg-[#F8F9FB]'
                         }`} />
                     </div>
 
+                    <PayLaterToggle checked={payLater} owed={Math.max(0, repairBalance - payAmountNum)}
+                      onChange={(v) => { setPayLater(v); setPayAmount(v ? '0' : String(repairBalance)) }} />
+                    <WarrantyDaysPicker value={payWarrantyDays} onChange={setPayWarrantyDays} />
+
                     {/* Cash change */}
-                    {payMethod === 'CASH' && (
+                    {payMethod === 'CASH' && !payLater && (
                       <div className={`flex justify-between items-center rounded-xl px-4 py-3 border ${
                         payChange < 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'
                       }`}>
@@ -1110,7 +1128,7 @@ export default function RepairDetailPage() {
                         className="flex-1 h-12 rounded-xl border border-slate-200 text-sm text-slate-600">
                         ยกเลิก
                       </button>
-                      <button onClick={handlePayment} disabled={paymentMutation.isPending || (payMethod === 'CASH' && payChange < 0)}
+                      <button onClick={handlePayment} disabled={paymentMutation.isPending || (!payLater && payMethod === 'CASH' && payChange < 0)}
                         className="flex-1 h-12 rounded-xl bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
                         {paymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4" /> ยืนยันรับเงิน</>}
                       </button>
@@ -1224,11 +1242,19 @@ export default function RepairDetailPage() {
       {/* ── Bottom actions ──────────────────────────────────────────────────────── */}
       <div className="fixed left-0 right-0 bg-[#F8F9FB] px-5 pt-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
         style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))', paddingBottom: '12px' }}>
+        {repair.status === 'QC_PENDING' && canQc && (
+          <button onClick={() => setQcOpen(true)}
+            className="mb-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 text-sm font-bold text-white">
+            <ShieldCheck className="h-4 w-4" /> ตรวจ QC
+          </button>
+        )}
+        <QcDialog repair={repair} open={qcOpen} onClose={() => setQcOpen(false)}
+          onDone={() => queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })} />
         {repair.status !== 'DELIVERED' && repair.status !== 'CANCELLED' && (
           <div className="flex gap-2 mb-2">
             <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
               className="flex-1 h-10 rounded-xl bg-white border border-[#E5E7EB] px-3 text-sm font-medium text-[#111] outline-none">
-              {CHANGEABLE_STATUSES.map((s) => (
+              {statusChoices(repair.status).map((s) => (
                 <option key={s} value={s}>{STATUS_LABEL[s]}</option>
               ))}
             </select>

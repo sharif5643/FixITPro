@@ -1,5 +1,7 @@
 'use client'
 
+import { useAppBranch } from '@/hooks/useAppBranch'
+import { useAppAccess } from '@/hooks/useAppAccess'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -131,14 +133,10 @@ export default function HomePage() {
   const [weekly,     setWeekly]     = useState(last7Days())
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState(false)
-  const [branchName, setBranchName] = useState<string|null>(null)
-
-  useEffect(() => {
-    const sync = () => setBranchName(localStorage.getItem('selectedBranchName'))
-    sync()
-    window.addEventListener('focus', sync)
-    return () => window.removeEventListener('focus', sync)
-  }, [])
+  // The owner's chosen branch is what sales, repairs and stock changes from the app are recorded in
+  const appBranch  = useAppBranch()
+  const access     = useAppAccess()
+  const branchName = appBranch.branchName || null
 
   const load = useCallback(async () => {
     setLoading(true); setError(false)
@@ -202,21 +200,19 @@ export default function HomePage() {
   const roleBadgeStyle = isOwner ? 'bg-amber-100 text-amber-700' : isManager ? 'bg-blue-100 text-blue-700' : isTech ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'
 
   /* ── Quick menu ── */
-  const QUICK_ALL = [
-    { icon:<Wrench/>,        label:'รับงาน',    to:'/staff/create',      bg:'bg-[#FFF8E7]', ic:'text-[#F59E0B]' },
-    { icon:<ShoppingCart/>,  label:'POS',        to:'/staff/pos',         bg:'bg-[#F0FDF4]', ic:'text-[#22C55E]' },
-    { icon:<Package/>,       label:'สต็อก',     to:'/staff/stock',       bg:'bg-[#FFF1F2]', ic:'text-[#F43F5E]' },
-    { icon:<Users/>,         label:'ลูกค้า',    to:'/staff/customers',   bg:'bg-[#F5F3FF]', ic:'text-[#8B5CF6]' },
-    { icon:<FileText/>,      label:'ใบเสร็จ',   to:'/staff/pos',         bg:'bg-[#FFF7ED]', ic:'text-[#F97316]' },
-    { icon:<BarChart2/>,     label:'รายงาน',    to:'/staff/reports',     bg:'bg-[#F0FDF4]', ic:'text-[#10B981]' },
-    { icon:<TrendingUp/>,    label:'ยอดขาย',   to:'/staff/reports',     bg:'bg-[#EFF6FF]', ic:'text-[#3B82F6]' },
-    { icon:<MessageCircle/>, label:'แชท',       to:'/staff/chat',        bg:'bg-[#F0FDF4]', ic:'text-[#22C55E]' },
-    { icon:<Calendar/>,      label:'นัดหมาย',  to:'/staff/notifications',bg:'bg-[#EFF6FF]', ic:'text-[#3B82F6]' },
-    { icon:<LayoutGrid/>,    label:'เพิ่มเติม', to:'/staff/more',        bg:'bg-[#F8F9FB]', ic:'text-[#6B7280]' },
-  ]
-  const QUICK = isTech
-    ? QUICK_ALL.filter(q => ['รับงาน','แชท','นัดหมาย','เพิ่มเติม'].includes(q.label))
-    : QUICK_ALL
+  // Same rules as the web menu; each tile opens the screen its name says
+  const QUICK = [
+    { icon:<Wrench/>,        label:'รับงาน',     to:'/staff/create',        show: access.intake,    bg:'bg-[#FFF8E7]', ic:'text-[#F59E0B]' },
+    { icon:<ShoppingCart/>,  label:'POS',         to:'/staff/pos',           show: access.pos,       bg:'bg-[#F0FDF4]', ic:'text-[#22C55E]' },
+    { icon:<Package/>,       label:'สต็อก',      to:'/staff/stock',         show: access.stock,     bg:'bg-[#FFF1F2]', ic:'text-[#F43F5E]' },
+    { icon:<Users/>,         label:'ลูกค้า',     to:'/staff/customers',     show: access.customers, bg:'bg-[#F5F3FF]', ic:'text-[#8B5CF6]' },
+    { icon:<FileText/>,      label:'ประวัติขาย', to:'/staff/pos/history',   show: access.pos,       bg:'bg-[#FFF7ED]', ic:'text-[#F97316]' },
+    { icon:<BarChart2/>,     label:'รายงาน',     to:'/staff/reports',       show: access.reports,   bg:'bg-[#F0FDF4]', ic:'text-[#10B981]' },
+    { icon:<TrendingUp/>,    label:'ขายซิม',     to:'/staff/sim',           show: access.sim,       bg:'bg-[#EFF6FF]', ic:'text-[#3B82F6]' },
+    { icon:<MessageCircle/>, label:'แชท',        to:'/staff/chat',          show: access.repairs,   bg:'bg-[#F0FDF4]', ic:'text-[#22C55E]' },
+    { icon:<Calendar/>,      label:'แจ้งเตือน',  to:'/staff/notifications', show: true,              bg:'bg-[#EFF6FF]', ic:'text-[#3B82F6]' },
+    { icon:<LayoutGrid/>,    label:'เพิ่มเติม',  to:'/staff/more',          show: true,              bg:'bg-[#F8F9FB]', ic:'text-[#6B7280]' },
+  ].filter((q) => q.show)
 
   /* ── Notif icons ── */
   const NOTIF_ICON: Record<string,{ bg:string; ic:string }> = {
@@ -250,13 +246,16 @@ export default function HomePage() {
 
           {/* Right: bell + branch */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => router.push('/staff/branch')}
-              className="flex h-9 items-center gap-1 rounded-full border border-[#E5E7EB] bg-[#F8F9FB] px-3 text-[11px] font-semibold text-slate-600 active:bg-slate-100"
-            >
-              {branchName ?? (isOwner ? 'ทุกสาขา' : 'สาขาหลัก')}
-              <span className="text-[9px]">▼</span>
-            </button>
+            {appBranch.canPick && (
+              <button
+                onClick={() => router.push('/staff/branch')}
+                className={`flex h-9 items-center gap-1 rounded-full border px-3 text-[11px] font-semibold active:bg-slate-100 ${
+                  appBranch.needsPick ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-[#E5E7EB] bg-[#F8F9FB] text-slate-600'}`}
+              >
+                {branchName ?? 'เลือกสาขา'}
+                <span className="text-[9px]">▼</span>
+              </button>
+            )}
             <button
               onClick={() => router.push('/staff/notifications')}
               className="relative flex h-10 w-10 items-center justify-center rounded-full bg-[#F8F9FB]"

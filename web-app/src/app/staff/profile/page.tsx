@@ -3,25 +3,28 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  User, MapPin, History, CreditCard, Settings, ChevronRight,
+  History, Settings, ChevronRight, Bell, KeyRound,
   LogOut, Loader2, Wrench
 } from 'lucide-react'
+import { AppVersion } from '@/components/app/app-version'
+import { markOpenedFromApp } from '@/lib/app-shell'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { toast } from 'sonner'
 
-const MENU_ITEMS = [
-  { icon: User,        label: 'ข้อมูลส่วนตัว',  href: '/staff/profile/edit'    },
-  { icon: MapPin,      label: 'ที่อยู่ของฉัน',    href: '/staff/profile/address'  },
-  { icon: History,     label: 'ประวัติงาน',        href: '/staff/repairs'          },
-  { icon: CreditCard,  label: 'การชำระเงิน',       href: '/staff/profile/payment'  },
-  { icon: Settings,    label: 'ตั้งค่า',           href: '/staff/profile/settings' },
+// Only screens that exist. Staff details (name, phone, branch) are edited by the owner in the web's
+// employee page; there is no self-edit API.
+const BASE_MENU = [
+  { icon: History,  label: 'ประวัติงาน',       href: '/staff/repairs' },
+  { icon: Bell,     label: 'การแจ้งเตือน',     href: '/staff/notifications' },
+  { icon: KeyRound, label: 'เปลี่ยนรหัสผ่าน',  href: '/staff/change-password' },
 ]
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER:    'เจ้าของร้าน',
   MANAGER:  'ผู้จัดการ',
-  STAFF:    'พนักงาน',
+  CASHIER:  'แคชเชียร์',
+  STOCK_STAFF: 'พนักงานสต็อก',
   TECHNICIAN: 'ช่าง',
 }
 
@@ -29,6 +32,9 @@ export default function StaffProfilePage() {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
   const clearAuth = useAuthStore((s) => s.clearAuth)
+  const canSettings = useAuthStore((s) => s.hasPermission)('settings.manage')
+  // Shop settings live in the web's settings page (same permission as there)
+  const MENU_ITEMS = [...BASE_MENU, ...(canSettings ? [{ icon: Settings, label: 'ตั้งค่าร้าน', href: '/settings' }] : [])]
   const [loggingOut, setLoggingOut] = useState(false)
 
   const initials = (user?.name ?? 'U')
@@ -78,7 +84,7 @@ export default function StaffProfilePage() {
             return (
               <button
                 key={item.label}
-                onClick={() => router.push(item.href)}
+                onClick={() => { if (item.href === '/settings') markOpenedFromApp('/staff/profile'); router.push(item.href) }}
                 className={`flex w-full items-center gap-3 px-4 py-4 text-left active:bg-slate-50 ${
                   idx < MENU_ITEMS.length - 1 ? 'border-b border-slate-50' : ''
                 }`}
@@ -104,7 +110,7 @@ export default function StaffProfilePage() {
         </button>
 
         {/* App version */}
-        <p className="text-center text-xs text-slate-300 mt-6">FixITPro v1.2.0 (Staff)</p>
+        <AppVersion className="text-center text-xs text-slate-300 mt-6" />
       </div>
     </div>
   )

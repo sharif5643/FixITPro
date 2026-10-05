@@ -392,6 +392,21 @@ model TenantPayment {
   @@index([status, createdAt])
 }
 
+/// A phone that gets notifications (Firebase) for the account signed in on it
+model PushDevice {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  platform   String   @default("android")
+  app        String?
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId   String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 model User {
   id          String    @id @default(cuid())
   email       String?   @unique
@@ -468,6 +483,7 @@ model User {
 
   quotationsProposed  PartnerRepairQuotation[] @relation("QuotationsProposedByUser")
   quotationsResponded PartnerRepairQuotation[] @relation("QuotationsRespondedByUser")
+  pushDevices         PushDevice[]
 
   @@index([role, isActive])
   @@index([tenantId])

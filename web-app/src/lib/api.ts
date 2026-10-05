@@ -2,6 +2,7 @@ import axios, { AxiosRequestConfig } from 'axios'
 import { useBranchStore } from '@/store/branch.store'
 import { useAuthStore } from '@/store/auth.store'
 import { TENANT_BLOCKED_EVENT, TENANT_BLOCK_CODES } from '@/lib/tenant-expiry'
+import { storedPushToken } from '@/lib/push-token'
 
 interface RetryConfig extends AxiosRequestConfig {
   _retryCount?: number
@@ -24,6 +25,9 @@ api.interceptors.request.use((config) => {
   try {
     const branchId = useBranchStore.getState().selectedBranchId
     if (branchId) config.headers['X-Branch-Id'] = branchId
+    // This phone's notification token: signing out tells the server to stop notifying it
+    const pushToken = storedPushToken()
+    if (pushToken && /\/auth\/logout/.test(config.url ?? '')) config.headers['X-Push-Token'] = pushToken
   } catch {
     // store read failure — continue without branch
   }
