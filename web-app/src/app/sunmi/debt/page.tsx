@@ -11,6 +11,8 @@ import {
 } from 'lucide-react'
 import { MobileBottomNav } from '@/components/sunmi/mobile-bottom-nav'
 import { formatThaiMoney } from '@/lib/utils'
+import { PackageDebtList } from '@/components/package-sales/package-debts'
+import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -475,6 +477,14 @@ export default function SunmiDebtPage() {
   const [selectedRepair, setSelectedRepair] = useState<OutstandingRepair | null>(null)
   const [successResult,  setSuccessResult]  = useState<PaymentResult | null>(null)
   const [search, setSearch]                 = useState('')
+  const [kind, setKind]                     = useState<'repair' | 'sim'>('repair')
+  const user = useAuthStore((st) => st.user)
+  const { data: currentShift } = useQuery<{ id: string } | null>({
+    queryKey: ['shifts', 'current'],
+    queryFn:  async () => (await api.get('/shifts/current')).data,
+    staleTime: 30_000,
+    enabled:  kind === 'sim',
+  })
 
   const { data: repairs = [], isLoading } = useQuery<OutstandingRepair[]>({
     queryKey: ['repairs', 'outstanding'],
@@ -517,19 +527,32 @@ export default function SunmiDebtPage() {
           )}
         </div>
 
+        <div className="flex gap-2 mb-3">
+          {([['repair', 'งานซ่อม'], ['sim', 'ซิม / แพ็กเกจ']] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setKind(k)}
+              className={`flex-1 h-10 rounded-xl text-sm font-semibold ${kind === k ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Search */}
-        <input
+        {kind === 'repair' && <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="ค้นหาชื่อลูกค้า / เบอร์โทร"
           className="w-full h-12 px-4 rounded-2xl bg-slate-800 text-white placeholder-slate-500 text-sm border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        />}
       </div>
 
       {/* Content */}
       <div className="flex-1 bg-slate-100 rounded-t-3xl overflow-y-auto">
-        {isLoading ? (
+        {kind === 'sim' ? (
+          <div className="px-3 pt-4 pb-4">
+            <PackageDebtList shiftId={currentShift?.id} cashierName={user?.name ?? ''} />
+          </div>
+        ) : isLoading ? (
           <div className="p-4 space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-20 rounded-2xl bg-slate-200 animate-pulse" />

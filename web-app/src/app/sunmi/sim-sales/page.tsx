@@ -19,6 +19,7 @@ import {
 import { pushBackHandler } from '@/lib/back-stack'
 import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
+import { useOpenPackageDebt, OpenDebtWarning } from '@/components/package-sales/package-debts'
 import type { ShopSettings, PaymentMethod } from '@/types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -78,6 +79,10 @@ function CheckoutSheet({
   const [note,         setNote]         = useState('')
   const [customPrice,  setCustomPrice]  = useState('')
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
+  // Pay later ("ค้างจ่าย"): the cash/transfer box then holds what is paid now (may be 0)
+  const [payLater,     setPayLater]     = useState(false)
+  const [debtorName,   setDebtorName]   = useState('')
+  const [debtorPhone,  setDebtorPhone]  = useState('')
 
   useEffect(() => pushBackHandler(onClose), [onClose])
   useEffect(() => { if (method !== 'CASH') setAmountPaid('') }, [method])
@@ -91,8 +96,13 @@ function CheckoutSheet({
   const paidNum         = Number(amountPaid) || 0
   const change          = method === 'CASH' ? Math.max(0, paidNum - price) : 0
   const insufficient    = price > 0 && walletDeduction > walletBalance
+  const { phone: debtorPhoneNorm, openDebt, checking: checkingDebt } = useOpenPackageDebt(debtorPhone || phoneNumber, payLater)
+  const paidNow         = payLater ? Math.min(method === 'CASH' ? paidNum : (Number(amountPaid) || 0), price) : 0
+  const owed            = payLater ? Math.max(0, price - paidNow) : 0
   const canSubmit       = !!shiftId && price > 0 && !insufficient
-    && (method !== 'CASH' ? true : paidNum >= price)
+    && (payLater
+      ? !!debtorPhoneNorm && !openDebt && !checkingDebt
+      : (method !== 'CASH' ? true : paidNum >= price))
 
   const quickAmounts = useMemo(() => {
     if (!price) return []
@@ -106,7 +116,8 @@ function CheckoutSheet({
         carrier,
         packageAmount: price,
         paymentMethod: method,
-        amountPaid:    method === 'CASH' ? paidNum : price,
+        amountPaid:    payLater ? paidNow : method === 'CASH' ? paidNum : price,
+        ...(payLater ? { payLater: true, debtorName: debtorName.trim() || undefined, debtorPhone: debtorPhoneNorm ?? undefined } : {}),
         phoneNumber:   phoneNumber.trim() || undefined,
         note:          note.trim() || undefined,
         shiftId,
@@ -130,6 +141,7 @@ function CheckoutSheet({
         paymentMethod:   method,
         amountPaid:      result.amountPaid,
         change:          result.change,
+        amountDue:       (result as any).amountDue || undefined,
         footer:          settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
         taxId:           settings?.taxId ?? undefined,
         showTaxId:       settings?.showTaxId ?? true,
@@ -285,10 +297,43 @@ function CheckoutSheet({
             ))}
           </div>
 
+          {/* Pay later */}
+          <button
+            type="button"
+            onClick={() => setPayLater((v) => !v)}
+            className={`w-full flex items-center justify-between rounded-xl border-2 px-4 py-3 text-sm font-semibold ${
+              payLater ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600'
+            }`}
+          >
+            <span>ค้างจ่าย (ลูกค้าจ่ายทีหลัง)</span>
+            <span className={`h-6 w-11 rounded-full p-0.5 transition-colors ${payLater ? 'bg-amber-500' : 'bg-slate-300'}`}>
+              <span className={`block h-5 w-5 rounded-full bg-white transition-transform ${payLater ? 'translate-x-5' : ''}`} />
+            </span>
+          </button>
+
+          {payLater && price > 0 && (
+            <div className="space-y-2 rounded-2xl border-2 border-amber-200 bg-amber-50 p-3">
+              <p className="text-xs text-amber-800">ลูกค้า 1 คนค้างได้ครั้งละ 1 รายการ · ช่องรับเงินด้านล่างคือเงินที่จ่ายตอนนี้ (ใส่ 0 ได้)</p>
+              <input type="tel" inputMode="tel" value={debtorPhone} onChange={(e) => setDebtorPhone(e.target.value)}
+                placeholder={phoneNumber ? `เบอร์ลูกค้า (ใช้ ${phoneNumber})` : 'เบอร์ลูกค้า *'}
+                className="w-full h-11 px-3 border border-slate-200 rounded-xl text-base bg-white" />
+              <input value={debtorName} onChange={(e) => setDebtorName(e.target.value)} placeholder="ชื่อลูกค้า (ไม่บังคับ)"
+                className="w-full h-11 px-3 border border-slate-200 rounded-xl text-sm bg-white" />
+              {!debtorPhoneNorm && <p className="text-xs text-red-600">ใส่เบอร์ลูกค้าอย่างน้อย 9 หลัก</p>}
+              {openDebt && <OpenDebtWarning debt={openDebt} />}
+              {method !== 'CASH' && (
+                <input type="number" inputMode="numeric" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)}
+                  placeholder="โอนมาแล้ว (บาท) — ใส่ 0 ถ้ายังไม่โอน"
+                  className="w-full h-11 px-3 border border-slate-200 rounded-xl text-base bg-white tabular-nums" />
+              )}
+              <p className="text-right text-lg font-bold text-red-600">ค้างจ่าย {formatThaiMoney(owed)}</p>
+            </div>
+          )}
+
           {/* Cash input */}
           {method === 'CASH' && price > 0 && (
             <div className="space-y-2">
-              <label className="text-sm text-slate-600 font-semibold">รับเงินมา (บาท)</label>
+              <label className="text-sm text-slate-600 font-semibold">{payLater ? 'จ่ายตอนนี้ (บาท) — ใส่ 0 ถ้ายังไม่จ่าย' : 'รับเงินมา (บาท)'}</label>
               <input
                 type="number"
                 inputMode="numeric"
@@ -303,7 +348,7 @@ function CheckoutSheet({
                   เงินทอน: {formatThaiMoney(change)}
                 </p>
               )}
-              {amountPaid !== '' && paidNum < price && (
+              {!payLater && amountPaid !== '' && paidNum < price && (
                 <p className="text-sm text-red-500 text-right pr-1">
                   ขาดอีก {formatThaiMoney(price - paidNum)}
                 </p>

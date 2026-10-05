@@ -1363,6 +1363,26 @@ model Expense {
   @@index([branchId])
 }
 
+/// Money received later for a SIM / package sale sold on credit
+model PackageSaleDebtPayment {
+  id            String        @id @default(cuid())
+  receiptNumber String        @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  shiftId       String?
+  cashierName   String
+  createdById   String
+  createdAt     DateTime      @default(now())
+  tenantId      String?
+
+  packageSaleId String
+  packageSale   PackageSale @relation(fields: [packageSaleId], references: [id])
+
+  @@index([packageSaleId])
+  @@index([shiftId])
+  @@index([tenantId, createdAt])
+}
+
 model PackageSale {
   id              String          @id @default(cuid())
   receiptNumber   String          @unique
@@ -1386,8 +1406,19 @@ model PackageSale {
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
 
+  // Sold on credit ("ค้างจ่าย"): creditAmount is what was owed at the sale and never changes;
+  // amountDue is what is still owed. Only one unpaid sale per debtorPhone per shop (partial
+  // unique index in migration 20261005000001).
+  creditAmount Decimal                  @default(0) @db.Decimal(10, 2)
+  amountDue    Decimal                  @default(0) @db.Decimal(10, 2)
+  debtorName   String?
+  debtorPhone  String?
+  settledAt    DateTime?
+  debtPayments PackageSaleDebtPayment[]
+
   tenantId String?
 
+  @@index([tenantId, amountDue])
   @@index([carrier, createdAt])
   @@index([createdAt])
   @@index([shiftId])

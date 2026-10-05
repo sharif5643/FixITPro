@@ -96,6 +96,8 @@ export interface PrintPackageSaleOptions {
   paymentMethod:   string
   amountPaid:      number
   change:          number
+  /** Still owed on a credit ("ค้างจ่าย") sale */
+  amountDue?:      number
   footer?:         string
   taxId?:          string
   showTaxId?:      boolean
@@ -961,6 +963,7 @@ ${opts.note ? `<div class="row"><span class="xs">หมายเหตุ</span>
 <div class="hr"></div>
 <div class="row"><span>${PM[opts.paymentMethod] ?? opts.paymentMethod}</span><span class="v">฿${fmtB(opts.amountPaid)}</span></div>
 ${opts.change > 0 ? `<div class="row"><span>เงินทอน</span><span class="v">฿${fmtB(opts.change)}</span></div>` : ''}
+${opts.amountDue ? `<div class="total"><span>ค้างจ่าย</span><span class="v">฿${fmtB(opts.amountDue)}</span></div>` : ''}
 ${opts.paymentQrUrl ? qrHtml(opts.paymentQrUrl, opts.paymentMethod) : ''}
 <div class="hr"></div>
 <div class="row xs"><span>เงินคงเหลือ ${opts.carrier}</span><span class="v">฿${fmtB(opts.walletBalance)}</span></div>
@@ -988,6 +991,9 @@ export function buildPackageSalePreviewData(opts: PrintPackageSaleOptions): Ther
     { type: 'row', label: PM_LABEL[opts.paymentMethod] ?? opts.paymentMethod, value: `฿${fmtB(opts.amountPaid)}` },
     ...(opts.change > 0
       ? [{ type: 'row' as const, label: 'เงินทอน', value: `฿${fmtB(opts.change)}` }]
+      : []),
+    ...(opts.amountDue
+      ? [{ type: 'row' as const, label: 'ค้างจ่าย', value: `฿${fmtB(opts.amountDue)}`, bold: true }]
       : []),
     { type: 'separator' },
     { type: 'row', label: `เงินคงเหลือ ${opts.carrier}`, value: `฿${fmtB(opts.walletBalance)}` },
@@ -1020,6 +1026,7 @@ export async function sharePackageSale(opts: PrintPackageSaleOptions): Promise<v
     `กำไร: ฿${fmtB(opts.profit)}`,
     `${PM[opts.paymentMethod] ?? opts.paymentMethod}: ฿${fmtB(opts.amountPaid)}`,
     ...(opts.change > 0 ? [`เงินทอน: ฿${fmtB(opts.change)}`] : []),
+    ...(opts.amountDue ? [`ค้างจ่าย: ฿${fmtB(opts.amountDue)}`] : []),
     HR,
     opts.footer ?? 'ขอบคุณที่ใช้บริการ',
   ]

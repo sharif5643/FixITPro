@@ -2,13 +2,15 @@ import {
   Injectable,
   BadRequestException,
   Logger,
+  NotFoundException,
   Optional,
 } from '@nestjs/common';
 import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
-import { PackageSaleDto } from './dto/package-sale.dto';
+import { PackageSaleDto, PayPackageDebtDto } from './dto/package-sale.dto';
+import { randomBytes } from 'crypto';
 import { TopupDto } from './dto/topup.dto';
 
 const DEDUCTION_RATE = 0.97;  // default: 97% deducted from carrier wallet, shop keeps 3%
@@ -41,6 +43,27 @@ function isReceiptNumberConflict(err: unknown) {
   return Array.isArray(target) ? target.includes('receiptNumber') : String(target ?? '').includes('receiptNumber');
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Digits only, so "081-234-5678" and "0812345678" are the same customer. */
+export function normalizePhone(raw?: string | null): string | null {
+  const digits = (raw ?? '').replace(/\D/g, '');
+  return digits.length >= 9 && digits.length <= 15 ? digits : null;
+}
+
+/** The partial unique index that allows one unpaid sale per phone number (see migration). */
+function isOpenDebtConflict(err: unknown) {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== 'P2002') return false;
+  const target = (err.meta as any)?.target;
+  const text = Array.isArray(target) ? target.join(',') : String(target ?? '');
+  return text.includes('debtorPhone') || text.includes('one_open_debt');
+}
+
+interface PayLaterInput {
+  packageAmount: number; paymentMethod: string; amountPaid: number; phoneNumber?: string;
+  payLater?: boolean; debtorName?: string; debtorPhone?: string;
+}
+
 @Injectable()
 export class CarrierWalletService {
   private readonly logger = new Logger(CarrierWalletService.name);
@@ -64,17 +87,19 @@ export class CarrierWalletService {
    * Neither step can undo the sale.
    */
   private async afterPackageSale(
-    sale: { id: string; receiptNumber: string; carrier: string; saleType: string; packageAmount: number; walletDeduction: number; profit: number; paymentMethod: string },
+    sale: { id: string; receiptNumber: string; carrier: string; saleType: string; packageAmount: number; walletDeduction: number; profit: number; paymentMethod: string; creditAmount?: number },
     shiftId: string | null | undefined, userId: string, tenantId: TenantId,
   ) {
     try {
       const branchId = await this.branchOfShift(shiftId);
-      if (branchId && this.accounting) {
+      // On credit, only what the customer paid now reaches the drawer
+      const received = round2(sale.packageAmount - (sale.creditAmount ?? 0));
+      if (branchId && this.accounting && received > 0) {
         await this.accounting.record({
           sourceType:    ACCOUNTING_SOURCE.PACKAGE_SALE,
           sourceId:      sale.id,
           paymentMethod: sale.paymentMethod as any,
-          amount:        sale.packageAmount,
+          amount:        received,
           direction:     'IN',
           branchId,
           tenantId:      tenantId ?? null,
@@ -136,6 +161,174 @@ export class CarrierWalletService {
     }
   }
 
+  // ── Pay later ("ค้างจ่าย") ─────────────────────────────────────────────────────
+
+  /**
+   * How a sale is paid. Paid in full: cash must cover the price (a short cash payment used
+   * to be accepted and the drawer then expected money it never got). On credit: the
+   * customer's phone is required, whatever is paid now is received and the rest is owed.
+   */
+  private payTerms(dto: PayLaterInput) {
+    const price = dto.packageAmount;
+    if (!dto.payLater) {
+      if (dto.paymentMethod === 'CASH' && dto.amountPaid + 0.001 < price) {
+        throw new BadRequestException('รับเงินสดไม่ครบ — ถ้าลูกค้าจะจ่ายทีหลัง ให้เลือก "ค้างจ่าย"');
+      }
+      return {
+        credit: 0,
+        change: dto.paymentMethod === 'CASH' ? round2(Math.max(0, dto.amountPaid - price)) : 0,
+        debtor: null as null | { name: string | null; phone: string },
+      };
+    }
+    const phone = normalizePhone(dto.debtorPhone ?? dto.phoneNumber);
+    if (!phone) throw new BadRequestException('ค้างจ่ายต้องใส่เบอร์โทรลูกค้า (อย่างน้อย 9 หลัก)');
+    const paidNow = round2(Math.min(Math.max(dto.amountPaid, 0), price));
+    const credit  = round2(price - paidNow);
+    if (credit <= 0) return { credit: 0, change: 0, debtor: null };   // paid in full after all
+    return { credit, change: 0, debtor: { name: dto.debtorName?.trim() || null, phone } };
+  }
+
+  /** The unpaid sale this phone number still owes for, or null. */
+  async openDebtFor(tenantId: TenantId, rawPhone?: string | null) {
+    const phone = normalizePhone(rawPhone);
+    if (!phone) return null;
+    const sale = await this.prisma.packageSale.findFirst({
+      where: { ...scope(tenantId), debtorPhone: phone, amountDue: { gt: 0 } },
+      select: { id: true, receiptNumber: true, amountDue: true, packageAmount: true, debtorName: true, carrier: true, createdAt: true },
+    });
+    return sale ? { ...sale, amountDue: Number(sale.amountDue), packageAmount: Number(sale.packageAmount), phone } : null;
+  }
+
+  private async assertNoOpenDebt(tenantId: TenantId, phone: string) {
+    const open = await this.openDebtFor(tenantId, phone);
+    if (open) throw new BadRequestException(this.openDebtMessage(open));
+  }
+
+  private openDebtMessage(open?: { phone: string; amountDue: number; receiptNumber: string } | null) {
+    return open
+      ? `เบอร์ ${open.phone} ยังค้างจ่าย ${open.amountDue.toLocaleString('th-TH')} บาท (ใบเสร็จ ${open.receiptNumber}) — ต้องจ่ายยอดเดิมก่อนจึงจะค้างใหม่ได้`
+      : 'ลูกค้าเบอร์นี้ยังมียอดค้างจ่ายอยู่ — ต้องจ่ายยอดเดิมก่อนจึงจะค้างใหม่ได้';
+  }
+
+  /** Runs a sale; a second credit sale for the same phone racing this one is refused clearly. */
+  private async withOpenDebtGuard<T>(tenantId: TenantId, phone: string | null, fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (phone && isOpenDebtConflict(err)) {
+        throw new BadRequestException(this.openDebtMessage(await this.openDebtFor(tenantId, phone)));
+      }
+      throw err;
+    }
+  }
+
+  private creditFields(terms: ReturnType<CarrierWalletService['payTerms']>) {
+    return {
+      creditAmount: terms.credit,
+      amountDue:    terms.credit,
+      debtorName:   terms.debtor?.name ?? null,
+      debtorPhone:  terms.debtor?.phone ?? null,
+    };
+  }
+
+  async listDebts(tenantId: TenantId, status: 'open' | 'settled' | 'all', q?: string) {
+    const where: any = { ...scope(tenantId), creditAmount: { gt: 0 } };
+    if (status === 'open') where.amountDue = { gt: 0 };
+    if (status === 'settled') where.amountDue = 0;
+    const term = q?.trim();
+    if (term) {
+      const digits = term.replace(/\D/g, '');
+      where.OR = [
+        { debtorName: { contains: term, mode: 'insensitive' } },
+        { receiptNumber: { contains: term, mode: 'insensitive' } },
+        ...(digits.length >= 3 ? [{ debtorPhone: { contains: digits } }] : []),
+      ];
+    }
+    const rows = await this.prisma.packageSale.findMany({
+      where,
+      orderBy: { createdAt: status === 'open' ? 'asc' : 'desc' },
+      take: 300,
+      include: { debtPayments: { orderBy: { createdAt: 'asc' } } },
+    });
+    return rows.map((r) => ({
+      id: r.id, receiptNumber: r.receiptNumber, carrier: r.carrier, saleType: r.saleType,
+      phoneNumber: r.phoneNumber, debtorName: r.debtorName, debtorPhone: r.debtorPhone,
+      packageAmount: Number(r.packageAmount), creditAmount: Number(r.creditAmount), amountDue: Number(r.amountDue),
+      cashierName: r.cashierName, createdAt: r.createdAt, settledAt: r.settledAt,
+      payments: r.debtPayments.map((p) => ({
+        id: p.id, receiptNumber: p.receiptNumber, amount: Number(p.amount), paymentMethod: p.paymentMethod,
+        cashierName: p.cashierName, createdAt: p.createdAt,
+      })),
+    }));
+  }
+
+  /** The customer pays all or part of what a credit sale still owes. */
+  async payDebt(saleId: string, dto: PayPackageDebtDto, userId: string, tenantId: TenantId) {
+    const amount = round2(dto.amount);
+    const sale = await this.prisma.packageSale.findFirst({ where: { id: saleId, ...scope(tenantId) } });
+    if (!sale || Number(sale.creditAmount) <= 0) throw new NotFoundException('ไม่พบรายการค้างจ่าย');
+    if (Number(sale.amountDue) <= 0) throw new BadRequestException('รายการนี้จ่ายครบแล้ว');
+    if (amount > Number(sale.amountDue) + 0.001) {
+      throw new BadRequestException(`ยอดค้างเหลือ ${Number(sale.amountDue).toLocaleString('th-TH')} บาท — รับเกินยอดค้างไม่ได้`);
+    }
+
+    const done = await this.prisma.$transaction(async (tx) => {
+      // Atomic: two cashiers taking the same debt at once cannot both succeed beyond what is owed
+      const claimed = await tx.packageSale.updateMany({
+        where: { id: sale.id, amountDue: { gte: amount } },
+        data:  { amountDue: { decrement: amount } },
+      });
+      if (claimed.count === 0) throw new BadRequestException('ยอดค้างเปลี่ยนไปแล้ว กรุณารีเฟรชแล้วลองใหม่');
+      const after = await tx.packageSale.findUniqueOrThrow({ where: { id: sale.id } });
+      const settled = Number(after.amountDue) <= 0;
+      if (settled) await tx.packageSale.update({ where: { id: sale.id }, data: { amountDue: 0, settledAt: new Date() } });
+      const payment = await tx.packageSaleDebtPayment.create({
+        data: {
+          receiptNumber: `PD-${bangkokYmd()}-${randomBytes(3).toString('hex').toUpperCase()}`,
+          amount,
+          paymentMethod: dto.paymentMethod as any,
+          shiftId:       dto.shiftId ?? null,
+          cashierName:   dto.cashierName,
+          createdById:   userId,
+          packageSaleId: sale.id,
+          ...scope(tenantId),
+        },
+      });
+      return { payment, amountDue: settled ? 0 : Number(after.amountDue), settled };
+    });
+
+    // After commit: money into the drawer ledger and the books; never undoes the payment
+    try {
+      const branchId = await this.branchOfShift(dto.shiftId);
+      if (branchId && this.accounting) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.PACKAGE_DEBT_PAYMENT,
+          sourceId:      done.payment.id,
+          paymentMethod: dto.paymentMethod as any,
+          amount,
+          direction:     'IN',
+          branchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   userId,
+          note:          `${done.payment.receiptNumber} (${sale.receiptNumber})`,
+        });
+      }
+      await this.opsAccounting?.recordPackageDebtPayment({
+        tenantId, branchId, paymentId: done.payment.id, receiptNumber: done.payment.receiptNumber,
+        saleReceipt: sale.receiptNumber, paymentMethod: dto.paymentMethod, amount, actorId: userId,
+      });
+    } catch (err) {
+      this.logger.warn(`PackageDebtPayment ${done.payment.receiptNumber}: drawer/journal posting failed: ${(err as Error).message}`);
+    }
+
+    this.logger.log(`PackageDebtPayment sale=${sale.receiptNumber} amount=${amount} due=${done.amountDue}`);
+    return {
+      id: done.payment.id, receiptNumber: done.payment.receiptNumber, amount, paymentMethod: dto.paymentMethod,
+      saleReceiptNumber: sale.receiptNumber, amountDue: done.amountDue, settled: done.settled,
+      debtorName: sale.debtorName, debtorPhone: sale.debtorPhone, createdAt: done.payment.createdAt,
+    };
+  }
+
   // ── Package sale ──────────────────────────────────────────────────────────────
 
   async createPackageSale(dto: PackageSaleDto, userId: string, tenantId: TenantId) {
@@ -147,13 +340,13 @@ export class CarrierWalletService {
       : Math.round(dto.packageAmount * DEDUCTION_RATE * 100) / 100;
     const profit          = Math.round((dto.packageAmount - walletDeduction) * 100) / 100;
     const saleType        = dto.saleType ?? 'PROMO';
-    const change          = dto.paymentMethod === 'CASH'
-      ? Math.max(0, dto.amountPaid - dto.packageAmount)
-      : 0;
+    const terms           = this.payTerms(dto);
+    const change          = terms.change;
+    if (terms.debtor) await this.assertNoOpenDebt(tenantId, terms.debtor.phone);
 
     await this.ensureWallets(tenantId, [dto.carrier]);
 
-    const done = await this.withReceiptRetry(() => this.prisma.$transaction(async (tx) => {
+    const done = await this.withOpenDebtGuard(tenantId, terms.debtor?.phone ?? null, () => this.withReceiptRetry(() => this.prisma.$transaction(async (tx) => {
       // Read wallet first to get id and a snapshot balance for error messages.
       const walletRow = await this.getWallet(tx, tenantId, dto.carrier);
 
@@ -215,6 +408,7 @@ export class CarrierWalletService {
           cashierName:     dto.cashierName,
           shiftId:         dto.shiftId ?? null,
           createdById:     userId,
+          ...this.creditFields(terms),
           ...scope(tenantId),
         },
       });
@@ -230,9 +424,11 @@ export class CarrierWalletService {
         profit:          Number(sale.profit),
         amountPaid:      Number(sale.amountPaid),
         change:          Number(sale.change),
+        creditAmount:    Number(sale.creditAmount),
+        amountDue:       Number(sale.amountDue),
         walletBalance:   newBalance,
       };
-    }));
+    })));
     await this.afterPackageSale(done as any, dto.shiftId, userId, tenantId);
     return done;
   }
@@ -294,16 +490,19 @@ export class CarrierWalletService {
       note?: string;
       shiftId?: string;
       cashierName: string;
+      payLater?: boolean;
+      debtorName?: string;
+      debtorPhone?: string;
     },
     userId: string,
     tenantId: TenantId,
   ) {
     const profit = Math.round((dto.packageAmount - dto.costPrice) * 100) / 100;
-    const change = dto.paymentMethod === 'CASH'
-      ? Math.max(0, dto.amountPaid - dto.packageAmount)
-      : 0;
+    const terms  = this.payTerms(dto);
+    const change = terms.change;
+    if (terms.debtor) await this.assertNoOpenDebt(tenantId, terms.debtor.phone);
 
-    const done = await this.withReceiptRetry(() => this.prisma.$transaction(async (tx) => {
+    const done = await this.withOpenDebtGuard(tenantId, terms.debtor?.phone ?? null, () => this.withReceiptRetry(() => this.prisma.$transaction(async (tx) => {
       const receiptNumber = await this.generateReceiptNumber(tx);
       const sale = await tx.packageSale.create({
         data: {
@@ -321,6 +520,7 @@ export class CarrierWalletService {
           cashierName:     dto.cashierName,
           shiftId:         dto.shiftId ?? null,
           createdById:     userId,
+          ...this.creditFields(terms),
           ...scope(tenantId),
         },
       });
@@ -336,8 +536,10 @@ export class CarrierWalletService {
         profit:          Number(sale.profit),
         amountPaid:      Number(sale.amountPaid),
         change:          Number(sale.change),
+        creditAmount:    Number(sale.creditAmount),
+        amountDue:       Number(sale.amountDue),
       };
-    }));
+    })));
     await this.afterPackageSale(done as any, dto.shiftId, userId, tenantId);
     return done;
   }
@@ -376,6 +578,8 @@ export class CarrierWalletService {
       profit:          Number(r.profit),
       amountPaid:      Number(r.amountPaid),
       change:          Number(r.change),
+      creditAmount:    Number(r.creditAmount),
+      amountDue:       Number(r.amountDue),
     }));
   }
 

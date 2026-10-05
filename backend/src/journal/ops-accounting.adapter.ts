@@ -104,10 +104,12 @@ export class OpsAccountingAdapter {
    * A package paid from the carrier wallet: money in, the wallet goes down by its cost and
    * the difference is package revenue. A SIM sale has no wallet: the full price is revenue
    * and its cost moves from stock to cost of goods sold, like any product sale.
+   * Sold on credit ("ค้างจ่าย"): the part not paid yet is owed by the customer (other
+   * receivables) instead of money in; the revenue is the same.
    */
   async recordPackageSale(p: {
     tenantId: string | null | undefined; branchId?: string | null;
-    sale: { id: string; receiptNumber: string; carrier: string; saleType: string; packageAmount: unknown; walletDeduction: unknown; profit: unknown; paymentMethod: string };
+    sale: { id: string; receiptNumber: string; carrier: string; saleType: string; packageAmount: unknown; walletDeduction: unknown; profit: unknown; paymentMethod: string; creditAmount?: unknown };
     actorId?: string | null;
   }) {
     const price = this.dec(p.sale.packageAmount as any);
@@ -115,7 +117,11 @@ export class OpsAccountingAdapter {
     if (!price.gt(0)) return;
     const money = this.moneyAccount(p.sale.paymentMethod);
     const isSim = p.sale.saleType === 'SIM_SALE';
-    const lines: JournalLineInput[] = [{ accountCode: money, debit: price.toString(), paymentMethod: p.sale.paymentMethod }];
+    const owed  = Prisma.Decimal.min(this.dec(p.sale.creditAmount as any), price);
+    const paid  = price.sub(owed);
+    const lines: JournalLineInput[] = [];
+    if (paid.gt(0)) lines.push({ accountCode: money, debit: paid.toString(), paymentMethod: p.sale.paymentMethod });
+    if (owed.gt(0)) lines.push({ accountCode: ACCOUNT_CODES.OTHER_AR, debit: owed.toString() });
     if (isSim) {
       lines.push({ accountCode: ACCOUNT_CODES.PACKAGE_REVENUE, credit: price.toString() });
       if (cost.gt(0)) {
@@ -132,6 +138,24 @@ export class OpsAccountingAdapter {
       description: `${isSim ? 'ขายซิม' : 'ขายแพ็กเกจ'} ${p.sale.carrier} — ${p.sale.receiptNumber}`,
       sourceType: JOURNAL_SOURCE.PACKAGE_SALE, sourceId: p.sale.id, sourceRef: p.sale.receiptNumber,
       lines,
+    });
+  }
+
+  /** The customer pays (part of) what a credit SIM/package sale still owes. */
+  async recordPackageDebtPayment(p: {
+    tenantId: string | null | undefined; branchId?: string | null; paymentId: string; receiptNumber: string;
+    saleReceipt: string; paymentMethod: string; amount: number | Prisma.Decimal; actorId?: string | null;
+  }) {
+    const amount = this.dec(p.amount);
+    if (!amount.gt(0)) return;
+    await this.post(p.tenantId, 'recordPackageDebtPayment', {
+      branchId: p.branchId, actorId: p.actorId,
+      description: `รับชำระค้างจ่ายซิม/แพ็กเกจ — ${p.saleReceipt}`,
+      sourceType: JOURNAL_SOURCE.PACKAGE_DEBT_PAYMENT, sourceId: p.paymentId, sourceRef: p.receiptNumber,
+      lines: [
+        { accountCode: this.moneyAccount(p.paymentMethod), debit: amount.toString(), paymentMethod: p.paymentMethod },
+        { accountCode: ACCOUNT_CODES.OTHER_AR,             credit: amount.toString() },
+      ],
     });
   }
 

@@ -79,6 +79,7 @@ export const JOURNAL_SOURCE = {
   PO_RECEIVE:                      'PO_RECEIVE',
   PO_PAYMENT:                      'PO_PAYMENT',
   PACKAGE_SALE:                    'PACKAGE_SALE',
+  PACKAGE_DEBT_PAYMENT:            'PACKAGE_DEBT_PAYMENT',
   WALLET_TOPUP:                    'WALLET_TOPUP',
   DRAWER_WITHDRAWAL:               'DRAWER_WITHDRAWAL',
   DRAWER_DEPOSIT:                  'DRAWER_DEPOSIT',

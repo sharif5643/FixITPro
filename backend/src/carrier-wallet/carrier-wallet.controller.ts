@@ -4,12 +4,13 @@ import {
   Post,
   Body,
   Query,
+  Param,
   UseGuards,
 } from '@nestjs/common';
-import { IsEnum, IsNumber, IsOptional, IsString, Min, Max, MaxLength, ValidateNested, ArrayMaxSize, ArrayMinSize, IsArray } from 'class-validator';
+import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Min, Max, MaxLength, ValidateNested, ArrayMaxSize, ArrayMinSize, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CarrierWalletService } from './carrier-wallet.service';
-import { PackageSaleDto, CarrierEnum } from './dto/package-sale.dto';
+import { PackageSaleDto, CarrierEnum, PayPackageDebtDto } from './dto/package-sale.dto';
 import { TopupDto } from './dto/topup.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
@@ -101,6 +102,10 @@ class SimSaleDto {
 
   @IsString()
   cashierName: string;
+
+  @IsOptional() @IsBoolean()                 payLater?: boolean;
+  @IsOptional() @IsString() @MaxLength(100)  debtorName?: string;
+  @IsOptional() @IsString() @MaxLength(20)   debtorPhone?: string;
 }
 
 @UseGuards(JwtAuthGuard, TenantActiveGuard)
@@ -156,6 +161,35 @@ export class CarrierWalletController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.service.createSimSale(dto, userId, tenantId);
+  }
+
+  // ── Pay later ("ค้างจ่าย") ─────────────────────────────────────────────────
+  // Anyone who can sell SIMs/packages can sell on credit and take the money later.
+
+  /** Unpaid (default) or all credit sales of this shop. */
+  @Get('debts')
+  listDebts(
+    @CurrentUser('tenantId') tenantId: string | null,
+    @Query('status') status?: 'open' | 'settled' | 'all',
+    @Query('q') q?: string,
+  ) {
+    return this.service.listDebts(tenantId, status ?? 'open', q);
+  }
+
+  /** Whether this phone number still owes for an earlier sale (checked before a new credit sale). */
+  @Get('debts/check')
+  checkDebtor(@CurrentUser('tenantId') tenantId: string | null, @Query('phone') phone: string) {
+    return this.service.openDebtFor(tenantId, phone);
+  }
+
+  @Post('debts/:saleId/pay')
+  payDebt(
+    @Param('saleId') saleId: string,
+    @Body() dto: PayPackageDebtDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.service.payDebt(saleId, dto, userId, tenantId);
   }
 
   @Post('reconcile')
