@@ -1,5 +1,13 @@
 import type { PrintReceiptOptions } from './sunmi-printer'
 import type { ThermalPreviewData, ThermalLine } from '@/components/sunmi/printer-flow'
+import { format } from 'date-fns'
+import { th } from 'date-fns/locale'
+
+/** Dates on repair slips exactly as the web prints them (components/receipt): "06 ต.ค. 2026 01:15". */
+function webReceiptDate(iso: string): string {
+  try { return format(new Date(iso), 'dd MMM yyyy HH:mm', { locale: th }) }
+  catch { return iso }
+}
 
 export type { PrintReceiptOptions }
 
@@ -586,13 +594,7 @@ export function buildRepairReceiptThermalHtml(
   const estimateCost  = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
   const deposit       = Number(repair.deposit ?? 0)
 
-  let receivedDateStr = repair.receivedAt
-  try {
-    receivedDateStr = new Intl.DateTimeFormat('th-TH', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    }).format(new Date(repair.receivedAt))
-  } catch { /* keep ISO fallback */ }
+  const receivedDateStr = webReceiptDate(repair.receivedAt)
 
   // Logo: h-14 = 56px in web component
   const logoBlock = showLogo
@@ -640,7 +642,7 @@ ${logoBlock}
 <div class="sec">
   <p class="b">ลูกค้า</p>
   <p>${customerName}</p>
-  ${customerPhone ? `<p class="b">${customerPhone}</p>` : ''}
+  ${customerPhone ? `<p>โทร: ${customerPhone}</p>` : ''}
 </div>
 <div class="hr"></div>
 <div class="sec">
@@ -656,7 +658,7 @@ ${logoBlock}
 ${accessoriesBlock}
 <div class="hr"></div>
 <div class="sec">
-  <div class="row b"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
+  <div class="row"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
   <div class="row b"><span>ค่ามัดจำ</span><span class="v">${deposit > 0 ? `฿${fmtI(deposit)}` : '-'}</span></div>
 </div>
 <div class="hr"></div>
@@ -1098,6 +1100,7 @@ export function buildRepairDeliveryReceiptThermalHtml(
     deposit?: number | null
     paidAmount?: number | null
     paymentMethod?: string | null
+    paymentStatus?: string | null
     warrantyExpiresAt?: string | null
     warrantyNote?: string | null
     parts?: Array<{
@@ -1133,7 +1136,7 @@ export function buildRepairDeliveryReceiptThermalHtml(
   const showLogo  = settings?.showLogo !== false && !!logoUrl
 
   const ticketNum     = e(repair.ticketNumber)
-  const customerName  = e(repair.customer?.name  ?? 'ลูกค้าทั่วไป')
+  const customerName  = e(repair.customer?.name  ?? '—')
   const customerPhone = repair.customer?.phone ? e(repair.customer.phone) : ''
   const deviceInfo    = e(`${repair.deviceBrand} ${repair.deviceModel}`)
 
@@ -1143,22 +1146,17 @@ export function buildRepairDeliveryReceiptThermalHtml(
   const paidAmount = Number(repair.paidAmount ?? 0)
   const change     = Math.max(0, paidAmount - remaining)
   const payMethod  = PM_D[repair.paymentMethod ?? ''] ?? (repair.paymentMethod ?? '')
+  // Pay later: the slip says so, with what is still owed (as the web's delivery receipt)
+  const isPartial   = repair.paymentStatus === 'PARTIAL'
+  const outstanding = isPartial ? Math.max(0, remaining - paidAmount) : 0
 
-  const dateStr = (iso: string | null | undefined) => {
-    if (!iso) return ''
-    try {
-      return new Intl.DateTimeFormat('th-TH', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      }).format(new Date(iso))
-    } catch { return iso }
-  }
+  const dateStr = (iso: string | null | undefined) => (iso ? webReceiptDate(iso) : '')
   const paidDateStr = e(dateStr(repair.paidAt ?? repair.deliveredAt ?? new Date().toISOString()))
 
   const chargedParts = (repair.parts ?? []).filter(p => !p.isVoided && p.chargeToCustomer)
   const partsBlock = chargedParts.length > 0
     ? `<div class="hr"></div>
-<p class="xs b">อะไหล่ที่คิดเงิน:</p>
+<p class="xs b">อะไหล่ที่คิดเงิน</p>
 ${chargedParts.map(p => {
   const name  = e(p.product?.name ?? p.productName ?? 'อะไหล่')
   const total = Number(p.sellPrice ?? 0) * p.quantity
@@ -1168,57 +1166,51 @@ ${chargedParts.map(p => {
 
   const warrantyBlock = repair.warrantyExpiresAt
     ? `<div class="hr"></div>
-<p class="c xs b">การรับประกัน</p>
-<p class="c xs">หมดอายุ: ${e(dateStr(repair.warrantyExpiresAt))}</p>
+<p class="c xs">รับประกัน: ${e(dateStr(repair.warrantyExpiresAt))}</p>
 ${repair.warrantyNote ? `<p class="c xs">${e(repair.warrantyNote)}</p>` : ''}`
+    : ''
+
+  const partialBlock = isPartial
+    ? `<div class="hr"></div>
+<div style="border:1px solid #000;padding:${r(4)}px ${r(6)}px;margin:${r(2)}px 0">
+<div class="row b"><span>*** ยังค้างชำระ</span><span class="v">฿${fmtI(outstanding)} ***</span></div>
+<p class="c xs">กรุณานำใบนี้มาแสดงเมื่อมาชำระ</p>
+</div>`
     : ''
 
   const logoBlock = showLogo
     ? `<div class="c" style="margin-bottom:${r(4)}px"><img src="${logoUrl}" alt="logo" style="height:${r(56)}px;width:auto;object-fit:contain" onerror="this.style.display='none'"/></div>`
     : ''
 
-  function makeTrackingBlock(isCustomer: boolean): string {
-    if (!isCustomer || !opts.trackingOrigin) return ''
-    const rawUrl = customerPhone
-      ? `${opts.trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}?phone=${encodeURIComponent(repair.customer?.phone ?? '')}`
-      : `${opts.trackingOrigin}/track/${encodeURIComponent(repair.ticketNumber)}`
-    const encoded = encodeURIComponent(rawUrl)
-    const escaped = escHtml(rawUrl)
-    return `<div class="hr"></div>
-<p class="c qr-t">ติดตามประวัติการซ่อม</p>
-<p class="c qr-s">สแกน QR หรือเปิดลิงก์เพื่อดูประวัติ</p>
-<div class="c" style="margin:${r(4)}px 0">
-  <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encoded}&size=150x150&format=png" alt="QR" style="width:${r(90)}px;height:${r(90)}px" onerror="this.style.display='none'"/>
-</div>
-<p class="c qr-url">${escaped}</p>`
-  }
-
+  // Line for line the web's ThermalDeliveryReceipt (components/receipt/repair-delivery-receipt.tsx)
   function buildCopy(isShop: boolean): string {
     const copyLabel = isShop ? '[ฉบับร้าน]' : '[ฉบับลูกค้า]'
     return `${logoBlock}
 <p class="c shop-name">${shopName}</p>
-${shopPhone ? `<p class="c">โทร: ${shopPhone}</p>` : ''}
+${shopPhone ? `<p class="c xs">โทร: ${shopPhone}</p>` : ''}
 <div class="hr"></div>
-<p class="c b">ใบเสร็จรับเงิน</p>
-<p class="c b">${copyLabel}</p>
-<p class="c">#${ticketNum}</p>
-<p class="c gray">${paidDateStr}</p>
+<p class="c b">${isPartial ? 'ใบรับชำระบางส่วน' : 'ใบเสร็จรับเงิน'}</p>
+<p class="c xs">ส่งมอบอุปกรณ์</p>
+<p class="c xs gray">${copyLabel}</p>
 <div class="hr"></div>
-<div class="row"><span>ลูกค้า</span><span class="v b">${customerName}</span></div>
+<div class="row"><span>เลขที่</span><span class="v">#${ticketNum}</span></div>
+<div class="row"><span>วันที่</span><span class="v">${paidDateStr}</span></div>
+<div class="hr"></div>
+<div class="row b"><span>ลูกค้า</span><span class="v">${customerName}</span></div>
 ${customerPhone ? `<div class="row"><span>โทร</span><span class="v">${customerPhone}</span></div>` : ''}
 <div class="row"><span>อุปกรณ์</span><span class="v">${deviceInfo}</span></div>
 ${partsBlock}
 <div class="hr"></div>
 <div class="row"><span>ค่าซ่อมรวม</span><span class="v">฿${fmtI(finalCost)}</span></div>
-${deposit > 0 ? `<div class="row"><span>มัดจำชำระแล้ว</span><span class="v gray">-฿${fmtI(deposit)}</span></div>` : ''}
-<div class="row b"><span>ยอดชำระ</span><span class="v">฿${fmtI(remaining)}</span></div>
+${deposit > 0 ? `<div class="row"><span>มัดจำชำระแล้ว</span><span class="v">-฿${fmtI(deposit)}</span></div>` : ''}
+<div class="row b"><span>ยอดทั้งหมด</span><span class="v">฿${fmtI(remaining)}</span></div>
 <div class="hr"></div>
-<div class="row"><span>${payMethod}</span><span class="v">฿${fmtI(paidAmount)}</span></div>
+<div class="row"><span>รับ${isPartial ? 'ครั้งนี้' : ''} (${payMethod})</span><span class="v">฿${fmtI(paidAmount)}</span></div>
 ${change > 0 ? `<div class="row"><span>เงินทอน</span><span class="v">฿${fmtI(change)}</span></div>` : ''}
+${partialBlock}
 ${warrantyBlock}
-${makeTrackingBlock(!isShop)}
 <div class="hr"></div>
-<p class="c gray">${footer}</p>`.trim()
+<p class="c xs">${footer}</p>`.trim()
   }
 
   const shopBody     = buildCopy(true)
