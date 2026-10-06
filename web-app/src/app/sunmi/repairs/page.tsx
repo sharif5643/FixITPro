@@ -19,6 +19,8 @@ import { pushBackHandler } from '@/lib/back-stack'
 import { formatThaiMoney, getAssetUrl } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Repair, RepairStatus, ShopSettings, PaymentMethod } from '@/types'
+import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { localDay } from '@/lib/repair-batch'
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
@@ -385,6 +387,12 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   <Printer className="h-4 w-4" />
                   พิมพ์ใบรับเครื่องซ้ำ
                 </button>
+
+                <RepairBatchButton
+                  customer={repair.customer}
+                  date={localDay(repair.receivedAt)}
+                  className="w-full h-12 rounded-2xl border-2 border-blue-200 bg-blue-50 text-blue-700 font-medium flex items-center justify-center gap-2"
+                />
 
                 {repair.status === 'DELIVERED' && repair.paymentStatus === 'PAID' && (
                   <button

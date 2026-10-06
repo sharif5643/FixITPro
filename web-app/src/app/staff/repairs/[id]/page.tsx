@@ -29,6 +29,8 @@ import { RepairDeliveryPrintFlow } from '@/components/sunmi/repair-delivery-prin
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
 import { useAuthStore } from '@/store/auth.store'
 import type { Repair, Product, ShopSettings } from '@/types'
+import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { localDay } from '@/lib/repair-batch'
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -731,6 +733,9 @@ export default function RepairDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* A dealer's other devices — one slip with each one's status, price and balance */}
+            <RepairBatchButton customer={repair.customer} date={localDay(repair.receivedAt)} />
 
             {/* Timestamps */}
             <div className="flex flex-col gap-1 px-1">

@@ -2,17 +2,19 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CheckCircle2, Printer, Send, Home, Loader2, Smartphone, User } from 'lucide-react'
+import { CheckCircle2, Printer, Send, Home, Loader2, Smartphone, User, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { printRepairReceipt } from '@/lib/print'
 import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 import { Platform } from '@/lib/platform'
 import { RepairReceiptPrintFlow } from '@/components/sunmi/repair-receipt-print'
+import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { localDay } from '@/lib/repair-batch'
 
 interface RepairDetail {
-  id: string; ticketNumber: string; createdAt: string; status: string
-  customer?: { name: string; phone?: string } | null
+  id: string; ticketNumber: string; createdAt: string; receivedAt?: string; status: string
+  customer?: { id: string; name: string; phone?: string } | null
   deviceType?: string; deviceBrand: string; deviceModel: string
   deviceImei?: string; deviceColor?: string
   issue?: string; deviceConditions?: string[]
@@ -130,7 +132,7 @@ function SuccessContent() {
   }
 
   return (
-      <div className="min-h-screen bg-[#F8F9FB] pb-36">
+      <div className="min-h-screen bg-[#F8F9FB] pb-56">
 
         {/* ── Success banner ── */}
         <div className={`relative overflow-hidden bg-white px-6 pb-8 pt-14 text-center transition-all duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
@@ -301,6 +303,22 @@ function SuccessContent() {
           >
             <Send className="h-4 w-4"/> ส่งเข้าคิวช่าง
           </button>
+          {repair?.customer?.id && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => router.push(`/staff/create?customerId=${encodeURIComponent(repair.customer!.id)}`)}
+                className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border-2 border-emerald-500 bg-white text-[13px] font-bold text-emerald-700 active:bg-emerald-50"
+              >
+                <Plus className="h-4 w-4"/> รับต่อ (ลูกค้าเดิม)
+              </button>
+              <RepairBatchButton
+                customer={repair.customer}
+                date={localDay(repair.receivedAt ?? repair.createdAt)}
+                label="พิมพ์ใบรวม"
+                className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-blue-200 bg-blue-50 text-[13px] font-bold text-blue-700 active:bg-blue-100"
+              />
+            </div>
+          )}
           <button
             onClick={() => router.replace('/staff/home')}
             className="flex h-10 w-full items-center justify-center gap-2 text-[13px] font-medium text-slate-400"

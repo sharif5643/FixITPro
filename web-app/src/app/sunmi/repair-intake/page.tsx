@@ -14,7 +14,7 @@ import { format, addDays } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
   User, Search, X, CheckCircle2, ChevronRight, ChevronLeft,
-  Wrench, Calendar, Banknote, Camera, Images,
+  Wrench, Calendar, Banknote, Camera, Images, Plus,
 } from 'lucide-react'
 
 type PhotoItem = { file: File; preview: string }
@@ -29,6 +29,8 @@ import api from '@/lib/api'
 import { offlineQueue } from '@/lib/offline-queue'
 import { useNetworkStatus } from '@/hooks/use-network-status'
 import type { Customer, ShopSettings, User as UserType, Repair } from '@/types'
+import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { localDay } from '@/lib/repair-batch'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -136,7 +138,10 @@ function StepCustomer({ register, errors, setValue, watch }: { register: any; er
   const [searchQ, setSearchQ]     = useState('')
   const [searching, setSearching] = useState(false)
   const [results, setResults]     = useState<Customer[]>([])
-  const [selected, setSelected]   = useState<Customer | null>(null)
+  const [selected, setSelected]   = useState<Customer | null>(() => {
+    const id = watch('customerId')
+    return id ? ({ id, name: watch('customerName') ?? '', phone: watch('customerPhone') || undefined } as Customer) : null
+  })
   const searchTimer                = useRef<ReturnType<typeof setTimeout>>()
 
   async function doSearch(q: string) {
@@ -798,6 +803,8 @@ export default function RepairIntakePage() {
   const [preview, setPreview]   = useState<PrintRepairIntakeOptions | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [photos, setPhotos]   = useState<PhotoItem[]>([])
+  // The customer of the job just taken in — a dealer often brings several devices at once
+  const [lastCustomer, setLastCustomer] = useState<{ id: string; name: string; phone?: string | null; day: string } | null>(null)
 
   function handleAddPhoto(files: FileList) {
     const remaining = Math.max(0, 6 - photos.length)
@@ -855,6 +862,23 @@ export default function RepairIntakePage() {
 
   // Sync default deposit when settings load
   const defaultDeposit = Number(settings?.defaultDeposit ?? 0)
+
+  function startWithCustomer(c: { id: string; name: string; phone?: string | null }) {
+    setValue('customerId', c.id)
+    setValue('customerName', c.name)
+    setValue('customerPhone', c.phone ?? '')
+    setStep(1)
+  }
+
+  // "รับเครื่องถัดไป (ลูกค้าเดิม)" from the print flow reopens this page with ?customerId=
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('customerId')
+    if (!id) return
+    api.get(`/customers/${id}`)
+      .then((r) => { if (r.data?.id) startWithCustomer(r.data) })
+      .catch(() => { /* pick the customer by hand */ })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function goNext() {
     let fields: (keyof FormData)[] = []
@@ -961,6 +985,9 @@ export default function RepairIntakePage() {
       setStep(0)
       setPreview(opts)
       setPreviewId(String(repair.id))
+      setLastCustomer(repair.customer?.id
+        ? { id: repair.customer.id, name: repair.customer.name, phone: repair.customer.phone, day: localDay(repair.receivedAt) }
+        : null)
     },
 
     onError: (err: any) => {
@@ -1014,6 +1041,16 @@ export default function RepairIntakePage() {
         }
       >
         <div className="p-4 space-y-4 pb-4">
+          {step === 0 && lastCustomer && !watch('customerId') && (
+            <div className="space-y-2 rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-xs font-semibold text-emerald-800">งานก่อนหน้า: {lastCustomer.name}{lastCustomer.phone ? ` · ${lastCustomer.phone}` : ''}</p>
+              <button type="button" onClick={() => startWithCustomer(lastCustomer)}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white active:bg-emerald-700">
+                <Plus className="h-4 w-4" /> รับเครื่องถัดไป (ลูกค้าเดิม)
+              </button>
+              <RepairBatchButton customer={lastCustomer} date={lastCustomer.day} />
+            </div>
+          )}
           {step === 0 && (
             <StepCustomer register={register} errors={errors} setValue={setValue} watch={watch} />
           )}
@@ -1055,6 +1092,7 @@ export default function RepairIntakePage() {
             a4:       `/print/repair/${previewId}?paper=A4&mode=apk`,
           } : undefined}
           successNavItems={[
+            ...(lastCustomer ? [{ label: `รับเครื่องถัดไป (${lastCustomer.name})`, href: `${window.location.pathname}?customerId=${encodeURIComponent(lastCustomer.id)}` }] : []),
             { label: 'ดูรายการซ่อมทั้งหมด', href: '/sunmi/repairs' },
             { label: 'รับงานใหม่',           href: '/sunmi/repair-intake' },
             { label: 'กลับหน้าหลัก',         href: '/sunmi' },

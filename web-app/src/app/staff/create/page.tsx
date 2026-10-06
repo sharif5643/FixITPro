@@ -2,7 +2,7 @@
 
 import { ISSUE_TAG_OPTIONS, SPECIAL_ISSUE_TAGS, CONDITION_OPTIONS_LIST, ACCESSORY_OPTIONS } from '@/lib/repair-tags'
 import { useAppBranch } from '@/hooks/useAppBranch'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, Search, UserPlus, Smartphone, Tablet, Laptop,
@@ -159,6 +159,18 @@ export default function CreateRepairPage() {
 
   const total     = (parseFloat(laborCost) || 0) + (parseFloat(partsCost) || 0)
   const remaining = total - (parseFloat(deposit) || 0) - (parseFloat(discount) || 0)
+
+  // "รับเครื่องถัดไป (ลูกค้าเดิม)" opens this page with ?customerId= — start with that customer picked
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('customerId')
+    if (!id) return
+    api.get(`/customers/${id}`)
+      .then((r) => {
+        const c = r.data
+        if (c?.id) setSelectedCust({ id: c.id, name: c.name, phone: c.phone ?? '', totalRepairs: c._count?.repairs ?? 0 })
+      })
+      .catch(() => { /* pick the customer by hand */ })
+  }, [])
 
   // ── Handlers ──
 

@@ -2,6 +2,7 @@ import type { PrintReceiptOptions } from './sunmi-printer'
 import type { ThermalPreviewData, ThermalLine } from '@/components/sunmi/printer-flow'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
+import type { BatchRow, BatchScope, BatchSummary } from './repair-batch'
 
 /** Dates on repair slips exactly as the web prints them (components/receipt): "06 ต.ค. 2026 01:15". */
 function webReceiptDate(iso: string): string {
@@ -783,6 +784,141 @@ ${footer}`
 </head><body>
 ${body}
 </body></html>`
+}
+
+// ── Combined slip for a dealer's devices (ใบรับเครื่องรวม) ─────────────────────────
+
+function batchTitle(scope: BatchScope): string {
+  return scope.kind === 'date' ? 'ใบรับเครื่องรวม' : 'สรุปงานซ่อมค้าง'
+}
+
+function batchDateLine(scope: BatchScope): string {
+  if (scope.kind === 'open') return `พิมพ์เมื่อ: ${webReceiptDate(new Date().toISOString())}`
+  try { return `วันที่รับเครื่อง: ${format(new Date(`${scope.date}T00:00:00`), 'dd MMM yyyy', { locale: th })}` }
+  catch { return `วันที่รับเครื่อง: ${scope.date}` }
+}
+
+function batchDevice(r: BatchRow['repair']): string {
+  return [r.deviceBrand, r.deviceModel].filter(Boolean).join(' ') || 'อุปกรณ์'
+}
+
+/**
+ * One slip listing every device of one customer — received that day, or still open — with each
+ * device's status, price, paid and owed, and the totals. Same HTML on the web, staff app and SUNMI.
+ */
+export function buildRepairBatchThermalHtml(
+  summary: BatchSummary,
+  scope: BatchScope,
+  customer: { name?: string | null; phone?: string | null } | null | undefined,
+  settings: { shopName?: string | null; shopPhone?: string | null; shopAddress?: string | null; logoUrl?: string | null } | null | undefined,
+  opts: { paperWidth?: '58mm' | '80mm' } = {},
+): string {
+  const e   = escHtml
+  const px  = opts.paperWidth === '80mm' ? 576 : 384
+  const css = makeReceiptThermalCss(px)
+  const r   = (webPx: number) => Math.round(webPx * px / 200)
+  const money = (n: number) => `฿${fmtI(n)}`
+
+  const logoUrl = settings?.logoUrl ?? ''
+  const header = [
+    logoUrl ? `<div class="c" style="margin-bottom:${r(2)}px"><img src="${logoUrl}" alt="logo" style="height:${r(40)}px;width:auto;object-fit:contain" onerror="this.style.display='none'"/></div>` : '',
+    `<p class="c shop-name">${e(settings?.shopName || 'FixITPro')}</p>`,
+    settings?.shopPhone   ? `<p class="c">โทร: ${e(settings.shopPhone)}</p>` : '',
+    settings?.shopAddress ? `<p class="c">${e(settings.shopAddress)}</p>` : '',
+  ].join('\n')
+
+  const devices = summary.rows.map((x, i) => {
+    const rep = x.repair
+    return `<div class="sec">
+<p class="b">${i + 1}. ${e(rep.ticketNumber)}</p>
+<p style="padding-left:${r(8)}px">${e(batchDevice(rep))}</p>
+${rep.deviceImei ? `<p class="gray" style="padding-left:${r(8)}px">IMEI: ${e(rep.deviceImei)}</p>` : ''}
+${rep.issue ? `<p class="gray" style="padding-left:${r(8)}px">อาการ: ${e(rep.issue)}</p>` : ''}
+<div class="row" style="padding-left:${r(8)}px"><span>สถานะ: ${e(x.statusLabel)}</span><span class="v">${x.cancelled ? '—' : x.price == null ? 'รอประเมิน' : money(x.price)}</span></div>
+${!x.cancelled && (x.paid > 0 || x.owed > 0) ? `<div class="row" style="padding-left:${r(8)}px"><span>จ่ายแล้ว ${money(x.paid)}</span><span class="v">${x.owed > 0 ? `${rep.status === 'DELIVERED' ? 'ค้าง' : 'คงเหลือ'} ${money(x.owed)}` : 'ครบ'}</span></div>` : ''}
+</div>`
+  }).join('\n<div class="hr"></div>\n')
+
+  const counts = [
+    `ส่งคืนแล้ว ${summary.returned}`,
+    `อยู่ที่ร้าน ${summary.atShop}`,
+    summary.cancelled ? `ยกเลิก ${summary.cancelled}` : '',
+  ].filter(Boolean).join(' · ')
+
+  const body = `${header}
+<div class="hr"></div>
+<div class="c sec">
+<p class="b">${batchTitle(scope)}</p>
+<p class="gray">${e(batchDateLine(scope))}</p>
+</div>
+<div class="hr"></div>
+<div class="sec">
+<p>ลูกค้า: ${e(customer?.name || '—')}</p>
+${customer?.phone ? `<p>โทร: ${e(customer.phone)}</p>` : ''}
+<p>จำนวน: ${summary.count} เครื่อง</p>
+<p class="gray">${counts}</p>
+</div>
+<div class="hr"></div>
+${devices || '<p class="c gray">ไม่มีรายการ</p>'}
+<div class="hr"></div>
+<div class="row"><span>ยอดรวม</span><span class="v">${money(summary.total)}</span></div>
+${summary.unpriced ? `<p class="gray">(ยังไม่ประเมินราคา ${summary.unpriced} เครื่อง)</p>` : ''}
+<div class="row"><span>จ่ายแล้ว</span><span class="v">${money(summary.paid)}</span></div>
+<div class="row b"><span>ค้างชำระ</span><span class="v">${money(summary.owed)}</span></div>
+<div class="hr"></div>
+<div class="sig">
+<div class="sig-box"><div class="sig-line"></div>ผู้ส่งเครื่อง</div>
+<div class="sig-box"><div class="sig-line"></div>ผู้รับเครื่อง</div>
+</div>
+<p class="c gray">กรุณานำใบนี้มาแสดงเมื่อรับเครื่อง</p>`
+
+  return `<!DOCTYPE html><html lang="th"><head>
+<meta charset="utf-8">
+<title>${batchTitle(scope)}</title>
+<style>${css}</style>
+</head><body>
+${body}
+</body></html>`
+}
+
+/** On-screen preview lines for the combined slip (PrinterFlowSheet). */
+export function buildRepairBatchPreviewData(
+  summary: BatchSummary,
+  scope: BatchScope,
+  customer: { name?: string | null; phone?: string | null } | null | undefined,
+  settings: { shopName?: string | null; shopPhone?: string | null } | null | undefined,
+): ThermalPreviewData {
+  const lines: ThermalLine[] = [
+    { type: 'center', text: batchDateLine(scope), small: true },
+    { type: 'separator' },
+    { type: 'row', label: 'ลูกค้า', value: customer?.name || '—' },
+    ...(customer?.phone ? [{ type: 'row' as const, label: 'โทร', value: customer.phone }] : []),
+    { type: 'row', label: 'จำนวน', value: `${summary.count} เครื่อง` },
+    { type: 'separator' },
+  ]
+  summary.rows.forEach((x, i) => {
+    const detail = x.statusLabel
+    lines.push({
+      type: 'item',
+      name: `${i + 1}. ${x.repair.ticketNumber} ${batchDevice(x.repair)}`,
+      detail: x.cancelled ? detail : `${detail}${x.owed > 0 ? ` · ${x.repair.status === 'DELIVERED' ? 'ค้าง' : 'คงเหลือ'} ฿${fmtI(x.owed)}` : x.paid > 0 ? ' · จ่ายครบ' : ''}`,
+      total: x.cancelled ? '—' : x.price == null ? 'รอประเมิน' : `฿${fmtI(x.price)}`,
+    })
+  })
+  lines.push(
+    { type: 'separator' },
+    { type: 'row', label: 'ยอดรวม', value: `฿${fmtI(summary.total)}` },
+    { type: 'row', label: 'จ่ายแล้ว', value: `฿${fmtI(summary.paid)}` },
+    { type: 'row', label: 'ค้างชำระ', value: `฿${fmtI(summary.owed)}`, bold: true },
+  )
+  return {
+    title:     batchTitle(scope),
+    number:    `${summary.count} เครื่อง`,
+    shopName:  settings?.shopName || 'FixITPro',
+    shopPhone: settings?.shopPhone || undefined,
+    footer:    'กรุณานำใบนี้มาแสดงเมื่อรับเครื่อง',
+    lines,
+  }
 }
 
 // ── Web Share API (text → LINE / WhatsApp / email) ────────────────────────────
