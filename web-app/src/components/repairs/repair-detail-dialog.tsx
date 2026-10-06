@@ -42,6 +42,7 @@ import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
 import type { Repair, RepairStatus, Product, ShopSettings } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
 import { localDay } from '@/lib/repair-batch'
 
 const STATUS_LABEL: Record<RepairStatus, string> = {
@@ -489,6 +490,11 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent"
                       />
                     )}
+                    <FormalDocButton
+                      repair={repair}
+                      label="เอกสาร A4 / PDF"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent"
+                    />
                   </span>
                 </>
               )}

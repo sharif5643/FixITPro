@@ -20,6 +20,7 @@ import { formatThaiMoney, getAssetUrl } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Repair, RepairStatus, ShopSettings, PaymentMethod } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
 import { localDay } from '@/lib/repair-batch'
 
 // ── constants ──────────────────────────────────────────────────────────────────
@@ -392,6 +393,10 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   customer={repair.customer}
                   date={localDay(repair.receivedAt)}
                   className="w-full h-12 rounded-2xl border-2 border-blue-200 bg-blue-50 text-blue-700 font-medium flex items-center justify-center gap-2"
+                />
+                <FormalDocButton
+                  repair={repair}
+                  className="w-full h-12 rounded-2xl border-2 border-slate-200 text-slate-700 font-medium flex items-center justify-center gap-2"
                 />
 
                 {repair.status === 'DELIVERED' && repair.paymentStatus === 'PAID' && (

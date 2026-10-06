@@ -24,6 +24,7 @@ import api from '@/lib/api'
 import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import type { Customer } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -244,6 +245,11 @@ export default function CustomerDetailPage() {
           customer={customer}
           always
           label="ใบรวมงานซ่อม"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent"
+        />
+        <FormalDocButton
+          customerId={customer.id}
+          label="เอกสาร A4 / PDF"
           className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent"
         />
       </div>

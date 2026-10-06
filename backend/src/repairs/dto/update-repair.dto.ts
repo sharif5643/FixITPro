@@ -95,6 +95,12 @@ export class UpdateRepairDto {
   @MaxLength(100)
   deviceImei?: string;
 
+  // Agency asset number (เลขครุภัณฑ์)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  assetTag?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(100)
