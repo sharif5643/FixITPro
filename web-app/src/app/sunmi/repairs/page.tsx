@@ -145,7 +145,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   // Payment / handover is allowed from both (same as the API)
   const isReady       = repair.status === 'COMPLETED' || repair.status === 'READY_PICKUP'
   const canQc         = useAuthStore((st) => st.hasPermission)('repairs.qc.perform')
-  const canReverse    = useAuthStore((st) => st.hasPermission)('repair.close')
+  // The API undoes only a fully paid handover (a pay-later one is settled with more payments)
+  const canReverse    = useAuthStore((st) => st.hasPermission)('repair.close') && repair.paymentStatus === 'PAID'
   const [reverseOpen, setReverseOpen]     = useState(false)
   const [reverseReason, setReverseReason] = useState('')
   const reverseMutation = useMutation({
