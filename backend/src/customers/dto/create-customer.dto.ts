@@ -24,4 +24,15 @@ export class CreateCustomerDto {
   @IsString()
   @MaxLength(1000)
   note?: string;
+
+  // Agencies and companies: printed on formal documents
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  taxId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  taxBranch?: string;
 }

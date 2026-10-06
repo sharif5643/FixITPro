@@ -30,6 +30,7 @@ import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branc
 import { useAuthStore } from '@/store/auth.store'
 import type { Repair, Product, ShopSettings } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
 import { localDay } from '@/lib/repair-batch'
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -736,6 +737,7 @@ export default function RepairDetailPage() {
 
             {/* A dealer's other devices — one slip with each one's status, price and balance */}
             <RepairBatchButton customer={repair.customer} date={localDay(repair.receivedAt)} />
+            <FormalDocButton repair={repair} />
 
             {/* Timestamps */}
             <div className="flex flex-col gap-1 px-1">

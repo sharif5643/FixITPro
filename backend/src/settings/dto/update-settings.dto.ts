@@ -6,6 +6,7 @@ import {
   IsIn,
   Min,
   Max,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -33,6 +34,17 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsString()
   taxId?: string;
+
+  // Formal A4 documents: legal name of the owner / company, and tax branch (e.g. สำนักงานใหญ่)
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  legalName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  taxBranch?: string;
 
   @IsOptional()
   @IsString()

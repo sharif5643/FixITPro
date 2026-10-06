@@ -500,6 +500,7 @@ export class RepairsService {
     if (dto.approvalNote !== undefined) updateData.approvalNote = dto.approvalNote;
     if (dto.actualLaborCost !== undefined) updateData.actualLaborCost = dto.actualLaborCost;
     if (dto.deviceImei !== undefined) updateData.deviceImei = dto.deviceImei.trim() || null;
+    if (dto.assetTag !== undefined) updateData.assetTag = dto.assetTag.trim() || null;
     if (dto.deviceBrand !== undefined) updateData.deviceBrand = dto.deviceBrand.trim();
     if (dto.deviceModel !== undefined) updateData.deviceModel = dto.deviceModel.trim();
     if (dto.deviceColor !== undefined) updateData.deviceColor = dto.deviceColor.trim() || null;

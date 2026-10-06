@@ -21,6 +21,8 @@ export interface ShopSettings {
   paymentQrUrl?: string | null
   showTaxId: boolean
   showLogo: boolean
+  legalName?: string | null
+  taxBranch?: string | null
   promptpayId?: string | null
   lineChannelAccessToken?: string | null
   lineNotifyEnabled: boolean
@@ -456,6 +458,8 @@ export interface Customer {
   points: number
   tags: string[]
   lineUserId?: string | null
+  taxId?: string | null
+  taxBranch?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -590,6 +594,7 @@ export interface Repair {
   deviceModel: string
   deviceColor?: string
   deviceImei?: string
+  assetTag?: string | null
   issue: string
   accessories?: string
   dueDate?: string

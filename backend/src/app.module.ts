@@ -15,6 +15,7 @@ import { StockModule } from './stock/stock.module';
 import { CustomersModule } from './customers/customers.module';
 import { SalesModule } from './sales/sales.module';
 import { RepairsModule } from './repairs/repairs.module';
+import { FormalDocumentsModule } from './formal-documents/formal-documents.module';
 import { ShiftsModule } from './shifts/shifts.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
@@ -97,6 +98,7 @@ import { TenantBackupModule }             from './tenant-backup/tenant-backup.mo
     CustomersModule,
     SalesModule,
     RepairsModule,
+    FormalDocumentsModule,
     ShiftsModule,
     ReportsModule,
     SettingsModule,

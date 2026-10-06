@@ -31,6 +31,8 @@ const settingsSchema = z.object({
   shopAddress:         z.string().optional(),
   shopEmail:           z.string().optional(),
   taxId:               z.string().optional(),
+  legalName:           z.string().max(200).optional(),
+  taxBranch:           z.string().max(100).optional(),
   logoUrl:             z.string().optional(),
   receiptFooter:       z.string().optional(),
   paperWidth:          z.enum(['58mm', '80mm']),
@@ -158,6 +160,8 @@ export default function SettingsPage() {
         shopAddress:         settings.shopAddress         ?? '',
         shopEmail:           settings.shopEmail           ?? '',
         taxId:               settings.taxId               ?? '',
+        legalName:           settings.legalName           ?? '',
+        taxBranch:           settings.taxBranch           ?? '',
         logoUrl:             settings.logoUrl             ?? '',
         receiptFooter:       settings.receiptFooter       ?? '',
         paperWidth:          settings.paperWidth as '58mm' | '80mm',
@@ -186,6 +190,8 @@ export default function SettingsPage() {
         shopAddress:        data.shopAddress         || null,
         shopEmail:          data.shopEmail           || null,
         taxId:              data.taxId               || null,
+        legalName:          data.legalName?.trim()   || null,
+        taxBranch:          data.taxBranch?.trim()   || null,
         logoUrl:            data.logoUrl             || null,
         receiptFooter:      data.receiptFooter       || null,
         repairWarrantyText: data.repairWarrantyText  || null,
@@ -436,9 +442,24 @@ export default function SettingsPage() {
                     />
                   </div>
 
-                  <div className="space-y-1.5 max-w-xs">
-                    <Label>เลขผู้เสียภาษี (Tax ID)</Label>
-                    <Input placeholder="0-0000-00000-00-0" {...register('taxId')} />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>เลขผู้เสียภาษี (Tax ID)</Label>
+                      <Input placeholder="0-0000-00000-00-0" {...register('taxId')} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>สำนักงานใหญ่ / สาขา</Label>
+                      <Input placeholder="สำนักงานใหญ่" {...register('taxBranch')} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>ชื่อผู้ประกอบการ (สำหรับเอกสารราชการ / บริษัท)</Label>
+                    <Input placeholder="เช่น นายสมชาย ใจดี หรือ บริษัท ตัวอย่าง จำกัด" {...register('legalName')} />
+                    <p className="text-xs text-muted-foreground">
+                      ใช้แทนชื่อร้านบนใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จแบบ A4 เมื่อเลือก &quot;ชื่อผู้ประกอบการ&quot; ตอนออกเอกสาร
+                      — ถ้าร้านจด VAT ให้ตั้ง VAT % ในแท็บการเงิน ใบเสร็จจะกลายเป็นใบกำกับภาษีให้เอง
+                    </p>
                   </div>
                 </div>
               </SectionCard>
@@ -598,7 +619,7 @@ export default function SettingsPage() {
                   <div className="space-y-1.5">
                     <Label>VAT (%)</Label>
                     <Input type="number" min={0} max={100} step={0.5} placeholder="0" {...register('vatPercent')} />
-                    <p className="text-xs text-slate-400">0 = ไม่คิด VAT · 7 = VAT 7%</p>
+                    <p className="text-xs text-slate-400">0 = ไม่คิด VAT · 7 = VAT 7% — ถ้ามากกว่า 0 ใบเสร็จ A4 จะออกเป็นใบเสร็จรับเงิน/ใบกำกับภาษี</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label>ค่ามัดจำเริ่มต้น (฿)</Label>

@@ -393,6 +393,40 @@ model TenantPayment {
 }
 
 /// A phone that gets notifications (Firebase) for the account signed in on it
+// Formal A4 documents for agencies: quotation, delivery note / invoice, receipt (a tax invoice
+// when the shop charges VAT). The printed content is kept as issued, so a reprint is the same paper.
+model FormalDocument {
+  id          String   @id @default(cuid())
+  tenantId    String
+  branchId    String?
+  type        String // QUOTATION | INVOICE | RECEIPT
+  number      String
+  docDate     DateTime // the date printed on the paper (unless hideDate)
+  hideDate    Boolean  @default(false)
+  customerId  String?
+  repairIds   String[] @default([])
+  total       Decimal  @db.Decimal(12, 2)
+  vatPercent  Decimal  @default(0) @db.Decimal(5, 2)
+  content     Json
+  createdById String?
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, type, number])
+  @@index([tenantId, createdAt])
+  @@index([customerId])
+}
+
+// Running number per shop, document type and Buddhist year
+model FormalDocumentCounter {
+  tenantId String
+  type     String
+  year     Int
+  last     Int    @default(0)
+
+  @@id([tenantId, type, year])
+}
+
 model PushDevice {
   id         String   @id @default(cuid())
   token      String   @unique
@@ -624,6 +658,9 @@ model Customer {
   points     Int      @default(0)
   tags       String[] @default([])
   lineUserId String?
+  // For agencies and companies: printed on formal A4 documents (ใบเสร็จ / ใบกำกับภาษี)
+  taxId      String?
+  taxBranch  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -812,6 +849,8 @@ model Repair {
   deviceModel        String
   deviceColor        String?
   deviceImei         String?
+  // Agency asset number (เลขครุภัณฑ์), printed on formal documents
+  assetTag           String?
   issue              String
   status             RepairStatus @default(RECEIVED)
   estimateCost       Decimal?     @db.Decimal(10, 2)
@@ -942,6 +981,9 @@ model ShopSettings {
   paymentQrUrl            String?
   showTaxId               Boolean  @default(true)
   showLogo                Boolean  @default(true)
+  // Formal A4 documents: the owner's legal name (instead of the shop brand) and the tax branch
+  legalName               String?
+  taxBranch               String?
   lineChannelAccessToken  String?
   lineNotifyEnabled       Boolean  @default(false)
   promptpayId             String?
