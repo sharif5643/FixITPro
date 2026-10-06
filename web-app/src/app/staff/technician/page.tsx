@@ -27,7 +27,7 @@ const S_COLOR: Record<string, string> = {
   READY_PICKUP: 'bg-emerald-50 text-emerald-600',
 }
 
-type Tab = 'mine' | 'open'
+type Tab = 'mine' | 'open' | 'all'
 
 export default function TechnicianPage() {
   const router = useRouter()
@@ -36,6 +36,9 @@ export default function TechnicianPage() {
   const [loading, setLoading] = useState(true)
   const [busyId,  setBusyId]  = useState<string | null>(null)
   const [tab,     setTab]     = useState<Tab>('mine')
+  const [query,   setQuery]   = useState('')
+  const [found,   setFound]   = useState<Repair[] | null>(null)
+  const [searching, setSearching] = useState(false)
 
   function loadData() {
     api.get('/repairs?activeOnly=true')
@@ -52,7 +55,25 @@ export default function TechnicianPage() {
   const mine = repairs.filter((r) => r.technician?.id === user?.id)
   // A finished job waiting for the customer is not work to pick up
   const open = repairs.filter((r) => !r.technician && !['COMPLETED', 'READY_PICKUP'].includes(r.status))
-  const list = tab === 'mine' ? mine : open
+  // Every job, to answer a customer — a colleague's job opens view only
+  const q = query.trim().toLowerCase()
+  const matches = (r: Repair) => !q || [r.ticketNumber, r.customer?.name, r.customer?.phone, r.deviceBrand, r.deviceModel, r.deviceImei, r.technician?.name]
+    .some((v) => (v ?? '').toLowerCase().includes(q))
+  const all = found ?? repairs.filter(matches)
+  const list = tab === 'mine' ? mine : tab === 'open' ? open : all
+
+  // Finished and older jobs are not in the active list — ask the server once the search is specific
+  useEffect(() => {
+    if (tab !== 'all' || q.length < 3) { setFound(null); return }
+    const t = setTimeout(() => {
+      setSearching(true)
+      api.get('/repairs', { params: { search: q, limit: 50 } })
+        .then((r) => { const l = r.data?.data ?? r.data ?? []; setFound(Array.isArray(l) ? l : []) })
+        .catch(() => setFound(null))
+        .finally(() => setSearching(false))
+    }, 350)
+    return () => clearTimeout(t)
+  }, [tab, q])
 
   async function patch(id: string, body: Record<string, unknown>, ok: string) {
     setBusyId(id)
@@ -110,8 +131,8 @@ export default function TechnicianPage() {
         </div>
 
         {/* Tabs */}
-        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-          {([['mine', 'งานของฉัน', mine.length], ['open', 'งานกลาง (ยังไม่มีช่าง)', open.length]] as const).map(([key, label, n]) => (
+        <div className="grid grid-cols-3 gap-1 rounded-2xl bg-white p-1 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+          {([['mine', 'งานของฉัน', mine.length], ['open', 'งานกลาง', open.length], ['all', 'งานทั้งหมด', repairs.length]] as const).map(([key, label, n]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -122,13 +143,24 @@ export default function TechnicianPage() {
           ))}
         </div>
 
+        {tab === 'all' && (
+          <div className="space-y-1">
+            <input value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder="ค้นหา เลขงาน / ชื่อลูกค้า / เบอร์ / IMEI / ช่าง"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-brand-yellow" />
+            <p className="px-1 text-[11px] text-slate-400">
+              {searching ? 'กำลังค้นหา…' : 'ดูได้ทุกงาน — งานของช่างคนอื่นเปิดดูได้อย่างเดียว แก้ไขไม่ได้'}
+            </p>
+          </div>
+        )}
+
         {/* Job list */}
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-brand-yellow" /></div>
         ) : list.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-2xl bg-white py-12 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
             <Wrench className="h-10 w-10 text-slate-200" />
-            <p className="text-sm text-slate-400">{tab === 'mine' ? 'ยังไม่มีงานที่มอบหมายให้คุณ' : 'ไม่มีงานกลางรอช่าง'}</p>
+            <p className="text-sm text-slate-400">{tab === 'mine' ? 'ยังไม่มีงานที่มอบหมายให้คุณ' : tab === 'open' ? 'ไม่มีงานกลางรอช่าง' : 'ไม่พบงานซ่อม'}</p>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -147,13 +179,18 @@ export default function TechnicianPage() {
                     </div>
                     <p className="text-sm font-semibold text-brand-black">{r.deviceBrand} {r.deviceModel}</p>
                     <p className="text-xs text-slate-400 truncate">{r.customer?.name ?? 'ไม่ระบุลูกค้า'}{r.issue ? ` · ${r.issue}` : ''}</p>
+                    {tab === 'all' && (r.technician || !['DELIVERED', 'CANCELLED'].includes(r.status)) && (
+                      <p className={`mt-0.5 text-[11px] font-semibold ${r.technician?.id === user?.id ? 'text-emerald-600' : r.technician ? 'text-slate-500' : 'text-violet-600'}`}>
+                        {r.technician?.id === user?.id ? 'งานของคุณ' : r.technician ? `ช่าง: ${r.technician.name} · ดูได้อย่างเดียว` : 'ยังไม่มีช่างรับ'}
+                      </p>
+                    )}
                   </div>
                   <button onClick={() => router.push(`/staff/repairs/${r.id}`)} aria-label="เปิดงาน">
                     <ChevronRight className="h-4 w-4 text-slate-300" />
                   </button>
                 </div>
 
-                {tab === 'open' ? (
+                {tab === 'all' ? null : tab === 'open' ? (
                   <button
                     disabled={busyId === r.id}
                     onClick={() => patch(r.id, { technicianId: user?.id }, 'รับงานแล้ว — อยู่ในงานของฉัน')}

@@ -10,6 +10,7 @@ import { SunmiShell } from '@/components/sunmi/sunmi-shell'
 import { canMoveRepair } from '@/lib/repair-status-flow'
 import { QcDialog } from '@/components/repairs/qc-dialog'
 import { RepairWorkTools } from '@/components/repairs/repair-work-tools'
+import { TechOwnershipBar, useTechOwnership } from '@/components/repairs/tech-ownership'
 import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
 import { RepairReceiptPrintFlow } from '@/components/sunmi/repair-receipt-print'
 import { RepairDeliveryPrintFlow } from '@/components/sunmi/repair-delivery-print'
@@ -170,6 +171,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
     queryFn: async () => (await api.get(`/repairs/${repair.id}`)).data,
     staleTime: 0,
   })
+  const own = useTechOwnership((repairDetail ?? repair) as any)
 
   const { data: productResults = [] } = useQuery<ProductResult[]>({
     queryKey: ['products-search', partsSearch],
@@ -214,7 +216,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const currentParts = repairDetail?.parts ?? repair.parts ?? []
   const partsTotal   = currentParts.reduce((sum, p) => sum + p.quantity * Number(p.price), 0)
   const finalCostNum = Number(repair.finalCost ?? repair.estimateCost ?? 0)
-  const canModifyParts = !['COMPLETED', 'DELIVERED'].includes(repair.status)
+  // A technician works only on their own job; a colleague's is view only (payment / handover allowed)
+  const canModifyParts = !['COMPLETED', 'DELIVERED'].includes(repair.status) && !own.viewOnly
 
   const statusMutation = useMutation({
     mutationFn: (status: RepairStatus) => api.patch(`/repairs/${repair.id}`, { status }),
@@ -422,6 +425,9 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                 )}
                 <QcDialog repair={repair} open={qcOpen} onClose={() => setQcOpen(false)}
                   onDone={() => { onMutated(); onClose() }} />
+                <TechOwnershipBar repair={(repairDetail ?? repair) as any}
+                  onChanged={() => { qc.invalidateQueries({ queryKey: ['repair-detail', repair.id] }); onMutated() }} />
+                {!own.viewOnly && (<>
                 {/* Technician, quote, approval and IMEI — the web's steps (shared component) */}
                 <RepairWorkTools repair={(repairDetail ?? repair) as any}
                   onChanged={() => { qc.invalidateQueries({ queryKey: ['repair-detail', repair.id] }); onMutated() }} />
@@ -468,6 +474,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                     )
                   })}
                 </div>
+                </>)}
               </div>
             )}
 
