@@ -9,8 +9,9 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.13.0'
         classpath 'com.google.gms:google-services:4.4.4'
-        // Kotlin support for native plugins (SunmiPrinterPlugin.kt)
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24'
+        // Kotlin support for native plugins (SunmiPrinterPlugin.kt). Must be at least the
+        // version the Capacitor plugins are built with (@capacitor/filesystem 8 needs 2.2).
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.20'
     }
 }
 
