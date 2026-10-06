@@ -336,7 +336,7 @@ export default function TechnicianProfilePage() {
           <BarChart
             data={tech.daily}
             valueKey="repairs"
-            color="#3b82f6"
+            color="rgb(var(--blue-500))"
             label="จำนวนงานซ่อมสำเร็จ/วัน"
             formatter={(v) => `${v} งาน`}
           />

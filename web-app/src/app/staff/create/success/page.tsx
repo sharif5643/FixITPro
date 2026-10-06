@@ -72,7 +72,7 @@ function SuccessContent() {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
-        <Loader2 className="h-7 w-7 animate-spin text-[#FFC107]"/>
+        <Loader2 className="h-7 w-7 animate-spin text-[rgb(var(--brand-accent))]"/>
       </div>
     )
   }
@@ -169,7 +169,7 @@ function SuccessContent() {
             <div className={`rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] transition-all duration-500 delay-[500ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
               <p className="mb-3 text-[13px] font-bold text-[#111]">ข้อมูลลูกค้า</p>
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FFC107] text-sm font-bold text-[#111]">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))]">
                   <User className="h-5 w-5"/>
                 </div>
                 <div className="flex-1">
@@ -293,7 +293,7 @@ function SuccessContent() {
         <div className="fixed left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))' }}>
           <button
             onClick={handlePrint}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC107] text-[15px] font-bold text-[#111] shadow-[0_4px_20px_rgba(255,193,7,0.4)] active:scale-[0.98] transition-transform"
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[rgb(var(--brand-accent))] text-[15px] font-bold text-[rgb(var(--brand-accent-fg))] shadow-[0_4px_20px_rgb(var(--brand-accent)/0.4)] active:scale-[0.98] transition-transform"
           >
             <Printer className="h-5 w-5"/> พิมพ์ใบรับซ่อม
           </button>

@@ -86,7 +86,7 @@ export default function StaffReviewPage() {
         <button
           onClick={submit}
           disabled={loading || !rating}
-          className="w-full h-13 rounded-2xl bg-brand-yellow py-4 font-bold text-brand-black text-sm shadow-md disabled:opacity-60 flex items-center justify-center"
+          className="w-full h-13 rounded-2xl bg-brand-yellow py-4 font-bold text-brand-on-yellow text-sm shadow-md disabled:opacity-60 flex items-center justify-center"
         >
           {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'ส่งรีวิว'}
         </button>

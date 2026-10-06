@@ -61,7 +61,7 @@ export default function StaffProfilePage() {
         {/* User card */}
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-yellow shadow-md">
-            <span className="text-xl font-extrabold text-brand-black">{initials}</span>
+            <span className="text-xl font-extrabold text-brand-on-yellow">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-base font-bold text-brand-black truncate">{user?.name || '—'}</p>

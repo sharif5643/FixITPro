@@ -419,7 +419,7 @@ export default function RepairDetailPage() {
 
   if (isLoading) return (
     <div className="flex min-h-screen items-center justify-center bg-[#F8F9FB]">
-      <Loader2 className="h-8 w-8 animate-spin text-[#FFC107]" />
+      <Loader2 className="h-8 w-8 animate-spin text-[rgb(var(--brand-accent))]" />
     </div>
   )
   if (!repair) return null
@@ -527,8 +527,8 @@ export default function RepairDetailPage() {
             <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFC107]/10">
-                    <User className="h-5 w-5 text-[#FFC107]" />
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--brand-accent)/0.1)]">
+                    <User className="h-5 w-5 text-[rgb(var(--brand-accent))]" />
                   </div>
                   <div className="min-w-0">
                     <p className="font-bold text-[#111] truncate">{repair.customer?.name ?? 'ไม่ระบุลูกค้า'}</p>
@@ -550,7 +550,7 @@ export default function RepairDetailPage() {
             <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-3 flex-1 min-w-0 rounded-xl bg-[#F8F9FB] p-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FFC107]/10">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--brand-accent)/0.1)]">
                     <span className="text-xl">📱</span>
                   </div>
                   <div className="min-w-0 flex-1">
@@ -692,7 +692,7 @@ export default function RepairDetailPage() {
                       <div key={s} className="flex gap-3.5">
                         <div className="flex flex-col items-center">
                           <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                            current ? 'bg-[#FFC107] text-[#111] shadow-[0_4px_12px_rgba(255,193,7,0.4)]' :
+                            current ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))] shadow-[0_4px_12px_rgb(var(--brand-accent)/0.4)]' :
                             done    ? 'bg-[#22C55E] text-white' : 'bg-slate-100 text-slate-300'
                           }`}>{done ? '✓' : i + 1}</div>
                           {!isLast && <div className={`my-1 w-0.5 h-6 ${done ? 'bg-[#22C55E]' : 'bg-slate-100'}`} />}
@@ -770,7 +770,7 @@ export default function RepairDetailPage() {
                 </div>
                 {!isLocked && !addingPart && (
                   <button onClick={() => setSearchOpen(true)}
-                    className="flex items-center gap-1 h-8 px-3 rounded-xl bg-[#FFC107] text-xs font-bold text-[#111]">
+                    className="flex items-center gap-1 h-8 px-3 rounded-xl bg-[rgb(var(--brand-accent))] text-xs font-bold text-[rgb(var(--brand-accent-fg))]">
                     <Plus className="h-3.5 w-3.5" /> เพิ่ม
                   </button>
                 )}
@@ -953,7 +953,7 @@ export default function RepairDetailPage() {
 
                   <button onClick={handleAddPart}
                     disabled={partQty < 1 || addPartMutation.isPending}
-                    className="w-full h-11 rounded-xl bg-[#FFC107] text-sm font-bold text-[#111] flex items-center justify-center gap-2 disabled:opacity-60">
+                    className="w-full h-11 rounded-xl bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))] flex items-center justify-center gap-2 disabled:opacity-60">
                     {addPartMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4" /> เพิ่มอะไหล่{chargeCustomer ? ' (คิดลูกค้า)' : ''}</>}
                   </button>
                 </div>
@@ -1066,7 +1066,7 @@ export default function RepairDetailPage() {
                   )}
                   <div className="flex justify-between font-bold text-base border-t border-[#F8F9FB] pt-2 mt-1">
                     <span className="text-[#111]">รวมทั้งหมด</span>
-                    <span className="text-[#FFC107]">{fmtMoney(repairTotal)}</span>
+                    <span className="text-[rgb(var(--brand-accent))]">{fmtMoney(repairTotal)}</span>
                   </div>
                   {repairDeposit > 0 && (
                     <div className="flex justify-between text-emerald-600 text-xs">
@@ -1099,7 +1099,7 @@ export default function RepairDetailPage() {
                 )}
                 {!payOpen ? (
                   <button onClick={() => setPayOpen(true)} disabled={!hasShift}
-                    className="w-full h-14 rounded-2xl bg-[#FFC107] text-base font-bold text-[#111] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(255,193,7,0.4)] disabled:opacity-50">
+                    className="w-full h-14 rounded-2xl bg-[rgb(var(--brand-accent))] text-base font-bold text-[rgb(var(--brand-accent-fg))] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgb(var(--brand-accent)/0.4)] disabled:opacity-50">
                     <DollarSign className="h-5 w-5" /> ส่งมอบ / รับเงิน
                   </button>
                 ) : (
@@ -1109,7 +1109,7 @@ export default function RepairDetailPage() {
                       {(['CASH', 'TRANSFER', 'CARD'] as const).map((m) => (
                         <button key={m} onClick={() => { setPayMethod(m); setPayAmount(String(repairBalance)) }}
                           className={`h-12 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-0.5 transition-colors ${
-                            payMethod === m ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8F9FB] text-slate-500'
+                            payMethod === m ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))]' : 'bg-[#F8F9FB] text-slate-500'
                           }`}>
                           {m === 'CASH' ? <Banknote className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
                           {pmLabel(m)}
@@ -1294,7 +1294,7 @@ export default function RepairDetailPage() {
             </select>
             <button onClick={handleStatusChange}
               disabled={selectedStatus === repair.status || updateMutation.isPending}
-              className="flex h-10 items-center justify-center px-4 rounded-xl bg-[#FFC107] text-sm font-bold text-[#111] disabled:opacity-40">
+              className="flex h-10 items-center justify-center px-4 rounded-xl bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))] disabled:opacity-40">
               {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'บันทึก'}
             </button>
           </div>
@@ -1307,7 +1307,7 @@ export default function RepairDetailPage() {
             </button>
           )}
           <button onClick={handlePrintIntake}
-            className={`h-11 rounded-2xl bg-[#FFC107] text-xs font-bold text-[#111] flex items-center justify-center gap-1.5 ${isFullyPaid ? 'flex-1' : 'flex-[2]'}`}>
+            className={`h-11 rounded-2xl bg-[rgb(var(--brand-accent))] text-xs font-bold text-[rgb(var(--brand-accent-fg))] flex items-center justify-center gap-1.5 ${isFullyPaid ? 'flex-1' : 'flex-[2]'}`}>
             <Printer className="h-3.5 w-3.5" /> ใบรับซ่อม
           </button>
           {repair.customer?.phone && (

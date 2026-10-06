@@ -208,9 +208,9 @@ export default function HomePage() {
     { icon:<Users/>,         label:'ลูกค้า',     to:'/staff/customers',     show: access.customers, bg:'bg-[#F5F3FF]', ic:'text-[#8B5CF6]' },
     { icon:<FileText/>,      label:'ประวัติขาย', to:'/staff/pos/history',   show: access.pos,       bg:'bg-[#FFF7ED]', ic:'text-[#F97316]' },
     { icon:<BarChart2/>,     label:'รายงาน',     to:'/staff/reports',       show: access.reports,   bg:'bg-[#F0FDF4]', ic:'text-[#10B981]' },
-    { icon:<TrendingUp/>,    label:'ขายซิม',     to:'/staff/sim',           show: access.sim,       bg:'bg-[#EFF6FF]', ic:'text-[#3B82F6]' },
+    { icon:<TrendingUp/>,    label:'ขายซิม',     to:'/staff/sim',           show: access.sim,       bg:'bg-blue-50', ic:'text-[#3B82F6]' },
     { icon:<MessageCircle/>, label:'แชท',        to:'/staff/chat',          show: access.repairs,   bg:'bg-[#F0FDF4]', ic:'text-[#22C55E]' },
-    { icon:<Calendar/>,      label:'แจ้งเตือน',  to:'/staff/notifications', show: true,              bg:'bg-[#EFF6FF]', ic:'text-[#3B82F6]' },
+    { icon:<Calendar/>,      label:'แจ้งเตือน',  to:'/staff/notifications', show: true,              bg:'bg-blue-50', ic:'text-[#3B82F6]' },
     { icon:<LayoutGrid/>,    label:'เพิ่มเติม',  to:'/staff/more',          show: true,              bg:'bg-[#F8F9FB]', ic:'text-[#6B7280]' },
   ].filter((q) => q.show)
 
@@ -230,7 +230,7 @@ export default function HomePage() {
         <div className="flex items-center justify-between">
           {/* Left: avatar + name */}
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-yellow text-[15px] font-bold text-brand-black shadow-sm">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-yellow text-[15px] font-bold text-brand-on-yellow shadow-sm">
               {initials}
             </div>
             <div>
@@ -278,7 +278,7 @@ export default function HomePage() {
           <div className="flex flex-col items-center gap-3 rounded-2xl bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
             <AlertTriangle className="h-8 w-8 text-red-400"/>
             <p className="text-sm text-slate-500">โหลดข้อมูลไม่สำเร็จ</p>
-            <button onClick={load} className="flex items-center gap-1.5 rounded-xl bg-brand-yellow px-4 py-2 text-sm font-bold text-brand-black">
+            <button onClick={load} className="flex items-center gap-1.5 rounded-xl bg-brand-yellow px-4 py-2 text-sm font-bold text-brand-on-yellow">
               <RefreshCw className="h-4 w-4"/> ลองใหม่
             </button>
           </div>
@@ -382,7 +382,7 @@ export default function HomePage() {
             <div className="flex flex-col items-center gap-3 rounded-2xl bg-white py-10 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
               <Wrench className="h-9 w-9 text-slate-200"/>
               <p className="text-sm text-slate-400">ยังไม่มีงานซ่อม</p>
-              <button onClick={() => router.push('/staff/create')} className="rounded-xl bg-brand-yellow px-4 py-2 text-sm font-bold text-brand-black">
+              <button onClick={() => router.push('/staff/create')} className="rounded-xl bg-brand-yellow px-4 py-2 text-sm font-bold text-brand-on-yellow">
                 รับงานซ่อมใหม่
               </button>
             </div>

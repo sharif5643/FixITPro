@@ -34,6 +34,7 @@ export class PublicRegisterService {
     const notes = JSON.stringify({
       businessType: dto.businessType ?? null,
       themeColor: dto.themeColor ?? null,
+      themeKey: dto.themeKey ?? null,
       themePreset: dto.themePreset ?? null,
     })
 
@@ -66,6 +67,10 @@ export class PublicRegisterService {
         data: {
           shopName: dto.shopName,
           tenantId: tenant.id,
+          // What the owner picked on the sign-up page is the shop's look from the first login
+          themeKey:    dto.themeKey ?? null,
+          themePreset: dto.themePreset ?? null,
+          logoUrl:     dto.logoDataUrl ?? null,
         },
       })
 

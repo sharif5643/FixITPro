@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
-import { useShopName } from '@/hooks/useShopName'
+import { useShopName, useShopLogo } from '@/hooks/useShopName'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { FiAvatar } from '@/components/fi/avatar'
 
@@ -244,16 +244,16 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
             'flex items-center gap-3 rounded-xl transition-all duration-100 min-h-[40px] group',
             collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
             active
-              ? 'bg-blue-600 text-white shadow-sm'
+              ? 'bg-[rgb(var(--brand))] text-[rgb(var(--brand-fg))] shadow-sm'
               : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/40 hover:text-slate-900 dark:hover:text-white',
           )}
         >
           <Icon className={cn(
             'h-4 w-4 flex-shrink-0 transition-colors',
-            active ? 'text-white' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300',
+            active ? 'text-[rgb(var(--brand-fg))]' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300',
           )} />
           {!collapsed && (
-            <span className={cn('text-sm font-medium truncate pr-5', active ? 'text-white' : 'text-slate-700 dark:text-slate-300')}>
+            <span className={cn('text-sm font-medium truncate pr-5', active ? 'text-[rgb(var(--brand-fg))]' : 'text-slate-700 dark:text-slate-300')}>
               {item.label}
             </span>
           )}
@@ -267,7 +267,7 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
             className={cn(
               'absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md transition-opacity',
               pinned ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-100 focus:opacity-100',
-              active ? 'text-white/80 hover:text-white' : 'text-slate-300 hover:text-amber-500',
+              active ? 'text-[rgb(var(--brand-fg)/0.8)] hover:text-[rgb(var(--brand-fg))]' : 'text-slate-300 hover:text-amber-500',
             )}
           >
             <Star className={cn('h-3.5 w-3.5', pinned && !active && 'fill-amber-400 text-amber-400', pinned && active && 'fill-white')} />
@@ -293,7 +293,7 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
           >
             <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 select-none">
               {section.label}
-              {holdsActive && <span className="h-1.5 w-1.5 rounded-full bg-blue-600" aria-label="หน้าปัจจุบันอยู่ในกลุ่มนี้" />}
+              {holdsActive && <span className="h-1.5 w-1.5 rounded-full bg-[rgb(var(--brand))]" aria-label="หน้าปัจจุบันอยู่ในกลุ่มนี้" />}
             </span>
             {open
               ? <ChevronDown  className="h-3.5 w-3.5 text-slate-400" />
@@ -335,6 +335,7 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
   const hasModule   = useAuthStore((s) => s.hasModule)
   const isOwner     = user?.role === 'OWNER' || user?.role === 'SUPER_ADMIN'
   const shopName    = useShopName()
+  const shopLogo    = useShopLogo()
   const { branchName } = useBranchContext()
   const roleLabel   = ROLE_LABEL[user?.role ?? ''] ?? ''
   const pathname    = usePathname()
@@ -365,7 +366,7 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
       )}
 
       <aside className={cn(
-        'flex flex-col flex-shrink-0 h-full',
+        'app-side flex flex-col flex-shrink-0 h-full',
         'bg-white dark:bg-[#111827]',
         'border-r border-slate-200 dark:border-slate-700/60',
         'overflow-hidden transition-[width] duration-150',
@@ -375,16 +376,19 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
       )}>
         {/* Shop + branch */}
         <div className={cn(
-          'flex h-16 items-center flex-shrink-0 gap-3 bg-gradient-to-r from-blue-600 to-blue-700',
+          'flex h-16 items-center flex-shrink-0 gap-3 [background:var(--brand-gradient)] text-white',
           collapsed ? 'justify-center px-2' : 'px-4',
         )}>
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 shadow-sm border border-white/25 backdrop-blur-sm" title={collapsed ? shopName : undefined}>
-            <Smartphone className="h-4.5 w-4.5 text-white" />
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/20 shadow-sm border border-white/25 backdrop-blur-sm" title={collapsed ? shopName : undefined}>
+            {shopLogo
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={shopLogo} alt="" className="h-full w-full bg-white object-contain" />
+              : <Smartphone className="h-4.5 w-4.5" />}
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-white truncate leading-none">{shopName}</p>
-              <p className="text-[11px] text-blue-100 mt-1 font-medium truncate flex items-center gap-1">
+              <p className="text-sm font-bold truncate leading-none">{shopName}</p>
+              <p className="text-[11px] opacity-80 mt-1 font-medium truncate flex items-center gap-1">
                 <Building2 className="h-3 w-3 shrink-0" />{branchName || roleLabel}
               </p>
             </div>
@@ -394,7 +398,7 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
             className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg hover:bg-white/20 transition-colors md:hidden"
             aria-label="ปิดเมนู"
           >
-            <X className="h-4 w-4 text-white/80" />
+            <X className="h-4 w-4 opacity-80" />
           </button>
         </div>
 

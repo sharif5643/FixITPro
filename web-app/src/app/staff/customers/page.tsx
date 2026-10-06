@@ -68,7 +68,7 @@ export default function CustomersPage() {
             </button>
             <h1 className="flex-1 text-lg font-bold text-brand-black">ลูกค้า</h1>
             <button onClick={openAdd} className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-yellow">
-              <Plus className="h-4 w-4 text-brand-black"/>
+              <Plus className="h-4 w-4 text-brand-on-yellow"/>
             </button>
           </div>
           <div className="relative">
@@ -161,7 +161,7 @@ export default function CustomersPage() {
                 />
               </div>
               <button onClick={saveCustomer} disabled={saving}
-                className="mt-2 flex h-12 w-full items-center justify-center rounded-2xl bg-brand-yellow text-sm font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)] disabled:opacity-60">
+                className="mt-2 flex h-12 w-full items-center justify-center rounded-2xl bg-brand-yellow text-sm font-bold text-brand-on-yellow shadow-[0_4px_16px_rgb(var(--brand-accent)/0.4)] disabled:opacity-60">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin"/> : 'บันทึก'}
               </button>
             </div>

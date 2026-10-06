@@ -39,8 +39,8 @@ export default function StaffChangePasswordPage() {
       <div className="w-full max-w-md">
         {/* Icon */}
         <div className="mb-6 flex flex-col items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-yellow shadow-[0_6px_24px_rgba(255,193,7,0.35)]">
-            <ShieldCheck className="h-8 w-8 text-brand-black"/>
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-yellow shadow-[0_6px_24px_rgb(var(--brand-accent)/0.35)]">
+            <ShieldCheck className="h-8 w-8 text-brand-on-yellow"/>
           </div>
           <div>
             <h1 className="text-center text-xl font-bold text-brand-black">ตั้งรหัสผ่านใหม่</h1>
@@ -107,7 +107,7 @@ export default function StaffChangePasswordPage() {
           </div>
 
           <button type="submit" disabled={loading}
-            className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-yellow text-sm font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)] disabled:opacity-60">
+            className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-brand-yellow text-sm font-bold text-brand-on-yellow shadow-[0_4px_16px_rgb(var(--brand-accent)/0.4)] disabled:opacity-60">
             {loading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'บันทึกรหัสผ่านใหม่'}
           </button>
         </form>

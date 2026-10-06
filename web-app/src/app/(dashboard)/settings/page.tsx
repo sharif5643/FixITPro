@@ -12,6 +12,7 @@ import {
   MessageSquare, Database, AlertTriangle, Trash2, Upload, X, Users, Cpu,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ThemeSetPicker } from '@/components/theme/theme-set-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -32,6 +33,8 @@ const settingsSchema = z.object({
   shopEmail:           z.string().optional(),
   taxId:               z.string().optional(),
   legalName:           z.string().max(200).optional(),
+  themeKey:            z.string().optional(),
+  themePreset:         z.enum(['light', 'dark', 'auto']).optional(),
   taxBranch:           z.string().max(100).optional(),
   logoUrl:             z.string().optional(),
   receiptFooter:       z.string().optional(),
@@ -143,6 +146,8 @@ export default function SettingsPage() {
   })
 
   const logoUrl             = watch('logoUrl')
+  const themeKey            = watch('themeKey')
+  const themePreset         = watch('themePreset')
   const isBase64Logo        = (logoUrl ?? '').startsWith('data:')
   const paperWidth          = watch('paperWidth')
   const autoGenerateSku    = watch('autoGenerateSku')
@@ -161,6 +166,8 @@ export default function SettingsPage() {
         shopEmail:           settings.shopEmail           ?? '',
         taxId:               settings.taxId               ?? '',
         legalName:           settings.legalName           ?? '',
+        themeKey:            (settings as any).themeKey    ?? 'original',
+        themePreset:         (settings as any).themePreset ?? 'light',
         taxBranch:           settings.taxBranch           ?? '',
         logoUrl:             settings.logoUrl             ?? '',
         receiptFooter:       settings.receiptFooter       ?? '',
@@ -191,6 +198,8 @@ export default function SettingsPage() {
         shopEmail:          data.shopEmail           || null,
         taxId:              data.taxId               || null,
         legalName:          data.legalName?.trim()   || null,
+        themeKey:           data.themeKey || 'original',
+        themePreset:        data.themePreset ?? null,
         taxBranch:          data.taxBranch?.trim()   || null,
         logoUrl:            data.logoUrl             || null,
         receiptFooter:      data.receiptFooter       || null,
@@ -200,6 +209,7 @@ export default function SettingsPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['shop-settings'] })
       toast.success('บันทึกการตั้งค่าแล้ว')
     },
     onError: (err: any) => {
@@ -459,6 +469,25 @@ export default function SettingsPage() {
                     <p className="text-xs text-muted-foreground">
                       ใช้แทนชื่อร้านบนใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จแบบ A4 เมื่อเลือก &quot;ชื่อผู้ประกอบการ&quot; ตอนออกเอกสาร
                       — ถ้าร้านจด VAT ให้ตั้ง VAT % ในแท็บการเงิน ใบเสร็จจะกลายเป็นใบกำกับภาษีให้เอง
+                    </p>
+                  </div>
+
+                  {/* The shop's look — everyone in this shop sees it on the web, the staff app and SUNMI */}
+                  <div className="space-y-2 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                    <Label>ชุดธีมของร้าน</Label>
+                    <ThemeSetPicker value={themeKey} onChange={(k) => setValue('themeKey', k, { shouldDirty: true })} />
+                    <Label className="block pt-2">รูปแบบหน้าจอเริ่มต้น</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {([['light', 'สว่าง'], ['dark', 'มืด'], ['auto', 'ตามเครื่อง']] as const).map(([v, label]) => (
+                        <button key={v} type="button" onClick={() => setValue('themePreset', v, { shouldDirty: true })}
+                          className={`h-9 rounded-lg border px-4 text-sm ${themePreset === v ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900' : ''}`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      ชุดธีมใช้กับทั้งระบบ — เว็บ แอป Staff และ SUNMI ของทุกคนในร้าน · Original = หน้าตาเดิมของระบบทุกอย่าง
+                      · สีสถานะ (เขียว ชำระแล้ว / แดง ค้างชำระ) คงเดิมทุกชุด · รูปแบบหน้าจอเป็นค่าเริ่มต้น แต่ละเครื่องยังสลับสว่าง/มืดเองได้ที่แถบด้านบน
                     </p>
                   </div>
                 </div>

@@ -110,7 +110,7 @@ export default function SplashPage() {
       {/* Center glow */}
       <div
         className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse 65% 50% at 50% 46%, rgba(255,193,7,0.08) 0%, transparent 70%)' }}
+        style={{ background: 'radial-gradient(ellipse 65% 50% at 50% 46%, rgb(var(--brand-accent)/0.08) 0%, transparent 70%)' }}
       />
 
       {/* ── Logo box ── */}
@@ -139,7 +139,7 @@ export default function SplashPage() {
         {/* Bottom glow */}
         <div
           className="pointer-events-none absolute -bottom-3 left-1/2 h-4 w-20 -translate-x-1/2 blur-xl"
-          style={{ background: 'rgba(255,193,7,0.5)' }}
+          style={{ background: 'rgb(var(--brand-accent)/0.5)' }}
         />
       </div>
 

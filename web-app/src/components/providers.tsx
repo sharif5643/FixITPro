@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { Toaster } from 'sonner'
 import { PlatformBody } from '@/components/apk/platform-body'
 import { ThemeProvider } from '@/components/providers/theme-provider'
+import { BrandTheme } from '@/components/providers/brand-theme'
 import { useAuthStore } from '@/store/auth.store'
 
 function PermissionRefresher() {
@@ -47,10 +48,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
         <PermissionRefresher />
         <PlatformBody />
+        <BrandTheme />
         {children}
         <Toaster position="top-right" richColors closeButton />
       </QueryClientProvider>

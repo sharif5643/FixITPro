@@ -1,12 +1,15 @@
 import { Transform } from 'class-transformer'
 import {
   IsEmail,
+  IsIn,
+  MaxLength,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
   MinLength,
 } from 'class-validator'
+import { THEME_KEYS, THEME_PRESETS } from '../../common/theme-sets'
 
 export class PublicRegisterDto {
   @IsNotEmpty({ message: 'ชื่อร้านค้าจำเป็นต้องกรอก' })
@@ -35,11 +38,23 @@ export class PublicRegisterDto {
   @IsString()
   businessType?: string
 
+  // Kept for older sign-up pages; only noted on the shop's sign-up record
   @IsOptional()
   @IsString()
   themeColor?: string
 
+  // Theme set picked on the sign-up page ('original' = the product's own look)
   @IsOptional()
-  @IsString()
+  @IsIn(THEME_KEYS as unknown as string[])
+  themeKey?: string
+
+  @IsOptional()
+  @IsIn(THEME_PRESETS as unknown as string[])
   themePreset?: string
+
+  // Shop logo as a small image data URL (the sign-up page shrinks it first)
+  @IsOptional()
+  @Matches(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/, { message: 'ไฟล์โลโก้ไม่ถูกต้อง' })
+  @MaxLength(1_500_000, { message: 'โลโก้ใหญ่เกินไป' })
+  logoDataUrl?: string
 }

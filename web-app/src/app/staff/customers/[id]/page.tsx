@@ -84,7 +84,7 @@ export default function CustomerDetailPage() {
         <div className="p-5 flex flex-col gap-4">
           <div className="rounded-2xl bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
             <div className="flex items-center gap-4 mb-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-yellow text-xl font-bold text-brand-black">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-yellow text-xl font-bold text-brand-on-yellow">
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
@@ -114,13 +114,13 @@ export default function CustomerDetailPage() {
           <div className="flex gap-2">
             <button onClick={()=>setTab('repair')}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors ${
-                tab==='repair' ? 'bg-brand-yellow text-brand-black' : 'bg-white text-slate-500'
+                tab==='repair' ? 'bg-brand-yellow text-brand-on-yellow' : 'bg-white text-slate-500'
               }`}>
               <Wrench className="h-4 w-4"/> ประวัติซ่อม
             </button>
             <button onClick={()=>setTab('purchase')}
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-colors ${
-                tab==='purchase' ? 'bg-brand-yellow text-brand-black' : 'bg-white text-slate-500'
+                tab==='purchase' ? 'bg-brand-yellow text-brand-on-yellow' : 'bg-white text-slate-500'
               }`}>
               <ShoppingBag className="h-4 w-4"/> ประวัติซื้อ
             </button>
@@ -162,7 +162,7 @@ export default function CustomerDetailPage() {
           )}
 
           <button onClick={()=>router.push('/staff/create')}
-            className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-brand-yellow text-base font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)]">
+            className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-brand-yellow text-base font-bold text-brand-on-yellow shadow-[0_4px_16px_rgb(var(--brand-accent)/0.4)]">
             <Plus className="h-5 w-5"/> รับงานซ่อมใหม่
           </button>
         </div>
@@ -210,7 +210,7 @@ export default function CustomerDetailPage() {
                 />
               </div>
               <button onClick={saveEdit} disabled={saving}
-                className="mt-2 flex h-12 w-full items-center justify-center rounded-2xl bg-brand-yellow text-sm font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)] disabled:opacity-60">
+                className="mt-2 flex h-12 w-full items-center justify-center rounded-2xl bg-brand-yellow text-sm font-bold text-brand-on-yellow shadow-[0_4px_16px_rgb(var(--brand-accent)/0.4)] disabled:opacity-60">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin"/> : 'บันทึก'}
               </button>
             </div>

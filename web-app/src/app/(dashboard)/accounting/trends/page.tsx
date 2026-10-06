@@ -224,7 +224,7 @@ function TrendsContent() {
                 <ReferenceLine y={0} stroke="var(--muted-foreground)" strokeOpacity={0.3} />
                 <Bar dataKey="totalRevenue" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={32} />
                 <Bar dataKey="totalExpense" fill="#f87171" radius={[3, 3, 0, 0]} maxBarSize={32} />
-                <Bar dataKey="netIncome"    fill="#60a5fa" radius={[3, 3, 0, 0]} maxBarSize={32} />
+                <Bar dataKey="netIncome"    fill="rgb(var(--blue-400))" radius={[3, 3, 0, 0]} maxBarSize={32} />
               </BarChart>
             </ResponsiveContainer>
           </div>

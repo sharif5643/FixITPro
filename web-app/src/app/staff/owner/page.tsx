@@ -44,7 +44,7 @@ export default function OwnerDashboardPage() {
     <div className="flex min-h-screen flex-col bg-[#F8F9FB] pb-28">
       <div className="bg-white px-5 pb-5 pt-14 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-yellow text-sm font-bold text-brand-black">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-yellow text-sm font-bold text-brand-on-yellow">
             {initials}
           </div>
           <div>

@@ -9,6 +9,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { THEME_KEYS, THEME_PRESETS } from '../../common/theme-sets';
 
 export class UpdateSettingsDto {
   @IsOptional()
@@ -45,6 +46,15 @@ export class UpdateSettingsDto {
   @IsString()
   @MaxLength(100)
   taxBranch?: string;
+
+  // The shop's theme set ('original' = the product's own look) and light / dark / auto
+  @IsOptional()
+  @IsIn(THEME_KEYS as unknown as string[], { message: 'ไม่มีชุดธีมนี้' })
+  themeKey?: string | null;
+
+  @IsOptional()
+  @IsIn(THEME_PRESETS as unknown as string[])
+  themePreset?: string | null;
 
   @IsOptional()
   @IsString()

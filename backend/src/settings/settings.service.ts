@@ -34,12 +34,18 @@ export class SettingsService {
 
   // Lightweight read used by sidebar / navbar (no permission gate needed).
   async getShopInfo(tenantId: string | null) {
-    if (!tenantId) return { shopName: 'FixITPro', logoUrl: null };
+    if (!tenantId) return { shopName: 'FixITPro', logoUrl: null, themeKey: null, themePreset: null };
     const row = await this.prisma.shopSettings.findUnique({
       where:  { tenantId },
-      select: { shopName: true, logoUrl: true },
+      select: { shopName: true, logoUrl: true, themeKey: true, themePreset: true },
     });
-    return { shopName: row?.shopName ?? 'FixITPro', logoUrl: row?.logoUrl ?? null };
+    return {
+      shopName:    row?.shopName ?? 'FixITPro',
+      logoUrl:     row?.logoUrl ?? null,
+      // null / 'original' = the product's own look
+      themeKey:    row?.themeKey ?? null,
+      themePreset: row?.themePreset ?? null,
+    };
   }
 
   async updateSettings(

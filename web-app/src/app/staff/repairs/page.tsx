@@ -111,12 +111,12 @@ function RepairsPageInner() {
         <div className="flex items-center gap-3 mb-4">
           <h1 className="flex-1 text-xl font-bold text-[#111]">งานซ่อม</h1>
           {isLoading
-            ? <Loader2 className="h-4 w-4 animate-spin text-[#FFC107]" />
+            ? <Loader2 className="h-4 w-4 animate-spin text-[rgb(var(--brand-accent))]" />
             : <span className="text-xs text-slate-400">{allRepairs.length} งาน</span>
           }
           <button
             onClick={() => router.push('/staff/create')}
-            className="flex h-10 items-center gap-1.5 rounded-2xl bg-[#FFC107] px-4 text-sm font-bold text-[#111] shadow-[0_4px_12px_rgba(255,193,7,0.3)]"
+            className="flex h-10 items-center gap-1.5 rounded-2xl bg-[rgb(var(--brand-accent))] px-4 text-sm font-bold text-[rgb(var(--brand-accent-fg))] shadow-[0_4px_12px_rgb(var(--brand-accent)/0.3)]"
           >
             <Plus className="h-4 w-4" />
             รับงาน
@@ -130,7 +130,7 @@ function RepairsPageInner() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหาหมายเลข / ลูกค้า / อุปกรณ์..."
-            className="h-11 w-full rounded-2xl bg-[#F8F9FB] pl-11 pr-4 text-sm outline-none focus:ring-2 focus:ring-[#FFC107]/40"
+            className="h-11 w-full rounded-2xl bg-[#F8F9FB] pl-11 pr-4 text-sm outline-none focus:ring-2 focus:ring-[rgb(var(--brand-accent)/0.4)]"
           />
         </div>
 
@@ -145,7 +145,7 @@ function RepairsPageInner() {
                 key={f.value}
                 onClick={() => setFilter(f.value)}
                 className={`shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                  active ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8F9FB] text-slate-500'
+                  active ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))]' : 'bg-[#F8F9FB] text-slate-500'
                 }`}
               >
                 {f.label}
@@ -192,8 +192,8 @@ function RepairsPageInner() {
               className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-transform text-left w-full"
             >
               {/* Icon avatar */}
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#FFC107]/10">
-                <Wrench className="h-5 w-5 text-[#FFC107]" strokeWidth={2.5} />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--brand-accent)/0.1)]">
+                <Wrench className="h-5 w-5 text-[rgb(var(--brand-accent))]" strokeWidth={2.5} />
               </div>
 
               {/* Content */}

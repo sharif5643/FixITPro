@@ -98,7 +98,7 @@ export default function StockPage() {
             {(['products','parts'] as const).map(t => (
               <button key={t} onClick={()=>setTab(t)}
                 className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors ${
-                  tab===t ? 'bg-brand-yellow text-brand-black' : 'bg-[#F8F9FB] text-slate-500'
+                  tab===t ? 'bg-brand-yellow text-brand-on-yellow' : 'bg-[#F8F9FB] text-slate-500'
                 }`}>
                 {t==='products'?'สินค้า':'อะไหล่'}
               </button>
@@ -232,7 +232,7 @@ export default function StockPage() {
                 />
               </div>
               <button onClick={saveProduct} disabled={saving}
-                className="mt-2 flex h-12 w-full items-center justify-center rounded-2xl bg-brand-yellow text-sm font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)] disabled:opacity-60">
+                className="mt-2 flex h-12 w-full items-center justify-center rounded-2xl bg-brand-yellow text-sm font-bold text-brand-on-yellow shadow-[0_4px_16px_rgb(var(--brand-accent)/0.4)] disabled:opacity-60">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin"/> : 'บันทึก'}
               </button>
             </div>

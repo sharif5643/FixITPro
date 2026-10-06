@@ -169,7 +169,7 @@ export function RepairDeliveryPrintFlow({ repairId, onClose, successNavItems }: 
             <a
               key={item.href}
               href={item.href}
-              className="flex items-center justify-center w-full h-12 rounded-2xl bg-[#FFC107] text-[#111] font-bold text-sm"
+              className="flex items-center justify-center w-full h-12 rounded-2xl bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))] font-bold text-sm"
             >
               {item.label}
             </a>
@@ -247,7 +247,7 @@ export function RepairDeliveryPrintFlow({ repairId, onClose, successNavItems }: 
           onClick={() => setSelectedCopy('both')}
           className={`w-full h-12 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${
             selectedCopy === 'both'
-              ? 'bg-[#FFC107] text-[#111]'
+              ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))]'
               : 'bg-white border border-slate-200 text-slate-700'
           }`}
         >

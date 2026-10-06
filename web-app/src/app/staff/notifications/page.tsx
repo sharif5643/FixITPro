@@ -77,7 +77,7 @@ export default function NotificationsPage() {
           {TABS.map(t => (
             <button key={t} onClick={()=>setTab(t)}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                tab===t ? 'bg-brand-yellow text-brand-black' : 'bg-[#F8F9FB] text-slate-500'
+                tab===t ? 'bg-brand-yellow text-brand-on-yellow' : 'bg-[#F8F9FB] text-slate-500'
               }`}>{t}</button>
           ))}
         </div>

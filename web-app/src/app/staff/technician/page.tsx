@@ -79,7 +79,7 @@ export default function TechnicianPage() {
             <ChevronLeft className="h-5 w-5 text-slate-600" />
           </button>
           <div className="flex flex-1 items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-yellow text-xs font-bold text-brand-black">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-yellow text-xs font-bold text-brand-on-yellow">
               {initials}
             </div>
             <div>
@@ -157,7 +157,7 @@ export default function TechnicianPage() {
                   <button
                     disabled={busyId === r.id}
                     onClick={() => patch(r.id, { technicianId: user?.id }, 'รับงานแล้ว — อยู่ในงานของฉัน')}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-yellow py-2 text-xs font-bold text-brand-black disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-yellow py-2 text-xs font-bold text-brand-on-yellow disabled:opacity-50"
                   >
                     <Hand className="h-3.5 w-3.5" /> รับงานนี้
                   </button>
@@ -169,7 +169,7 @@ export default function TechnicianPage() {
                         disabled={busyId === r.id}
                         onClick={() => patch(r.id, { status: a.to }, `${REPAIR_LABEL[a.to] ?? a.label} แล้ว`)}
                         className={`flex-1 rounded-xl py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
-                          a.primary ? 'bg-brand-yellow text-brand-black' : 'bg-brand-black text-white'
+                          a.primary ? 'bg-brand-yellow text-brand-on-yellow' : 'bg-brand-black text-white'
                         }`}
                       >
                         {a.label}
@@ -186,7 +186,7 @@ export default function TechnicianPage() {
       {/* Floating button */}
       <button
         onClick={() => router.push('/staff/create')}
-        className="fixed bottom-24 right-5 flex h-14 items-center gap-2 rounded-2xl bg-brand-yellow px-5 font-bold text-brand-black shadow-[0_4px_20px_rgba(255,193,7,0.5)]"
+        className="fixed bottom-24 right-5 flex h-14 items-center gap-2 rounded-2xl bg-brand-yellow px-5 font-bold text-brand-on-yellow shadow-[0_4px_20px_rgb(var(--brand-accent)/0.5)]"
       >
         <Plus className="h-5 w-5" /> รับงานใหม่
       </button>

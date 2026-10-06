@@ -29,7 +29,7 @@ export function StaffBottomNav() {
     return (
       <Link href={href} className="flex flex-1 flex-col items-center justify-center gap-1 py-2">
         <div className={cn('flex h-8 w-8 items-center justify-center rounded-xl transition-colors', active ? 'bg-brand-yellow' : '')}>
-          <Icon className={cn('h-5 w-5', active ? 'text-brand-black' : 'text-slate-400')} strokeWidth={active ? 2.5 : 1.8}/>
+          <Icon className={cn('h-5 w-5', active ? 'text-brand-on-yellow' : 'text-slate-400')} strokeWidth={active ? 2.5 : 1.8}/>
         </div>
         <span className={cn('text-[10px] font-semibold leading-none', active ? 'text-brand-black' : 'text-slate-400')}>
           {label}
@@ -51,8 +51,8 @@ export function StaffBottomNav() {
             className="flex flex-col items-center gap-1"
             style={{ marginTop: '-20px' }}
           >
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-yellow shadow-[0_4px_16px_rgba(255,193,7,0.55)] transition-transform active:scale-95">
-              <Plus className="h-7 w-7 text-brand-black" strokeWidth={2.5}/>
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-yellow shadow-[0_4px_16px_rgb(var(--brand-accent)/0.55)] transition-transform active:scale-95">
+              <Plus className="h-7 w-7 text-brand-on-yellow" strokeWidth={2.5}/>
             </div>
             <span className="mb-1 text-[10px] font-semibold text-slate-400">รับงาน</span>
           </Link>

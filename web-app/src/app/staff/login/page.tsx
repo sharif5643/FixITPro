@@ -137,7 +137,7 @@ function LoginForm() {
           {/* Logo */}
           <div className={`flex flex-col items-center pt-16 pb-8 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
             <div
-              className="flex h-[80px] w-[80px] items-center justify-center rounded-[22px] shadow-[0_8px_32px_rgba(255,193,7,0.35)]"
+              className="flex h-[80px] w-[80px] items-center justify-center rounded-[22px] shadow-[0_8px_32px_rgb(var(--brand-accent)/0.35)]"
               style={{ background: 'linear-gradient(145deg, #FF8C00 0%, #FFC107 100%)' }}
             >
               <svg viewBox="0 0 48 48" width="44" height="44" fill="none">
@@ -150,7 +150,7 @@ function LoginForm() {
                 <path d="M12 1L3 14h7L4 25 15 12H8L12 1z" fill="#FF8C00"/>
               </svg>
               <span className="text-[28px] font-black leading-none text-[#111111]">T</span>
-              <span className="text-[28px] font-black leading-none text-[#FFC107] ml-[2px]">Pro</span>
+              <span className="text-[28px] font-black leading-none text-[rgb(var(--brand-accent))] ml-[2px]">Pro</span>
             </div>
             <p className="mt-1 text-[12px] text-slate-400">ระบบจัดการร้านมือถือครบวงจร</p>
           </div>
@@ -171,7 +171,7 @@ function LoginForm() {
                     autoComplete="username"
                     placeholder="อีเมล หรือ username"
                     {...register('email')}
-                    className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#F8F9FB] pl-11 pr-11 text-sm text-[#111] outline-none transition-all focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20"
+                    className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#F8F9FB] pl-11 pr-11 text-sm text-[#111] outline-none transition-all focus:border-[rgb(var(--brand-accent))] focus:ring-2 focus:ring-[rgb(var(--brand-accent)/0.2)]"
                   />
                   {emailVal && (
                     <button type="button" onClick={() => setValue('email', '')}
@@ -193,7 +193,7 @@ function LoginForm() {
                     autoComplete="current-password"
                     placeholder="รหัสผ่าน"
                     {...register('password')}
-                    className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#F8F9FB] pl-11 pr-12 text-sm text-[#111] outline-none transition-all focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20"
+                    className="h-14 w-full rounded-2xl border border-[#E5E7EB] bg-[#F8F9FB] pl-11 pr-12 text-sm text-[#111] outline-none transition-all focus:border-[rgb(var(--brand-accent))] focus:ring-2 focus:ring-[rgb(var(--brand-accent)/0.2)]"
                   />
                   <button type="button" onClick={() => setShowPw(v => !v)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -224,7 +224,7 @@ function LoginForm() {
 
               {/* Login button */}
               <button type="submit" disabled={loading}
-                className="mt-2 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#FFC107] text-base font-bold text-[#111111] shadow-[0_6px_24px_rgba(255,193,7,0.45)] transition-all active:scale-[0.98] disabled:opacity-60">
+                className="mt-2 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[rgb(var(--brand-accent))] text-base font-bold text-[rgb(var(--brand-accent-fg))] shadow-[0_6px_24px_rgb(var(--brand-accent)/0.45)] transition-all active:scale-[0.98] disabled:opacity-60">
                 {loading ? <Loader2 className="h-5 w-5 animate-spin"/> : <><span>เข้าสู่ระบบ</span><ArrowRight className="h-5 w-5"/></>}
               </button>
 
@@ -259,8 +259,8 @@ function LoginForm() {
               )}
 
               {/* Security badge */}
-              <div className="mt-2 flex items-center gap-3 rounded-2xl border border-[#FFC107]/20 bg-[#FFFBEB] px-4 py-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FFC107]/15">
+              <div className="mt-2 flex items-center gap-3 rounded-2xl border border-[rgb(var(--brand-accent)/0.2)] bg-[#FFFBEB] px-4 py-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--brand-accent)/0.15)]">
                   <ShieldCheck className="h-5 w-5 text-[#F59E0B]"/>
                 </div>
                 <div>
@@ -294,7 +294,7 @@ function LoginForm() {
                   </p>
                 </div>
                 <button onClick={closeForgot}
-                  className="w-full h-12 rounded-2xl bg-brand-yellow text-sm font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)]">
+                  className="w-full h-12 rounded-2xl bg-brand-yellow text-sm font-bold text-brand-on-yellow shadow-[0_4px_16px_rgb(var(--brand-accent)/0.4)]">
                   เข้าใจแล้ว
                 </button>
               </div>
@@ -321,7 +321,7 @@ function LoginForm() {
                     />
                   </div>
                   <button type="submit" disabled={forgotLoading}
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-brand-yellow text-sm font-bold text-brand-black shadow-[0_4px_16px_rgba(255,193,7,0.4)] disabled:opacity-60">
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-brand-yellow text-sm font-bold text-brand-on-yellow shadow-[0_4px_16px_rgb(var(--brand-accent)/0.4)] disabled:opacity-60">
                     {forgotLoading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'ส่งคำขอถึงเจ้าของร้าน'}
                   </button>
                 </form>

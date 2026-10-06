@@ -22,3 +22,15 @@ export function useShopName(): string {
   if (fromSettings && fromSettings !== 'FixITPro') return fromSettings
   return tenantName?.trim() || fromSettings || 'FixITPro'
 }
+
+/** The shop's logo for the menu header (null until the owner sets one). */
+export function useShopLogo(): string | null {
+  const role = useAuthStore((s) => s.user?.role)
+  const { data } = useQuery<ShopSettings>({
+    queryKey: ['shop-settings'],
+    queryFn: async () => (await api.get('/settings/shop')).data,
+    staleTime: 5 * 60_000,
+    enabled: !!role && role !== 'SUPER_ADMIN',
+  })
+  return data?.logoUrl || null
+}
