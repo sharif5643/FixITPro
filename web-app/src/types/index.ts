@@ -244,7 +244,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   'warranty.view': 'ดูการรับประกัน',
   'warranty.manage': 'จัดการการรับประกัน',
   'technician.view': 'ดูสถิติช่างซ่อม',
-  'repair.technician': 'เป็นช่างซ่อม (รับงาน · มีหน้างานของฉัน)',
+  'repair.technician': 'เป็นช่างซ่อม (รับงาน · มีหน้างานของฉัน · แก้ได้เฉพาะงานตัวเอง ยกเว้นผู้จัดการ)',
   'data.export': 'ส่งออกข้อมูล',
   'data.import': 'นำเข้าข้อมูล',
   'branches.manage': 'จัดการสาขา',

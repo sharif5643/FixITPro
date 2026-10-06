@@ -11,6 +11,8 @@ import { useAuthStore } from '@/store/auth.store'
  * Technicians work only on their own jobs (enforced by the API, repairs.service assertCanWorkOn).
  * Any technician can open every job to answer a customer, take a job nobody has yet, and take
  * payment / hand a device back for a colleague — but not change a colleague's job.
+ * The same applies to anyone else the owner made a technician (permission repair.technician);
+ * only owners and managers change any job.
  */
 
 interface OwnedRepair {
@@ -24,7 +26,10 @@ const CLOSED = ['DELIVERED', 'CANCELLED']
 
 export function useTechOwnership(repair: OwnedRepair | null | undefined) {
   const user = useAuthStore((s) => s.user)
-  const isTech = user?.role === 'TECHNICIAN'
+  const perms = useAuthStore((s) => s.permissions)
+  const role = user?.role
+  const isTech = role === 'TECHNICIAN' ||
+    (role !== 'OWNER' && role !== 'SUPER_ADMIN' && role !== 'MANAGER' && perms.includes('repair.technician'))
   const techId = repair?.technician?.id ?? repair?.technicianId ?? null
   const mine = !!techId && techId === user?.id
   const unassigned = !techId
