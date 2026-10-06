@@ -1,6 +1,8 @@
 import { Transform } from 'class-transformer'
 import {
   IsEmail,
+  IsIn,
+  MaxLength,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -36,10 +38,16 @@ export class PublicRegisterDto {
   businessType?: string
 
   @IsOptional()
-  @IsString()
+  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'สีไม่ถูกต้อง' })
   themeColor?: string
 
   @IsOptional()
-  @IsString()
+  @IsIn(['light', 'dark', 'auto'])
   themePreset?: string
+
+  // Shop logo as a small image data URL (the sign-up page shrinks it first)
+  @IsOptional()
+  @Matches(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/, { message: 'ไฟล์โลโก้ไม่ถูกต้อง' })
+  @MaxLength(1_500_000, { message: 'โลโก้ใหญ่เกินไป' })
+  logoDataUrl?: string
 }

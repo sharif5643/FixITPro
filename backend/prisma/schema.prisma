@@ -984,6 +984,9 @@ model ShopSettings {
   // Formal A4 documents: the owner's legal name (instead of the shop brand) and the tax branch
   legalName               String?
   taxBranch               String?
+  // The shop's own look: main colour (#rrggbb) and light / dark / auto
+  themeColor              String?
+  themePreset             String?
   lineChannelAccessToken  String?
   lineNotifyEnabled       Boolean  @default(false)
   promptpayId             String?

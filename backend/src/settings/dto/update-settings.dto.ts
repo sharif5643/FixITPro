@@ -7,6 +7,7 @@ import {
   Min,
   Max,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -45,6 +46,15 @@ export class UpdateSettingsDto {
   @IsString()
   @MaxLength(100)
   taxBranch?: string;
+
+  // The shop's main colour (#rrggbb, or 'none' for the product's default look) and light / dark / auto
+  @IsOptional()
+  @Matches(/^(#[0-9a-fA-F]{6}|none)$/, { message: 'สีต้องอยู่ในรูปแบบ #RRGGBB' })
+  themeColor?: string | null;
+
+  @IsOptional()
+  @IsIn(['light', 'dark', 'auto'])
+  themePreset?: string | null;
 
   @IsOptional()
   @IsString()

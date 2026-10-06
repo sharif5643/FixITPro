@@ -57,7 +57,7 @@ export default function ReportsPage() {
           {(['daily','monthly','yearly'] as const).map(p => (
             <button key={p} onClick={()=>setPeriod(p)}
               className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors ${
-                period===p ? 'bg-brand-yellow text-brand-black' : 'bg-[#F8F9FB] text-slate-500'
+                period===p ? 'bg-brand-yellow text-brand-on-yellow' : 'bg-[#F8F9FB] text-slate-500'
               }`}>
               {p==='daily'?'รายวัน':p==='monthly'?'รายเดือน':'รายปี'}
             </button>

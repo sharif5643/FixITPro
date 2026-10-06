@@ -31,6 +31,25 @@ const themePresets = [
   { value: 'auto',  label: 'Auto — ตามระบบ' },
 ]
 
+/** The logo as a small PNG data URL (longest side 400px), small enough to keep in the shop settings. */
+function shrinkLogo(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, 400 / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width  = Math.max(1, Math.round(img.width * scale))
+      canvas.height = Math.max(1, Math.round(img.height * scale))
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/png'))
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('อ่านไฟล์โลโก้ไม่ได้')) }
+    img.src = url
+  })
+}
+
 type FormState = {
   shopName: string
   ownerName: string
@@ -79,6 +98,7 @@ export default function RegisterPage() {
 
     setIsLoading(true)
     try {
+      const logoDataUrl = form.logo ? await shrinkLogo(form.logo).catch(() => undefined) : undefined
       await api.post('/public/register', {
         shopName:     form.shopName.trim(),
         ownerName:    form.ownerName.trim(),
@@ -88,6 +108,7 @@ export default function RegisterPage() {
         businessType: form.businessType || undefined,
         themeColor:   form.mainColor || undefined,
         themePreset:  form.theme || undefined,
+        logoDataUrl,
       })
       setSubmitted(true)
       setTimeout(() => router.push('/login'), 3000)

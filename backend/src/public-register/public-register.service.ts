@@ -66,6 +66,10 @@ export class PublicRegisterService {
         data: {
           shopName: dto.shopName,
           tenantId: tenant.id,
+          // What the owner picked on the sign-up page is the shop's look from the first login
+          themeColor:  dto.themeColor ?? null,
+          themePreset: dto.themePreset ?? null,
+          logoUrl:     dto.logoDataUrl ?? null,
         },
       })
 

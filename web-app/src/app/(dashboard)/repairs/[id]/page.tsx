@@ -198,7 +198,7 @@ function RepairsContent() {
             <button
               onClick={() => { if (!isGlobalMode) setCreateOpen(true) }}
               disabled={isGlobalMode}
-              className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[#FFC107] text-sm font-bold text-[#111] disabled:opacity-50 shadow-[0_4px_12px_rgba(255,193,7,0.3)] whitespace-nowrap"
+              className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))] disabled:opacity-50 shadow-[0_4px_12px_rgb(var(--brand-accent)/0.3)] whitespace-nowrap"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">สร้างงานซ่อม</span>
@@ -253,7 +253,7 @@ function RepairsContent() {
           <button
             onClick={() => { if (!isGlobalMode) setCreateOpen(true) }}
             disabled={isGlobalMode}
-            className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[#FFC107] text-sm font-bold text-[#111] disabled:opacity-50 shadow-[0_4px_12px_rgba(255,193,7,0.3)] whitespace-nowrap shrink-0"
+            className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))] disabled:opacity-50 shadow-[0_4px_12px_rgb(var(--brand-accent)/0.3)] whitespace-nowrap shrink-0"
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">สร้างงานซ่อม</span>
@@ -290,7 +290,7 @@ function RepairsContent() {
                 onClick={() => setStatusFilter(tab.value)}
                 className={cn(
                   'flex items-center gap-1.5 shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap',
-                  active ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8FAFC] dark:bg-[#1E293B] text-slate-500 dark:text-slate-400',
+                  active ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))]' : 'bg-[#F8FAFC] dark:bg-[#1E293B] text-slate-500 dark:text-slate-400',
                 )}
               >
                 {tab.dot && !active && (
@@ -321,18 +321,18 @@ function RepairsContent() {
               className={cn(
                 'shrink-0 rounded-2xl p-3 text-left transition-all min-w-[86px] active:scale-[0.97]',
                 active
-                  ? 'bg-[#FFC107] shadow-[0_4px_16px_rgba(255,193,7,0.4)]'
+                  ? 'bg-[rgb(var(--brand-accent))] shadow-[0_4px_16px_rgb(var(--brand-accent)/0.4)]'
                   : 'bg-white dark:bg-[#1E293B] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.40)]',
               )}
             >
               <p className="text-lg mb-1 leading-none">{s.icon}</p>
               <p className={cn(
                 'text-2xl font-extrabold tabular-nums leading-none',
-                active ? 'text-[#111]' : 'text-slate-800',
+                active ? 'text-[rgb(var(--brand-accent-fg))]' : 'text-slate-800',
               )}>
                 {isLoading ? '—' : count}
               </p>
-              <p className={cn('text-[10px] mt-1 leading-tight', active ? 'text-[#111]/70' : 'text-slate-400')}>
+              <p className={cn('text-[10px] mt-1 leading-tight', active ? 'text-[rgb(var(--brand-accent-fg)/0.7)]' : 'text-slate-400')}>
                 {s.label}
               </p>
             </button>
@@ -371,7 +371,7 @@ function RepairsContent() {
             {!search && !isGlobalMode && (
               <button
                 onClick={() => setCreateOpen(true)}
-                className="flex items-center gap-1.5 h-10 px-5 rounded-2xl bg-[#FFC107] text-sm font-bold text-[#111] shadow-[0_4px_12px_rgba(255,193,7,0.3)]"
+                className="flex items-center gap-1.5 h-10 px-5 rounded-2xl bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))] shadow-[0_4px_12px_rgb(var(--brand-accent)/0.3)]"
               >
                 <Plus className="h-4 w-4" />รับงานซ่อมแรก
               </button>
@@ -387,8 +387,8 @@ function RepairsContent() {
                 className="flex items-center gap-3 rounded-2xl bg-white dark:bg-[#1E293B] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] border border-transparent dark:border-slate-700/60 active:scale-[0.98] transition-all text-left w-full hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.40)]"
               >
                 {/* Icon avatar */}
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#FFC107]/10">
-                  <Wrench className="h-5 w-5 text-[#FFC107]" strokeWidth={2.5} />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--brand-accent)/0.1)]">
+                  <Wrench className="h-5 w-5 text-[rgb(var(--brand-accent))]" strokeWidth={2.5} />
                 </div>
 
                 {/* Content */}
@@ -398,7 +398,7 @@ function RepairsContent() {
                       {repair.ticketNumber}
                     </span>
                     {isNew && (
-                      <span className="text-[9px] font-extrabold bg-[#FFC107] text-[#111] px-1.5 py-0.5 rounded-full leading-none">
+                      <span className="text-[9px] font-extrabold bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))] px-1.5 py-0.5 rounded-full leading-none">
                         ใหม่
                       </span>
                     )}
@@ -432,7 +432,7 @@ function RepairsContent() {
                   <Link
                     href={`/repairs/${repair.id}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-slate-300 hover:text-[#FFC107] transition-colors"
+                    className="text-slate-300 hover:text-[rgb(var(--brand-accent))] transition-colors"
                     title="เปิด Workspace"
                   >
                     <ChevronRight className="h-4 w-4" />
@@ -469,7 +469,7 @@ function ViewToggle({ viewMode, onSwitch }: { viewMode: 'list' | 'board'; onSwit
           className={cn(
             'flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all',
             viewMode === mode
-              ? 'bg-[#FFC107] text-[#111] shadow-sm'
+              ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))] shadow-sm'
               : 'text-slate-500 hover:text-slate-700',
           )}
         >

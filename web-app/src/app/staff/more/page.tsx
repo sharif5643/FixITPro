@@ -72,7 +72,7 @@ export default function MorePage() {
       {/* Profile header */}
       <div className="bg-white px-5 pb-5 pt-14 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-yellow text-lg font-bold text-brand-black">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-yellow text-lg font-bold text-brand-on-yellow">
             {initials}
           </div>
           <div className="flex-1">

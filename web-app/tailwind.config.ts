@@ -18,10 +18,12 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          yellow:         '#FFC107',
-          'yellow-hover': '#E6AC00',
-          'yellow-light': '#FFF8E1',
-          'yellow-dark':  '#CC9A00',
+          // The staff app's accent: #FFC107 unless the shop picked its own colour (app/globals.css)
+          yellow:         'rgb(var(--brand-accent) / <alpha-value>)',
+          'yellow-hover': 'rgb(var(--brand-accent) / 0.85)',
+          'yellow-light': 'rgb(var(--brand-accent) / 0.12)',
+          'yellow-dark':  'rgb(var(--brand-accent) / 0.9)',
+          'on-yellow':    'rgb(var(--brand-accent-fg) / <alpha-value>)',
           black:          '#111111',
           gray:           '#6B7280',
           light:          '#F8F9FB',

@@ -93,7 +93,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
           <div className="flex gap-3">
             <button
               onClick={() => { setMeStatus('pending'); setRetryKey((k) => k + 1) }}
-              className="rounded-xl bg-brand-yellow px-5 py-2.5 text-sm font-semibold text-brand-black"
+              className="rounded-xl bg-brand-yellow px-5 py-2.5 text-sm font-semibold text-brand-on-yellow"
             >
               ลองใหม่
             </button>

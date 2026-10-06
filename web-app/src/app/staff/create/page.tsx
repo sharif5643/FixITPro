@@ -80,12 +80,12 @@ interface Employee  { id: string; name: string }
 
 /* ─── Shared style ──────────────────────────────────────────────────────────── */
 
-const IC = 'h-12 w-full rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] px-4 text-sm text-[#111] outline-none focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20 transition-all'
+const IC = 'h-12 w-full rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] px-4 text-sm text-[#111] outline-none focus:border-[rgb(var(--brand-accent))] focus:ring-2 focus:ring-[rgb(var(--brand-accent)/0.2)] transition-all'
 
 function SectionHead({ num, title }: { num: number; title: string }) {
   return (
     <div className="flex items-center gap-2.5 mb-4">
-      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#FFC107] text-[11px] font-extrabold text-[#111]">{num}</div>
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[rgb(var(--brand-accent))] text-[11px] font-extrabold text-[rgb(var(--brand-accent-fg))]">{num}</div>
       <p className="text-[14px] font-bold text-[#111]">{title}</p>
     </div>
   )
@@ -310,7 +310,7 @@ export default function CreateRepairPage() {
             <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={phoneSearch} onChange={(e) => searchCustomers(e.target.value)}
               placeholder="ค้นหาเบอร์โทร / ชื่อลูกค้า" inputMode="tel"
-              className="h-11 w-full rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] pl-10 pr-4 text-sm outline-none focus:border-[#FFC107]" />
+              className="h-11 w-full rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] pl-10 pr-4 text-sm outline-none focus:border-[rgb(var(--brand-accent))]" />
             {searchLoading && <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />}
           </div>
 
@@ -318,7 +318,7 @@ export default function CreateRepairPage() {
             <div className="mb-3 flex flex-col gap-2">
               {customers.map((c) => (
                 <div key={c.id} className="flex items-center gap-3 rounded-xl border border-[#E5E7EB] bg-white p-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FFC107] text-sm font-bold text-[#111]">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))]">
                     {c.name.slice(0, 1)}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -328,7 +328,7 @@ export default function CreateRepairPage() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <button onClick={() => { setSelectedCust(c); setCustomers([]) }}
-                      className="rounded-xl bg-[#FFC107] px-3 py-1.5 text-[12px] font-bold text-[#111]">เลือก</button>
+                      className="rounded-xl bg-[rgb(var(--brand-accent))] px-3 py-1.5 text-[12px] font-bold text-[rgb(var(--brand-accent-fg))]">เลือก</button>
                     <button onClick={() => router.push(`/staff/customers/${c.id}`)}
                       className="text-[10px] text-blue-500">ดูประวัติ ›</button>
                   </div>
@@ -338,8 +338,8 @@ export default function CreateRepairPage() {
           )}
 
           {selectedCust ? (
-            <div className="mb-3 flex items-center gap-3 rounded-xl border-2 border-[#FFC107] bg-[#FFFBEB] p-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FFC107] text-sm font-bold text-[#111]">
+            <div className="mb-3 flex items-center gap-3 rounded-xl border-2 border-[rgb(var(--brand-accent))] bg-[#FFFBEB] p-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))]">
                 {selectedCust.name.slice(0, 1)}
               </div>
               <div className="flex-1 min-w-0">
@@ -377,7 +377,7 @@ export default function CreateRepairPage() {
           <div className="mb-4 flex justify-between">
             {DEVICE_TYPES.map(({ value, label, icon: Icon }) => (
               <button key={value} onClick={() => setDeviceType(value)}
-                className={`flex flex-col items-center gap-1 rounded-xl p-2.5 transition-all ${deviceType === value ? 'bg-[#FFC107]/15 ring-2 ring-[#FFC107]' : 'bg-[#F8F9FB]'}`}>
+                className={`flex flex-col items-center gap-1 rounded-xl p-2.5 transition-all ${deviceType === value ? 'bg-[rgb(var(--brand-accent)/0.15)] ring-2 ring-[rgb(var(--brand-accent))]' : 'bg-[#F8F9FB]'}`}>
                 <Icon className={`h-6 w-6 ${deviceType === value ? 'text-[#F59E0B]' : 'text-slate-400'}`} strokeWidth={1.8} />
                 <span className={`text-[10px] font-semibold ${deviceType === value ? 'text-[#F59E0B]' : 'text-slate-400'}`}>{label}</span>
               </button>
@@ -416,7 +416,7 @@ export default function CreateRepairPage() {
             <input value={imei} onChange={(e) => setImei(e.target.value)}
               placeholder="IMEI" inputMode="numeric" className={`${IC} pr-24`} />
             <button onClick={() => setScanOpen(true)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 rounded-lg bg-[#FFC107]/20 px-2.5 py-1 text-[11px] font-bold text-[#F59E0B]">
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 rounded-lg bg-[rgb(var(--brand-accent)/0.2)] px-2.5 py-1 text-[11px] font-bold text-[#F59E0B]">
               <ScanLine className="h-3 w-3" /> สแกน
             </button>
           </div>
@@ -430,7 +430,7 @@ export default function CreateRepairPage() {
               <button key={c.label} onClick={() => setColorLabel(c.label)}
                 className={`flex flex-col items-center gap-1 ${colorLabel === c.label ? 'scale-110' : ''} transition-transform`}>
                 <div
-                  className={`h-9 w-9 rounded-full transition-all ${colorLabel === c.label ? 'ring-2 ring-offset-2 ring-[#FFC107]' : ''} ${c.border ? 'border border-[#E5E7EB]' : ''}`}
+                  className={`h-9 w-9 rounded-full transition-all ${colorLabel === c.label ? 'ring-2 ring-offset-2 ring-[rgb(var(--brand-accent))]' : ''} ${c.border ? 'border border-[#E5E7EB]' : ''}`}
                   style={{ backgroundColor: c.hex }} />
                 <span className="text-[9px] text-slate-500">{c.label}</span>
               </button>
@@ -444,7 +444,7 @@ export default function CreateRepairPage() {
           <div className="flex flex-wrap gap-2 mb-3">
             {ISSUE_TAGS.map((tag) => (
               <button key={tag} onClick={() => toggleChip(issueTags, setIssueTags, tag)}
-                className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${issueTags.includes(tag) ? 'bg-[#FFF8E7] text-[#F59E0B] ring-1 ring-[#FFC107]' : 'bg-[#F8F9FB] text-slate-500'}`}>
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${issueTags.includes(tag) ? 'bg-[#FFF8E7] text-[#F59E0B] ring-1 ring-[rgb(var(--brand-accent))]' : 'bg-[#F8F9FB] text-slate-500'}`}>
                 {issueTags.includes(tag) && <span className="text-[10px]">✓</span>}
                 {tag}
               </button>
@@ -452,7 +452,7 @@ export default function CreateRepairPage() {
           </div>
           <textarea value={issueDesc} onChange={(e) => setIssueDesc(e.target.value)} rows={3}
             placeholder="รายละเอียดเพิ่มเติม เช่น ลูกค้าบอกว่า..."
-            className="w-full resize-none rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] p-3 text-sm text-[#111] outline-none focus:border-[#FFC107] focus:ring-2 focus:ring-[#FFC107]/20" />
+            className="w-full resize-none rounded-xl border border-[#E5E7EB] bg-[#F8F9FB] p-3 text-sm text-[#111] outline-none focus:border-[rgb(var(--brand-accent))] focus:ring-2 focus:ring-[rgb(var(--brand-accent)/0.2)]" />
         </Card>
 
         {/* ④ สภาพเครื่องก่อนซ่อม */}
@@ -461,7 +461,7 @@ export default function CreateRepairPage() {
           <div className="flex flex-wrap gap-2">
             {CONDITIONS.map((c) => (
               <button key={c} onClick={() => toggleChip(conditions, setConditions, c)}
-                className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${conditions.includes(c) ? 'bg-[#FEF3C7] text-[#D97706] ring-1 ring-[#FFC107]' : 'bg-[#F8F9FB] text-slate-500'}`}>
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${conditions.includes(c) ? 'bg-[#FEF3C7] text-[#D97706] ring-1 ring-[rgb(var(--brand-accent))]' : 'bg-[#F8F9FB] text-slate-500'}`}>
                 {conditions.includes(c) && <span className="text-[10px]">✓</span>}
                 {c}
               </button>
@@ -502,7 +502,7 @@ export default function CreateRepairPage() {
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
             {ACCESSORIES.map((a) => (
               <label key={a} className="flex items-center gap-2 cursor-pointer" onClick={() => toggleChip(accessories, setAccessories, a)}>
-                <div className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all shrink-0 ${accessories.includes(a) ? 'border-[#FFC107] bg-[#FFC107]' : 'border-[#E5E7EB] bg-white'}`}>
+                <div className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all shrink-0 ${accessories.includes(a) ? 'border-[rgb(var(--brand-accent))] bg-[rgb(var(--brand-accent))]' : 'border-[#E5E7EB] bg-white'}`}>
                   {accessories.includes(a) && (
                     <svg viewBox="0 0 10 8" width="10" height="8" fill="none">
                       <path d="M1 4L3.5 6.5L9 1.5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -568,7 +568,7 @@ export default function CreateRepairPage() {
               <div className="grid grid-cols-3 gap-2">
                 {PAY_METHODS.map(({ value, label, icon: Icon }) => (
                   <button key={value} onClick={() => setDepositPM(value)}
-                    className={`h-11 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-colors ${depositPM === value ? 'bg-[#FFC107] text-[#111]' : 'bg-[#F8F9FB] text-slate-500'}`}>
+                    className={`h-11 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-colors ${depositPM === value ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))]' : 'bg-[#F8F9FB] text-slate-500'}`}>
                     <Icon className="h-3.5 w-3.5" /> {label}
                   </button>
                 ))}
@@ -660,7 +660,7 @@ export default function CreateRepairPage() {
         style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))' }}
       >
         <button onClick={handleSubmit} disabled={loading}
-          className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#FFC107] text-[16px] font-bold text-[#111] shadow-[0_4px_20px_rgba(255,193,7,0.45)] disabled:opacity-60 active:scale-[0.98] transition-transform">
+          className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-[rgb(var(--brand-accent))] text-[16px] font-bold text-[rgb(var(--brand-accent-fg))] shadow-[0_4px_20px_rgb(var(--brand-accent)/0.45)] disabled:opacity-60 active:scale-[0.98] transition-transform">
           {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'บันทึกงานซ่อม'}
         </button>
         <button className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#111] active:scale-95 transition-transform">

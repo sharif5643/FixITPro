@@ -85,7 +85,7 @@ export default function StaffChatPage() {
           <ArrowLeft className="h-5 w-5 text-slate-600" />
         </button>
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-yellow">
-          <Wrench className="h-4 w-4 text-brand-black" />
+          <Wrench className="h-4 w-4 text-brand-on-yellow" />
         </div>
         <div className="flex-1">
           <p className="text-sm font-bold text-brand-black">แชทกับช่าง</p>
@@ -149,7 +149,7 @@ export default function StaffChatPage() {
           disabled={!text.trim() || sending || !connected}
           className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-yellow disabled:opacity-40"
         >
-          {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 text-brand-black" />}
+          {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 text-brand-on-yellow" />}
         </button>
       </div>
     </div>

@@ -15,6 +15,34 @@ export class SettingsService {
     private notif:     NotificationsService,
   ) {}
 
+  /**
+   * Shops that signed up before the look was saved in settings keep their choice in the sign-up
+   * record (Tenant.notes). Read it from there until the owner saves a look in settings.
+   */
+  private async signupLook(tenantId: string): Promise<{ themeColor: string | null; themePreset: string | null }> {
+    const t = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { notes: true } });
+    try {
+      const n = JSON.parse(t?.notes ?? '{}');
+      return {
+        themeColor:  typeof n.themeColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(n.themeColor) ? n.themeColor : null,
+        themePreset: ['light', 'dark', 'auto'].includes(n.themePreset) ? n.themePreset : null,
+      };
+    } catch {
+      return { themeColor: null, themePreset: null };
+    }
+  }
+
+  private async withLook<T extends { themeColor?: string | null; themePreset?: string | null }>(row: T, tenantId: string): Promise<T> {
+    if (row.themeColor && row.themeColor !== 'none' && row.themePreset) return row;
+    const look = await this.signupLook(tenantId);
+    return {
+      ...row,
+      // 'none' = the owner chose the product's default colour on purpose
+      themeColor:  row.themeColor === 'none' ? null : (row.themeColor ?? look.themeColor),
+      themePreset: row.themePreset ?? look.themePreset,
+    };
+  }
+
   // Full settings — used by the settings management page.
   // SUPER_ADMIN (tenantId=null) gets an in-memory default; they don't own a shop.
   async getSettings(tenantId: string | null) {
@@ -29,17 +57,22 @@ export class SettingsService {
       const raw: string = (result as any).lineChannelAccessToken;
       (result as any).lineChannelAccessToken = `****${raw.slice(-6)}`;
     }
-    return result;
+    return this.withLook(result, tenantId);
   }
 
   // Lightweight read used by sidebar / navbar (no permission gate needed).
   async getShopInfo(tenantId: string | null) {
-    if (!tenantId) return { shopName: 'FixITPro', logoUrl: null };
+    if (!tenantId) return { shopName: 'FixITPro', logoUrl: null, themeColor: null, themePreset: null };
     const row = await this.prisma.shopSettings.findUnique({
       where:  { tenantId },
-      select: { shopName: true, logoUrl: true },
+      select: { shopName: true, logoUrl: true, themeColor: true, themePreset: true },
     });
-    return { shopName: row?.shopName ?? 'FixITPro', logoUrl: row?.logoUrl ?? null };
+    return this.withLook({
+      shopName:    row?.shopName ?? 'FixITPro',
+      logoUrl:     row?.logoUrl ?? null,
+      themeColor:  row?.themeColor ?? null,
+      themePreset: row?.themePreset ?? null,
+    }, tenantId);
   }
 
   async updateSettings(

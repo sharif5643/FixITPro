@@ -4,6 +4,16 @@
 
 @layer base {
   :root {
+    /* ── Shop brand colours (RGB channels) ─────────────────────────
+       The product's own look; components/providers/brand-theme.tsx replaces all of them with the
+       shop's main colour when the owner picked one. */
+    --brand:            37 99 235;   /* web menu, header, main buttons — blue-600 */
+    --brand-fg:         255 255 255;
+    --brand-accent:     255 193 7;   /* staff app and quick actions — #FFC107 */
+    --brand-accent-fg:  17 17 17;
+    --brand-header:     15 23 42;    /* SUNMI screen header — slate-900 */
+    --brand-header-fg:  255 255 255;
+
     /* ── Color tokens (HSL) ─────────────────────────────────────── */
     --background:         0 0% 100%;
     --foreground:         222.2 84% 4.9%;

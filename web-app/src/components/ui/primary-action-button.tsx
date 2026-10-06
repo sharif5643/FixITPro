@@ -31,8 +31,8 @@ export function PrimaryActionButton({
   'aria-label': ariaLabel,
 }: PrimaryActionButtonProps) {
   const cls = cn(
-    'inline-flex items-center justify-center gap-2 rounded-2xl bg-[#FFC107] font-bold text-[#111]',
-    'shadow-[0_4px_12px_rgba(255,193,7,0.3)] active:scale-[0.98] transition-all select-none',
+    'inline-flex items-center justify-center gap-2 rounded-2xl bg-[rgb(var(--brand-accent))] font-bold text-[rgb(var(--brand-accent-fg))]',
+    'shadow-[0_4px_12px_rgb(var(--brand-accent)/0.3)] active:scale-[0.98] transition-all select-none',
     'disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100',
     size === 'sm' && 'h-10 px-4 text-sm',
     size === 'md' && 'h-11 px-5 text-sm',

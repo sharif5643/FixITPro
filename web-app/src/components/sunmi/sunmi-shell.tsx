@@ -43,18 +43,18 @@ export function SunmiShell({
     <div className={cn('flex flex-col bg-slate-100 overflow-hidden',
       inStaff ? 'h-[calc(100dvh-70px-env(safe-area-inset-bottom))]' : 'h-screen')}>
       {/* Top bar */}
-      <header className="flex items-center h-14 px-2 bg-slate-900 shrink-0 select-none">
+      <header className="flex items-center h-14 px-2 bg-[rgb(var(--brand-header))] text-[rgb(var(--brand-header-fg))] shrink-0 select-none">
         {showBack ? (
           <button
             onClick={() => onBack ? onBack() : router.back()}
-            className="flex items-center justify-center h-11 w-11 rounded-xl text-slate-300 active:bg-slate-700 transition-colors"
+            className="flex items-center justify-center h-11 w-11 rounded-xl opacity-80 active:bg-black/20 transition-colors"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
         ) : (
           <div className="w-11" />
         )}
-        <h1 className="flex-1 text-center text-white font-bold text-lg truncate px-1">{title}</h1>
+        <h1 className="flex-1 text-center font-bold text-lg truncate px-1">{title}</h1>
         <div className="w-11 flex justify-center">{rightContent}</div>
       </header>
 
