@@ -366,7 +366,9 @@ export function CheckoutDialog({
         items: cartItems.map((i) => ({
           productId: i.product.id,
           quantity:  i.quantity,
-          price:     Number(i.product.price) - (i.itemDiscount ?? 0),
+          price:     Number(i.product.price),
+          // Line discount sent on its own (as SUNMI does) so the receipt shows "(ลด ฿x)"
+          discount:  (i.itemDiscount ?? 0) * i.quantity || undefined,
           serialIds: i.product.hasSerial ? (serialAssignments[i.product.id] ?? []) : undefined,
         })),
       }

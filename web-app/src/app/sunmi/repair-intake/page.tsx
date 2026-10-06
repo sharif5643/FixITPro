@@ -1,5 +1,6 @@
 'use client'
 
+import { CONDITION_OPTIONS_LIST, ACCESSORY_OPTIONS, DEVICE_TYPE_OPTIONS, ISSUE_TAG_OPTIONS, SPECIAL_ISSUE_TAGS } from '@/lib/repair-tags'
 import { AppBranchBar } from '@/components/app/app-branch-bar'
 import { useAppBranch } from '@/hooks/useAppBranch'
 import { useState, useMemo, useEffect, useRef } from 'react'
@@ -45,29 +46,10 @@ const QUICK_MODELS: Record<string, string[]> = {
   Nokia:   ['Nokia G42', 'Nokia C32', 'Nokia XR21'],
 }
 
-const CONDITION_ITEMS = [
-  'หน้าจอแตก',
-  'เคสแตก / บิ่น',
-  'ปุ่มหัก / ค้าง',
-  'ชาร์จไม่ติด',
-  'น้ำเข้า',
-  'ลำโพงเสีย',
-  'กล้องหัก / ขุ่น',
-  'ไมค์เสีย',
-  'Wi-Fi / สัญญาณหาย',
-  'แบตเตอรี่บวม',
-]
+// The same lists as the web form (lib/repair-tags)
+const CONDITION_ITEMS = CONDITION_OPTIONS_LIST
 
-const ACCESSORY_ITEMS = [
-  'ฝาหลัง / เคส',
-  'ซิมการ์ด',
-  'บัตรความจำ',
-  'ที่ชาร์จ',
-  'หูฟัง / หัวแปลง',
-  'สายเคเบิล',
-  'กระจกกันรอย',
-  'กล่อง / เอกสาร',
-]
+const ACCESSORY_ITEMS = ACCESSORY_OPTIONS
 
 // ── Form schema ───────────────────────────────────────────────────────────────
 
@@ -82,17 +64,20 @@ const schema = z.object({
   deviceModel:   z.string().min(1, 'กรุณากรอกรุ่น'),
   deviceColor:   z.string().optional(),
   deviceImei:    z.string().optional(),
+  deviceType:    z.string().optional(),
   technicianId:  z.string().optional(),
 
   // Step 2 — Issue + Condition
   issue:          z.string().min(1, 'กรุณากรอกอาการเสีย'),
   conditionIssues: z.array(z.string()).default([]),
+  issueTags:     z.array(z.string()).default([]),
 
   // Step 3 — Accessories + Details
   accessories:   z.array(z.string()).default([]),
   deposit:       z.coerce.number().min(0).default(0),
   depositPaymentMethod: z.enum(['CASH', 'TRANSFER']).default('CASH'),
   estimateCost:  z.coerce.number().min(0).optional(),
+  discount:      z.coerce.number().min(0).optional(),
   dueDate:       z.string().optional(),
   note:          z.string().optional(),
 })
@@ -322,6 +307,19 @@ function StepDevice({
     <div className="space-y-5">
       <SectionTitle>ขั้นตอนที่ 2 — ข้อมูลอุปกรณ์</SectionTitle>
 
+      {/* Device type — the web form's types */}
+      <Field label="ประเภทเครื่อง">
+        <div className="flex flex-wrap gap-2">
+          {DEVICE_TYPE_OPTIONS.map((t) => (
+            <button key={t} type="button" onClick={() => setValue('deviceType', watch('deviceType') === t ? '' : t)}
+              className={`px-4 h-11 rounded-xl border-2 text-sm font-semibold ${watch('deviceType') === t
+                ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </Field>
+
       {/* Brand chips */}
       <Field label="ยี่ห้อ *" error={errors.deviceBrand?.message}>
         <div className="flex flex-wrap gap-2 mb-2">
@@ -439,6 +437,26 @@ function StepIssue({ register, errors, watch, setValue }: { register: any; error
   return (
     <div className="space-y-5">
       <SectionTitle>ขั้นตอนที่ 3 — อาการเสีย</SectionTitle>
+
+      {/* Job type tags — the web's, also used for technician commission */}
+      <Field label="หมวดหมู่ปัญหา">
+        <div className="flex flex-wrap gap-2">
+          {[...SPECIAL_ISSUE_TAGS, ...ISSUE_TAG_OPTIONS].map((t) => {
+            const tags: string[] = watch('issueTags') ?? []
+            const on = tags.includes(t)
+            const special = SPECIAL_ISSUE_TAGS.includes(t)
+            return (
+              <button key={t} type="button"
+                onClick={() => setValue('issueTags', on ? tags.filter((x) => x !== t) : [...tags, t])}
+                className={`px-3 h-10 rounded-full border-2 text-sm font-semibold ${on
+                  ? special ? 'border-red-600 bg-red-600 text-white' : 'border-blue-600 bg-blue-600 text-white'
+                  : special ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700'}`}>
+                {t === 'ด่วน' ? '⚡ ด่วน' : t === 'เคลม' ? '🔄 เคลม' : t}
+              </button>
+            )
+          })}
+        </div>
+      </Field>
 
       <Field label="อาการเสียที่ลูกค้าแจ้ง *" error={errors.issue?.message}>
         <textarea
@@ -573,6 +591,17 @@ function StepDetails({
           />
         </Field>
       </div>
+
+      <Field label="ส่วนลด (บาท)">
+        <input
+          {...register('discount')}
+          type="number"
+          min="0"
+          inputMode="numeric"
+          placeholder="0"
+          className="w-full h-12 px-4 border border-slate-200 rounded-xl text-xl font-bold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </Field>
 
       {/* How the deposit was paid — counts toward the right drawer total (cash vs transfer) */}
       {Number(watch('deposit') || 0) > 0 && (
@@ -720,7 +749,7 @@ function StepConfirm({ watch, technicians, photoCount }: { watch: any; technicia
 
       {/* Device */}
       <Section>
-        <Row label="อุปกรณ์" value={`${data.deviceBrand} ${data.deviceModel}`} bold />
+        <Row label="อุปกรณ์" value={`${data.deviceType ? data.deviceType + ' · ' : ''}${data.deviceBrand} ${data.deviceModel}`} bold />
         <Row label="สี"      value={data.deviceColor} />
         <Row label="IMEI"    value={data.deviceImei} />
         {techName && <Row label="ช่าง" value={techName} />}
@@ -728,6 +757,7 @@ function StepConfirm({ watch, technicians, photoCount }: { watch: any; technicia
 
       {/* Issue + Condition */}
       <Section>
+        {(data.issueTags ?? []).length > 0 && <Row label="หมวด" value={data.issueTags.join(', ')} />}
         <Row label="อาการ" value={data.issue} />
         {data.conditionIssues.length > 0 && (
           <Row label="สภาพ" value={data.conditionIssues.join(', ')} />
@@ -818,6 +848,7 @@ export default function RepairIntakePage() {
         deposit:         Number(settings?.defaultDeposit ?? 0),
         checklist:       [],
         conditionIssues: [],
+        issueTags:       [],
         accessories:     [],
       } as any,
     })
@@ -852,6 +883,9 @@ export default function RepairIntakePage() {
         issue:         data.issue.trim(),
         accessories:   data.accessories.length > 0 ? data.accessories.join(', ') : undefined,
         deviceConditions: data.conditionIssues.length > 0 ? data.conditionIssues : undefined,
+        deviceType:    data.deviceType || undefined,
+        issueTags:     data.issueTags?.length ? data.issueTags : undefined,
+        discount:      data.discount || undefined,
         dueDate:       data.dueDate ? new Date(data.dueDate + 'T12:00:00').toISOString() : undefined,
         estimateCost:  data.estimateCost || undefined,
         deposit:       data.deposit ?? 0,
@@ -871,7 +905,7 @@ export default function RepairIntakePage() {
       if (res?._queued) {
         toast.success('บันทึกในเครื่องแล้ว จะซิงค์อัตโนมัติเมื่อเชื่อมต่ออินเทอร์เน็ต')
         setPhotos([])
-        reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [] } as any)
+        reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [], issueTags: [] } as any)
         setStep(0)
         return
       }
@@ -923,7 +957,7 @@ export default function RepairIntakePage() {
 
       toast.success(`รับงาน ${repair.ticketNumber} สำเร็จ`)
       setPhotos([])
-      reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [] } as any)
+      reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [], issueTags: [] } as any)
       setStep(0)
       setPreview(opts)
       setPreviewId(String(repair.id))

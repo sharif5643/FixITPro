@@ -25,7 +25,7 @@ import {
 import { formatThaiMoney, cn } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
-import { ISSUE_TAG_OPTIONS } from '@/lib/repair-tags'
+import { ISSUE_TAG_OPTIONS, ACCESSORY_OPTIONS } from '@/lib/repair-tags'
 import { TechnicianAvatar } from '@/components/ui/technician-avatar'
 import type { Customer, RepairStatus } from '@/types'
 
@@ -69,7 +69,7 @@ const DEVICE_TYPES = [
   { value: 'อื่นๆ',    icon: HelpCircle },
 ]
 
-const ACCESSORIES_OPTIONS = ['ซองใส่', 'สาย USB', 'หัวชาร์จ', 'หูฟัง', 'ฟิล์มกระจก', 'กล่องเดิม', 'ปากกา', 'อื่นๆ']
+const ACCESSORIES_OPTIONS = ACCESSORY_OPTIONS
 
 const CONDITION_OPTIONS = [
   { value: 'หน้าจอแตก',   color: 'bg-red-50 border-red-200 text-red-700 data-[active=true]:bg-red-500 data-[active=true]:text-white data-[active=true]:border-red-500' },

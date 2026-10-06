@@ -688,6 +688,103 @@ ${body}
   return wrap(`${makeBody(false)}<div class="cut">✂ ──── ตัดที่นี่ ──── ✂</div>${makeBody(true)}`)
 }
 
+// ── Sale receipt thermal HTML — line for line the web's SaleReceipt (components/receipt/sale-receipt.tsx)
+// Used wherever an app prints a sale on a thermal printer, so the customer gets the same slip as
+// from the web.
+
+export function buildSaleReceiptThermalHtml(
+  sale: {
+    receiptNumber: string
+    createdAt: string
+    user?: { name?: string | null } | null
+    customer?: { name?: string | null; phone?: string | null } | null
+    items: Array<{ quantity: number; price: number | string; total: number | string; discount?: number | string | null; product?: { name?: string | null } | null }>
+    subtotal: number | string
+    discount: number | string
+    total: number | string
+    paymentMethod: string
+    amountPaid: number | string
+    change: number | string
+    note?: string | null
+    payments?: Array<{ paymentMethod: string; amount: number | string }> | null
+  },
+  settings: {
+    shopName?: string | null
+    shopPhone?: string | null
+    shopAddress?: string | null
+    taxId?: string | null
+    logoUrl?: string | null
+    receiptFooter?: string | null
+  } | null | undefined,
+  opts: { paperWidth?: '58mm' | '80mm'; cashierName?: string } = {},
+): string {
+  const e   = escHtml
+  const px  = opts.paperWidth === '80mm' ? 576 : 384
+  const css = makeReceiptThermalCss(px)
+  const r   = (webPx: number) => Math.round(webPx * px / 200)
+  const money = (n: number | string) => `฿${fmtI(Number(n))}`
+  const PM_S: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
+
+  const logoUrl = settings?.logoUrl ?? ''
+  const header = [
+    logoUrl ? `<div class="c" style="margin-bottom:${r(2)}px"><img src="${logoUrl}" alt="logo" style="height:${r(40)}px;width:auto;object-fit:contain" onerror="this.style.display='none'"/></div>` : '',
+    `<p class="c shop-name">${e(settings?.shopName || 'FixITPro')}</p>`,
+    settings?.shopPhone   ? `<p class="c">โทร: ${e(settings.shopPhone)}</p>` : '',
+    settings?.shopAddress ? `<p class="c">${e(settings.shopAddress)}</p>` : '',
+    settings?.taxId       ? `<p class="c">เลขที่ผู้เสียภาษี: ${e(settings.taxId)}</p>` : '',
+  ].join('\n')
+
+  const items = sale.items.map((it) => {
+    const disc = Number(it.discount ?? 0)
+    return `<p>${e(it.product?.name ?? 'สินค้า')}</p>
+<div class="row" style="padding-left:${r(8)}px"><span>${money(it.price)} × ${it.quantity}${disc > 0 ? ` (ลด ${money(disc)})` : ''}</span><span class="v">${money(it.total)}</span></div>`
+  }).join('\n')
+
+  const legs = sale.payments && sale.payments.length > 1
+    ? sale.payments.map((l, i) => `<div class="row"><span>ช่องทาง ${i + 1} (${PM_S[l.paymentMethod] ?? e(l.paymentMethod)})</span><span class="v">${money(l.amount)}</span></div>`).join('\n')
+      + `\n<div class="row"><span>รับเงินรวม</span><span class="v">${money(sale.amountPaid)}</span></div>`
+    : `<div class="row"><span>ช่องทาง</span><span class="v">${PM_S[sale.paymentMethod] ?? e(sale.paymentMethod)}</span></div>
+<div class="row"><span>รับเงิน</span><span class="v">${money(sale.amountPaid)}</span></div>`
+
+  const footer = settings?.receiptFooter
+    ? `<p class="c gray" style="white-space:pre-wrap">${e(settings.receiptFooter)}</p>`
+    : `<p class="c">*** ขอบคุณที่ใช้บริการ ***</p><p class="c gray">กรุณาเก็บใบเสร็จไว้เป็นหลักฐาน</p>`
+
+  const body = `${header}
+<div class="hr"></div>
+<div class="c sec">
+<p class="b">ใบเสร็จรับเงิน</p>
+<p>เลขที่: ${e(sale.receiptNumber)}</p>
+<p class="gray">${e(webReceiptDate(sale.createdAt))}</p>
+<p class="gray">พนักงาน: ${e(sale.user?.name ?? opts.cashierName ?? '—')}</p>
+</div>
+<div class="hr"></div>
+${sale.customer ? `<div class="sec"><p>ลูกค้า: ${e(sale.customer.name ?? '')}</p>${sale.customer.phone ? `<p>โทร: ${e(sale.customer.phone)}</p>` : ''}</div>
+<div class="hr"></div>` : ''}
+<div class="sec">
+${items}
+</div>
+<div class="hr"></div>
+<div class="row"><span>ยอดรวม</span><span class="v">${money(sale.subtotal)}</span></div>
+${Number(sale.discount) > 0 ? `<div class="row"><span>ส่วนลด</span><span class="v">-${money(sale.discount)}</span></div>` : ''}
+<div class="hr"></div>
+<div class="row b"><span>ยอดสุทธิ</span><span class="v">${money(sale.total)}</span></div>
+<div class="hr"></div>
+${legs}
+${Number(sale.change) > 0 ? `<div class="row b"><span>เงินทอน</span><span class="v">${money(sale.change)}</span></div>` : ''}
+${sale.note ? `<div class="hr"></div><p class="gray">หมายเหตุ: ${e(sale.note)}</p>` : ''}
+<div class="hr"></div>
+${footer}`
+
+  return `<!DOCTYPE html><html lang="th"><head>
+<meta charset="utf-8">
+<title>ใบเสร็จ ${e(sale.receiptNumber)}</title>
+<style>${css}</style>
+</head><body>
+${body}
+</body></html>`
+}
+
 // ── Web Share API (text → LINE / WhatsApp / email) ────────────────────────────
 
 async function nativeShare(title: string, text: string): Promise<void> {
@@ -724,29 +821,31 @@ export async function openCashDrawer(): Promise<void> {
 const PM_LABEL: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
 
 export function buildReceiptPreviewData(opts: PrintReceiptOptions): ThermalPreviewData {
+  // Same lines and words as the printed slip and the web's SaleReceipt
   const lines: ThermalLine[] = [
-    { type: 'row', label: 'พนักงาน', value: opts.cashierName },
+    { type: 'center', text: `พนักงาน: ${opts.cashierName || '—'}`, small: true },
     { type: 'separator' },
+    ...(opts.customerName
+      ? [{ type: 'row' as const, label: 'ลูกค้า', value: opts.customerName }, { type: 'separator' as const }]
+      : []),
     ...opts.items.map((it): ThermalLine => ({
       type:   'item',
       name:   it.name,
-      detail: `${it.qty} × ฿${fmtB(it.price)}`,
-      total:  `฿${fmtB(it.total)}`,
+      detail: `฿${fmtI(it.price)} × ${it.qty}`,
+      total:  `฿${fmtI(it.total)}`,
     })),
     { type: 'separator' },
-    { type: 'row', label: 'ยอดรวม', value: `฿${fmtB(opts.subtotal)}` },
+    { type: 'row', label: 'ยอดรวม', value: `฿${fmtI(opts.subtotal)}` },
     ...(opts.discount > 0
-      ? [{ type: 'row' as const, label: 'ส่วนลด', value: `-฿${fmtB(opts.discount)}` }]
+      ? [{ type: 'row' as const, label: 'ส่วนลด', value: `-฿${fmtI(opts.discount)}` }]
       : []),
     { type: 'separator' },
-    { type: 'row', label: 'รวมทั้งสิ้น', value: `฿${fmtB(opts.total)}`, bold: true },
+    { type: 'row', label: 'ยอดสุทธิ', value: `฿${fmtI(opts.total)}`, bold: true },
     { type: 'separator' },
-    { type: 'row', label: PM_LABEL[opts.paymentMethod] ?? opts.paymentMethod, value: `฿${fmtB(opts.amountPaid)}` },
+    { type: 'row', label: 'ช่องทาง', value: PM_LABEL[opts.paymentMethod] ?? opts.paymentMethod },
+    { type: 'row', label: 'รับเงิน', value: `฿${fmtI(opts.amountPaid)}` },
     ...(opts.change > 0
-      ? [{ type: 'row' as const, label: 'เงินทอน', value: `฿${fmtB(opts.change)}` }]
-      : []),
-    ...(opts.customerName
-      ? [{ type: 'separator' as const }, { type: 'row' as const, label: 'ลูกค้า', value: opts.customerName }]
+      ? [{ type: 'row' as const, label: 'เงินทอน', value: `฿${fmtI(opts.change)}`, bold: true }]
       : []),
   ]
   return {
