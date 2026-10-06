@@ -153,4 +153,14 @@ GROUP BY 1, 2;
 \echo '19c. Branches of the default shop'
 SELECT id, name, "isDefault", "createdAt"::date FROM "Branch" WHERE "tenantId" = 'cldefaulttenant0000000001' ORDER BY "createdAt";
 
+\echo '19d. Branches of the three shops, and the repair on a misfiled branch'
+SELECT b."tenantId", b.id, b.name, b."isDefault", b."isActive", b.status, b."createdAt"::date,
+       (SELECT count(*) FROM "Sale" s WHERE s."branchId" = b.id) AS sales,
+       (SELECT count(*) FROM "BranchStock" bs WHERE bs."branchId" = b.id) AS stock_rows,
+       (SELECT count(*) FROM "User" u WHERE u."branchId" = b.id) AS users
+FROM "Branch" b WHERE b."tenantId" IN ('cmqhhqsq50021eml4edc5gwx2','cmqhhn73r001ieml4jy6c5u8e','cmqhhyx57002seml4zjqk4t9u') ORDER BY 1, b."createdAt";
+SELECT r."branchId", c."tenantId" AS customer_shop, r.status, r."receivedAt"::date FROM "Repair" r LEFT JOIN "Customer" c ON c.id = r."customerId"
+WHERE r."branchId" IN ('cmqhhqsq70022eml4abkjnf8b','cmqhhn73t001jeml4fmikfb0y','cmqhhyx5a002teml4w9butbi8');
+SELECT t.id, t.plan, t.status FROM "Tenant" t WHERE t.id IN ('cmqhhqsq50021eml4edc5gwx2','cmqhhn73r001ieml4jy6c5u8e','cmqhhyx57002seml4zjqk4t9u');
+
 ROLLBACK;
