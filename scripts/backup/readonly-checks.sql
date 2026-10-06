@@ -130,4 +130,27 @@ WHERE u."branchId" IS NOT NULL
   AND (b.id IS NULL OR b."tenantId" IS DISTINCT FROM u."tenantId" OR NOT b."isActive" OR b.status <> 'ACTIVE');
 SELECT b.id, b."tenantId", b."isActive", b.status FROM "Branch" b WHERE b.id = 'cmqhppo2c0014jwr0t9ul5314';
 
+\echo '--- 19. Owner branches stored under another shop: who they belong to and what uses them ---'
+SELECT u."tenantId" AS owner_shop, t."shopName" AS owner_shop_name, b.id AS branch, b.name, b."tenantId" AS branch_shop,
+       b."isDefault", b."createdAt"::date AS created, t."createdAt"::date AS shop_created
+FROM "User" u JOIN "Branch" b ON b.id = u."branchId" JOIN "Tenant" t ON t.id = u."tenantId"
+WHERE b."tenantId" IS DISTINCT FROM u."tenantId";
+SELECT u.role, u."tenantId", u."branchId" FROM "User" u
+WHERE u."branchId" IN (SELECT b.id FROM "User" o JOIN "Branch" b ON b.id = o."branchId" WHERE b."tenantId" IS DISTINCT FROM o."tenantId");
+DO $$
+DECLARE r record; n bigint;
+BEGIN
+  FOR r IN SELECT table_name FROM information_schema.columns
+           WHERE table_schema = 'public' AND column_name = 'branchId' ORDER BY table_name LOOP
+    EXECUTE format('SELECT count(*) FROM %I WHERE "branchId" IN (SELECT b.id FROM "User" o JOIN "Branch" b ON b.id = o."branchId" WHERE b."tenantId" IS DISTINCT FROM o."tenantId")', r.table_name) INTO n;
+    IF n > 0 THEN RAISE NOTICE 'rows on misfiled branches: % = %', r.table_name, n; END IF;
+  END LOOP;
+END $$;
+\echo '19b. Sales on those branches by the shop of the seller'
+SELECT s."branchId", u."tenantId" AS seller_shop, count(*) FROM "Sale" s JOIN "User" u ON u.id = s."userId"
+WHERE s."branchId" IN (SELECT b.id FROM "User" o JOIN "Branch" b ON b.id = o."branchId" WHERE b."tenantId" IS DISTINCT FROM o."tenantId")
+GROUP BY 1, 2;
+\echo '19c. Branches of the default shop'
+SELECT id, name, "isDefault", "createdAt"::date FROM "Branch" WHERE "tenantId" = 'cldefaulttenant0000000001' ORDER BY "createdAt";
+
 ROLLBACK;
