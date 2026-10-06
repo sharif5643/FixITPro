@@ -1,6 +1,7 @@
 'use client'
 
 import { TechnicianPicker } from '@/components/repairs/repair-work-tools'
+import { TechOwnershipBar, useTechOwnership } from '@/components/repairs/tech-ownership'
 import { QcDialog } from '@/components/repairs/qc-dialog'
 import { statusChoices } from '@/lib/repair-status-flow'
 import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
@@ -181,6 +182,8 @@ export default function RepairDetailPage() {
     queryFn:  async () => (await api.get(`/repairs/${id}`)).data,
     enabled:  !!id,
   })
+  // A technician works only on their own job; a colleague's is view only (payment / handover allowed)
+  const own = useTechOwnership(repair as any)
 
   const { data: settings } = useQuery<ShopSettings>({
     queryKey: ['settings'],
@@ -427,7 +430,7 @@ export default function RepairDetailPage() {
   // ── Computed
 
   const curIdx    = STATUS_FLOW.indexOf(repair.status)
-  const isLocked  = repair.status === 'COMPLETED' || repair.status === 'DELIVERED'
+  const isLocked  = repair.status === 'COMPLETED' || repair.status === 'DELIVERED' || own.viewOnly
   const isFullyPaid = repair.paymentStatus === 'PAID'
   const hasShift  = !!currentShift
 
@@ -522,6 +525,7 @@ export default function RepairDetailPage() {
 
         {activeTab === 'info' && (
           <div className="flex flex-col gap-4 p-5">
+            <TechOwnershipBar repair={repair as any} onChanged={() => queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })} />
 
             {/* Customer */}
             <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
@@ -582,7 +586,7 @@ export default function RepairDetailPage() {
                       ) : (
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-slate-400 font-mono">IMEI: {repair.deviceImei ?? '—'}</span>
-                          {repair.status !== 'DELIVERED' && repair.status !== 'CANCELLED' && (
+                          {repair.status !== 'DELIVERED' && repair.status !== 'CANCELLED' && !own.viewOnly && (
                             <button onClick={() => setImeiEditing(true)}
                               className="flex h-5 w-5 items-center justify-center rounded text-slate-300">
                               <Pencil className="h-3 w-3" />
@@ -755,6 +759,7 @@ export default function RepairDetailPage() {
 
         {activeTab === 'parts' && (
           <div className="flex flex-col gap-4 p-5">
+            <TechOwnershipBar repair={repair as any} onChanged={() => queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })} />
 
             {/* Parts list */}
             <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
@@ -764,7 +769,7 @@ export default function RepairDetailPage() {
                   <p className="text-sm font-bold text-[#111]">อะไหล่ ({activeParts.length})</p>
                   {isLocked && (
                     <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                      <Lock className="h-3 w-3" /> ล็อกแล้ว
+                      <Lock className="h-3 w-3" /> {own.viewOnly ? 'ดูได้อย่างเดียว' : 'ล็อกแล้ว'}
                     </span>
                   )}
                 </div>
@@ -1014,7 +1019,7 @@ export default function RepairDetailPage() {
             )}
 
             {/* Approve */}
-            {repair.status === 'WAITING_APPROVAL' && (
+            {repair.status === 'WAITING_APPROVAL' && !own.viewOnly && (
               <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-amber-100">
                 <div className="flex items-center gap-2 mb-2">
                   <Info className="h-4 w-4 text-amber-500" />
@@ -1284,7 +1289,7 @@ export default function RepairDetailPage() {
         )}
         <QcDialog repair={repair} open={qcOpen} onClose={() => setQcOpen(false)}
           onDone={() => queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })} />
-        {repair.status !== 'DELIVERED' && repair.status !== 'CANCELLED' && (
+        {repair.status !== 'DELIVERED' && repair.status !== 'CANCELLED' && !own.viewOnly && (
           <div className="flex gap-2 mb-2">
             <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
               className="flex-1 h-10 rounded-xl bg-white border border-[#E5E7EB] px-3 text-sm font-medium text-[#111] outline-none">

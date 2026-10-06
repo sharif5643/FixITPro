@@ -169,39 +169,45 @@ export class RepairsController {
   @Patch(':id')
   @UseGuards(PermissionGuard)
   @RequirePermission('repair.edit')
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateRepairDto,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string,
   ) {
+    await this.repairsService.assertCanWorkOn(id, { id: actorId, role }, tenantId, { technicianId: dto.technicianId });
     return this.repairsService.update(id, dto, actorId, actorName, tenantId);
   }
 
   @Post(':id/parts')
   @UseGuards(PermissionGuard)
   @RequirePermission('repair.edit')
-  addPart(
+  async addPart(
     @Param('id') id: string,
     @Body() dto: AddRepairPartDto,
     @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('role') role: string,
   ) {
+    await this.repairsService.assertCanWorkOn(id, { id: actorId, role }, tenantId);
     return this.repairsService.addPart(id, dto, tenantId, actorId, actorName);
   }
 
   @Delete(':id/parts/:partId')
   @UseGuards(PermissionGuard)
   @RequirePermission('repair.edit')
-  removePart(
+  async removePart(
     @Param('id') id: string,
     @Param('partId') partId: string,
     @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
+    @CurrentUser('role') role: string,
   ) {
+    await this.repairsService.assertCanWorkOn(id, { id: actorId, role }, tenantId);
     return this.repairsService.removePart(id, partId, tenantId, actorId, actorName);
   }
 
@@ -229,12 +235,16 @@ export class RepairsController {
     @Param('id') id: string,
     @UploadedFiles() files: Express.Multer.File[],
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('role') role: string,
   ) {
     if (!files?.length) throw new BadRequestException('No files uploaded');
 
-    // The repair must belong to the caller's tenant; otherwise discard the uploaded files
+    // The repair must belong to the caller's tenant (and to the technician, for technicians);
+    // otherwise discard the uploaded files
     try {
       await this.repairsService.findOne(id, tenantId);
+      await this.repairsService.assertCanWorkOn(id, { id: actorId, role }, tenantId);
     } catch (err) {
       for (const f of files) {
         try { unlinkSync(f.path); } catch { /* ignore cleanup errors */ }
@@ -292,12 +302,14 @@ export class RepairsController {
   @Post(':id/refund-and-cancel')
   @UseGuards(PermissionGuard)
   @RequirePermission('repair.close')
-  refundAndCancel(
+  async refundAndCancel(
     @Param('id') id: string,
     @Body() dto: RefundAndCancelDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string,
   ) {
+    await this.repairsService.assertCanWorkOn(id, { id: userId, role }, tenantId);
     return this.repairsService.refundAndCancel(id, dto, userId, tenantId);
   }
 
@@ -329,13 +341,14 @@ export class RepairsController {
   @Delete(':id')
   @UseGuards(PermissionGuard)
   @RequirePermission('repair.edit')
-  deleteRepair(
+  async deleteRepair(
     @Param('id') id: string,
     @CurrentUser('id') actorId: string,
     @CurrentUser('role') actorRole: string,
     @CurrentUser('name') actorName: string,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
+    await this.repairsService.assertCanWorkOn(id, { id: actorId, role: actorRole }, tenantId);
     return this.repairsService.deleteRepair(id, actorId, actorRole, actorName, tenantId);
   }
 

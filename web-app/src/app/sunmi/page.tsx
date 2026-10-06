@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { Wrench, Clock, ShoppingCart, Package, LogOut, Printer, Timer, Wifi, BarChart2, BookOpen, Receipt, AlertCircle, LayoutDashboard } from 'lucide-react'
+import { Wrench, Clock, ShoppingCart, Package, LogOut, Printer, Timer, Wifi, BarChart2, BookOpen, Receipt, AlertCircle, LayoutDashboard, Hammer } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import { useAppAccess } from '@/hooks/useAppAccess'
 import { markOpenedFromApp } from '@/lib/app-shell'
@@ -35,6 +35,16 @@ const MENUS: { href: string; icon: React.ElementType; label: string; desc: strin
     bg:      'bg-amber-500',
     cardBg:  'bg-amber-50',
     text:    'text-amber-700',
+  },
+  {
+    href:    '/sunmi/my-repairs',
+    needs:   'myRepairs',
+    icon:    Hammer,
+    label:   'งานซ่อมของฉัน',
+    desc:    'งานที่ฉันรับ / งานกลาง',
+    bg:      'bg-violet-600',
+    cardBg:  'bg-violet-50',
+    text:    'text-violet-700',
   },
   {
     href:    '/sunmi/sales',

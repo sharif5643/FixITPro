@@ -82,6 +82,7 @@ export const ROLE_PRESET_PERMISSIONS: Partial<Record<AppRole, string[]>> = {
   TECHNICIAN: [
     'products.view',
     'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
+    'repair.technician',
     'serials.manage',
     'warranty.view', 'warranty.manage',
     'technician.view',
@@ -184,6 +185,7 @@ export const ALL_PERMISSIONS = [
   'products.view', 'products.create', 'products.edit', 'products.delete', 'products.view_cost',
   'sales.create', 'sales.discount', 'sales.refund',
   'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
+  'repair.technician',
   'stock.adjust',
   'purchase.create', 'purchase.receive',
   'supplier.pay',
@@ -242,6 +244,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   'warranty.view': 'ดูการรับประกัน',
   'warranty.manage': 'จัดการการรับประกัน',
   'technician.view': 'ดูสถิติช่างซ่อม',
+  'repair.technician': 'เป็นช่างซ่อม (รับงาน · มีหน้างานของฉัน)',
   'data.export': 'ส่งออกข้อมูล',
   'data.import': 'นำเข้าข้อมูล',
   'branches.manage': 'จัดการสาขา',
@@ -263,7 +266,7 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
 export const PERMISSION_GROUPS = [
   { label: 'สินค้า', perms: ['products.view','products.create','products.edit','products.delete','products.view_cost'] },
   { label: 'การขาย', perms: ['sales.create','sales.discount','sales.refund'] },
-  { label: 'งานซ่อม', perms: ['repair.create','repair.edit','repair.close','repair.approve_estimate','repairs.qc.perform'] },
+  { label: 'งานซ่อม', perms: ['repair.create','repair.edit','repair.close','repair.approve_estimate','repairs.qc.perform','repair.technician'] },
   { label: 'สต็อก', perms: ['stock.adjust'] },
   { label: 'ใบสั่งซื้อ', perms: ['purchase.create','purchase.receive','supplier.pay'] },
   { label: 'รายงาน & ตั้งค่า', perms: ['reports.view','settings.manage'] },

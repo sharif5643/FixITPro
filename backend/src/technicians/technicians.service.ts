@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { bangkokDate } from '../common/bangkok-date';
 import { CommissionService } from '../commission/commission.service';
+import { repairTechnicianWhere } from '../permissions/repair-technicians';
 
 export interface TechnicianKpi {
   totalRepairs: number;
@@ -69,9 +70,15 @@ export class TechniciansService {
 
 
   /** Active technicians and managers of the shop, id + name only (see RepairsService assignment check). */
-  findAssignable(tenantId?: string | null) {
+  async findAssignable(tenantId?: string | null) {
+    // Technicians and managers as before, plus anyone the owner made a technician
+    const techs = await repairTechnicianWhere(this.prisma, tenantId);
     return this.prisma.user.findMany({
-      where: { role: { in: ['TECHNICIAN', 'MANAGER'] as any[] }, isActive: true, ...(tenantId ? { tenantId } : {}) },
+      where: {
+        isActive: true,
+        ...(tenantId ? { tenantId } : {}),
+        OR: [{ role: { in: ['TECHNICIAN', 'MANAGER'] as any[] } }, ...techs.OR],
+      },
       select: { id: true, name: true, role: true },
       orderBy: { name: 'asc' },
     });

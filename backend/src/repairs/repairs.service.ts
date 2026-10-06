@@ -22,6 +22,7 @@ import { RepairQcDto } from './dto/repair-qc.dto';
 import { RepairAccountingAdapter } from './repair-accounting.adapter';
 import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
 import { bangkokYmd } from '../common/bangkok-date';
+import { repairTechnicianWhere } from '../permissions/repair-technicians';
 
 const REPAIR_INCLUDE = {
   customer: true,
@@ -63,13 +64,50 @@ export class RepairsService {
     private notifications: NotificationsService,
   ) {}
 
+  /**
+   * Technicians work only on their own jobs. Any technician may look at every job (to answer a
+   * customer), take a job nobody has yet, or hand back their own; changing another technician's
+   * job is refused. Taking payment and handing the device back are not work on the job, so the
+   * payment endpoints do not call this. Owners, managers and cashiers are not limited.
+   */
+  async assertCanWorkOn(
+    repairId: string,
+    actor: { id: string; role: string },
+    tenantId: string | null | undefined,
+    change: { technicianId?: string | null } = {},
+  ) {
+    if (actor.role !== 'TECHNICIAN') return;
+    const where: any = { id: repairId };
+    if (tenantId) where.OR = [{ branch: { tenantId } }, { branchId: null, customer: { tenantId } }];
+    const repair = await this.prisma.repair.findFirst({
+      where,
+      select: { technicianId: true, technician: { select: { name: true } } },
+    });
+    if (!repair) throw new NotFoundException('Repair not found');
+
+    const wantsTech = change.technicianId !== undefined;
+    if (repair.technicianId === actor.id) {
+      // Own job: may hand it back (null) but not give it to someone else
+      if (wantsTech && change.technicianId && change.technicianId !== actor.id) {
+        throw new ForbiddenException('ช่างโอนงานให้ช่างคนอื่นไม่ได้ — ให้ผู้จัดการหรือเจ้าของร้านเป็นคนเปลี่ยนช่าง');
+      }
+      return;
+    }
+    if (!repair.technicianId) {
+      if (wantsTech && change.technicianId === actor.id) return; // taking the job
+      throw new ForbiddenException('งานนี้ยังไม่มีช่างรับ — กด "รับงานนี้" ก่อนจึงจะแก้ไขได้');
+    }
+    throw new ForbiddenException(`งานนี้เป็นของช่าง ${repair.technician?.name ?? 'คนอื่น'} — ดูได้อย่างเดียว แก้ไขไม่ได้`);
+  }
+
   /** A repair can only be given to an active technician or manager of the same shop. */
   private async assertAssignableTechnician(technicianId: string, tenantId?: string | null) {
+    const techs = await repairTechnicianWhere(this.prisma, tenantId);
     const tech = await this.prisma.user.findFirst({
       where: {
         id: technicianId,
         isActive: true,
-        role: { in: ['TECHNICIAN', 'MANAGER', 'OWNER'] as any[] },
+        OR: [{ role: { in: ['TECHNICIAN', 'MANAGER', 'OWNER'] as any[] } }, ...techs.OR],
         ...(tenantId ? { tenantId } : {}),
       },
       select: { id: true },
@@ -88,11 +126,16 @@ export class RepairsService {
   ) {
     if (!tenantId || !repair.branchId) return;
     try {
+      // Everyone who does repair work: technicians, and any role or person given repair.technician
+      const who = await repairTechnicianWhere(this.prisma, tenantId);
       const techs = await this.prisma.user.findMany({
         where: {
-          tenantId, role: 'TECHNICIAN', isActive: true,
-          // Technicians of this branch, or not tied to one branch
-          OR: [{ branchId: repair.branchId }, { branchId: null }],
+          tenantId, isActive: true,
+          AND: [
+            who,
+            // Of this branch, or not tied to one branch
+            { OR: [{ branchId: repair.branchId }, { branchId: null }] },
+          ],
           ...(actorId ? { id: { not: actorId } } : {}),
         },
         select: { id: true },

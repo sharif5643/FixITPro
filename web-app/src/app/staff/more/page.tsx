@@ -31,7 +31,7 @@ export default function MorePage() {
       title: 'ฉัน',
       items: [
         { icon:<UserCircle className="h-5 w-5 text-brand-info"/>,  label:'ข้อมูลส่วนตัว', to:'/staff/profile' },
-        ...(isTech ? [{ icon:<Wrench className="h-5 w-5 text-amber-500"/>, label:'งานของฉัน', to:'/staff/technician' }] : []),
+        ...(access.myRepairs ? [{ icon:<Wrench className="h-5 w-5 text-amber-500"/>, label:'งานของฉัน', to:'/staff/technician' }] : []),
         { icon:<History className="h-5 w-5 text-slate-500"/>,      label:'ประวัติงาน',     to:'/staff/repairs' },
       ],
     },

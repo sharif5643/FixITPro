@@ -319,18 +319,34 @@ function Choice({ on, onClick, title, sub }: { on: boolean; onClick: () => void;
 }
 
 /** "เอกสารราชการ (A4)" — opens the sheet above. */
-export function FormalDocButton({ repair, customerId, className, label }: {
+export function FormalDocButton({ repair, customerId, className, label, newTab }: {
   repair?: { id: string; customerId?: string | null; customer?: { id: string } | null } | null
   /** from a customer page: pick the jobs in the sheet */
   customerId?: string | null
   className?: string
   label?: string
+  /**
+   * Open the sheet on its own page in a new tab (web only). Needed inside a dialog: a modal
+   * dialog keeps focus and clicks to itself, so a sheet laid over it cannot be typed into.
+   */
+  newTab?: boolean
 }) {
   const [open, setOpen] = useState(false)
   if (!repair?.id && !customerId) return null
+  const cust = repair ? (repair.customerId ?? repair.customer?.id ?? null) : customerId
+  function handleOpen() {
+    if (newTab && !Platform.isNative()) {
+      const q = new URLSearchParams()
+      if (repair?.id) q.set('repairId', repair.id)
+      if (cust) q.set('customerId', cust)
+      window.open(`/print/formal-issue?${q.toString()}`, '_blank')
+      return
+    }
+    setOpen(true)
+  }
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)}
+      <button type="button" onClick={handleOpen}
         className={className ?? 'flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 active:bg-slate-50'}>
         <FileText className="h-4 w-4" /> {label ?? 'เอกสารราชการ / บริษัท (A4, PDF)'}
       </button>

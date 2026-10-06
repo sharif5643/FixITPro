@@ -9,6 +9,8 @@ export const ALL_PERMISSIONS = [
   'products.view', 'products.create', 'products.edit', 'products.delete', 'products.view_cost',
   'sales.create', 'sales.discount', 'sales.refund',
   'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
+  // Does repair work: takes jobs and has "my jobs" — any role the owner grants it to
+  'repair.technician',
   'stock.adjust',
   'purchase.create', 'purchase.receive',
   'supplier.pay',

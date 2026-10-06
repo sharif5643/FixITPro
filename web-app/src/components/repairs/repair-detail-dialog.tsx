@@ -43,6 +43,7 @@ import { useAuthStore } from '@/store/auth.store'
 import type { Repair, RepairStatus, Product, ShopSettings } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
+import { TechOwnershipBar } from '@/components/repairs/tech-ownership'
 import { localDay } from '@/lib/repair-batch'
 
 const STATUS_LABEL: Record<RepairStatus, string> = {
@@ -492,6 +493,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     )}
                     <FormalDocButton
                       repair={repair}
+                      newTab
                       label="เอกสาร A4 / PDF"
                       className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent"
                     />
@@ -510,6 +512,11 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
 
           {repair && (
             <div className="space-y-5">
+              {/* Technicians: take an open job, or see a colleague's job as view only */}
+              <TechOwnershipBar repair={repair as any} onChanged={() => {
+                queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
+                queryClient.invalidateQueries({ queryKey: ['repairs'] })
+              }} />
               {/* Status badge + date */}
               <div className="flex items-center justify-between">
                 <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold ${STATUS_COLOR[repair.status]}`}>
