@@ -9,18 +9,18 @@ import { Search, X, ChevronRight, Printer, Banknote, Smartphone, CreditCard, Inf
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
 import { canMoveRepair } from '@/lib/repair-status-flow'
 import { QcDialog } from '@/components/repairs/qc-dialog'
+import { RepairWorkTools } from '@/components/repairs/repair-work-tools'
 import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
-import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
+import { RepairReceiptPrintFlow } from '@/components/sunmi/repair-receipt-print'
+import { RepairDeliveryPrintFlow } from '@/components/sunmi/repair-delivery-print'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
 import { useAuthStore } from '@/store/auth.store'
-import {
-  buildRepairDeliveryHtml, buildRepairDeliveryPreviewData, shareRepairDelivery,
-  type PrintRepairDeliveryOptions,
-} from '@/lib/printer'
 import { pushBackHandler } from '@/lib/back-stack'
 import { formatThaiMoney, getAssetUrl } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Repair, RepairStatus, ShopSettings, PaymentMethod } from '@/types'
+import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { localDay } from '@/lib/repair-batch'
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
@@ -102,7 +102,7 @@ interface ActionPanelProps {
   settings?: ShopSettings
   onClose: () => void
   onMutated: () => void
-  onDelivered: (opts: PrintRepairDeliveryOptions) => void
+  onDelivered: (repairId: string) => void
 }
 
 function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: ActionPanelProps) {
@@ -119,12 +119,16 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const [amountPaid, setAmountPaid]       = useState('')
   const [warrantyDays, setWarrantyDays]   = useState(DEFAULT_WARRANTY_DAYS)
   const [payLater, setPayLater]           = useState(false)
-  const [deliveryPreview, setDeliveryPreview] = useState<PrintRepairDeliveryOptions | null>(null)
+  // Reprints use the same slips as the web and the staff app (shared print flows)
+  const [reprintDelivery, setReprintDelivery] = useState(false)
+  const [reprintIntake, setReprintIntake]     = useState(false)
   const [addPayAmount, setAddPayAmount]   = useState('')
   const [addPayMethod, setAddPayMethod]   = useState<PaymentMethod>('CASH')
   const [addPayNote, setAddPayNote]       = useState('')
   const [partsSearch, setPartsSearch]     = useState('')
   const [partsQty, setPartsQty]           = useState<Record<string, number>>({})
+  const [partsCharge, setPartsCharge]     = useState<Record<string, boolean>>({})
+  const [partsPrice, setPartsPrice]       = useState<Record<string, string>>({})
 
   const qc = useQueryClient()
 
@@ -140,6 +144,18 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   // Payment / handover is allowed from both (same as the API)
   const isReady       = repair.status === 'COMPLETED' || repair.status === 'READY_PICKUP'
   const canQc         = useAuthStore((st) => st.hasPermission)('repairs.qc.perform')
+  // The API undoes only a fully paid handover (a pay-later one is settled with more payments)
+  const canReverse    = useAuthStore((st) => st.hasPermission)('repair.close') && repair.paymentStatus === 'PAID'
+  const [reverseOpen, setReverseOpen]     = useState(false)
+  const [reverseReason, setReverseReason] = useState('')
+  const reverseMutation = useMutation({
+    mutationFn: () => api.post(`/repairs/${repair.id}/reverse-payment`, { reason: reverseReason.trim() }),
+    onSuccess: () => { toast.success('ยกเลิกการรับเงินแล้ว — งานกลับเป็น "ซ่อมเสร็จ"'); onMutated(); onClose() },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message
+      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+    },
+  })
   const [qcOpen, setQcOpen] = useState(false)
 
   const { data: currentShift } = useQuery<{ id: string } | null>({
@@ -165,13 +181,16 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   })
 
   const addPartMutation = useMutation({
-    mutationFn: ({ productId, quantity }: { productId: string; quantity: number }) =>
-      api.post(`/repairs/${repair.id}/parts`, { productId, quantity }),
+    // Same options as the web: a part is cost only, unless it is charged to the customer at a price
+    mutationFn: ({ productId, quantity, chargeToCustomer, price }: { productId: string; quantity: number; chargeToCustomer?: boolean; price?: number }) =>
+      api.post(`/repairs/${repair.id}/parts`, { productId, quantity, ...(chargeToCustomer ? { chargeToCustomer: true, ...(price !== undefined ? { price } : {}) } : {}) }),
     onSuccess: () => {
       toast.success('เพิ่มอะไหล่สำเร็จ')
       qc.invalidateQueries({ queryKey: ['repair-detail', repair.id] })
       setPartsSearch('')
       setPartsQty({})
+      setPartsCharge({})
+      setPartsPrice({})
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message
@@ -216,31 +235,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
       }),
     onSuccess: () => {
       toast.success('ส่งมอบและรับชำระสำเร็จ')
-      const deliverDate = format(new Date(), 'dd/MM/yyyy HH:mm', { locale: th })
-      onDelivered({
-        shopName:      settings?.shopName ?? 'FixITPro',
-        shopPhone:     settings?.shopPhone ?? undefined,
-        ticketNumber:  repair.ticketNumber,
-        date:          deliverDate,
-        customerName:  repair.customer?.name ?? '-',
-        customerPhone: repair.customer?.phone ?? undefined,
-        deviceBrand:   repair.deviceBrand,
-        deviceModel:   repair.deviceModel,
-        issue:         repair.issue,
-        finalCost:          finalNum,
-        deposit,
-        remaining,
-        paymentMethod,
-        amountPaid:         effectivePaid,
-        change:             Math.max(0, effectivePaid - remaining),
-        footer:             settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
-        repairWarrantyText: settings?.repairWarrantyText ?? undefined,
-        taxId:              settings?.taxId ?? undefined,
-        showTaxId:          settings?.showTaxId ?? true,
-        paymentQrUrl:       settings?.paymentQrUrl ?? undefined,
-        showLogo:           settings?.showLogo ?? true,
-        logoUrl:            settings?.logoUrl ?? undefined,
-      })
+      onDelivered(repair.id)
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message
@@ -248,36 +243,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
     },
   })
 
-  function buildReprintOpts(): PrintRepairDeliveryOptions {
-    const fc = Number(repair.finalCost ?? repair.estimateCost ?? 0)
-    const dep = repair.deposit ?? 0
-    return {
-      shopName:      settings?.shopName ?? 'FixITPro',
-      shopPhone:     settings?.shopPhone ?? undefined,
-      ticketNumber:  repair.ticketNumber,
-      date:          repair.deliveredAt
-        ? format(new Date(repair.deliveredAt), 'dd/MM/yyyy HH:mm', { locale: th })
-        : format(new Date(), 'dd/MM/yyyy HH:mm', { locale: th }),
-      customerName:  repair.customer?.name ?? '-',
-      customerPhone: repair.customer?.phone ?? undefined,
-      deviceBrand:   repair.deviceBrand,
-      deviceModel:   repair.deviceModel,
-      issue:         repair.issue,
-      finalCost:          fc,
-      deposit:            dep,
-      remaining:          Math.max(0, fc - dep),
-      paymentMethod:      repair.paymentMethod ?? 'CASH',
-      amountPaid:         repair.paidAmount ?? 0,
-      change:             Math.max(0, (repair.paidAmount ?? 0) - Math.max(0, fc - dep)),
-      footer:             settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
-      repairWarrantyText: settings?.repairWarrantyText ?? undefined,
-      taxId:              settings?.taxId ?? undefined,
-      showTaxId:          settings?.showTaxId ?? true,
-      paymentQrUrl:       settings?.paymentQrUrl ?? undefined,
-      showLogo:           settings?.showLogo ?? true,
-      logoUrl:            settings?.logoUrl ?? undefined,
-    }
-  }
+
 
   const addPayMutation = useMutation({
     mutationFn: () =>
@@ -414,9 +380,23 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   )
                 })()}
 
+                <button
+                  onClick={() => setReprintIntake(true)}
+                  className="w-full h-12 rounded-2xl border-2 border-slate-200 text-slate-700 font-medium flex items-center justify-center gap-2"
+                >
+                  <Printer className="h-4 w-4" />
+                  พิมพ์ใบรับเครื่องซ้ำ
+                </button>
+
+                <RepairBatchButton
+                  customer={repair.customer}
+                  date={localDay(repair.receivedAt)}
+                  className="w-full h-12 rounded-2xl border-2 border-blue-200 bg-blue-50 text-blue-700 font-medium flex items-center justify-center gap-2"
+                />
+
                 {repair.status === 'DELIVERED' && repair.paymentStatus === 'PAID' && (
                   <button
-                    onClick={() => setDeliveryPreview(buildReprintOpts())}
+                    onClick={() => setReprintDelivery(true)}
                     className="w-full h-12 rounded-2xl border-2 border-slate-200 text-slate-700 font-medium flex items-center justify-center gap-2"
                   >
                     <Printer className="h-4 w-4" />
@@ -437,6 +417,9 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                 )}
                 <QcDialog repair={repair} open={qcOpen} onClose={() => setQcOpen(false)}
                   onDone={() => { onMutated(); onClose() }} />
+                {/* Technician, quote, approval and IMEI — the web's steps (shared component) */}
+                <RepairWorkTools repair={(repairDetail ?? repair) as any}
+                  onChanged={() => { qc.invalidateQueries({ queryKey: ['repair-detail', repair.id] }); onMutated() }} />
                 {nextStatus && !isReady ? (
                   <button
                     onClick={() => statusMutation.mutate(nextStatus)}
@@ -587,12 +570,38 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                 <p className="text-green-700 font-bold text-lg">ส่งมอบแล้ว</p>
                 <p className="text-slate-500 text-sm">ค่าซ่อม: {formatThaiMoney(Number(repair.finalCost ?? 0))}</p>
                 <button
-                  onClick={() => setDeliveryPreview(buildReprintOpts())}
+                  onClick={() => setReprintDelivery(true)}
                   className="flex items-center justify-center gap-2 mx-auto px-6 h-12 rounded-2xl border-2 border-slate-200 text-slate-700 font-medium"
                 >
                   <Printer className="h-4 w-4" />
                   พิมพ์ใบเสร็จซ้ำ
                 </button>
+
+                {/* Wrong payment taken: undo it (same as the web and staff app) — the job goes back to ซ่อมเสร็จ */}
+                {canReverse && !reverseOpen && (
+                  <button onClick={() => setReverseOpen(true)}
+                    className="mx-auto block text-sm font-semibold text-red-500 underline underline-offset-2">
+                    ยกเลิกการรับเงิน (กดรับเงินผิด)
+                  </button>
+                )}
+                {canReverse && reverseOpen && (
+                  <div className="text-left rounded-2xl border border-red-200 bg-red-50 p-3 space-y-2">
+                    <p className="text-sm font-bold text-red-600">ยกเลิกการรับเงิน</p>
+                    <p className="text-xs text-slate-500">งานจะกลับเป็น "ซ่อมเสร็จ" และต้องรับเงินใหม่</p>
+                    <input value={reverseReason} onChange={(e) => setReverseReason(e.target.value)}
+                      placeholder="เหตุผล เช่น กดผิด / ลูกค้าขอยกเลิก"
+                      className="w-full h-11 rounded-xl border border-red-200 bg-white px-3 text-sm" />
+                    <div className="flex gap-2">
+                      <button onClick={() => { setReverseOpen(false); setReverseReason('') }}
+                        className="flex-1 h-11 rounded-xl border border-slate-200 bg-white text-sm text-slate-600">ไม่ยกเลิก</button>
+                      <button onClick={() => reverseMutation.mutate()}
+                        disabled={!reverseReason.trim() || reverseMutation.isPending}
+                        className="flex-1 h-11 rounded-xl bg-red-500 text-sm font-bold text-white disabled:opacity-50">
+                        {reverseMutation.isPending ? 'กำลังบันทึก...' : 'ยืนยันยกเลิก'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -685,6 +694,17 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                               {' · '}ทุน {formatThaiMoney(Number(product.costPrice))}
                             </p>
                           </div>
+                          <label className="flex items-center gap-2 text-xs text-slate-600">
+                            <input type="checkbox" checked={!!partsCharge[product.id]}
+                              onChange={(e) => setPartsCharge((m) => ({ ...m, [product.id]: e.target.checked }))} className="h-4 w-4" />
+                            คิดเงินลูกค้า
+                            {partsCharge[product.id] && (
+                              <input type="number" inputMode="numeric" min={0}
+                                value={partsPrice[product.id] ?? String(Number(product.price ?? 0))}
+                                onChange={(e) => setPartsPrice((m) => ({ ...m, [product.id]: e.target.value }))}
+                                className="ml-auto h-8 w-24 rounded-lg border border-slate-200 px-2 text-right text-sm" aria-label="ราคาขายให้ลูกค้า" />
+                            )}
+                          </label>
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => setPartsQty((prev) => ({ ...prev, [product.id]: Math.max(1, (prev[product.id] ?? 1) - 1) }))}
@@ -700,7 +720,12 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                               <Plus className="h-3.5 w-3.5" />
                             </button>
                             <button
-                              onClick={() => addPartMutation.mutate({ productId: product.id, quantity: qty })}
+                              onClick={() => {
+                                const charge = !!partsCharge[product.id]
+                                const p = partsPrice[product.id]
+                                addPartMutation.mutate({ productId: product.id, quantity: qty, chargeToCustomer: charge,
+                                  price: charge && p !== undefined && p !== '' ? Number(p) : undefined })
+                              }}
                               disabled={product.stock <= 0 || addPartMutation.isPending}
                               className="flex-1 h-8 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50 active:bg-blue-700 flex items-center justify-center gap-1"
                             >
@@ -782,18 +807,12 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
         </div>
       </div>
 
-      {deliveryPreview && (
-        <PrinterFlowSheet
-          receiptHtml={buildRepairDeliveryHtml(deliveryPreview)}
-          jobName={`ใบเสร็จซ่อม #${deliveryPreview.ticketNumber}`}
-          previewData={buildRepairDeliveryPreviewData(deliveryPreview)}
-          onShare={async () => shareRepairDelivery(deliveryPreview)}
-          onClose={() => setDeliveryPreview(null)}
-          successNavItems={[
-            { label: 'ดูรายการซ่อมทั้งหมด', href: '/sunmi/repairs' },
-            { label: 'กลับหน้าหลัก',         href: '/sunmi' },
-          ]}
-        />
+      {reprintDelivery && (
+        <RepairDeliveryPrintFlow repairId={repair.id} onClose={() => setReprintDelivery(false)} />
+      )}
+
+      {reprintIntake && (
+        <RepairReceiptPrintFlow repairId={repair.id} onClose={() => setReprintIntake(false)} />
       )}
 
       {/* Fullscreen photo preview */}
@@ -865,7 +884,8 @@ export default function SunmiRepairsPage() {
   const [search, setSearch]     = useState('')
   const [activeTab, setTab]     = useState<TabKey>('ALL')
   const [selected, setSelected] = useState<Repair | null>(null)
-  const [deliveryPreview, setDeliveryPreview] = useState<PrintRepairDeliveryOptions | null>(null)
+  // After a handover: the delivery receipt, the same slip as the web and the staff app
+  const [deliveredId, setDeliveredId] = useState<string | null>(null)
 
   const { data: repairs = [], isLoading, refetch, isRefetching } = useQuery<Repair[]>({
     queryKey: ['repairs'],
@@ -1025,26 +1045,20 @@ export default function SunmiRepairsPage() {
             queryClient.invalidateQueries({ queryKey: ['repairs'] })
             setSelected(null)
           }}
-          onDelivered={(opts) => {
+          onDelivered={(id) => {
             queryClient.invalidateQueries({ queryKey: ['repairs'] })
             setSelected(null)
-            setDeliveryPreview(opts)
+            setDeliveredId(id)
           }}
         />
       )}
 
-      {deliveryPreview && (
-        <PrinterFlowSheet
-          receiptHtml={buildRepairDeliveryHtml(deliveryPreview)}
-          jobName={`ใบเสร็จซ่อม #${deliveryPreview.ticketNumber}`}
-          previewData={buildRepairDeliveryPreviewData(deliveryPreview)}
-          onShare={async () => shareRepairDelivery(deliveryPreview)}
-          onClose={() => setDeliveryPreview(null)}
+      {deliveredId && (
+        <RepairDeliveryPrintFlow repairId={deliveredId} onClose={() => setDeliveredId(null)}
           successNavItems={[
             { label: 'ดูรายการซ่อมทั้งหมด', href: '/sunmi/repairs' },
             { label: 'กลับหน้าหลัก',         href: '/sunmi' },
-          ]}
-        />
+          ]} />
       )}
     </>
   )

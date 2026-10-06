@@ -9,7 +9,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
-import { buildReceiptHtml, buildReceiptPreviewData } from '@/lib/printer'
+import { buildSaleReceiptThermalHtml, buildReceiptPreviewData } from '@/lib/printer'
 import { SerialPrintButton } from '@/components/printer/serial-print-button'
 import { openCashDrawer } from '@/lib/cash-drawer'
 import { isInWebViewApp, bridgePrintReceipt } from '@/lib/webview-bridge'
@@ -256,7 +256,7 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
       {/* Native APK: thermal printer flow */}
       {flowOpen && (
         <PrinterFlowSheet
-          receiptHtml={buildReceiptHtml(receiptOpts)}
+          receiptHtml={buildSaleReceiptThermalHtml(sale as any, settings as any, { paperWidth: (settings as any)?.paperWidth === '58mm' ? '58mm' : '80mm', cashierName: user?.name ?? undefined })}
           jobName={`ใบเสร็จ #${sale.receiptNumber}`}
           previewData={buildReceiptPreviewData(receiptOpts)}
           autoPrint

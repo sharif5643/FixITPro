@@ -46,13 +46,15 @@ export default function CloseSessionPage() {
     },
   })
 
-  function fmt(n?: number) {
-    if (n == null) return '—'
-    return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  // Money arrives from the API as a decimal string ("500.00")
+  function fmt(n?: number | string | null) {
+    const v = typeof n === 'string' ? parseFloat(n) : n
+    if (v == null || isNaN(v)) return '—'
+    return v.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
   const countedNum  = parseFloat(counted) || 0
-  const expected    = session?.expectedAmount ?? 0
+  const expected    = Number(session?.expectedAmount ?? 0)
   const difference  = countedNum - expected
   const hasDiff     = Math.abs(difference) >= 0.01
 

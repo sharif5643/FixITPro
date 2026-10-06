@@ -401,6 +401,8 @@ export class RepairsService {
         customer: { select: { id: true, name: true, phone: true } },
         technician: { select: { id: true, name: true } },
         parts: { include: { product: { select: { name: true } } } },
+        // so a list of a customer's jobs can show what each still owes (combined dealer slip)
+        additionalPayments: { select: { amount: true } },
       },
       orderBy: { receivedAt: 'desc' },
       take,

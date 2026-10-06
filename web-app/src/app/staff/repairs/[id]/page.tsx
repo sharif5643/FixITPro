@@ -1,5 +1,6 @@
 'use client'
 
+import { TechnicianPicker } from '@/components/repairs/repair-work-tools'
 import { QcDialog } from '@/components/repairs/qc-dialog'
 import { statusChoices } from '@/lib/repair-status-flow'
 import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
@@ -28,6 +29,8 @@ import { RepairDeliveryPrintFlow } from '@/components/sunmi/repair-delivery-prin
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
 import { useAuthStore } from '@/store/auth.store'
 import type { Repair, Product, ShopSettings } from '@/types'
+import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { localDay } from '@/lib/repair-batch'
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -159,6 +162,8 @@ export default function RepairDetailPage() {
   const [payWarrantyDays, setPayWarrantyDays]       = useState(DEFAULT_WARRANTY_DAYS)
   const [payLater, setPayLater]                     = useState(false)
   const [qcOpen, setQcOpen]                         = useState(false)
+  // Final price at handover ('' = the quoted total), as the web's payment dialog allows
+  const [payFinal, setPayFinal]                     = useState('')
   const canQc = hasPermission('repairs.qc.perform')
   const [reverseOpen, setReverseOpen]               = useState(false)
   const [reverseReason, setReverseReason]           = useState('')
@@ -281,7 +286,7 @@ export default function RepairDetailPage() {
   })
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays: number; allowPartial?: boolean }) =>
+    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays: number; allowPartial?: boolean; finalCost?: number }) =>
       api.post(`/repairs/${id}/payment`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })
@@ -391,6 +396,8 @@ export default function RepairDetailPage() {
   }
 
   function handlePayment() {
+    // Send the price only when it was changed here (otherwise the API uses the quoted total)
+    const finalCostField = payFinal !== '' && Number(payFinal) !== quotedTotal ? { finalCost: Number(payFinal) || 0 } : {}
     const amount = Number(payAmount)
     if (payLater) {
       // Pay later: today's amount may be 0; the rest is owed (same as the web's ค้างชำระ)
@@ -399,11 +406,12 @@ export default function RepairDetailPage() {
       paymentMutation.mutate({
         paymentMethod: payMethod, amountPaid: paidToday, warrantyDays: warrantyDaysValue(payWarrantyDays),
         ...(paidToday < repairBalance ? { allowPartial: true } : {}),
+        ...finalCostField,
       })
       return
     }
     if (!amount || amount < 0) { toast.error('กรุณาระบุจำนวนเงิน'); return }
-    paymentMutation.mutate({ paymentMethod: payMethod, amountPaid: amount, warrantyDays: warrantyDaysValue(payWarrantyDays) })
+    paymentMutation.mutate({ paymentMethod: payMethod, amountPaid: amount, warrantyDays: warrantyDaysValue(payWarrantyDays), ...finalCostField })
   }
 
   // ── Loading
@@ -422,7 +430,8 @@ export default function RepairDetailPage() {
   const isFullyPaid = repair.paymentStatus === 'PAID'
   const hasShift  = !!currentShift
 
-  const repairTotal   = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
+  const quotedTotal   = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
+  const repairTotal   = payFinal !== '' ? Number(payFinal) || 0 : quotedTotal
   const repairDeposit = Number(repair.deposit ?? 0)
   const repairBalance = Math.max(0, repairTotal - repairDeposit)
   const payAmountNum  = Number(payAmount) || 0
@@ -700,6 +709,10 @@ export default function RepairDetailPage() {
               )}
             </div>
 
+            {/* Who works on it — owners / managers assign or change the technician, as on the web */}
+            <TechnicianPicker repair={repair as any}
+              onChanged={() => { queryClient.invalidateQueries({ queryKey: ['staff-repair', id] }); queryClient.invalidateQueries({ queryKey: ['staff-repairs'] }) }} />
+
             {/* Warranty */}
             {repair.warrantyExpiresAt && (
               <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-emerald-100">
@@ -710,9 +723,19 @@ export default function RepairDetailPage() {
                     <p className="text-xs text-emerald-600 mt-0.5">หมดอายุ {fmtDate(repair.warrantyExpiresAt)}</p>
                     {repair.warrantyNote && <p className="text-xs text-slate-400 mt-0.5">{repair.warrantyNote}</p>}
                   </div>
+                  {/* The web's warranty card is printed on a regular printer — offered where the browser can print */}
+                  {!Platform.isNative() && (
+                    <button onClick={() => window.open(`/print/warranty-card/${id}`, '_blank')}
+                      className="ml-auto shrink-0 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+                      พิมพ์บัตรรับประกัน
+                    </button>
+                  )}
                 </div>
               </div>
             )}
+
+            {/* A dealer's other devices — one slip with each one's status, price and balance */}
+            <RepairBatchButton customer={repair.customer} date={localDay(repair.receivedAt)} />
 
             {/* Timestamps */}
             <div className="flex flex-col gap-1 px-1">
@@ -1090,6 +1113,15 @@ export default function RepairDetailPage() {
                           {pmLabel(m)}
                         </button>
                       ))}
+                    </div>
+
+                    {/* Final price (defaults to the quote) */}
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">ค่าซ่อมสุดท้าย (฿) — แก้ได้ถ้าไม่ตรงกับราคาประเมิน</label>
+                      <input type="number" min={0} inputMode="numeric"
+                        value={payFinal !== '' ? payFinal : String(quotedTotal)}
+                        onChange={(e) => { setPayFinal(e.target.value); setPayAmount('') }}
+                        className="w-full h-12 rounded-xl px-3 text-lg font-bold text-center outline-none bg-[#F8F9FB]" />
                     </div>
 
                     {/* Amount */}

@@ -118,4 +118,49 @@ SELECT count(*) AS serial_products FROM "Product" WHERE "hasSerial" AND "isActiv
 SELECT (SELECT count(*) FROM "Shift" WHERE "openedAt" > now() - interval '90 days') AS shifts,
        (SELECT count(*) FROM "CashDrawerSession" WHERE "openedAt" > now() - interval '90 days') AS drawer_sessions;
 
+\echo '--- 17. After PR #32: push devices table ---'
+SELECT migration_name, finished_at IS NOT NULL AS applied FROM "_prisma_migrations" WHERE migration_name = '20261005000003_push_devices';
+SELECT count(*) AS push_devices FROM "PushDevice";
+SELECT count(*) AS migrations_total FROM "_prisma_migrations" WHERE finished_at IS NOT NULL;
+
+\echo '--- 18. Staff whose branch is not an active branch of their own shop (shown as a raw id) ---'
+SELECT u.role, u."tenantId", u."branchId", b."tenantId" AS branch_tenant, b."isActive", b.status, b.name IS NOT NULL AS has_name
+FROM "User" u LEFT JOIN "Branch" b ON b.id = u."branchId"
+WHERE u."branchId" IS NOT NULL
+  AND (b.id IS NULL OR b."tenantId" IS DISTINCT FROM u."tenantId" OR NOT b."isActive" OR b.status <> 'ACTIVE');
+SELECT b.id, b."tenantId", b."isActive", b.status FROM "Branch" b WHERE b.id = 'cmqhppo2c0014jwr0t9ul5314';
+
+\echo '--- 19. Owner branches stored under another shop: who they belong to and what uses them ---'
+SELECT u."tenantId" AS owner_shop, t."shopName" AS owner_shop_name, b.id AS branch, b.name, b."tenantId" AS branch_shop,
+       b."isDefault", b."createdAt"::date AS created, t."createdAt"::date AS shop_created
+FROM "User" u JOIN "Branch" b ON b.id = u."branchId" JOIN "Tenant" t ON t.id = u."tenantId"
+WHERE b."tenantId" IS DISTINCT FROM u."tenantId";
+SELECT u.role, u."tenantId", u."branchId" FROM "User" u
+WHERE u."branchId" IN (SELECT b.id FROM "User" o JOIN "Branch" b ON b.id = o."branchId" WHERE b."tenantId" IS DISTINCT FROM o."tenantId");
+DO $$
+DECLARE r record; n bigint;
+BEGIN
+  FOR r IN SELECT table_name FROM information_schema.columns
+           WHERE table_schema = 'public' AND column_name = 'branchId' ORDER BY table_name LOOP
+    EXECUTE format('SELECT count(*) FROM %I WHERE "branchId" IN (SELECT b.id FROM "User" o JOIN "Branch" b ON b.id = o."branchId" WHERE b."tenantId" IS DISTINCT FROM o."tenantId")', r.table_name) INTO n;
+    IF n > 0 THEN RAISE NOTICE 'rows on misfiled branches: % = %', r.table_name, n; END IF;
+  END LOOP;
+END $$;
+\echo '19b. Sales on those branches by the shop of the seller'
+SELECT s."branchId", u."tenantId" AS seller_shop, count(*) FROM "Sale" s JOIN "User" u ON u.id = s."userId"
+WHERE s."branchId" IN (SELECT b.id FROM "User" o JOIN "Branch" b ON b.id = o."branchId" WHERE b."tenantId" IS DISTINCT FROM o."tenantId")
+GROUP BY 1, 2;
+\echo '19c. Branches of the default shop'
+SELECT id, name, "isDefault", "createdAt"::date FROM "Branch" WHERE "tenantId" = 'cldefaulttenant0000000001' ORDER BY "createdAt";
+
+\echo '19d. Branches of the three shops, and the repair on a misfiled branch'
+SELECT b."tenantId", b.id, b.name, b."isDefault", b."isActive", b.status, b."createdAt"::date,
+       (SELECT count(*) FROM "Sale" s WHERE s."branchId" = b.id) AS sales,
+       (SELECT count(*) FROM "BranchStock" bs WHERE bs."branchId" = b.id) AS stock_rows,
+       (SELECT count(*) FROM "User" u WHERE u."branchId" = b.id) AS users
+FROM "Branch" b WHERE b."tenantId" IN ('cmqhhqsq50021eml4edc5gwx2','cmqhhn73r001ieml4jy6c5u8e','cmqhhyx57002seml4zjqk4t9u') ORDER BY 1, b."createdAt";
+SELECT r."branchId", c."tenantId" AS customer_shop, r.status, r."receivedAt"::date FROM "Repair" r LEFT JOIN "Customer" c ON c.id = r."customerId"
+WHERE r."branchId" IN ('cmqhhqsq70022eml4abkjnf8b','cmqhhn73t001jeml4fmikfb0y','cmqhhyx5a002teml4w9butbi8');
+SELECT t.id, t.plan, t.status FROM "Tenant" t WHERE t.id IN ('cmqhhqsq50021eml4edc5gwx2','cmqhhn73r001ieml4jy6c5u8e','cmqhhyx57002seml4zjqk4t9u');
+
 ROLLBACK;

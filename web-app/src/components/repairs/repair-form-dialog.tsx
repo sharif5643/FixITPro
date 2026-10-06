@@ -7,7 +7,7 @@ import { z } from 'zod'
 import {
   Loader2, User, X, Wrench, ShoppingCart, Printer, FileText, CheckCircle2,
   Smartphone, Tablet, Laptop, Watch, HelpCircle, Tag, UserCog, Camera, ImagePlus,
-  ChevronDown, ChevronRight, CalendarDays,
+  ChevronDown, ChevronRight, CalendarDays, Plus,
 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -25,8 +25,10 @@ import {
 import { formatThaiMoney, cn } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
-import { ISSUE_TAG_OPTIONS } from '@/lib/repair-tags'
+import { ISSUE_TAG_OPTIONS, ACCESSORY_OPTIONS } from '@/lib/repair-tags'
 import { TechnicianAvatar } from '@/components/ui/technician-avatar'
+import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { localDay } from '@/lib/repair-batch'
 import type { Customer, RepairStatus } from '@/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -69,7 +71,7 @@ const DEVICE_TYPES = [
   { value: 'อื่นๆ',    icon: HelpCircle },
 ]
 
-const ACCESSORIES_OPTIONS = ['ซองใส่', 'สาย USB', 'หัวชาร์จ', 'หูฟัง', 'ฟิล์มกระจก', 'กล่องเดิม', 'ปากกา', 'อื่นๆ']
+const ACCESSORIES_OPTIONS = ACCESSORY_OPTIONS
 
 const CONDITION_OPTIONS = [
   { value: 'หน้าจอแตก',   color: 'bg-red-50 border-red-200 text-red-700 data-[active=true]:bg-red-500 data-[active=true]:text-white data-[active=true]:border-red-500' },
@@ -157,7 +159,10 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
   })
 
   // Receipt state after creation
-  const [createdRepair, setCreatedRepair] = useState<{ id: string; ticketNumber: string } | null>(null)
+  const [createdRepair, setCreatedRepair] = useState<{
+    id: string; ticketNumber: string; receivedAt?: string
+    customer?: { id: string; name: string; phone?: string | null } | null
+  } | null>(null)
 
   // Customer state
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSearchResult | null>(null)
@@ -263,14 +268,34 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
     },
     onSuccess: (repair) => {
       toast.success(`สร้างงานซ่อม ${repair.ticketNumber} สำเร็จ`)
-      setCreatedRepair({ id: repair.id, ticketNumber: repair.ticketNumber })
+      setCreatedRepair({ id: repair.id, ticketNumber: repair.ticketNumber, receivedAt: repair.receivedAt, customer: repair.customer })
       queryClient.invalidateQueries({ queryKey: ['repairs'] })
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message ?? err.message
       toast.error(Array.isArray(msg) ? msg[0] : msg ?? 'เกิดข้อผิดพลาด')
     },
   })
+
+  // A dealer brings several devices: open a fresh form for the next one with the same customer
+  function startNextDevice() {
+    const c = createdRepair?.customer
+    reset({
+      deposit: 0, estimateCost: 0, discount: 0, depositPaymentMethod: 'CASH',
+      customerName: c?.name ?? '', customerPhone: c?.phone ?? '',
+    })
+    setSelectedCustomer(c ? { id: c.id, name: c.name, phone: c.phone ?? undefined, points: 0, _count: { sales: 0, repairs: 0 } } : null)
+    setCustomerSearch('')
+    setSearchOpen(false)
+    setDeviceType('')
+    setAccessories([])
+    setDeviceConditions([])
+    setIssueTags([])
+    setPhotos([])
+    setShowExtra(false)
+    setCreatedRepair(null)
+  }
 
   function handleClose() {
     setCreatedRepair(null)
@@ -335,6 +360,18 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
               </>
             )}
 
+            {createdRepair.customer && (
+              <Button type="button" variant="outline" className="w-full border-2 border-emerald-500 text-emerald-700 hover:bg-emerald-50" onClick={startNextDevice}>
+                <Plus className="mr-1 h-4 w-4" /> รับเครื่องถัดไป (ลูกค้าเดิม)
+              </Button>
+            )}
+            {!Platform.isNative() && (
+              <RepairBatchButton
+                customer={createdRepair.customer}
+                date={createdRepair.receivedAt ? localDay(createdRepair.receivedAt) : undefined}
+              />
+            )}
+
             <Button className="w-full" onClick={handleClose}>ปิด</Button>
           </div>
         )}
@@ -358,7 +395,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[10px] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/60 rounded-full px-2 py-0.5 text-slate-500 dark:text-slate-400">
-                        ซ่อม {selectedCustomer._count.repairs} · ซื้อ {selectedCustomer._count.sales}
+                        ซ่อม {(customerDetail?._count ?? selectedCustomer._count).repairs} · ซื้อ {(customerDetail?._count ?? selectedCustomer._count).sales}
                       </span>
                       <button type="button" onClick={clearCustomer} className="text-muted-foreground hover:text-red-500">
                         <X className="h-4 w-4" />

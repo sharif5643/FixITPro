@@ -41,6 +41,8 @@ import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
 import type { Repair, RepairStatus, Product, ShopSettings } from '@/types'
+import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { localDay } from '@/lib/repair-batch'
 
 const STATUS_LABEL: Record<RepairStatus, string> = {
   RECEIVED:         'รับงาน',
@@ -479,6 +481,14 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                       <Printer className="h-3.5 w-3.5" />
                       พิมพ์ใบรับงาน
                     </Button>
+                    {!Platform.isNative() && (
+                      <RepairBatchButton
+                        customer={repair.customer}
+                        date={localDay(repair.receivedAt)}
+                        label="ใบรวมลูกค้า"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent"
+                      />
+                    )}
                   </span>
                 </>
               )}

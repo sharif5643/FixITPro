@@ -22,7 +22,7 @@ import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
 import { useAuthStore } from '@/store/auth.store'
 import { useCartStore } from '@/store/cart.store'
 import {
-  buildReceiptHtml, buildReceiptPreviewData, shareReceipt, openCashDrawer,
+  buildReceiptHtml, buildReceiptPreviewData, shareReceipt, openCashDrawer, buildSaleReceiptThermalHtml,
   type PrintReceiptOptions,
 } from '@/lib/printer'
 import { pushBackHandler } from '@/lib/back-stack'
@@ -513,6 +513,8 @@ export default function SunmiSalesPage() {
   const [nativeScanning, setNativeScanning] = useState(false)
   const [receiptPreview, setReceiptPreview] = useState<PrintReceiptOptions | null>(null)
   const [lastReceipt, setLastReceipt]       = useState<PrintReceiptOptions | null>(null)
+  // The sale itself: the printed slip is built from it, line for line the web's receipt
+  const [lastSale, setLastSale]             = useState<Sale | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Totals
@@ -651,7 +653,7 @@ export default function SunmiSalesPage() {
       shopAddress:   settings?.shopAddress ?? undefined,
       shopPhone:     settings?.shopPhone ?? undefined,
       receiptNumber: sale.receiptNumber,
-      date:          format(new Date(sale.createdAt), 'dd/MM/yyyy HH:mm', { locale: th }),
+      date:          format(new Date(sale.createdAt), 'dd MMM yyyy HH:mm', { locale: th }), // as the web slip
       cashierName:   user?.name ?? '',
       items:         sale.items.map((i) => ({
         name:  i.product.name,
@@ -680,6 +682,7 @@ export default function SunmiSalesPage() {
     }
 
     setLastReceipt(opts)
+    setLastSale(sale)
     setReceiptPreview(opts)
   }
 
@@ -980,7 +983,9 @@ export default function SunmiSalesPage() {
 
       {receiptPreview && (
         <PrinterFlowSheet
-          receiptHtml={buildReceiptHtml(receiptPreview)}
+          receiptHtml={lastSale && lastSale.receiptNumber === receiptPreview.receiptNumber
+            ? buildSaleReceiptThermalHtml(lastSale as any, settings, { paperWidth: receiptPreview.paperWidth, cashierName: receiptPreview.cashierName })
+            : buildReceiptHtml(receiptPreview)}
           jobName={`ใบเสร็จ #${receiptPreview.receiptNumber}`}
           previewData={buildReceiptPreviewData(receiptPreview)}
           onShare={async () => shareReceipt(receiptPreview)}

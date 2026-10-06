@@ -1,11 +1,12 @@
 'use client'
 
+import { ISSUE_TAG_OPTIONS, SPECIAL_ISSUE_TAGS, CONDITION_OPTIONS_LIST, ACCESSORY_OPTIONS } from '@/lib/repair-tags'
 import { useAppBranch } from '@/hooks/useAppBranch'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, Search, UserPlus, Smartphone, Tablet, Laptop,
-  Monitor, MoreHorizontal, Camera, X, Loader2, Mic, ScanLine,
+  Watch, MoreHorizontal, Camera, X, Loader2, Mic, ScanLine,
   ChevronDown, Banknote, CreditCard, CalendarDays, FileText,
   Tag,
 } from 'lucide-react'
@@ -18,8 +19,8 @@ import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
 const DEVICE_TYPES = [
   { value: 'มือถือ',      label: 'มือถือ',      icon: Smartphone   },
   { value: 'แท็บเล็ต',   label: 'แท็บเล็ต',   icon: Tablet       },
-  { value: 'แล็ปท็อป',   label: 'โน๊ตบุ๊ค',   icon: Laptop       },
-  { value: 'คอมพิวเตอร์', label: 'คอมพิวเตอร์', icon: Monitor      },
+  { value: 'แล็ปท็อป',   label: 'แล็ปท็อป',   icon: Laptop       },
+  { value: 'Smart Watch', label: 'Smart Watch', icon: Watch        },  // same types as the web form
   { value: 'อื่นๆ',       label: 'อื่นๆ',       icon: MoreHorizontal },
 ]
 
@@ -42,23 +43,12 @@ const SAMSUNG_MODELS = [
   'Galaxy Z Fold 6', 'Galaxy Z Flip 6', 'อื่นๆ',
 ]
 
-// Synced with web's ISSUE_TAG_OPTIONS
-const ISSUE_TAGS = [
-  'หน้าจอ', 'แบตเตอรี่', 'กล้อง', 'ชาร์จไม่เข้า', 'เสียง', 'ปุ่มเสีย',
-  'WiFi', 'Bluetooth', 'ไม่ติด', 'ค้าง/รีสตาร์ท', 'ตก/หล่น', 'น้ำเข้า',
-  'สัมผัสไม่ได้', 'อื่นๆ',
-]
+// The same lists as the web form (lib/repair-tags)
+const ISSUE_TAGS = [...SPECIAL_ISSUE_TAGS, ...ISSUE_TAG_OPTIONS]
 
-// Synced with web's CONDITION_OPTIONS
-const CONDITIONS = [
-  'หน้าจอแตก', 'ฝาหลังแตก', 'ขอบมีรอย', 'มีรอยขีดข่วน', 'ปกติ', 'เปียกน้ำ',
-]
+const CONDITIONS = CONDITION_OPTIONS_LIST
 
-// Combined list (APK operational items + web items)
-const ACCESSORIES = [
-  'เครื่อง', 'ซิม', 'กล่องเดิม', 'สายชาร์จ', 'หัวชาร์จ', 'เคส',
-  'เมมโมรี่การ์ด', 'หูฟัง', 'ฟิล์ม/กระจก', 'สาย USB', 'ปากกา', 'อื่นๆ',
-]
+const ACCESSORIES = ACCESSORY_OPTIONS
 
 const COLORS = [
   { label: 'ดำ',    hex: '#111111' },
@@ -169,6 +159,18 @@ export default function CreateRepairPage() {
 
   const total     = (parseFloat(laborCost) || 0) + (parseFloat(partsCost) || 0)
   const remaining = total - (parseFloat(deposit) || 0) - (parseFloat(discount) || 0)
+
+  // "รับเครื่องถัดไป (ลูกค้าเดิม)" opens this page with ?customerId= — start with that customer picked
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('customerId')
+    if (!id) return
+    api.get(`/customers/${id}`)
+      .then((r) => {
+        const c = r.data
+        if (c?.id) setSelectedCust({ id: c.id, name: c.name, phone: c.phone ?? '', totalRepairs: c._count?.repairs ?? 0 })
+      })
+      .catch(() => { /* pick the customer by hand */ })
+  }, [])
 
   // ── Handlers ──
 

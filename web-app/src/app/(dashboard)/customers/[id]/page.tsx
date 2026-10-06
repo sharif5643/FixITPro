@@ -23,6 +23,7 @@ import {
 import api from '@/lib/api'
 import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import type { Customer } from '@/types'
+import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -239,6 +240,12 @@ export default function CustomerDetailPage() {
           <Printer className="h-4 w-4" />
           พิมพ์ Statement
         </Button>
+        <RepairBatchButton
+          customer={customer}
+          always
+          label="ใบรวมงานซ่อม"
+          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent"
+        />
       </div>
 
       {/* Customer info */}
