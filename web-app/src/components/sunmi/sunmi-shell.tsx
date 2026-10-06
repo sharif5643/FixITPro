@@ -43,7 +43,7 @@ export function SunmiShell({
     <div className={cn('flex flex-col bg-slate-100 overflow-hidden',
       inStaff ? 'h-[calc(100dvh-70px-env(safe-area-inset-bottom))]' : 'h-screen')}>
       {/* Top bar */}
-      <header className="flex items-center h-14 px-2 bg-[rgb(var(--brand-header))] text-[rgb(var(--brand-header-fg))] shrink-0 select-none">
+      <header className="flex items-center h-14 px-2 [background:var(--brand-header-bg)] text-[rgb(var(--brand-header-fg))] shrink-0 select-none">
         {showBack ? (
           <button
             onClick={() => onBack ? onBack() : router.back()}

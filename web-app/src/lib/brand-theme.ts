@@ -1,17 +1,15 @@
-/**
- * The shop's main colour applied to the app: CSS variables read by the menu, headers and main
- * buttons (app/globals.css), plus shadcn's --primary. null brings back the product's own look.
- */
-const VARS = ['--brand', '--brand-fg', '--brand-accent', '--brand-accent-fg', '--brand-header', '--brand-header-fg', '--primary', '--primary-foreground', '--ring']
-export const BRAND_CACHE_KEY = 'fixitpro-brand'
+import { findThemeSet, type ThemeSet } from '@/lib/theme-sets'
 
-export const BRAND_PRESETS: { value: string; label: string }[] = [
-  { value: '#2563eb', label: 'น้ำเงิน' },
-  { value: '#7c3aed', label: 'ม่วง' },
-  { value: '#059669', label: 'เขียว' },
-  { value: '#dc2626', label: 'แดง' },
-  { value: '#d97706', label: 'ส้ม' },
-  { value: '#0891b2', label: 'ฟ้า' },
+/**
+ * Applies a theme set by setting the CSS variables read across the app (app/globals.css).
+ * null / unknown / "original" removes them all, so the product's own look comes back untouched.
+ */
+export const BRAND_CACHE_KEY = 'fixitpro-theme-set'
+const SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const
+const VARS = [
+  ...SHADES.map((s) => `--blue-${s}`),
+  '--brand', '--brand-fg', '--brand-accent', '--brand-accent-fg', '--brand-gradient', '--brand-header-bg', '--brand-header-fg',
+  '--side-bg', '--side-fg', '--primary', '--primary-foreground', '--ring',
 ]
 
 export function isHexColor(v: unknown): v is string {
@@ -24,8 +22,8 @@ export function hexToRgb(hex: string): [number, number, number] {
 }
 
 /**
- * Text colour on the brand colour. White unless the colour is light (WCAG contrast with white
- * under 2.6 — bold menu and button text), so mid tones like green or orange keep white text.
+ * Text colour on a colour. White unless the colour is light (WCAG contrast with white under
+ * 2.6 — bold menu and button text), so mid tones like green or orange keep white text.
  */
 export function readableOn(hex: string): [number, number, number] {
   const lin = (c: number) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }
@@ -48,17 +46,40 @@ export function hexToHsl(hex: string): string {
   return `${h.toFixed(1)} ${(s * 100).toFixed(1)}% ${(l * 100).toFixed(1)}%`
 }
 
-export function applyBrandColor(hex: string | null | undefined, root: HTMLElement = document.documentElement) {
-  if (!isHexColor(hex)) {
+/** A Tailwind-like 50…950 scale around one colour (it is the 600 step). */
+export function shadeScale(hex: string): Record<(typeof SHADES)[number], [number, number, number]> {
+  const c = hexToRgb(hex)
+  const mix = (t: number, to: number): [number, number, number] =>
+    c.map((v) => Math.round(v * t + to * (1 - t))) as [number, number, number]
+  return {
+    50: mix(0.07, 255), 100: mix(0.14, 255), 200: mix(0.26, 255), 300: mix(0.42, 255), 400: mix(0.65, 255),
+    500: mix(0.85, 255), 600: c, 700: mix(0.85, 0), 800: mix(0.7, 0), 900: mix(0.55, 0), 950: mix(0.38, 0),
+  }
+}
+
+const rgb = (c: [number, number, number]) => c.join(' ')
+
+export function applyThemeSet(key: string | null | undefined, root: HTMLElement = document.documentElement) {
+  const t: ThemeSet | null = findThemeSet(key)
+  if (!t) {
     VARS.forEach((v) => root.style.removeProperty(v))
+    root.removeAttribute('data-theme-set')
     return
   }
-  const rgb = hexToRgb(hex).join(' ')
-  const fg  = readableOn(hex)
-  const fgRgb = fg.join(' ')
-  for (const v of ['--brand', '--brand-accent', '--brand-header']) root.style.setProperty(v, rgb)
-  for (const v of ['--brand-fg', '--brand-accent-fg', '--brand-header-fg']) root.style.setProperty(v, fgRgb)
-  root.style.setProperty('--primary', hexToHsl(hex))
-  root.style.setProperty('--primary-foreground', fg[0] > 100 ? '0 0% 100%' : '0 0% 7%')
-  root.style.setProperty('--ring', hexToHsl(hex))
+  const scale = shadeScale(t.primary)
+  SHADES.forEach((s) => root.style.setProperty(`--blue-${s}`, rgb(scale[s])))
+  const set = (v: string, val: string) => root.style.setProperty(v, val)
+  set('--brand', rgb(hexToRgb(t.sideActive)))
+  set('--brand-fg', rgb(readableOn(t.sideActive)))
+  set('--brand-accent', rgb(hexToRgb(t.accent)))
+  set('--brand-accent-fg', rgb(readableOn(t.accent)))
+  set('--brand-gradient', `linear-gradient(to right, ${t.primary}, ${t.second})`)
+  set('--brand-header-bg', `linear-gradient(to right, ${t.primary}, ${t.second})`)
+  set('--brand-header-fg', rgb(readableOn(t.primary)))
+  set('--side-bg', rgb(hexToRgb(t.side)))
+  set('--side-fg', rgb(hexToRgb(t.sideText)))
+  set('--primary', hexToHsl(t.primary))
+  set('--primary-foreground', readableOn(t.primary)[0] > 100 ? '0 0% 100%' : '0 0% 7%')
+  set('--ring', hexToHsl(t.primary))
+  root.setAttribute('data-theme-set', t.key)
 }

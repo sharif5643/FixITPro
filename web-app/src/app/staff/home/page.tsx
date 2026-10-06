@@ -208,9 +208,9 @@ export default function HomePage() {
     { icon:<Users/>,         label:'ลูกค้า',     to:'/staff/customers',     show: access.customers, bg:'bg-[#F5F3FF]', ic:'text-[#8B5CF6]' },
     { icon:<FileText/>,      label:'ประวัติขาย', to:'/staff/pos/history',   show: access.pos,       bg:'bg-[#FFF7ED]', ic:'text-[#F97316]' },
     { icon:<BarChart2/>,     label:'รายงาน',     to:'/staff/reports',       show: access.reports,   bg:'bg-[#F0FDF4]', ic:'text-[#10B981]' },
-    { icon:<TrendingUp/>,    label:'ขายซิม',     to:'/staff/sim',           show: access.sim,       bg:'bg-[#EFF6FF]', ic:'text-[#3B82F6]' },
+    { icon:<TrendingUp/>,    label:'ขายซิม',     to:'/staff/sim',           show: access.sim,       bg:'bg-blue-50', ic:'text-[#3B82F6]' },
     { icon:<MessageCircle/>, label:'แชท',        to:'/staff/chat',          show: access.repairs,   bg:'bg-[#F0FDF4]', ic:'text-[#22C55E]' },
-    { icon:<Calendar/>,      label:'แจ้งเตือน',  to:'/staff/notifications', show: true,              bg:'bg-[#EFF6FF]', ic:'text-[#3B82F6]' },
+    { icon:<Calendar/>,      label:'แจ้งเตือน',  to:'/staff/notifications', show: true,              bg:'bg-blue-50', ic:'text-[#3B82F6]' },
     { icon:<LayoutGrid/>,    label:'เพิ่มเติม',  to:'/staff/more',          show: true,              bg:'bg-[#F8F9FB]', ic:'text-[#6B7280]' },
   ].filter((q) => q.show)
 

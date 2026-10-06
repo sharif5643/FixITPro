@@ -12,7 +12,7 @@ import {
   MessageSquare, Database, AlertTriangle, Trash2, Upload, X, Users, Cpu,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { BRAND_PRESETS, isHexColor } from '@/lib/brand-theme'
+import { ThemeSetPicker } from '@/components/theme/theme-set-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -33,7 +33,7 @@ const settingsSchema = z.object({
   shopEmail:           z.string().optional(),
   taxId:               z.string().optional(),
   legalName:           z.string().max(200).optional(),
-  themeColor:          z.string().optional(),
+  themeKey:            z.string().optional(),
   themePreset:         z.enum(['light', 'dark', 'auto']).optional(),
   taxBranch:           z.string().max(100).optional(),
   logoUrl:             z.string().optional(),
@@ -146,7 +146,7 @@ export default function SettingsPage() {
   })
 
   const logoUrl             = watch('logoUrl')
-  const themeColor          = watch('themeColor')
+  const themeKey            = watch('themeKey')
   const themePreset         = watch('themePreset')
   const isBase64Logo        = (logoUrl ?? '').startsWith('data:')
   const paperWidth          = watch('paperWidth')
@@ -166,7 +166,7 @@ export default function SettingsPage() {
         shopEmail:           settings.shopEmail           ?? '',
         taxId:               settings.taxId               ?? '',
         legalName:           settings.legalName           ?? '',
-        themeColor:          (settings as any).themeColor  ?? 'none',
+        themeKey:            (settings as any).themeKey    ?? 'original',
         themePreset:         (settings as any).themePreset ?? 'light',
         taxBranch:           settings.taxBranch           ?? '',
         logoUrl:             settings.logoUrl             ?? '',
@@ -198,7 +198,7 @@ export default function SettingsPage() {
         shopEmail:          data.shopEmail           || null,
         taxId:              data.taxId               || null,
         legalName:          data.legalName?.trim()   || null,
-        themeColor:         isHexColor(data.themeColor) ? data.themeColor : 'none',
+        themeKey:           data.themeKey || 'original',
         themePreset:        data.themePreset ?? null,
         taxBranch:          data.taxBranch?.trim()   || null,
         logoUrl:            data.logoUrl             || null,
@@ -474,24 +474,8 @@ export default function SettingsPage() {
 
                   {/* The shop's look — everyone in this shop sees it on the web, the staff app and SUNMI */}
                   <div className="space-y-2 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-                    <Label>สีหลักของร้าน</Label>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <button type="button" onClick={() => setValue('themeColor', 'none', { shouldDirty: true })}
-                        className={`h-10 rounded-xl border px-3 text-xs font-semibold ${!isHexColor(themeColor) ? 'ring-2 ring-offset-2 ring-slate-500' : ''}`}>
-                        สีเริ่มต้นของระบบ
-                      </button>
-                      {BRAND_PRESETS.map((c) => (
-                        <button key={c.value} type="button" title={c.label} aria-label={c.label}
-                          onClick={() => setValue('themeColor', c.value, { shouldDirty: true })}
-                          style={{ backgroundColor: c.value }}
-                          className={`h-10 w-10 rounded-xl transition-transform ${themeColor?.toLowerCase() === c.value ? 'scale-110 ring-2 ring-offset-2 ring-slate-500' : 'hover:scale-105'}`} />
-                      ))}
-                      <label className="flex h-10 items-center gap-2 rounded-xl border px-2 text-xs text-slate-600">
-                        สีอื่น
-                        <input type="color" value={isHexColor(themeColor) ? themeColor : '#2563eb'}
-                          onChange={(e) => setValue('themeColor', e.target.value, { shouldDirty: true })} className="h-7 w-9 cursor-pointer border-0 bg-transparent p-0" />
-                      </label>
-                    </div>
+                    <Label>ชุดธีมของร้าน</Label>
+                    <ThemeSetPicker value={themeKey} onChange={(k) => setValue('themeKey', k, { shouldDirty: true })} />
                     <Label className="block pt-2">รูปแบบหน้าจอเริ่มต้น</Label>
                     <div className="flex flex-wrap gap-2">
                       {([['light', 'สว่าง'], ['dark', 'มืด'], ['auto', 'ตามเครื่อง']] as const).map(([v, label]) => (
@@ -502,8 +486,8 @@ export default function SettingsPage() {
                       ))}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      สีหลักใช้กับแถบเมนู ปุ่มหลัก และส่วนหัว ทั้งบนเว็บ แอป Staff และ SUNMI ของทุกคนในร้าน · รูปแบบหน้าจอเป็นค่าเริ่มต้น
-                      แต่ละเครื่องยังสลับสว่าง/มืดเองได้ที่แถบด้านบน · สีแจ้งเตือน (แดง/เขียว) คงเดิมเพื่อให้อ่านง่าย
+                      ชุดธีมใช้กับทั้งระบบ — เว็บ แอป Staff และ SUNMI ของทุกคนในร้าน · Original = หน้าตาเดิมของระบบทุกอย่าง
+                      · สีสถานะ (เขียว ชำระแล้ว / แดง ค้างชำระ) คงเดิมทุกชุด · รูปแบบหน้าจอเป็นค่าเริ่มต้น แต่ละเครื่องยังสลับสว่าง/มืดเองได้ที่แถบด้านบน
                     </p>
                   </div>
                 </div>

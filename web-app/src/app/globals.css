@@ -4,14 +4,20 @@
 
 @layer base {
   :root {
-    /* ── Shop brand colours (RGB channels) ─────────────────────────
-       The product's own look; components/providers/brand-theme.tsx replaces all of them with the
-       shop's main colour when the owner picked one. */
-    --brand:            37 99 235;   /* web menu, header, main buttons — blue-600 */
+    /* ── Theme set colours ─────────────────────────────────────────
+       These are the product's own ("Original") look. A shop that picks a theme set gets them
+       replaced by components/providers/brand-theme.tsx (lib/theme-sets.ts); status colours
+       (green / red / amber) are never part of a theme. */
+    --blue-50:  239 246 255;  --blue-100: 219 234 254;  --blue-200: 191 219 254;
+    --blue-300: 147 197 253;  --blue-400: 96 165 250;   --blue-500: 59 130 246;
+    --blue-600: 37 99 235;    --blue-700: 29 78 216;    --blue-800: 30 64 175;
+    --blue-900: 30 58 138;    --blue-950: 23 37 84;
+    --brand:            37 99 235;   /* web menu active item — blue-600 */
     --brand-fg:         255 255 255;
+    --brand-gradient:   linear-gradient(to right, rgb(37 99 235), rgb(29 78 216)); /* menu header */
     --brand-accent:     255 193 7;   /* staff app and quick actions — #FFC107 */
     --brand-accent-fg:  17 17 17;
-    --brand-header:     15 23 42;    /* SUNMI screen header — slate-900 */
+    --brand-header-bg:  rgb(15 23 42); /* SUNMI screen header — slate-900 */
     --brand-header-fg:  255 255 255;
 
     /* ── Color tokens (HSL) ─────────────────────────────────────── */
@@ -282,3 +288,19 @@
 /* Safe area insets for devices with notch / home indicator */
 .capacitor-android .safe-top    { padding-top: env(safe-area-inset-top); }
 .capacitor-android .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* ── Theme sets: the web side menu ─────────────────────────────────────────
+   Only when a shop picked a theme set (html[data-theme-set]); the original menu is untouched. */
+html[data-theme-set] .app-side {
+  background-color: rgb(var(--side-bg)) !important;
+  border-color: rgb(var(--side-fg) / 0.12) !important;
+}
+html[data-theme-set] .app-side :is(.text-slate-300, .text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700, .text-slate-800, .text-slate-900) {
+  color: rgb(var(--side-fg) / 0.85) !important;
+}
+html[data-theme-set] .app-side :is(.hover\:bg-slate-100, .hover\:bg-slate-50):hover {
+  background-color: rgb(var(--side-fg) / 0.1) !important;
+}
+html[data-theme-set] .app-side :is(.border-slate-100, .border-slate-200) {
+  border-color: rgb(var(--side-fg) / 0.12) !important;
+}

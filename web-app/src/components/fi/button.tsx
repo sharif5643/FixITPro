@@ -12,7 +12,7 @@ interface FiButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles = {
-  primary:   'bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-fi-primary active:shadow-none',
+  primary:   'bg-blue-600 hover:bg-blue-700 text-white shadow-fi-primary active:shadow-none',
   secondary: 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-700/40 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200',
   outline:   'border border-[var(--fi-border)] bg-transparent hover:bg-slate-50 dark:hover:bg-slate-700/40 text-[var(--fi-text)]',
   ghost:     'bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700/40 text-[var(--fi-text-muted)]',

@@ -9,6 +9,7 @@ import {
   Matches,
   MinLength,
 } from 'class-validator'
+import { THEME_KEYS, THEME_PRESETS } from '../../common/theme-sets'
 
 export class PublicRegisterDto {
   @IsNotEmpty({ message: 'ชื่อร้านค้าจำเป็นต้องกรอก' })
@@ -37,12 +38,18 @@ export class PublicRegisterDto {
   @IsString()
   businessType?: string
 
+  // Kept for older sign-up pages; only noted on the shop's sign-up record
   @IsOptional()
-  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'สีไม่ถูกต้อง' })
+  @IsString()
   themeColor?: string
 
+  // Theme set picked on the sign-up page ('original' = the product's own look)
   @IsOptional()
-  @IsIn(['light', 'dark', 'auto'])
+  @IsIn(THEME_KEYS as unknown as string[])
+  themeKey?: string
+
+  @IsOptional()
+  @IsIn(THEME_PRESETS as unknown as string[])
   themePreset?: string
 
   // Shop logo as a small image data URL (the sign-up page shrinks it first)

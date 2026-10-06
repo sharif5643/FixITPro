@@ -22,8 +22,8 @@ interface RevenueBarChartProps {
 }
 
 const COLORS = {
-  light: { sales: '#10b981', repairs: '#fb923c', packages: '#60a5fa', grid: '#e2e8f0', axis: '#94a3b8', tooltipBg: '#ffffff', tooltipBorder: '#e2e8f0', tooltipText: '#0f172a' },
-  dark:  { sales: '#059669', repairs: '#f97316', packages: '#3b82f6', grid: '#1e293b', axis: '#64748b', tooltipBg: '#0f172a', tooltipBorder: '#334155', tooltipText: '#f1f5f9' },
+  light: { sales: '#10b981', repairs: '#fb923c', packages: 'rgb(var(--blue-400))', grid: '#e2e8f0', axis: '#94a3b8', tooltipBg: '#ffffff', tooltipBorder: '#e2e8f0', tooltipText: '#0f172a' },
+  dark:  { sales: '#059669', repairs: '#f97316', packages: 'rgb(var(--blue-500))', grid: '#1e293b', axis: '#64748b', tooltipBg: '#0f172a', tooltipBorder: '#334155', tooltipText: '#f1f5f9' },
 }
 
 function CustomTooltip({ active, payload, label, c, shortDate }: any) {

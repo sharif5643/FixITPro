@@ -17,6 +17,11 @@ const config: Config = {
     },
     extend: {
       colors: {
+        // Blue is the product's main colour; it reads CSS variables so a shop's theme set can
+        // replace it everywhere (defaults = Tailwind's blue, app/globals.css).
+        blue: Object.fromEntries(
+          [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((s) => [s, `rgb(var(--blue-${s}) / <alpha-value>)`]),
+        ),
         brand: {
           // The staff app's accent: #FFC107 unless the shop picked its own colour (app/globals.css)
           yellow:         'rgb(var(--brand-accent) / <alpha-value>)',
@@ -31,13 +36,13 @@ const config: Config = {
           success:        '#22C55E',
           warning:        '#F59E0B',
           danger:         '#EF4444',
-          info:           '#3B82F6',
+          info:           'rgb(var(--blue-500) / <alpha-value>)',
         },
         fi: {
-          primary:        '#2563EB',
-          'primary-dark': '#1D4ED8',
-          'primary-light':'#EFF6FF',
-          'primary-mid':  '#DBEAFE',
+          primary:        'rgb(var(--blue-600) / <alpha-value>)',
+          'primary-dark': 'rgb(var(--blue-700) / <alpha-value>)',
+          'primary-light':'rgb(var(--blue-50) / <alpha-value>)',
+          'primary-mid':  'rgb(var(--blue-100) / <alpha-value>)',
           success:        '#22C55E',
           'success-light':'#F0FDF4',
           warning:        '#F59E0B',
@@ -107,7 +112,7 @@ const config: Config = {
         'fi-card-hover':'0 8px 20px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)',
         'fi-panel':     '0 4px 16px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)',
         'fi-modal':     '0 20px 60px rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.08)',
-        'fi-primary':   '0 4px 14px rgba(37,99,235,0.30)',
+        'fi-primary':   '0 4px 14px rgb(var(--blue-600) / 0.30)',
         'fi-success':   '0 4px 14px rgba(34,197,94,0.25)',
         'fi-inset':     'inset 0 1px 3px rgba(0,0,0,0.06)',
       },

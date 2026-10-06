@@ -366,7 +366,7 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
       )}
 
       <aside className={cn(
-        'flex flex-col flex-shrink-0 h-full',
+        'app-side flex flex-col flex-shrink-0 h-full',
         'bg-white dark:bg-[#111827]',
         'border-r border-slate-200 dark:border-slate-700/60',
         'overflow-hidden transition-[width] duration-150',
@@ -376,7 +376,7 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
       )}>
         {/* Shop + branch */}
         <div className={cn(
-          'flex h-16 items-center flex-shrink-0 gap-3 bg-[rgb(var(--brand))] text-[rgb(var(--brand-fg))]',
+          'flex h-16 items-center flex-shrink-0 gap-3 [background:var(--brand-gradient)] text-white',
           collapsed ? 'justify-center px-2' : 'px-4',
         )}>
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/20 shadow-sm border border-white/25 backdrop-blur-sm" title={collapsed ? shopName : undefined}>

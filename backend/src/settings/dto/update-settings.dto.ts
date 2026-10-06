@@ -7,9 +7,9 @@ import {
   Min,
   Max,
   MaxLength,
-  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { THEME_KEYS, THEME_PRESETS } from '../../common/theme-sets';
 
 export class UpdateSettingsDto {
   @IsOptional()
@@ -47,13 +47,13 @@ export class UpdateSettingsDto {
   @MaxLength(100)
   taxBranch?: string;
 
-  // The shop's main colour (#rrggbb, or 'none' for the product's default look) and light / dark / auto
+  // The shop's theme set ('original' = the product's own look) and light / dark / auto
   @IsOptional()
-  @Matches(/^(#[0-9a-fA-F]{6}|none)$/, { message: 'สีต้องอยู่ในรูปแบบ #RRGGBB' })
-  themeColor?: string | null;
+  @IsIn(THEME_KEYS as unknown as string[], { message: 'ไม่มีชุดธีมนี้' })
+  themeKey?: string | null;
 
   @IsOptional()
-  @IsIn(['light', 'dark', 'auto'])
+  @IsIn(THEME_PRESETS as unknown as string[])
   themePreset?: string | null;
 
   @IsOptional()

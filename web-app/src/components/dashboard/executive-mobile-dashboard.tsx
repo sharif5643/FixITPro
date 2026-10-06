@@ -102,7 +102,7 @@ export function ExecutiveMobileDashboard() {
   const totalRepairs = received + inProgress + waitingParts + readyPickup
 
   const donutData = [
-    { name: 'รอรับเครื่อง',    value: received,     color: '#3B82F6' },
+    { name: 'รอรับเครื่อง',    value: received,     color: 'rgb(var(--blue-500))' },
     { name: 'กำลังซ่อม',       value: inProgress,   color: '#F59E0B' },
     { name: 'รออะไหล่',         value: waitingParts, color: '#8B5CF6' },
     { name: 'ซ่อมเสร็จ รอรับ', value: readyPickup,  color: '#10B981' },
@@ -296,7 +296,7 @@ export function ExecutiveMobileDashboard() {
             {/* Legend */}
             <div className="flex-1 space-y-2.5">
               {[
-                { label: 'รอรับเครื่อง',    value: received,     color: '#3B82F6', href: '/repairs' },
+                { label: 'รอรับเครื่อง',    value: received,     color: 'rgb(var(--blue-500))', href: '/repairs' },
                 { label: 'กำลังซ่อม',       value: inProgress,   color: '#F59E0B', href: '/repairs' },
                 { label: 'รออะไหล่',         value: waitingParts, color: '#8B5CF6', href: '/repairs' },
                 { label: 'ซ่อมเสร็จ รอรับ', value: readyPickup,  color: '#10B981', href: '/repairs' },
@@ -382,7 +382,7 @@ export function ExecutiveMobileDashboard() {
                       style={{ fontSize: 8, fill: '#64748B', fontWeight: 600 }}
                     />
                     {barData.map((entry, i) => (
-                      <Cell key={i} fill={entry.last ? '#3B82F6' : '#BFDBFE'} />
+                      <Cell key={i} fill={entry.last ? 'rgb(var(--blue-500))' : 'rgb(var(--blue-200))'} />
                     ))}
                   </Bar>
                 </BarChart>

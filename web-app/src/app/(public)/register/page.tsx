@@ -8,21 +8,13 @@ import {
   Eye, EyeOff, Wrench, Palette, ImageIcon, AlertCircle,
 } from 'lucide-react'
 import api from '@/lib/api'
+import { ThemeSetPicker } from '@/components/theme/theme-set-picker'
 
 const businessTypes = [
   { value: 'mobile_repair', label: 'ร้านซ่อมมือถือ' },
   { value: 'mobile_shop',   label: 'ร้านขายมือถือ' },
   { value: 'both',          label: 'ขายและซ่อมมือถือ' },
   { value: 'accessories',   label: 'ร้านอุปกรณ์มือถือ' },
-]
-
-const colorPresets = [
-  { value: '#2563eb', label: 'น้ำเงิน',  class: 'bg-blue-600' },
-  { value: '#7c3aed', label: 'ม่วง',     class: 'bg-violet-600' },
-  { value: '#059669', label: 'เขียว',    class: 'bg-emerald-600' },
-  { value: '#dc2626', label: 'แดง',      class: 'bg-red-600' },
-  { value: '#d97706', label: 'ส้ม',      class: 'bg-amber-600' },
-  { value: '#0891b2', label: 'ฟ้า',      class: 'bg-cyan-600' },
 ]
 
 const themePresets = [
@@ -58,7 +50,7 @@ type FormState = {
   password: string
   confirmPassword: string
   businessType: string
-  mainColor: string
+  themeKey: string
   theme: string
   logo: File | null
 }
@@ -68,7 +60,7 @@ export default function RegisterPage() {
   const [form, setForm] = useState<FormState>({
     shopName: '', ownerName: '', phone: '', email: '',
     password: '', confirmPassword: '', businessType: '',
-    mainColor: '#2563eb', theme: 'light', logo: null,
+    themeKey: 'original', theme: 'light', logo: null,
   })
   const [showPass, setShowPass]       = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -106,7 +98,7 @@ export default function RegisterPage() {
         email:        form.email.trim().toLowerCase(),
         password:     form.password,
         businessType: form.businessType || undefined,
-        themeColor:   form.mainColor || undefined,
+        themeKey:     form.themeKey || undefined,
         themePreset:  form.theme || undefined,
         logoDataUrl,
       })
@@ -292,26 +284,13 @@ export default function RegisterPage() {
             {errors.businessType && <p className="text-red-500 text-xs mt-1">{errors.businessType}</p>}
           </div>
 
-          {/* Color picker */}
+          {/* Theme set */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-3">
-              <span className="flex items-center gap-1.5"><Palette className="h-4 w-4" />สีหลักของระบบ</span>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              <span className="flex items-center gap-1.5"><Palette className="h-4 w-4" />ชุดธีมของร้าน</span>
             </label>
-            <div className="flex flex-wrap gap-3">
-              {colorPresets.map(c => (
-                <button
-                  key={c.value}
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, mainColor: c.value }))}
-                  className={`h-10 w-10 rounded-xl ${c.class} flex items-center justify-center transition-all ${
-                    form.mainColor === c.value ? 'ring-2 ring-offset-2 ring-blue-500 scale-110' : 'hover:scale-105'
-                  }`}
-                  title={c.label}
-                >
-                  {form.mainColor === c.value && <CheckCircle className="h-5 w-5 text-white" />}
-                </button>
-              ))}
-            </div>
+            <p className="mb-3 text-xs text-slate-500">Original = หน้าตามาตรฐานของระบบ · เปลี่ยนภายหลังได้ที่ ตั้งค่า › ข้อมูลร้าน</p>
+            <ThemeSetPicker value={form.themeKey} onChange={(k) => setForm(f => ({ ...f, themeKey: k }))} />
           </div>
 
           {/* Theme */}
