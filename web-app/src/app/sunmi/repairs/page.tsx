@@ -904,6 +904,13 @@ export default function SunmiRepairsPage() {
     queryFn:  async () => (await api.get('/repairs')).data,
   })
 
+  // "งานซ่อมของฉัน" opens a job here with ?open=<id> — load it and show its panel
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('open')
+    if (!id) return
+    api.get(`/repairs/${id}`).then((r) => { if (r.data?.id) setSelected(r.data) }).catch(() => {})
+  }, [])
+
   const { data: settings } = useQuery<ShopSettings>({
     queryKey:  ['settings'],
     queryFn:   async () => (await api.get('/settings')).data,

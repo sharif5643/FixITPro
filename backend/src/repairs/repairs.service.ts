@@ -22,6 +22,7 @@ import { RepairQcDto } from './dto/repair-qc.dto';
 import { RepairAccountingAdapter } from './repair-accounting.adapter';
 import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
 import { bangkokYmd } from '../common/bangkok-date';
+import { repairTechnicianWhere } from '../permissions/repair-technicians';
 
 const REPAIR_INCLUDE = {
   customer: true,
@@ -101,11 +102,12 @@ export class RepairsService {
 
   /** A repair can only be given to an active technician or manager of the same shop. */
   private async assertAssignableTechnician(technicianId: string, tenantId?: string | null) {
+    const techs = await repairTechnicianWhere(this.prisma, tenantId);
     const tech = await this.prisma.user.findFirst({
       where: {
         id: technicianId,
         isActive: true,
-        role: { in: ['TECHNICIAN', 'MANAGER', 'OWNER'] as any[] },
+        OR: [{ role: { in: ['TECHNICIAN', 'MANAGER', 'OWNER'] as any[] } }, ...techs.OR],
         ...(tenantId ? { tenantId } : {}),
       },
       select: { id: true },
@@ -124,11 +126,16 @@ export class RepairsService {
   ) {
     if (!tenantId || !repair.branchId) return;
     try {
+      // Everyone who does repair work: technicians, and any role or person given repair.technician
+      const who = await repairTechnicianWhere(this.prisma, tenantId);
       const techs = await this.prisma.user.findMany({
         where: {
-          tenantId, role: 'TECHNICIAN', isActive: true,
-          // Technicians of this branch, or not tied to one branch
-          OR: [{ branchId: repair.branchId }, { branchId: null }],
+          tenantId, isActive: true,
+          AND: [
+            who,
+            // Of this branch, or not tied to one branch
+            { OR: [{ branchId: repair.branchId }, { branchId: null }] },
+          ],
           ...(actorId ? { id: { not: actorId } } : {}),
         },
         select: { id: true },

@@ -493,6 +493,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     )}
                     <FormalDocButton
                       repair={repair}
+                      newTab
                       label="เอกสาร A4 / PDF"
                       className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-medium hover:bg-accent"
                     />

@@ -7,8 +7,7 @@ import { useRouter } from 'next/navigation'
 import {
   Bell, Wrench, ShoppingCart, Package, Users, TrendingUp,
   ChevronRight, FileText, BarChart2, MessageCircle, Calendar,
-  LayoutGrid, RefreshCw, AlertTriangle,
-} from 'lucide-react'
+  LayoutGrid, RefreshCw, AlertTriangle, Hammer } from 'lucide-react'
 import { formatDistanceToNow, subDays, format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { useAuthStore } from '@/store/auth.store'
@@ -203,6 +202,7 @@ export default function HomePage() {
   // Same rules as the web menu; each tile opens the screen its name says
   const QUICK = [
     { icon:<Wrench/>,        label:'รับงาน',     to:'/staff/create',        show: access.intake,    bg:'bg-[#FFF8E7]', ic:'text-[#F59E0B]' },
+    { icon:<Hammer/>,        label:'งานของฉัน',  to:'/staff/technician',    show: access.myRepairs, bg:'bg-violet-50', ic:'text-violet-600' },
     { icon:<ShoppingCart/>,  label:'POS',         to:'/staff/pos',           show: access.pos,       bg:'bg-[#F0FDF4]', ic:'text-[#22C55E]' },
     { icon:<Package/>,       label:'สต็อก',      to:'/staff/stock',         show: access.stock,     bg:'bg-[#FFF1F2]', ic:'text-[#F43F5E]' },
     { icon:<Users/>,         label:'ลูกค้า',     to:'/staff/customers',     show: access.customers, bg:'bg-[#F5F3FF]', ic:'text-[#8B5CF6]' },

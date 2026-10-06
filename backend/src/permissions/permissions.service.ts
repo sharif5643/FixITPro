@@ -53,6 +53,7 @@ export const ROLE_PRESETS: Record<string, string[]> = {
   TECHNICIAN: [
     'products.view',
     'repair.create', 'repair.edit', 'repair.close', 'repair.approve_estimate', 'repairs.qc.perform',
+    'repair.technician',
     'serials.manage',
     'warranty.view', 'warranty.manage',
     'technician.view',

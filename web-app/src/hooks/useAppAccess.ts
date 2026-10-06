@@ -22,6 +22,7 @@ export function useAppAccess() {
   const role      = useAuthStore((s) => s.user?.role ?? '')
   const hasPerm   = useAuthStore((s) => s.hasPermission)
   const hasModule = useAuthStore((s) => s.hasModule)
+  const perms     = useAuthStore((s) => s.permissions)
   const areas     = ROLE_AREAS[role]
   const has       = (a: Area) => !areas || areas.includes(a)
   return {
@@ -38,5 +39,7 @@ export function useAppAccess() {
     expenses:  has('money') && hasModule('finance') && hasPerm('expenses.manage'),
     drawer:    hasPerm('cash_drawer.view_balance'),
     settings:  hasPerm('settings.manage'),
+    // Does repair work: technicians, and anyone the owner gave "เป็นช่างซ่อม" (repair.technician)
+    myRepairs: hasModule('repair') && (role === 'TECHNICIAN' || (role !== 'OWNER' && role !== 'SUPER_ADMIN' && perms.includes('repair.technician'))),
   }
 }

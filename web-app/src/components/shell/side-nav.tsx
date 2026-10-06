@@ -10,7 +10,7 @@ import {
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
   BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Wifi,
   ListChecks, Handshake, Wallet, Scale, BookMarked, ArrowUpDown, LineChart, Landmark,
-  HardHat, History, ListOrdered, HandCoins, Coins, Star, PanelLeftClose, PanelLeftOpen,
+  HardHat, History, ListOrdered, HandCoins, Coins, Star, PanelLeftClose, PanelLeftOpen, Hammer,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
@@ -23,6 +23,8 @@ import { FiAvatar } from '@/components/fi/avatar'
 type NavItem = {
   href: string; icon: React.ElementType; label: string
   permission?: string | null; ownerOnly?: true; module?: string; statusParam?: string
+  /** only for people who do repair work beside their role (permission repair.technician) */
+  repairWork?: true
 }
 /** `key` names the group for remembering open/closed; `open` is its default state. */
 type NavSection = { key: string; label: string | null; open?: boolean; items: NavItem[] }
@@ -32,7 +34,7 @@ type NavSection = { key: string; label: string | null; open?: boolean; items: Na
 // owner-only rule, so a manager sees what their role allows.
 
 const SHOP_SECTIONS: NavSection[] = [
-  { key: 'home', label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' }] },
+  { key: 'home', label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' }, { href: '/repairs/mine', icon: Hammer, label: 'งานซ่อมของฉัน', module: 'repair', repairWork: true }] },
   { key: 'repair', label: 'งานซ่อม', open: true, items: [
     { href: '/repairs',         icon: Wrench,       label: 'งานซ่อม',        permission: 'repair.create',       module: 'repair' },
     { href: '/reminders',       icon: CalendarDays, label: 'นัดหมาย',        permission: 'repair.create',       module: 'repair' },
@@ -99,7 +101,7 @@ const SHOP_SECTIONS: NavSection[] = [
 ]
 
 const CASHIER_SECTIONS: NavSection[] = [
-  { key: 'home', label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' }] },
+  { key: 'home', label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' }, { href: '/repairs/mine', icon: Hammer, label: 'งานซ่อมของฉัน', module: 'repair', repairWork: true }] },
   { key: 'sales', label: 'การขาย', open: true, items: [
     { href: '/sales',            icon: ShoppingCart, label: 'ขายสินค้า (POS)',      module: 'pos'           },
     { href: '/sales/history',    icon: ScrollText,   label: 'ประวัติการขาย',        module: 'pos'           },
@@ -126,7 +128,7 @@ const TECHNICIAN_SECTIONS: NavSection[] = [
 ]
 
 const STOCK_STAFF_SECTIONS: NavSection[] = [
-  { key: 'home', label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' }] },
+  { key: 'home', label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' }, { href: '/repairs/mine', icon: Hammer, label: 'งานซ่อมของฉัน', module: 'repair', repairWork: true }] },
   { key: 'stock', label: 'สต็อก', open: true, items: [
     { href: '/products',      icon: Package,        label: 'สินค้าทั้งหมด',   permission: 'products.view',  module: 'stock' },
     { href: '/categories',    icon: Tag,            label: 'หมวดหมู่สินค้า',  permission: 'products.view',  module: 'stock' },
@@ -184,6 +186,8 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
 
   function isVisible(item: NavItem): boolean {
     if (item.ownerOnly && !isOwner) return false
+    // Owners see every job anyway; others get "my jobs" when the owner made them a technician
+    if (item.repairWork && (role === 'OWNER' || role === 'SUPER_ADMIN' || role === 'TECHNICIAN' || !hasPerm('repair.technician'))) return false
     if (item.permission && !hasPerm(item.permission)) return false
     if (item.module && !hasModule(item.module)) return false
     return true
