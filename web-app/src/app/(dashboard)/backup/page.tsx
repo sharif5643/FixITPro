@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/store/auth.store'
 import { toast } from 'sonner'
 import api from '@/lib/api'
+import { ShopBackupPage } from '@/components/backup/shop-backup'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,13 +36,20 @@ interface BackupStatus {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+/** The system admin backs up the whole server; a shop owner backs up their own shop. */
 export default function BackupPage() {
+  const role = useAuthStore((s) => s.user?.role)
+  if (role === 'OWNER') return <ShopBackupPage />
+  return <ServerBackupPage />
+}
+
+function ServerBackupPage() {
   const router  = useRouter()
   const hasPerm = useAuthStore((s) => s.hasPermission)
   const qc      = useQueryClient()
   const [lastCreated, setLastCreated] = useState<BackupFile | null>(null)
 
-  const authorized = hasPerm('system.backup')
+  const authorized = hasPerm('system.backup') && useAuthStore.getState().user?.role === 'SUPER_ADMIN'
 
   const { data: status, isLoading: statusLoading, refetch: refetchStatus } =
     useQuery<BackupStatus>({

@@ -22,6 +22,9 @@ export const PUSH_TYPES = new Set(['REPAIR_ASSIGNED', 'REPAIR_NEW']);
 
 export const MANAGEMENT_ONLY_TYPES = ['PASSWORD_RESET_REQUEST', 'ROLE_PERMISSION_CHANGED', 'USER_ASSIGNED_TO_BRANCH', 'SHIFT_MISMATCH'];
 
+/** Owners and managers clear shared warnings when they read them; other staff only see them. */
+const canClearWarnings = (role: string) => role === 'OWNER' || role === 'MANAGER' || role === 'SUPER_ADMIN';
+
 /** The unread badge counts only recent alerts; older unread ones stay in the list. */
 export const UNREAD_WINDOW_DAYS = 30;
 export const unreadSince = () => new Date(Date.now() - UNREAD_WINDOW_DAYS * 24 * 60 * 60 * 1000);
@@ -56,6 +59,9 @@ export class NotificationsService implements OnModuleInit {
   // Fire-and-forget: safe, never throws, deduplicates by (type + entityId + tenantId) when unread
   async notify(data: CreateNotifData): Promise<void> {
     try {
+      // No shop given: the shop of the branch or of the bill / job / transfer it is about.
+      // Without one it would reach only the system admin (an explicit null means "system").
+      if (data.tenantId === undefined) data = { ...data, tenantId: await this.tenantOf(data) };
       if (data.entityId) {
         const exists = await this.prisma.notification.findFirst({
           where: {
@@ -253,6 +259,30 @@ export class NotificationsService implements OnModuleInit {
     }
   }
 
+  /** The shop a notification belongs to, from its branch or the thing it is about. */
+  private async tenantOf(data: CreateNotifData): Promise<string | null> {
+    const branchTenant = async (id?: string | null) =>
+      id ? (await this.prisma.branch.findUnique({ where: { id }, select: { tenantId: true } }))?.tenantId ?? null : null;
+    if (data.branchId) {
+      const t = await branchTenant(data.branchId);
+      if (t) return t;
+    }
+    const id = data.entityId;
+    if (!id) return null;
+    switch (data.entityType) {
+      case 'Sale':          return branchTenant((await this.prisma.sale.findUnique({ where: { id }, select: { branchId: true } }))?.branchId);
+      case 'Repair':        return branchTenant((await this.prisma.repair.findUnique({ where: { id }, select: { branchId: true } }))?.branchId);
+      case 'Branch':        return branchTenant(id);
+      case 'User':          return (await this.prisma.user.findUnique({ where: { id }, select: { tenantId: true } }))?.tenantId ?? null;
+      case 'Customer':      return (await this.prisma.customer.findUnique({ where: { id }, select: { tenantId: true } }))?.tenantId ?? null;
+      case 'Warranty': {
+        const w = await this.prisma.warranty.findUnique({ where: { id }, select: { customer: { select: { tenantId: true } } } });
+        return w?.customer?.tenantId ?? null;
+      }
+      default:              return null;
+    }
+  }
+
   // ── Scope helper ──────────────────────────────────────────────────────────────
 
   // Builds WHERE clause combining tenant isolation + branch visibility rules:
@@ -323,10 +353,12 @@ export class NotificationsService implements OnModuleInit {
     try {
       const notif = await this.prisma.notification.findUnique({
         where:  { id },
-        select: { branchId: true, tenantId: true, userId: true },
+        select: { branchId: true, tenantId: true, userId: true, severity: true },
       });
       if (!notif) return null;
       if (notif.userId && notif.userId !== userId) return null;
+      // A shared warning stays unread until an owner or manager has seen it
+      if (!notif.userId && !canClearWarnings(role) && notif.severity !== 'INFO') return null;
 
       // Verify the notification belongs to this caller's tenant
       if (tenantId && notif.tenantId !== tenantId) return null;
@@ -346,7 +378,10 @@ export class NotificationsService implements OnModuleInit {
   }
 
   async markAllRead(tenantId: string | null, branchId: string | null, role: string, userId: string | null = null) {
-    const where = { isRead: false, ...this.notificationScope(tenantId, branchId, role, userId) };
+    const scope = this.notificationScope(tenantId, branchId, role, userId);
+    // Staff clear their own alerts and general info; shared warnings wait for an owner or manager
+    const mine = canClearWarnings(role) ? {} : { OR: [{ userId: userId ?? '__none__' }, { severity: 'INFO' as const }] };
+    const where = { isRead: false, ...scope, AND: [...((scope as any).AND ?? []), mine] };
     const { count } = await this.prisma.notification.updateMany({
       where,
       data: { isRead: true, readAt: new Date() },

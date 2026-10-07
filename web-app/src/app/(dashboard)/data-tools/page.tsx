@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
+import { apiErrorMessage } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,8 @@ function ExportSection() {
   const [start,  setStart]    = useState('')
   const [end,    setEnd]      = useState('')
   const [loading, setLoading] = useState<string | null>(null)
+  // The activity log export is for those who may see the activity log
+  const canAudit = useAuthStore((st) => st.hasPermission('audit.view'))
 
   const getParams = () => (start || end) ? { startDate: start || undefined, endDate: end || undefined } : presetDates(preset)
 
@@ -88,8 +91,11 @@ function ExportSection() {
       a.href = url; a.download = name; a.click()
       URL.revokeObjectURL(url)
       toast.success(`ส่งออก ${type} สำเร็จ`)
-    } catch {
-      toast.error('ไม่สามารถส่งออกข้อมูลได้')
+    } catch (err: any) {
+      // A refused export comes back as a blob: read the server's reason out of it
+      let reason: string | undefined
+      try { reason = JSON.parse(await err?.response?.data?.text?.())?.message } catch { /* not JSON */ }
+      toast.error(reason ?? 'ไม่สามารถส่งออกข้อมูลได้')
     } finally {
       setLoading(null)
     }
@@ -139,7 +145,7 @@ function ExportSection() {
 
       {/* Export grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {EXPORT_TYPES.map(({ key, label, icon: Icon, color, bg, border }) => (
+        {EXPORT_TYPES.filter((t) => t.key !== 'audit-logs' || canAudit).map(({ key, label, icon: Icon, color, bg, border }) => (
           <button
             key={key}
             disabled={loading === key}
@@ -193,8 +199,8 @@ function ImportSection() {
       })
       setPreview(res.data)
       setStep('preview')
-    } catch {
-      toast.error('ไม่สามารถอ่านไฟล์ได้ — ตรวจสอบรูปแบบ CSV')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'ไม่สามารถอ่านไฟล์ได้ — ตรวจสอบรูปแบบ CSV'), { duration: 8000 })
       setStep('idle')
     }
   }
@@ -212,8 +218,8 @@ function ImportSection() {
       setStep('done')
       if (res.data.imported > 0) toast.success(`นำเข้า ${res.data.imported} รายการสำเร็จ`)
       else toast.error('ไม่มีรายการที่นำเข้าได้')
-    } catch {
-      toast.error('นำเข้าข้อมูลล้มเหลว')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'นำเข้าข้อมูลล้มเหลว'))
       setStep('preview')
     }
   }

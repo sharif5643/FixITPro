@@ -8,6 +8,7 @@ const TENANT_STATUS_CFG: Record<TenantStatus, { label: string; cls: string; dot:
   PENDING:   { label: 'รอเปิดใช้',   cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20',   dot: 'bg-amber-400' },
   SUSPENDED: { label: 'ถูกระงับ',    cls: 'bg-orange-500/10 text-orange-400 border-orange-500/20', dot: 'bg-orange-400' },
   EXPIRED:   { label: 'หมดอายุ',     cls: 'bg-red-500/10 text-red-400 border-red-500/20',          dot: 'bg-red-400' },
+  DELETED:   { label: 'ลบแล้ว',      cls: 'bg-slate-500/10 text-slate-400 border-slate-500/20',    dot: 'bg-slate-500' },
 }
 
 export function TenantStatusBadge({ status }: { status: TenantStatus }) {

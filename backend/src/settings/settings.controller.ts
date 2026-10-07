@@ -72,13 +72,17 @@ export class SettingsController {
     return { url: `/api/v1/files/${tenantId}/logos/${file.filename}` };
   }
 
+  /**
+   * Wipe this shop's data and start over. The owner types their password; the shop is backed up
+   * first (kept on the server, restorable), and nothing is deleted if that backup fails.
+   */
   @Post('reset-data')
-  async resetData(@CurrentUser() user: any) {
+  async resetData(@CurrentUser() user: any, @Body() body: { password?: string }) {
     if (user.role !== 'OWNER') {
       throw new ForbiddenException('เฉพาะเจ้าของร้านเท่านั้นที่สามารถรีเซ็ตข้อมูลได้');
     }
-    await this.settingsService.resetTenantData(user.tenantId);
-    return { success: true };
+    const backup = await this.settingsService.resetTenantDataSafely(user, body?.password ?? '');
+    return { success: true, backupId: backup.id };
   }
 
   @Patch()

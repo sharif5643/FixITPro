@@ -28,7 +28,7 @@ export function tenantWriteBlock(
   now = new Date(),
 ): keyof typeof TENANT_BLOCK | null {
   if (!tenant) return null;
-  if (tenant.status === 'SUSPENDED') return 'SUSPENDED';
+  if (tenant.status === 'SUSPENDED' || tenant.status === 'DELETED') return 'SUSPENDED';
   if (tenant.expiryDate && now > graceEndOf(tenant.expiryDate)) return 'EXPIRED';
   return null;
 }

@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+import { TenantBackupService } from '../tenant-backup/tenant-backup.service';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -13,7 +15,20 @@ export class SettingsService {
     private tenantSvc: TenantService,
     private auditLog:  AuditLogService,
     private notif:     NotificationsService,
+    @Optional() private backups?: TenantBackupService,
   ) {}
+
+  /** The owner's password, then a backup of the shop, then the wipe (see resetTenantData). */
+  async resetTenantDataSafely(user: { id: string; name?: string; tenantId: string }, password: string) {
+    const owner = await this.prisma.user.findUnique({ where: { id: user.id }, select: { password: true } });
+    if (!password || !owner || !(await bcrypt.compare(password, owner.password))) {
+      throw new UnauthorizedException('รหัสผ่านไม่ถูกต้อง — ยังไม่ได้ลบข้อมูลใดๆ');
+    }
+    if (!this.backups) throw new BadRequestException('ระบบสำรองข้อมูลไม่พร้อม — ยังไม่ได้ลบข้อมูลใดๆ');
+    const backup = await this.backups.backupTenantNow(user.tenantId, user.id, user.name ?? '');
+    await this.resetTenantData(user.tenantId, { actorId: user.id, actorName: user.name, backupId: backup.id });
+    return backup;
+  }
 
   // Full settings — used by the settings management page.
   // SUPER_ADMIN (tenantId=null) gets an in-memory default; they don't own a shop.
@@ -106,7 +121,7 @@ export class SettingsService {
     return result;
   }
 
-  async resetTenantData(tenantId: string): Promise<void> {
+  async resetTenantData(tenantId: string, by: { actorId?: string; actorName?: string; backupId?: string } = {}): Promise<void> {
     // Collect anchor IDs before the transaction to scope all deletes to this tenant only.
     const branchIds = (await this.prisma.branch.findMany({
       where: { tenantId }, select: { id: true },
@@ -283,10 +298,12 @@ export class SettingsService {
     }, { timeout: 120_000 });
 
     await this.auditLog.log({
+      actorId:    by.actorId,
+      actorName:  by.actorName,
       action:     'TENANT_DATA_RESET',
       entityType: 'Tenant',
       entityId:   tenantId,
-      afterData:  { reset: true, resetAt: new Date().toISOString() },
+      afterData:  { reset: true, resetAt: new Date().toISOString(), backupId: by.backupId ?? null },
     });
   }
 

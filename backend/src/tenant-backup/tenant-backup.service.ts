@@ -152,6 +152,39 @@ export class TenantBackupService {
     return job;
   }
 
+  /**
+   * Back up one shop and wait until the archive is written (used before wiping a shop's data).
+   * Throws when the backup fails, so the caller stops.
+   */
+  async backupTenantNow(tenantId: string, actorId: string, actorName: string): Promise<BackupJobRecord> {
+    const job: BackupJobRecord = {
+      id: crypto.randomUUID(),
+      status: 'RUNNING',
+      tenantIds: [tenantId],
+      backupType: 'SINGLE_TENANT',
+      startedAt: new Date().toISOString(),
+      createdById: actorId,
+      createdByName: actorName,
+    };
+    this.jobs.set(job.id, job);
+    this.persistJobs();
+    try {
+      await this.runBackup(job);
+    } catch (err) {
+      job.status = 'FAILED';
+      job.error = String((err as Error).message);
+      job.completedAt = new Date().toISOString();
+      this.persistJobs();
+      throw new BadRequestException('สำรองข้อมูลร้านไม่สำเร็จ — ยังไม่ได้ลบข้อมูลใดๆ');
+    }
+    return job;
+  }
+
+  /** One shop's own backups, newest first (the shop owner's backup page). */
+  listTenantJobs(tenantId: string): BackupJobRecord[] {
+    return this.listJobs().filter((j) => j.backupType === 'SINGLE_TENANT' && j.tenantIds.length === 1 && j.tenantIds[0] === tenantId);
+  }
+
   // ── Core Backup Extraction ───────────────────────────────────────────────────
 
   private async runBackup(job: BackupJobRecord): Promise<void> {

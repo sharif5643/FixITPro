@@ -1,16 +1,32 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantService } from '../tenant/tenant.service';
 import { bangkokDate } from '../common/bangkok-date';
+import { canViewCost } from '../common/interceptors/hide-cost.interceptor';
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
 const BOM = '﻿';
 
+/** Who is exporting: decides cost columns and the activity log. */
+export interface ExportActor {
+  id?: string;
+  name?: string;
+  role?: string;
+  permissions?: string[];
+  tenantId?: string | null;
+}
+
+// A cell starting with = + - @ is run as a formula by Excel; plain numbers are left alone
+const FORMULA_START = /^[=+\-@\t\r]/;
+const NUMBER_LIKE   = /^[+-]?\d[\d,.\s]*$/;
+
 function esc(v: unknown): string {
-  return `"${String(v ?? '').replace(/"/g, '""')}"`;
+  let s = String(v ?? '');
+  if (typeof v === 'string' && FORMULA_START.test(s) && !NUMBER_LIKE.test(s)) s = `'${s}`;
+  return `"${s.replace(/"/g, '""')}"`;
 }
 
 function buildCSV(headers: string[], rows: unknown[][]): string {
@@ -21,39 +37,69 @@ function dateTag(): string {
   return bangkokDate();
 }
 
-function parseCSVRows(raw: string): string[][] {
-  const text = raw.startsWith(BOM) ? raw.slice(1) : raw;
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-  const result: string[][] = [];
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const row: string[] = [];
-    let cur = '';
-    let inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
-        else inQ = !inQ;
-      } else if (ch === ',' && !inQ) {
-        row.push(cur.trim()); cur = '';
-      } else {
-        cur += ch;
-      }
-    }
-    row.push(cur.trim());
-    result.push(row);
+/**
+ * The file's text: UTF-8 (with or without BOM), or Windows-874 / TIS-620, which Excel uses when
+ * a Thai Windows machine saves "CSV (Comma delimited)".
+ */
+export function decodeCsv(buf: Buffer): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  } catch {
+    return new TextDecoder('windows-874').decode(buf);
   }
+}
+
+/** CSV rows; a quoted cell may hold commas, quotes ("") and line breaks (an address on two lines). */
+export function parseCSVRows(raw: string): string[][] {
+  const text = raw.startsWith(BOM) ? raw.slice(1) : raw;
+  const result: string[][] = [];
+  let row: string[] = [];
+  let cur = '';
+  let inQ = false;
+  const endRow = () => {
+    row.push(cur.trim());
+    if (row.some((c) => c !== '')) result.push(row);
+    row = []; cur = '';
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = false;
+      } else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ',') { row.push(cur.trim()); cur = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      endRow();
+    } else cur += ch;
+  }
+  if (cur !== '' || row.length > 0) endRow();
   return result;
 }
 
+/** "1,200", "฿ 1200" → 1200; empty or not a number → NaN */
+function num(v?: string): number {
+  const s = (v ?? '').replace(/[,\s฿]/g, '');
+  return s === '' ? NaN : Number(s);
+}
+
+/** Excel drops the leading 0 of a Thai phone number (0812345678 → 812345678): put it back. */
+export function normalizePhone(v?: string): string {
+  const s = (v ?? '').trim();
+  return /^[689]\d{8}$/.test(s) ? `0${s}` : s;
+}
+
+/** A date range in Bangkok time: the whole of each day from startDate to endDate. */
 function buildWhere(startDate?: string, endDate?: string, field = 'createdAt') {
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  if (startDate && !day.test(startDate)) throw new BadRequestException('วันที่เริ่มต้นไม่ถูกต้อง');
+  if (endDate && !day.test(endDate)) throw new BadRequestException('วันที่สิ้นสุดไม่ถูกต้อง');
   if (!startDate && !endDate) return undefined;
   const w: any = {};
-  if (startDate) w.gte = new Date(startDate);
-  if (endDate) {
-    const e = new Date(endDate); e.setDate(e.getDate() + 1); w.lt = e;
-  }
+  if (startDate) w.gte = new Date(`${startDate}T00:00:00+07:00`);
+  if (endDate) w.lt = new Date(new Date(`${endDate}T00:00:00+07:00`).getTime() + 24 * 60 * 60 * 1000);
   return { [field]: w };
 }
 
@@ -85,6 +131,60 @@ const CUSTOMER_HEADERS  = ['ชื่อ', 'เบอร์โทร', 'อี�
 const CATEGORY_HEADERS  = ['ชื่อหมวดหมู่', 'slug (ไม่บังคับ — ใส่หรือเว้นว่างให้ระบบสร้างเอง)'];
 const SUPPLIER_HEADERS  = ['ชื่อบริษัท/ร้าน', 'เบอร์โทร', 'อีเมล', 'ที่อยู่', 'เลขภาษี', 'เครดิต (วัน)', 'หมายเหตุ'];
 
+/**
+ * Import columns are found by their heading, in any order, so a file exported from here (with an
+ * ID column first) or a template with columns moved still lines up. Each entry: the template
+ * heading and the headings it may also have (matched without spaces, case-insensitive; a heading
+ * ending in "*" matches as a prefix).
+ */
+const IMPORT_COLUMNS: Record<string, { headers: string[]; columns: string[][]; required: number[] }> = {
+  products: {
+    headers: PRODUCT_HEADERS,
+    columns: [['ชื่อสินค้า', 'ชื่อ', 'name', 'productname'], ['sku', 'รหัสสินค้า'], ['บาร์โค้ด', 'barcode'], ['ประเภท*', 'type'], ['ราคาขาย', 'ราคา', 'price'], ['ต้นทุน', 'ราคาทุน', 'cost', 'costprice'], ['สต็อก', 'จำนวน', 'stock', 'qty'], ['สต็อกขั้นต่ำ', 'minstock']],
+    required: [0, 1],
+  },
+  customers: {
+    headers: CUSTOMER_HEADERS,
+    columns: [['ชื่อ', 'ชื่อลูกค้า', 'name'], ['เบอร์โทร', 'เบอร์', 'โทรศัพท์', 'phone'], ['อีเมล', 'email'], ['ที่อยู่', 'address'], ['หมายเหตุ', 'note']],
+    required: [0],
+  },
+  categories: {
+    headers: CATEGORY_HEADERS,
+    columns: [['ชื่อหมวดหมู่', 'หมวดหมู่', 'ชื่อ', 'name', 'category'], ['slug*']],
+    required: [0],
+  },
+  suppliers: {
+    headers: SUPPLIER_HEADERS,
+    columns: [['ชื่อบริษัท/ร้าน', 'ชื่อ', 'ซัพพลายเออร์', 'name', 'supplier'], ['เบอร์โทร', 'เบอร์', 'phone'], ['อีเมล', 'email'], ['ที่อยู่', 'address'], ['เลขภาษี', 'เลขประจำตัวผู้เสียภาษี', 'taxid'], ['เครดิต(วัน)*', 'เครดิต*', 'creditdays'], ['หมายเหตุ', 'note']],
+    required: [0],
+  },
+};
+
+const norm = (h: string) => h.replace(/\s+/g, '').toLowerCase();
+
+/** Rows rearranged into the template's column order; an error when a required column is missing. */
+function alignColumns(type: string, rawHeaders: string[], dataRows: string[][]): string[][] {
+  const spec = IMPORT_COLUMNS[type];
+  const heads = rawHeaders.map(norm);
+  const index = spec.columns.map((aliases) => {
+    for (const a of aliases) {
+      const want = norm(a);
+      const i = want.endsWith('*')
+        ? heads.findIndex((h) => h.startsWith(want.slice(0, -1)))
+        : heads.indexOf(want);
+      if (i >= 0) return i;
+    }
+    return -1;
+  });
+  const missing = spec.required.filter((r) => index[r] < 0).map((r) => spec.headers[r]);
+  if (missing.length > 0) {
+    throw new BadRequestException(
+      `หัวคอลัมน์ไม่ตรงกับแม่แบบ — ไม่พบคอลัมน์: ${missing.join(', ')} (ดาวน์โหลดแม่แบบเพื่อดูหัวคอลัมน์ที่ถูกต้อง)`,
+    );
+  }
+  return dataRows.map((row) => index.map((i) => (i >= 0 ? (row[i] ?? '').trim() : '')));
+}
+
 @Injectable()
 export class DataService {
   constructor(
@@ -99,25 +199,24 @@ export class DataService {
   async export(
     type: string,
     query: { startDate?: string; endDate?: string },
-    actorId?: string,
-    actorName?: string,
-    tenantId?: string | null,
+    actor: ExportActor = {},
   ): Promise<ExportResult> {
+    const tenantId = actor.tenantId;
     let result: ExportResult;
     switch (type) {
-      case 'customers':       result = await this.exportCustomers(query, tenantId);       break;
-      case 'products':        result = await this.exportProducts(query, tenantId);        break;
-      case 'stock-movements': result = await this.exportStockMovements(query, tenantId);  break;
-      case 'sales':           result = await this.exportSales(query, tenantId);           break;
-      case 'repairs':         result = await this.exportRepairs(query, tenantId);         break;
-      case 'expenses':        result = await this.exportExpenses(query, tenantId);        break;
-      case 'warranties':      result = await this.exportWarranties(query, tenantId);      break;
-      case 'audit-logs':      result = await this.exportAuditLogs(query);                 break;
+      case 'customers':       result = await this.exportCustomers(query, tenantId);        break;
+      case 'products':        result = await this.exportProducts(query, tenantId, actor);  break;
+      case 'stock-movements': result = await this.exportStockMovements(query, tenantId);   break;
+      case 'sales':           result = await this.exportSales(query, tenantId);            break;
+      case 'repairs':         result = await this.exportRepairs(query, tenantId);          break;
+      case 'expenses':        result = await this.exportExpenses(query, tenantId);         break;
+      case 'warranties':      result = await this.exportWarranties(query, tenantId);       break;
+      case 'audit-logs':      result = await this.exportAuditLogs(query, actor);           break;
       default:
         throw new BadRequestException(`Unknown export type: ${type}`);
     }
     await this.auditLog.log({
-      actorId, actorName,
+      actorId: actor.id, actorName: actor.name,
       action: 'DATA_EXPORTED',
       entityType: 'Export',
       afterData: { type, rowCount: result.rowCount, filename: result.filename },
@@ -140,16 +239,19 @@ export class DataService {
     return { filename: `customers_${dateTag()}.csv`, content, rowCount: rows.length };
   }
 
-  private async exportProducts(q: { startDate?: string; endDate?: string }, tenantId?: string | null): Promise<ExportResult> {
+  private async exportProducts(q: { startDate?: string; endDate?: string }, tenantId: string | null | undefined, actor: ExportActor): Promise<ExportResult> {
     const rows = await this.prisma.product.findMany({
       where: { ...buildWhere(q.startDate, q.endDate), ...this.tenantSvc.scope(tenantId) },
       include: { category: { select: { name: true } } },
       orderBy: { name: 'asc' },
     });
+    // Cost goes in the file only for people who may see it on screen
+    const withCost = canViewCost(actor);
+    const headers = ['ID', 'ชื่อสินค้า', 'SKU', 'บาร์โค้ด', 'ประเภท', 'ราคาขาย', ...(withCost ? ['ต้นทุน'] : []), 'สต็อก', 'สต็อกขั้นต่ำ', 'หมวดหมู่', 'รับประกัน (วัน)', 'สถานะ', 'วันที่เพิ่ม'];
     const content = buildCSV(
-      ['ID', 'ชื่อสินค้า', 'SKU', 'บาร์โค้ด', 'ประเภท', 'ราคาขาย', 'ต้นทุน', 'สต็อก', 'สต็อกขั้นต่ำ', 'หมวดหมู่', 'รับประกัน (วัน)', 'สถานะ', 'วันที่เพิ่ม'],
+      headers,
       rows.map((r) => [
-        r.id, r.name, r.sku, r.barcode ?? '', r.type, Number(r.price), Number(r.costPrice),
+        r.id, r.name, r.sku, r.barcode ?? '', r.type, Number(r.price), ...(withCost ? [Number(r.costPrice)] : []),
         r.stock, r.minStock, r.category?.name ?? '', r.warrantyDays ?? '', r.isActive ? 'ใช้งาน' : 'ปิดใช้งาน', r.createdAt.toISOString(),
       ]),
     );
@@ -259,9 +361,23 @@ export class DataService {
     return { filename: `warranties_${dateTag()}.csv`, content, rowCount: rows.length };
   }
 
-  private async exportAuditLogs(q: { startDate?: string; endDate?: string }): Promise<ExportResult> {
+  /**
+   * The activity log of this shop only (actions by its own people), for those who may see the
+   * activity log page; the system admin gets every shop's.
+   */
+  private async exportAuditLogs(q: { startDate?: string; endDate?: string }, actor: ExportActor): Promise<ExportResult> {
+    const isAdmin = actor.role === 'SUPER_ADMIN';
+    if (!isAdmin && actor.role !== 'OWNER' && !(actor.permissions ?? []).includes('audit.view')) {
+      throw new ForbiddenException('ส่งออกประวัติกิจกรรมได้เฉพาะคนที่มีสิทธิ์ดูประวัติกิจกรรม');
+    }
+    let actorScope: Record<string, unknown> = {};
+    if (!isAdmin) {
+      if (!actor.tenantId) throw new ForbiddenException('ไม่พบร้านของผู้ใช้');
+      const users = await this.prisma.user.findMany({ where: { tenantId: actor.tenantId }, select: { id: true } });
+      actorScope = { actorId: { in: users.map((u) => u.id) } };
+    }
     const rows = await this.prisma.auditLog.findMany({
-      where: buildWhere(q.startDate, q.endDate) ?? undefined,
+      where: { ...(buildWhere(q.startDate, q.endDate) ?? {}), ...actorScope },
       orderBy: { createdAt: 'desc' },
       take: 10_000,
     });
@@ -303,17 +419,24 @@ export class DataService {
   // ── Preview (validate only, no DB write) ───────────────────────────────────
 
   async preview(type: string, csvContent: string, tenantId?: string | null): Promise<PreviewResult> {
+    if (!IMPORT_COLUMNS[type]) throw new BadRequestException(`Import not supported for type: ${type}`);
     const allRows = parseCSVRows(csvContent);
     if (allRows.length < 2) {
       return { headers: [], rows: [], stats: { total: 0, valid: 0, invalid: 0 } };
     }
-    const [rawHeaders, ...dataRows] = allRows;
+    const [rawHeaders, ...rest] = allRows;
+    const dataRows = alignColumns(type, rawHeaders, rest);
+    const headers = IMPORT_COLUMNS[type].headers;
 
-    if (type === 'products')   return this.previewProducts(rawHeaders, dataRows, tenantId);
-    if (type === 'customers')  return this.previewCustomers(rawHeaders, dataRows, tenantId);
-    if (type === 'categories') return this.previewCategories(rawHeaders, dataRows, tenantId);
-    if (type === 'suppliers')  return this.previewSuppliers(rawHeaders, dataRows, tenantId);
-    throw new BadRequestException(`Import not supported for type: ${type}`);
+    if (type === 'products')   return this.previewProducts(headers, dataRows, tenantId);
+    if (type === 'customers')  return this.previewCustomers(headers, dataRows, tenantId);
+    if (type === 'categories') return this.previewCategories(headers, dataRows, tenantId);
+    return this.previewSuppliers(headers, dataRows, tenantId);
+  }
+
+  private result(headers: string[], rows: PreviewResult['rows']): PreviewResult {
+    const valid = rows.filter((r) => r.valid).length;
+    return { headers, rows, stats: { total: rows.length, valid, invalid: rows.length - valid } };
   }
 
   private async previewProducts(headers: string[], dataRows: string[][], tenantId?: string | null): Promise<PreviewResult> {
@@ -323,27 +446,35 @@ export class DataService {
     });
     const skuSet  = new Set(existing.map((p) => p.sku.toLowerCase()));
     const bcSet   = new Set(existing.filter((p) => p.barcode).map((p) => p.barcode!.toLowerCase()));
+    // The same SKU / barcode twice in this file: the earlier row wins
+    const skuRow = new Map<string, number>();
+    const bcRow  = new Map<string, number>();
 
-    const rows = dataRows.map((row) => {
+    const rows = dataRows.map((row, i) => {
       const errors: string[] = [];
       const [name, sku, barcode, type, price, cost, stock, minStock] = row;
+      const skuKey = sku.toLowerCase();
+      const bcKey  = barcode.toLowerCase();
 
-      if (!name?.trim())  errors.push('ชื่อสินค้าจำเป็น');
-      if (!sku?.trim())   errors.push('SKU จำเป็น');
-      if (sku && skuSet.has(sku.trim().toLowerCase())) errors.push(`SKU "${sku}" มีอยู่แล้ว`);
-      if (barcode?.trim() && bcSet.has(barcode.trim().toLowerCase())) errors.push(`บาร์โค้ด "${barcode}" มีอยู่แล้ว`);
-      if (!type?.trim() || !['PHONE', 'SIM', 'ACCESSORY', 'PART'].includes(type.trim().toUpperCase())) {
+      if (!name)  errors.push('ชื่อสินค้าจำเป็น');
+      if (!sku)   errors.push('SKU จำเป็น');
+      if (sku && skuSet.has(skuKey)) errors.push(`SKU "${sku}" มีอยู่แล้ว`);
+      else if (sku && skuRow.has(skuKey)) errors.push(`SKU "${sku}" ซ้ำกับแถวที่ ${skuRow.get(skuKey)} ในไฟล์`);
+      if (barcode && bcSet.has(bcKey)) errors.push(`บาร์โค้ด "${barcode}" มีอยู่แล้ว`);
+      else if (barcode && bcRow.has(bcKey)) errors.push(`บาร์โค้ด "${barcode}" ซ้ำกับแถวที่ ${bcRow.get(bcKey)} ในไฟล์`);
+      if (!type || !['PHONE', 'SIM', 'ACCESSORY', 'PART'].includes(type.toUpperCase())) {
         errors.push('ประเภทต้องเป็น PHONE, SIM, ACCESSORY หรือ PART');
       }
-      if (!price || isNaN(Number(price)) || Number(price) < 0) errors.push('ราคาขายไม่ถูกต้อง');
-      if (!cost  || isNaN(Number(cost))  || Number(cost)  < 0) errors.push('ต้นทุนไม่ถูกต้อง');
+      if (!(num(price) >= 0)) errors.push('ราคาขายไม่ถูกต้อง');
+      if (!(num(cost)  >= 0)) errors.push('ต้นทุนไม่ถูกต้อง');
+      if (stock && !(num(stock) >= 0)) errors.push('สต็อกไม่ถูกต้อง');
+      if (minStock && !(num(minStock) >= 0)) errors.push('สต็อกขั้นต่ำไม่ถูกต้อง');
 
+      if (sku && !skuRow.has(skuKey)) skuRow.set(skuKey, i + 2);
+      if (barcode && !bcRow.has(bcKey)) bcRow.set(bcKey, i + 2);
       return { data: row, valid: errors.length === 0, errors };
     });
-
-    const valid   = rows.filter((r) => r.valid).length;
-    const invalid = rows.length - valid;
-    return { headers, rows, stats: { total: rows.length, valid, invalid } };
+    return this.result(headers, rows);
   }
 
   private async previewCustomers(headers: string[], dataRows: string[][], tenantId?: string | null): Promise<PreviewResult> {
@@ -351,24 +482,26 @@ export class DataService {
       where: this.tenantSvc.scope(tenantId),
       select: { phone: true },
     });
-    const phoneSet = new Set(existing.filter((c) => c.phone).map((c) => c.phone!.replace(/\D/g, '')));
+    const digits = (p: string) => p.replace(/\D/g, '');
+    const phoneSet = new Set(existing.filter((c) => c.phone).map((c) => digits(c.phone!)));
+    const phoneRow = new Map<string, number>();
 
-    const rows = dataRows.map((row) => {
+    const rows = dataRows.map((raw, i) => {
+      const row = [...raw];
+      row[1] = normalizePhone(row[1]);
       const errors: string[] = [];
       const [name, phone] = row;
+      const key = digits(phone);
 
-      if (!name?.trim()) errors.push('ชื่อจำเป็น');
-      if (phone?.trim()) {
-        const digits = phone.trim().replace(/\D/g, '');
-        if (phoneSet.has(digits)) errors.push(`เบอร์โทร "${phone}" มีอยู่แล้ว`);
+      if (!name) errors.push('ชื่อจำเป็น');
+      if (key) {
+        if (phoneSet.has(key)) errors.push(`เบอร์โทร "${phone}" มีอยู่แล้ว`);
+        else if (phoneRow.has(key)) errors.push(`เบอร์โทร "${phone}" ซ้ำกับแถวที่ ${phoneRow.get(key)} ในไฟล์`);
+        else phoneRow.set(key, i + 2);
       }
-
       return { data: row, valid: errors.length === 0, errors };
     });
-
-    const valid   = rows.filter((r) => r.valid).length;
-    const invalid = rows.length - valid;
-    return { headers, rows, stats: { total: rows.length, valid, invalid } };
+    return this.result(headers, rows);
   }
 
   // ── Import (save valid rows) ────────────────────────────────────────────────
@@ -387,8 +520,7 @@ export class DataService {
     if      (type === 'products')   result = await this.importProducts(preview, tenantId, branchId);
     else if (type === 'customers')  result = await this.importCustomers(preview, tenantId);
     else if (type === 'categories') result = await this.importCategories(preview, tenantId);
-    else if (type === 'suppliers')  result = await this.importSuppliers(preview, tenantId);
-    else throw new BadRequestException(`Import not supported for type: ${type}`);
+    else                            result = await this.importSuppliers(preview, tenantId);
 
     // Audit log
     await this.auditLog.log({
@@ -398,13 +530,14 @@ export class DataService {
       afterData: { type, imported: result.imported, skipped: result.skipped, errors: result.errors.length },
     });
 
-    // Notification
+    // Notification (to this shop)
     if (result.imported > 0) {
       await this.notif.notify({
         type:     'IMPORT_COMPLETED',
         title:    `นำเข้าข้อมูลสำเร็จ: ${type}`,
         message:  `นำเข้า ${result.imported} รายการ${result.skipped > 0 ? `, ข้าม ${result.skipped} รายการซ้ำ` : ''}${result.errors.length > 0 ? `, มีข้อผิดพลาด ${result.errors.length} แถว` : ''}`,
         severity: result.errors.length > 0 ? 'WARNING' : 'INFO',
+        tenantId: tenantId ?? null,
       });
     } else {
       await this.notif.notify({
@@ -412,6 +545,7 @@ export class DataService {
         title:    `นำเข้าข้อมูลล้มเหลว: ${type}`,
         message:  `ไม่มีข้อมูลที่นำเข้าได้ — มีข้อผิดพลาด ${result.errors.length} แถว`,
         severity: 'ERROR',
+        tenantId: tenantId ?? null,
       });
     }
 
@@ -432,35 +566,38 @@ export class DataService {
     return branch?.id ?? null;
   }
 
+  /** Rows already in the shop are skipped; any other invalid row is an error. */
+  private sortRow(r: PreviewResult['rows'][number], i: number, out: ImportResult): boolean {
+    if (r.valid) return true;
+    if (r.errors.every((e) => e.includes('มีอยู่แล้ว'))) out.skipped++;
+    else out.errors.push({ row: i + 2, message: r.errors.join('; ') });
+    return false;
+  }
+
+  private saveError(err: any): string {
+    return err?.code === 'P2002' ? 'ข้อมูลซ้ำกับที่มีอยู่แล้ว' : 'บันทึกไม่สำเร็จ';
+  }
+
   private async importProducts(preview: PreviewResult, tenantId?: string | null, branchId?: string | null): Promise<ImportResult> {
     const stockBranchId = await this.resolveImportBranchId(tenantId, branchId);
-    const errors: { row: number; message: string }[] = [];
-    let imported = 0;
-    let skipped  = 0;
+    const out: ImportResult = { imported: 0, skipped: 0, errors: [] };
 
     for (let i = 0; i < preview.rows.length; i++) {
       const r = preview.rows[i];
-      if (!r.valid) {
-        if (r.errors.some((e) => e.includes('มีอยู่แล้ว'))) {
-          skipped++;
-        } else {
-          errors.push({ row: i + 2, message: r.errors.join('; ') });
-        }
-        continue;
-      }
+      if (!this.sortRow(r, i, out)) continue;
       const [name, sku, barcode, type, price, cost, stock, minStock] = r.data;
-      const qty = stock ? Math.max(0, parseInt(stock) || 0) : 0;
-      const min = minStock ? Math.max(0, parseInt(minStock) || 0) : 0;
+      const qty = stock ? Math.max(0, Math.floor(num(stock)) || 0) : 0;
+      const min = minStock ? Math.max(0, Math.floor(num(minStock)) || 0) : 0;
       try {
         await this.prisma.$transaction(async (tx) => {
           const product = await tx.product.create({
             data: {
-              name:      name.trim(),
-              sku:       sku.trim(),
-              barcode:   barcode?.trim() || null,
-              type:      type.trim().toUpperCase() as any,
-              price:     Number(price),
-              costPrice: Number(cost),
+              name,
+              sku,
+              barcode:   barcode || null,
+              type:      type.toUpperCase() as any,
+              price:     num(price),
+              costPrice: num(cost),
               stock:     qty,
               minStock:  min,
               ...this.tenantSvc.scope(tenantId),
@@ -477,48 +614,39 @@ export class DataService {
             }
           }
         });
-        imported++;
+        out.imported++;
       } catch (err: any) {
-        errors.push({ row: i + 2, message: err?.message ?? 'บันทึกไม่สำเร็จ' });
+        out.errors.push({ row: i + 2, message: this.saveError(err) });
       }
     }
-    return { imported, skipped, errors };
+    return out;
   }
 
   private async importCustomers(preview: PreviewResult, tenantId?: string | null): Promise<ImportResult> {
-    const errors: { row: number; message: string }[] = [];
-    let imported = 0;
-    let skipped  = 0;
+    const out: ImportResult = { imported: 0, skipped: 0, errors: [] };
 
     for (let i = 0; i < preview.rows.length; i++) {
       const r = preview.rows[i];
-      if (!r.valid) {
-        if (r.errors.some((e) => e.includes('มีอยู่แล้ว'))) {
-          skipped++;
-        } else {
-          errors.push({ row: i + 2, message: r.errors.join('; ') });
-        }
-        continue;
-      }
+      if (!this.sortRow(r, i, out)) continue;
       const [name, phone, email, address, note] = r.data;
       try {
         await this.prisma.customer.create({
           data: {
-            name:    name.trim(),
-            phone:   phone?.trim() || null,
-            email:   email?.trim() || null,
-            address: address?.trim() || null,
-            note:    note?.trim() || null,
+            name,
+            phone:   phone || null,
+            email:   email || null,
+            address: address || null,
+            note:    note || null,
             tags:    [],
             ...this.tenantSvc.scope(tenantId),
           },
         });
-        imported++;
+        out.imported++;
       } catch (err: any) {
-        errors.push({ row: i + 2, message: err?.message ?? 'บันทึกไม่สำเร็จ' });
+        out.errors.push({ row: i + 2, message: this.saveError(err) });
       }
     }
-    return { imported, skipped, errors };
+    return out;
   }
 
   // ── Categories ───────────────────────────────────────────────────────────────
@@ -539,50 +667,46 @@ export class DataService {
     });
     const slugSet = new Set(existing.map((c) => c.slug.toLowerCase()));
     const nameSet = new Set(existing.map((c) => c.name.toLowerCase()));
+    const nameRow = new Map<string, number>();
+    const slugRow = new Map<string, number>();
 
-    const rows = dataRows.map((row) => {
+    const rows = dataRows.map((row, i) => {
       const errors: string[] = [];
       const [name, slugRaw] = row;
-      const slug = slugRaw?.trim() || this.slugify(name?.trim() ?? '');
+      const slug = slugRaw || this.slugify(name);
+      const nameKey = name.toLowerCase();
+      const slugKey = slug.toLowerCase();
 
-      if (!name?.trim()) errors.push('ชื่อหมวดหมู่จำเป็น');
-      if (name && nameSet.has(name.trim().toLowerCase())) errors.push(`ชื่อ "${name.trim()}" มีอยู่แล้ว`);
-      if (slug && slugSet.has(slug.toLowerCase())) errors.push(`slug "${slug}" มีอยู่แล้ว`);
+      if (!name) errors.push('ชื่อหมวดหมู่จำเป็น');
+      if (name && nameSet.has(nameKey)) errors.push(`ชื่อ "${name}" มีอยู่แล้ว`);
+      else if (name && nameRow.has(nameKey)) errors.push(`ชื่อ "${name}" ซ้ำกับแถวที่ ${nameRow.get(nameKey)} ในไฟล์`);
+      if (slug && slugSet.has(slugKey)) errors.push(`slug "${slug}" มีอยู่แล้ว`);
+      else if (slug && slugRow.has(slugKey)) errors.push(`slug "${slug}" ซ้ำกับแถวที่ ${slugRow.get(slugKey)} ในไฟล์`);
 
+      if (name && !nameRow.has(nameKey)) nameRow.set(nameKey, i + 2);
+      if (slug && !slugRow.has(slugKey)) slugRow.set(slugKey, i + 2);
       return { data: [name, slug], valid: errors.length === 0, errors };
     });
-
-    const valid = rows.filter((r) => r.valid).length;
-    return { headers: ['ชื่อหมวดหมู่', 'slug'], rows, stats: { total: rows.length, valid, invalid: rows.length - valid } };
+    return this.result(['ชื่อหมวดหมู่', 'slug'], rows);
   }
 
   private async importCategories(preview: PreviewResult, tenantId?: string | null): Promise<ImportResult> {
-    const errors: { row: number; message: string }[] = [];
-    let imported = 0;
-    let skipped  = 0;
+    const out: ImportResult = { imported: 0, skipped: 0, errors: [] };
 
     for (let i = 0; i < preview.rows.length; i++) {
       const r = preview.rows[i];
-      if (!r.valid) {
-        if (r.errors.some((e) => e.includes('มีอยู่แล้ว'))) { skipped++; }
-        else errors.push({ row: i + 2, message: r.errors.join('; ') });
-        continue;
-      }
+      if (!this.sortRow(r, i, out)) continue;
       const [name, slug] = r.data;
       try {
         await this.prisma.category.create({
-          data: {
-            name: name.trim(),
-            slug: slug.trim(),
-            ...this.tenantSvc.scope(tenantId),
-          },
+          data: { name, slug, ...this.tenantSvc.scope(tenantId) },
         });
-        imported++;
+        out.imported++;
       } catch (err: any) {
-        errors.push({ row: i + 2, message: err?.message ?? 'บันทึกไม่สำเร็จ' });
+        out.errors.push({ row: i + 2, message: this.saveError(err) });
       }
     }
-    return { imported, skipped, errors };
+    return out;
   }
 
   // ── Suppliers ─────────────────────────────────────────────────────────────────
@@ -593,53 +717,51 @@ export class DataService {
       select: { name: true },
     });
     const nameSet = new Set(existing.map((s) => s.name.toLowerCase()));
+    const nameRow = new Map<string, number>();
 
-    const rows = dataRows.map((row) => {
+    const rows = dataRows.map((raw, i) => {
+      const row = [...raw];
+      row[1] = normalizePhone(row[1]);
       const errors: string[] = [];
       const [name, , , , , creditDaysRaw] = row;
+      const key = name.toLowerCase();
 
-      if (!name?.trim()) errors.push('ชื่อจำเป็น');
-      if (name && nameSet.has(name.trim().toLowerCase())) errors.push(`ชื่อ "${name.trim()}" มีอยู่แล้ว`);
-      if (creditDaysRaw?.trim() && isNaN(Number(creditDaysRaw))) errors.push('เครดิต (วัน) ต้องเป็นตัวเลข');
+      if (!name) errors.push('ชื่อจำเป็น');
+      if (name && nameSet.has(key)) errors.push(`ชื่อ "${name}" มีอยู่แล้ว`);
+      else if (name && nameRow.has(key)) errors.push(`ชื่อ "${name}" ซ้ำกับแถวที่ ${nameRow.get(key)} ในไฟล์`);
+      if (creditDaysRaw && !(num(creditDaysRaw) >= 0)) errors.push('เครดิต (วัน) ต้องเป็นตัวเลข');
 
+      if (name && !nameRow.has(key)) nameRow.set(key, i + 2);
       return { data: row, valid: errors.length === 0, errors };
     });
-
-    const valid = rows.filter((r) => r.valid).length;
-    return { headers, rows, stats: { total: rows.length, valid, invalid: rows.length - valid } };
+    return this.result(headers, rows);
   }
 
   private async importSuppliers(preview: PreviewResult, tenantId?: string | null): Promise<ImportResult> {
-    const errors: { row: number; message: string }[] = [];
-    let imported = 0;
-    let skipped  = 0;
+    const out: ImportResult = { imported: 0, skipped: 0, errors: [] };
 
     for (let i = 0; i < preview.rows.length; i++) {
       const r = preview.rows[i];
-      if (!r.valid) {
-        if (r.errors.some((e) => e.includes('มีอยู่แล้ว'))) { skipped++; }
-        else errors.push({ row: i + 2, message: r.errors.join('; ') });
-        continue;
-      }
+      if (!this.sortRow(r, i, out)) continue;
       const [name, phone, email, address, taxId, creditDays, note] = r.data;
       try {
         await this.prisma.supplier.create({
           data: {
-            name:       name.trim(),
-            phone:      phone?.trim() || null,
-            email:      email?.trim() || null,
-            address:    address?.trim() || null,
-            taxId:      taxId?.trim() || null,
-            creditDays: creditDays ? Math.max(0, parseInt(creditDays)) : 0,
-            note:       note?.trim() || null,
+            name,
+            phone:      phone || null,
+            email:      email || null,
+            address:    address || null,
+            taxId:      taxId || null,
+            creditDays: creditDays ? Math.max(0, Math.floor(num(creditDays)) || 0) : 0,
+            note:       note || null,
             ...this.tenantSvc.scope(tenantId),
           },
         });
-        imported++;
+        out.imported++;
       } catch (err: any) {
-        errors.push({ row: i + 2, message: err?.message ?? 'บันทึกไม่สำเร็จ' });
+        out.errors.push({ row: i + 2, message: this.saveError(err) });
       }
     }
-    return { imported, skipped, errors };
+    return out;
   }
 }

@@ -10,7 +10,7 @@ import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { DataService } from './data.service';
+import { DataService, decodeCsv } from './data.service';
 
 const csvStorage = memoryStorage();
 
@@ -26,11 +26,9 @@ export class DataController {
   async export(
     @Param('type') type: string,
     @Query() query: { startDate?: string; endDate?: string },
-    @CurrentUser('id')       actorId: string,
-    @CurrentUser('name')     actorName: string,
-    @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser() user: { id: string; name?: string; role?: string; permissions?: string[]; tenantId?: string | null },
   ) {
-    const result = await this.svc.export(type, query, actorId, actorName, tenantId);
+    const result = await this.svc.export(type, query, user);
     const buffer = Buffer.from(result.content, 'utf-8');
     return new StreamableFile(buffer, {
       type: 'text/csv; charset=utf-8',
@@ -70,7 +68,7 @@ export class DataController {
     @CurrentUser('tenantId') tenantId: string,
   ) {
     if (!file) throw new BadRequestException('กรุณาเลือกไฟล์ CSV');
-    return this.svc.preview(type, file.buffer.toString('utf-8'), tenantId);
+    return this.svc.preview(type, decodeCsv(file.buffer), tenantId);
   }
 
   // ── Execute import ──────────────────────────────────────────────────────────
@@ -95,6 +93,6 @@ export class DataController {
     @CurrentUser('branchId') branchId: string | null,
   ) {
     if (!file) throw new BadRequestException('กรุณาเลือกไฟล์ CSV');
-    return this.svc.import(type, file.buffer.toString('utf-8'), actorId, actorName, tenantId, branchId);
+    return this.svc.import(type, decodeCsv(file.buffer), actorId, actorName, tenantId, branchId);
   }
 }
