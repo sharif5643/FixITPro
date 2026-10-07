@@ -163,4 +163,31 @@ SELECT r."branchId", c."tenantId" AS customer_shop, r.status, r."receivedAt"::da
 WHERE r."branchId" IN ('cmqhhqsq70022eml4abkjnf8b','cmqhhn73t001jeml4fmikfb0y','cmqhhyx5a002teml4w9butbi8');
 SELECT t.id, t.plan, t.status FROM "Tenant" t WHERE t.id IN ('cmqhhqsq50021eml4edc5gwx2','cmqhhn73r001ieml4jy6c5u8e','cmqhhyx57002seml4zjqk4t9u');
 
+-- 20. Accounting: are the books complete? (the reconciliation safety net has been blocked)
+\echo '20a. Journal entries per shop'
+SELECT j."tenantId", count(*) AS entries, min(j."createdAt")::date AS first_entry, max(j."createdAt") AS last_entry
+FROM "JournalEntry" j GROUP BY 1 ORDER BY 2 DESC;
+\echo '20b. Journal entries by source in the last 30 days'
+SELECT j."tenantId", j."sourceType", count(*) FROM "JournalEntry" j
+WHERE j."createdAt" > now() - interval '30 days' GROUP BY 1, 2 ORDER BY 1, 3 DESC;
+\echo '20c. Sale payments since the shop''s first journal entry: all / with an entry'
+WITH first AS (SELECT "tenantId", min("createdAt") AS t0 FROM "JournalEntry" GROUP BY 1)
+SELECT b."tenantId", count(*) AS payments,
+       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "JournalEntry" j WHERE j."sourceType" = 'SALE_PAYMENT' AND j."sourceId" = sp.id)) AS with_entry
+FROM "SalePayment" sp JOIN "Sale" s ON s.id = sp."saleId" JOIN "Branch" b ON b.id = s."branchId" JOIN first f ON f."tenantId" = b."tenantId"
+WHERE s."createdAt" >= f.t0 AND s.status::text <> 'VOIDED' GROUP BY 1;
+\echo '20d. Sale payments without an entry, by day'
+WITH first AS (SELECT "tenantId", min("createdAt") AS t0 FROM "JournalEntry" GROUP BY 1)
+SELECT b."tenantId", s."createdAt"::date AS day, count(*) AS missing, sum(sp.amount) AS amount
+FROM "SalePayment" sp JOIN "Sale" s ON s.id = sp."saleId" JOIN "Branch" b ON b.id = s."branchId" JOIN first f ON f."tenantId" = b."tenantId"
+WHERE s."createdAt" >= f.t0 AND s.status::text <> 'VOIDED'
+  AND NOT EXISTS (SELECT 1 FROM "JournalEntry" j WHERE j."sourceType" = 'SALE_PAYMENT' AND j."sourceId" = sp.id)
+GROUP BY 1, 2 ORDER BY 1, 2;
+\echo '20e. Expenses since the shop''s first journal entry: all / with an entry'
+WITH first AS (SELECT "tenantId", min("createdAt") AS t0 FROM "JournalEntry" GROUP BY 1)
+SELECT b."tenantId", count(*) AS expenses,
+       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "JournalEntry" j WHERE j."sourceType" = 'EXPENSE_PAYMENT' AND j."sourceId" = e.id)) AS with_entry
+FROM "Expense" e JOIN "Branch" b ON b.id = e."branchId" JOIN first f ON f."tenantId" = b."tenantId"
+WHERE e."createdAt" >= f.t0 AND e."voidedAt" IS NULL GROUP BY 1;
+
 ROLLBACK;
