@@ -48,6 +48,12 @@ jobs:
               echo "=== ${app}: ${c:-none}"
               [ -n "$c" ] && docker logs --tail 80 "$c" 2>&1 | grep -v -i "password\|secret\|token" | tail -80
             done
+            echo "--- deploy script"; sed -E "s/(PASSWORD|SECRET|TOKEN|KEY)=[^ ]*/\\1=***/g" /root/trigger-coolify-deploy.sh
+            echo "--- networks / labels of the newest app containers"
+            for c in $(docker ps -a --format "{{.Names}}" | grep -E "^(backend|frontend)-z9m1c1i9nr6kbyo4qn0vuv1b" | head -2); do
+              echo "$c"; docker inspect "$c" --format "{{json .NetworkSettings.Networks}}" | head -c 400; echo
+              docker inspect "$c" --format "{{range \$k,\$v := .Config.Labels}}{{\$k}}={{\$v}}{{println}}{{end}}" | grep -i "traefik.http.routers\|coolify.name\|rule" | head -6
+            done
             exit 0'
 
       - name: Install backup + drill scripts
