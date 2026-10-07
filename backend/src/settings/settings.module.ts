@@ -5,9 +5,10 @@ import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { TenantBackupModule } from '../tenant-backup/tenant-backup.module';
 
 @Module({
-  imports:     [AuditLogModule, NotificationsModule],
+  imports:     [AuditLogModule, NotificationsModule, TenantBackupModule],
   controllers: [SettingsController],
   providers:   [SettingsService, PermissionGuard, TenantActiveGuard],
   exports:     [SettingsService],

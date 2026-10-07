@@ -42,9 +42,15 @@ describe('Super Admin audit log (e2e)', () => {
     await patch(`/api/v1/super-admin/tenants/${IDS.tenantB}/suspend`).expect(200);
     await patch(`/api/v1/super-admin/tenants/${IDS.tenantB}/reactivate`).expect(200);
 
-    const rows = await prisma.auditLog.findMany({
+    // The log is written after the response (fire-and-forget): wait for both rows
+    const find = () => prisma.auditLog.findMany({
       where: { actorId: adminId, entityId: IDS.tenantB }, orderBy: { createdAt: 'asc' },
     });
+    let rows = await find();
+    for (let i = 0; i < 30 && rows.length < 2; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      rows = await find();
+    }
     expect(rows.map((r) => r.action)).toEqual(['SUPER_ADMIN_TENANTS_SUSPEND', 'SUPER_ADMIN_TENANTS_REACTIVATE']);
     expect(rows[0].entityType).toBe('Tenants');
   });

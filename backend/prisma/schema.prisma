@@ -21,6 +21,7 @@ enum TenantStatus {
   ACTIVE
   SUSPENDED
   EXPIRED
+  DELETED // removed by the system admin (a trial nobody used); records kept, restorable
 }
 
 enum TenantPlan {

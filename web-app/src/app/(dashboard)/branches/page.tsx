@@ -7,6 +7,7 @@ import {
   Building2, Plus, Pencil, X,
   ArrowRightLeft, Check, Package, Users, ShoppingCart,
   Star, Trash2, AlertCircle, Search, ShieldCheck, ShieldX, Clock,
+  Power,
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -201,7 +202,7 @@ export default function BranchesPage() {
       qc.invalidateQueries({ queryKey: ['branches'] })
       toast.success('ลบสาขาสำเร็จ')
     },
-    onError: (e: any) => setError(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
+    onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด', { duration: 8000 }),
   })
 
   const approveMut = useMutation({
@@ -347,6 +348,15 @@ export default function BranchesPage() {
                           title="ระงับสาขา"
                         >
                           <AlertCircle className="h-3.5 w-3.5 text-orange-400" />
+                        </button>
+                      )}
+                      {!branch.isDefault && (
+                        <button
+                          onClick={() => updateMut.mutate({ id: branch.id, data: { isActive: !branch.isActive } })}
+                          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors"
+                          title={branch.isActive ? 'ปิดใช้งานสาขา (ประวัติยังอยู่ครบ)' : 'เปิดใช้งานสาขาอีกครั้ง'}
+                        >
+                          <Power className={`h-3.5 w-3.5 ${branch.isActive ? 'text-slate-500' : 'text-green-600'}`} />
                         </button>
                       )}
                       {!branch.isDefault && (
@@ -543,7 +553,7 @@ export default function BranchesPage() {
               ยืนยันลบสาขา <span className="font-semibold">"{deactivateDialog.name}"</span>?
             </p>
             <p className="text-xs text-slate-400">
-              ลบได้เฉพาะสาขาที่ไม่มีพนักงานและไม่มีงานซ่อมค้างอยู่ การลบไม่สามารถยกเลิกได้
+              ลบได้เฉพาะสาขาที่ยังไม่เคยมีข้อมูล (ไม่มีพนักงาน บิล งานซ่อม กะ หรือสต็อก) ถ้าสาขามีประวัติแล้ว ใช้ปุ่ม &quot;ปิดใช้งานสาขา&quot; แทน ประวัติจะยังอยู่ครบ
             </p>
             <div className="flex justify-end gap-2">
               <button

@@ -81,6 +81,47 @@ export class UsersService {
     if (requesterRole === 'OWNER' && target?.id === requesterId && newRole && newRole !== 'OWNER') {
       throw new ForbiddenException('ไม่สามารถเปลี่ยนตำแหน่งเจ้าของร้านของตัวเองได้');
     }
+    // A second owner could never be demoted, disabled or removed again: the shop's ownership is
+    // changed only by the system admin
+    if (newRole === 'OWNER' && target?.role !== 'OWNER') {
+      throw new ForbiddenException('ตั้งพนักงานเป็นเจ้าของร้านไม่ได้ — ถ้าต้องการโอนร้าน ติดต่อผู้ดูแลระบบ');
+    }
+  }
+
+  /**
+   * Another OWNER account can be managed only by the shop's first owner (the earliest OWNER):
+   * that undoes an extra owner made before owners could no longer be handed out.
+   */
+  private async assertMayManageOwner(target: { id: string; role: string; tenantId?: string | null }, requesterId: string) {
+    if (target.role !== 'OWNER' || target.id === requesterId) return;
+    const first = await this.prisma.user.findFirst({
+      where: { tenantId: target.tenantId ?? undefined, role: 'OWNER' as any },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    if (first?.id !== requesterId || first?.id === target.id) {
+      throw new ForbiddenException('จัดการบัญชีเจ้าของร้านคนอื่นได้เฉพาะเจ้าของร้านคนแรก');
+    }
+  }
+
+  /** Things this person did that must keep their name: a person with any of them is disabled, not deleted. */
+  private async historyOf(userId: string): Promise<number> {
+    const p = this.prisma as any;
+    const counts = await Promise.all([
+      p.sale.count({ where: { OR: [{ userId }, { sellerId: userId }] } }),
+      p.shift.count({ where: { userId } }),
+      p.repair.count({ where: { technicianId: userId } }),
+      p.staffCommission.count({ where: { userId } }),
+      p.expense.count({ where: { createdById: userId } }),
+      p.packageSale.count({ where: { createdById: userId } }),
+      p.cashDrawerTransaction.count({ where: { actorUserId: userId } }),
+      p.saleRefund.count({ where: { createdById: userId } }),
+      p.purchaseOrder.count({ where: { createdById: userId } }),
+      p.repairAdditionalPayment.count({ where: { createdById: userId } }),
+      p.dailyClose.count({ where: { closedById: userId } }),
+      p.cashDrawerSession.count({ where: { openedById: userId } }),
+    ]);
+    return counts.reduce((a: number, b: number) => a + b, 0);
   }
 
   async create(
@@ -157,8 +198,10 @@ export class UsersService {
     if (target.tenantId !== tenantId) throw new ForbiddenException('Access denied');
     if (dto.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot assign SUPER_ADMIN role');
     this.assertRoleChangeAllowed(requesterRole, requesterId, target, dto.role);
-    if (target.role === 'OWNER' && id !== requesterId) {
-      throw new ForbiddenException('Cannot modify another OWNER');
+    await this.assertMayManageOwner(target as any, requesterId);
+    if (dto.email && dto.email !== (target as any).email) {
+      const taken = await this.prisma.user.findUnique({ where: { email: dto.email }, select: { id: true } });
+      if (taken) throw new ConflictException('อีเมลนี้ถูกใช้งานแล้ว');
     }
 
     const newRole     = dto.role ?? target.role;
@@ -294,7 +337,7 @@ export class UsersService {
     const target = await this.findOne(id);
     if (target.tenantId !== tenantId) throw new ForbiddenException('Access denied');
     this.assertRoleChangeAllowed(requesterRole, requesterId, target);
-    if (target.role === 'OWNER') throw new ForbiddenException('Cannot deactivate OWNER account');
+    await this.assertMayManageOwner(target as any, requesterId);
     if (id === requesterId) throw new ForbiddenException('Cannot deactivate your own account');
 
     const toggled = await this.prisma.user.update({
@@ -316,9 +359,7 @@ export class UsersService {
     const target = await this.findOne(id);
     if (target.tenantId !== tenantId) throw new ForbiddenException('Access denied');
     this.assertRoleChangeAllowed(requesterRole, requesterId, target);
-    if (target.role === 'OWNER' && id !== requesterId) {
-      throw new ForbiddenException("Cannot reset another OWNER's password");
-    }
+    await this.assertMayManageOwner(target as any, requesterId);
 
     const tempPassword = this.generateTempPassword();
     const hashed = await bcrypt.hash(tempPassword, 12);
@@ -362,7 +403,12 @@ export class UsersService {
     const target = await this.findOne(id);
     if (target.tenantId !== tenantId) throw new ForbiddenException('Access denied');
     if (id === requesterId) throw new BadRequestException('ไม่สามารถลบบัญชีของตัวเองได้');
-    if (target.role === 'OWNER') throw new BadRequestException('ไม่สามารถลบบัญชีเจ้าของร้านได้');
+    await this.assertMayManageOwner(target as any, requesterId);
+
+    // Someone who sold, worked a shift or repaired keeps their name on that history: disable them
+    if ((await this.historyOf(id)) > 0) {
+      throw new BadRequestException('พนักงานคนนี้มีประวัติการทำงาน (บิล กะ งานซ่อม ฯลฯ) — ใช้ "ปิดใช้งาน" แทนการลบ ประวัติจะยังอยู่ครบ');
+    }
 
     const openRepairs = await this.prisma.repair.count({
       where: { technicianId: id, status: { notIn: ['CANCELLED', 'COMPLETED', 'DELIVERED'] } },
@@ -373,7 +419,14 @@ export class UsersService {
       );
     }
 
-    await this.prisma.user.delete({ where: { id } });
+    try {
+      await this.prisma.user.delete({ where: { id } });
+    } catch (err: any) {
+      if (err?.code === 'P2003') {
+        throw new BadRequestException('พนักงานคนนี้มีประวัติในระบบ — ใช้ "ปิดใช้งาน" แทนการลบ');
+      }
+      throw err;
+    }
 
     await this.auditLog.log({
       actorId:   requesterId,

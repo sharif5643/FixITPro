@@ -76,6 +76,28 @@ export class TenantsController {
     return this.tenantsService.changePlan(id, body.plan);
   }
 
+  /** Whether a (trial) shop may be removed: only one with no sales and no repair jobs. */
+  @Get(':id/delete-check')
+  deleteCheck(@Param('id') id: string) {
+    return this.tenantsService.deleteCheck(id);
+  }
+
+  @Post(':id/delete')
+  @HttpCode(HttpStatus.OK)
+  deleteTrialShop(
+    @Param('id') id: string,
+    @Body() body: { confirmName?: string },
+    @CurrentUser() admin: { id?: string; name?: string },
+  ) {
+    return this.tenantsService.deleteTrialShop(id, body?.confirmName ?? '', admin);
+  }
+
+  @Post(':id/restore-deleted')
+  @HttpCode(HttpStatus.OK)
+  restoreDeleted(@Param('id') id: string, @CurrentUser() admin: { id?: string; name?: string }) {
+    return this.tenantsService.restoreDeleted(id, admin);
+  }
+
   @Post(':id/reset-owner-password')
   resetOwnerPassword(
     @Param('id') tenantId: string,

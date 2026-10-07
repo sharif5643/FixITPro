@@ -111,7 +111,7 @@ export default function SettingsPage() {
   const [logoUploading, setLogoUploading]   = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [activeTab, setActiveTab] = useState<TabId>('shop')
-  const [resetDialog, setResetDialog] = useState<{ open: boolean; step: 1 | 2; input: string }>({
+  const [resetDialog, setResetDialog] = useState<{ open: boolean; step: 1 | 2; input: string; password?: string }>({
     open: false, step: 1, input: '',
   })
   const user = useAuthStore((s) => s.user)
@@ -219,10 +219,10 @@ export default function SettingsPage() {
   })
 
   const resetMutation = useMutation({
-    mutationFn: () => api.post('/settings/reset-data'),
+    mutationFn: () => api.post('/settings/reset-data', { password: resetDialog.password ?? '' }),
     onSuccess: () => {
       setResetDialog({ open: false, step: 1, input: '' })
-      toast.success('รีเซ็ตข้อมูลเรียบร้อยแล้ว ระบบพร้อมใช้งานใหม่')
+      toast.success('รีเซ็ตข้อมูลเรียบร้อยแล้ว — ข้อมูลเดิมสำรองไว้ที่เมนู "สำรองข้อมูล"', { duration: 8000 })
       queryClient.invalidateQueries()
     },
     onError: (err: any) => {
@@ -925,8 +925,19 @@ export default function SettingsPage() {
                     placeholder='พิมพ์ "รีเซ็ต" เพื่อยืนยัน'
                     value={resetDialog.input}
                     onChange={e => setResetDialog(d => ({ ...d, input: e.target.value }))}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="รหัสผ่านเจ้าของร้าน"
+                    value={resetDialog.password ?? ''}
+                    onChange={e => setResetDialog(d => ({ ...d, password: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                    ระบบจะสำรองข้อมูลร้านเก็บไว้ก่อนลบ (ดูได้ที่เมนู "สำรองข้อมูล") — ถ้าสำรองไม่สำเร็จจะไม่ลบอะไร
+                  </p>
                   <div className="flex gap-3">
                     <button
                       type="button"
@@ -937,12 +948,12 @@ export default function SettingsPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={resetDialog.input !== 'รีเซ็ต' || resetMutation.isPending}
+                      disabled={resetDialog.input !== 'รีเซ็ต' || !resetDialog.password || resetMutation.isPending}
                       onClick={() => resetMutation.mutate()}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
                     >
                       {resetMutation.isPending
-                        ? <><Loader2 className="h-4 w-4 animate-spin" /> กำลังลบ...</>
+                        ? <><Loader2 className="h-4 w-4 animate-spin" /> กำลังสำรองและลบ...</>
                         : <><Trash2 className="h-4 w-4" /> ลบข้อมูลทั้งหมด</>}
                     </button>
                   </div>

@@ -97,7 +97,7 @@ export const ROLE_PRESET_PERMISSIONS: Partial<Record<AppRole, string[]>> = {
   ],
 }
 
-export type TenantStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'EXPIRED'
+export type TenantStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'EXPIRED' | 'DELETED'
 export type TenantPlan = 'TRIAL' | 'LITE' | 'BASIC' | 'PRO' | 'BUSINESS' | 'ENTERPRISE' | 'PRIVATE'
 /** Plans a shop can be put on today (BASIC and ENTERPRISE were renamed to LITE and BUSINESS) */
 export const CURRENT_PLANS: TenantPlan[] = ['TRIAL', 'LITE', 'PRO', 'BUSINESS', 'PRIVATE']
@@ -107,6 +107,7 @@ export const TENANT_STATUS_LABEL: Record<TenantStatus, string> = {
   ACTIVE: 'ใช้งานอยู่',
   SUSPENDED: 'ถูกระงับ',
   EXPIRED: 'หมดอายุ',
+  DELETED: 'ลบแล้ว',
 }
 
 export const TENANT_PLAN_LABEL: Record<TenantPlan, string> = {

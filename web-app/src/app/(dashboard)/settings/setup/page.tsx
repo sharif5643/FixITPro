@@ -11,6 +11,7 @@ import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
+import { useShopBackups } from '@/components/backup/shop-backup'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -52,17 +53,8 @@ export default function SetupPage() {
     staleTime: 60_000,
   })
 
-  const { data: backupStatus } = useQuery<BackupStatus>({
-    queryKey: ['backup-status'],
-    queryFn: () => api.get('/backup/status').then((r) => r.data),
-    staleTime: 60_000,
-  })
-
-  const { data: lineStatus } = useQuery<LineStatus>({
-    queryKey: ['line-notify-status'],
-    queryFn: () => api.get('/notifications/line/status').then((r) => r.data).catch(() => ({ enabled: false })),
-    staleTime: 60_000,
-  })
+  // This shop's own backups (the server-wide backup is the system admin's)
+  const { data: shopBackups = [] } = useShopBackups()
 
   const isLoading = settingsLoading
 
@@ -125,16 +117,16 @@ export default function SetupPage() {
       description: 'แจ้งเตือนเมื่อมีงานใหม่ / ลูกค้ามารับ',
       href: '/settings/line',
       icon: Bell,
-      done: !!lineStatus?.enabled,
+      done: !!(settings?.lineNotifyEnabled && (settings as any)?.lineChannelAccessToken),
       optional: true,
     },
     {
       key: 'backup',
-      label: 'Backup อัตโนมัติ',
-      description: 'ระบบสำรองข้อมูลทำงานอยู่และมี backup ล่าสุด',
-      href: '/settings/backup',
+      label: 'สำรองข้อมูลร้าน',
+      description: 'สำรองข้อมูลร้านอย่างน้อย 1 ครั้ง และดาวน์โหลดเก็บไว้',
+      href: '/backup',
       icon: Database,
-      done: !!(backupStatus?.pgDumpAvailable && backupStatus.backupCount > 0),
+      done: shopBackups.some((b) => b.status === 'SUCCESS'),
     },
   ]
 

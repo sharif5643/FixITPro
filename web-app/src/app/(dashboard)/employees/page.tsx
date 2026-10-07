@@ -36,6 +36,8 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 
 const ROLES: AppRole[] = ['OWNER', 'MANAGER', 'CASHIER', 'TECHNICIAN', 'STOCK_STAFF']
+/** Roles that can be given from this page: the shop's owner is changed only by the system admin */
+const ASSIGNABLE_ROLES: AppRole[] = ROLES.filter((r) => r !== 'OWNER')
 
 const ROLE_COLOR: Record<AppRole, string> = {
   SUPER_ADMIN: 'bg-violet-100 text-violet-700 border-violet-200',
@@ -251,7 +253,7 @@ function CreateDialog({
               <Select value={role} onValueChange={(v) => { setValue('role', v as CreateForm['role']); setValue('branchId', undefined) }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((r) => (
+                  {ASSIGNABLE_ROLES.map((r) => (
                     <SelectItem key={r} value={r}>
                       <div>
                         <span>{ROLE_LABEL[r]}</span>
@@ -382,7 +384,7 @@ function EditDialog({
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>)}
+                  {(role === 'OWNER' ? ROLES : ASSIGNABLE_ROLES).map((r) => <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>)}
                 </SelectContent>
               </Select>
               {isMe && <p className="text-xs text-muted-foreground">ไม่สามารถเปลี่ยนตำแหน่งตัวเองได้</p>}
@@ -811,7 +813,7 @@ export default function EmployeesPage() {
                   >
                     <KeyRound className="h-4 w-4" />
                   </button>
-                  {!isMe && !isOwner && (
+                  {!isMe && (!isOwner || currentUser?.role === 'OWNER') && (
                     <button
                       onClick={() => toggleMutation.mutate(user.id)}
                       disabled={toggleMutation.isPending}
@@ -835,7 +837,7 @@ export default function EmployeesPage() {
                       <ShieldPlus className="h-4 w-4" />
                     </button>
                   )}
-                  {!isMe && !isOwner && currentUser?.role === 'OWNER' && (
+                  {!isMe && currentUser?.role === 'OWNER' && (
                     <button
                       onClick={() => setDeleteTarget(user)}
                       className="rounded-lg p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"

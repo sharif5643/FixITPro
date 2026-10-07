@@ -7,6 +7,7 @@ import {
   Building2, Plus, RefreshCw, Ban, CheckCircle, Zap,
   Users, Calendar, KeyRound, Copy, Check,
   ChevronDown, Loader2, Search, Eye,
+  Trash2,
 } from 'lucide-react'
 import { format, differenceInDays } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -27,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea'
 import api from '@/lib/api'
 import { Tenant, TenantPlan, TenantStatus, TENANT_PLAN_LABEL, TENANT_STATUS_LABEL } from '@/types'
 import { cn } from '@/lib/utils'
+import { DeleteTrialShopDialog } from '@/components/super-admin/delete-trial-shop'
 
 // ── Change Plan Dialog ────────────────────────────────────────
 
@@ -94,7 +96,7 @@ function ChangePlanDialog({
 
 // ── Types ─────────────────────────────────────────────────────
 
-type Filter = 'all' | 'expiring_soon' | 'expired' | 'suspended' | 'pending'
+type Filter = 'all' | 'expiring_soon' | 'expired' | 'suspended' | 'pending' | 'deleted'
 
 interface Stats {
   total: number
@@ -112,6 +114,7 @@ const STATUS_COLOR: Record<TenantStatus, string> = {
   PENDING: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
   SUSPENDED: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   EXPIRED: 'bg-red-500/10 text-red-400 border-red-500/20',
+  DELETED: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
 }
 
 const PLAN_COLOR: Record<TenantPlan, string> = {
@@ -479,6 +482,17 @@ export default function TenantsPage() {
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
   })
 
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/super-admin/tenants/${id}/restore-deleted`),
+    onSuccess: () => {
+      toast.success('กู้คืนร้านแล้ว (สถานะถูกระงับ — กด "เปิดกลับมาใช้งาน" เมื่อพร้อม)')
+      qc.invalidateQueries({ queryKey: ['sa-tenants'] })
+      qc.invalidateQueries({ queryKey: ['sa-stats'] })
+    },
+    onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
+  })
+
   const resetOwnerPasswordMutation = useMutation({
     mutationFn: ({ tenantId, shopName }: { tenantId: string; shopName: string }) =>
       api.post(`/super-admin/tenants/${tenantId}/reset-owner-password`).then((r) => ({ ...r.data, shopName })),
@@ -535,6 +549,7 @@ export default function TenantsPage() {
               { value: 'expired',       label: 'หมดอายุ',      active: 'bg-red-900 text-red-200' },
               { value: 'suspended',     label: 'ถูกระงับ',     active: 'bg-orange-900 text-orange-200' },
               { value: 'pending',       label: 'รอเปิด',       active: 'bg-slate-700 text-white' },
+              { value: 'deleted',       label: 'ลบแล้ว',       active: 'bg-slate-700 text-white' },
             ] as const
           ).map((tab) => (
             <button
@@ -701,7 +716,15 @@ export default function TenantsPage() {
 
                           <DropdownMenuSeparator className="bg-slate-700" />
 
-                          {tenant.status === 'SUSPENDED' ? (
+                          {tenant.status === 'DELETED' ? (
+                            <DropdownMenuItem
+                              className="focus:bg-slate-700 cursor-pointer text-emerald-400 focus:text-emerald-400"
+                              onClick={() => restoreMutation.mutate(tenant.id)}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              กู้คืนร้าน
+                            </DropdownMenuItem>
+                          ) : tenant.status === 'SUSPENDED' ? (
                             <DropdownMenuItem
                               className="focus:bg-slate-700 cursor-pointer text-emerald-400 focus:text-emerald-400"
                               onClick={() => reactivateMutation.mutate(tenant.id)}
@@ -720,6 +743,15 @@ export default function TenantsPage() {
                               </DropdownMenuItem>
                             )
                           )}
+                          {tenant.status !== 'DELETED' && (
+                            <DropdownMenuItem
+                              className="focus:bg-slate-700 cursor-pointer text-red-400 focus:text-red-400"
+                              onClick={() => setDeleteId(tenant.id)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              ลบร้านทดลอง
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
@@ -732,6 +764,7 @@ export default function TenantsPage() {
       </div>
 
       {/* Dialogs */}
+      {deleteId && <DeleteTrialShopDialog tenantId={deleteId} onClose={() => setDeleteId(null)} />}
       <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       <PlanDialog
         open={planDialog.open}
