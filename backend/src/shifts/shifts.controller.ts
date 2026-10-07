@@ -14,13 +14,14 @@ import { CloseShiftDto } from './dto/close-shift.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { canSeeSimProfit } from '../carrier-wallet/hide-sim-profit';
 
 /**
  * SIM / package profit is for people who see reports (owners, managers); the cashier closing
  * the shift sees the amounts, not the profit.
  */
 function hideProfit<T>(result: T, user: { role?: string; permissions?: string[] }): T {
-  if (!result || user.role === 'OWNER' || user.role === 'SUPER_ADMIN' || (user.permissions ?? []).includes('reports.view')) {
+  if (!result || canSeeSimProfit(user)) {
     return result;
   }
   const r = result as any;
@@ -79,6 +80,12 @@ export class ShiftsController {
   @Post('leave')
   leaveShift(@CurrentUser() user: { id: string; name?: string }) {
     return this.shiftsService.leaveShift(user);
+  }
+
+  /** A shift someone handed to me when they left early, waiting for me to take it over. */
+  @Get('handover')
+  pendingHandover(@CurrentUser('id') userId: string) {
+    return this.shiftsService.pendingHandover(userId);
   }
 
   @Get('current')

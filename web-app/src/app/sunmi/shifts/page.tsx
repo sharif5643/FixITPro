@@ -15,6 +15,7 @@ import {
   type PrintDailyClosingOptions,
 } from '@/lib/printer'
 import { formatThaiMoney } from '@/lib/utils'
+import { HandoverCard, HandoverPicker, usePendingHandover, WALLET_FIELD } from '@/components/shifts/handover'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
 import { useAuthStore } from '@/store/auth.store'
@@ -375,6 +376,9 @@ export default function SunmiShiftsPage() {
   const [ntOpening,   setNtOpening]   = useState('')
   // Closing: the opener counts the carrier wallets (members of a shared shift only see them)
   const [closeWallet, setCloseWallet] = useState<Record<string, string>>({})
+  // Leaving early: who takes the drawer over; taking over: the shift handed to me
+  const [handoverTo,   setHandoverTo]   = useState('')
+  const [handoverFrom, setHandoverFrom] = useState<string | null>(null)
   const { data: walletBal = [] } = useQuery<WalletBalance[]>({
     queryKey:  ['carrier-wallet', 'balances'],
     queryFn:   async () => (await api.get('/carrier-wallet/balances')).data,
@@ -394,8 +398,29 @@ export default function SunmiShiftsPage() {
     staleTime: 60_000,
   })
 
+  const { data: handover } = usePendingHandover(!isLoading && !shift)
+
+  // "ยอดไม่ตรง": put the handed-over amounts in the opening form to change them
+  const editHandover = () => {
+    if (!handover) return
+    setHandoverFrom(handover.shiftId)
+    setOpenBalance(String(handover.cash))
+    const bal = (c: string) => {
+      const w = handover.wallets.find((x) => x.carrier === c)
+      return w && Number(w.balance) !== 0 ? String(w.balance) : ''
+    }
+    setAisOpening(bal('AIS')); setTrueOpening(bal('TRUE')); setDtacOpening(bal('DTAC')); setNtOpening(bal('NT'))
+    setShowCarrierInputs(true)
+  }
+
   const openMutation = useMutation({
-    mutationFn: () => {
+    // With `taken` the handed-over amounts are opened as they are ("ยอดตรง ยืนยันรับกะ")
+    mutationFn: (taken?: NonNullable<typeof handover>) => {
+      if (taken) {
+        const body: Record<string, unknown> = { openBalance: taken.cash, handoverFromShiftId: taken.shiftId, note: `รับกะต่อจาก ${taken.fromName ?? ''}` }
+        for (const w of taken.wallets) if (WALLET_FIELD[w.carrier] && Number(w.balance) !== 0) body[WALLET_FIELD[w.carrier]] = Number(w.balance)
+        return api.post('/shifts/open', body)
+      }
       const body: any = {
         openBalance: Number(openBalance) || 0,
         note: openNote.trim() || undefined,
@@ -404,10 +429,12 @@ export default function SunmiShiftsPage() {
       if (trueOpening !== '') body.trueOpeningBalance = Number(trueOpening)
       if (dtacOpening !== '') body.dtacOpeningBalance = Number(dtacOpening)
       if (ntOpening   !== '') body.ntOpeningBalance   = Number(ntOpening)
+      if (handoverFrom) body.handoverFromShiftId = handoverFrom
       return api.post('/shifts/open', body)
     },
-    onSuccess: (res) => {
-      toast.success('เปิดกะสำเร็จ')
+    onSuccess: (res, taken) => {
+      toast.success(taken || handoverFrom ? 'รับกะแล้ว — เริ่มขายได้เลย' : 'เปิดกะสำเร็จ')
+      setHandoverFrom(null)
       const off = ((res?.data?.walletCheck ?? []) as { carrier: string; difference: number }[]).filter((w) => Math.abs(w.difference) >= 1)
       if (off.length > 0) {
         toast.warning(`ยอดกระเป๋าไม่ตรงกับระบบ: ${off.map((w) => `${w.carrier} ${w.difference > 0 ? '+' : ''}${formatThaiMoney(w.difference)}`).join(', ')} — แจ้งเจ้าของร้านแล้ว`, { duration: 8000 })
@@ -434,10 +461,13 @@ export default function SunmiShiftsPage() {
       return api.post(`/shifts/${shift!.id}/close`, {
         closeBalance: Number(closeBalance) || 0,
         note: closeNote.trim() || undefined,
+        handoverToUserId: handoverTo || undefined,
       })
     },
     onSuccess: (res) => {
-      toast.success('ปิดกะสำเร็จ')
+      const to = (shift!.members ?? []).find((m) => m.userId === handoverTo)
+      toast.success(to ? `ปิดกะแล้ว — ส่งต่อให้ ${to.name} รอเขากดยืนยันรับกะ` : 'ปิดกะสำเร็จ')
+      setHandoverTo('')
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
       const summary: CloseSummary = res.data.summary
       setClosedShiftId(res.data.id ?? shift!.id)
@@ -569,7 +599,21 @@ export default function SunmiShiftsPage() {
             </div>
           </div>
 
-          <JoinShifts onJoined={() => queryClient.invalidateQueries({ queryKey: ['shifts'] })} />
+          {handover && !handoverFrom && (
+            <HandoverCard
+              pending={handover}
+              busy={openMutation.isPending}
+              onConfirm={() => openMutation.mutate(handover)}
+              onEdit={editHandover}
+            />
+          )}
+          {handoverFrom && (
+            <p className="rounded-xl bg-violet-50 px-3 py-2 text-xs text-violet-800">
+              รับกะต่อจาก {handover?.fromName} — แก้ยอดที่นับได้จริงแล้วกด “ยืนยันรับกะ” (ยอดที่ไม่ตรงจะแจ้งเจ้าของร้าน)
+            </p>
+          )}
+
+          {!handoverFrom && <JoinShifts onJoined={() => queryClient.invalidateQueries({ queryKey: ['shifts'] })} />}
 
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-600">ยอดเปิดกะ (บาท)</label>
@@ -638,13 +682,13 @@ export default function SunmiShiftsPage() {
           </div>
 
           <button
-            onClick={() => openMutation.mutate()}
+            onClick={() => openMutation.mutate(undefined)}
             disabled={openMutation.isPending}
             className="w-full h-16 rounded-2xl bg-green-600 text-white text-xl font-bold active:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {openMutation.isPending
               ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
-              : 'เปิดกะ'}
+              : handoverFrom ? 'ยืนยันรับกะ' : 'เปิดกะ'}
           </button>
         <PastShifts settings={settings} onPrint={setReprintOpts} onView={setLedgerShiftId} />
         {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
@@ -772,6 +816,10 @@ export default function SunmiShiftsPage() {
           </div>
         ))}
 
+        {!shift.joined && (
+          <HandoverPicker people={shift.members ?? []} value={handoverTo} onChange={setHandoverTo} />
+        )}
+
         <div className="space-y-1.5">
           <label className="text-sm font-semibold text-slate-600">หมายเหตุ (ไม่บังคับ)</label>
           <input
@@ -789,7 +837,7 @@ export default function SunmiShiftsPage() {
         >
           {closeMutation.isPending
             ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
-            : 'ปิดกะ'}
+            : handoverTo ? `ปิดกะและส่งต่อให้ ${(shift.members ?? []).find((m) => m.userId === handoverTo)?.name ?? ''}` : 'ปิดกะ'}
         </button>
         <PastShifts settings={settings} onPrint={setReprintOpts} onView={setLedgerShiftId} />
         {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}

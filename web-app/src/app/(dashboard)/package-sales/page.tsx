@@ -29,7 +29,7 @@ interface PackageSaleRow {
   saleType:        SaleType
   packageAmount:   number
   walletDeduction: number
-  profit:          number
+  profit?:         number  // only for owners and people who see reports
   paymentMethod:   PayMethod
   amountPaid:      number
   change:          number
@@ -88,6 +88,8 @@ interface CreateDialogProps {
 }
 
 function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: CreateDialogProps) {
+  // SIM / package profit is for owners and people who see reports
+  const canSeeProfit = useAuthStore((st) => st.hasPermission('reports.view'))
   const [saleType,     setSaleType]     = useState<SaleType>('PROMO')
   const [carrier,      setCarrier]      = useState<Carrier>('AIS')
   const [selPreset,    setSelPreset]    = useState<number | null>(null)
@@ -328,10 +330,12 @@ function CreateDialog({ wallets, shiftId, cashierName, onClose, onDone }: Create
                   ? `ต้นทุน ${formatThaiMoney(deduction)} → `
                   : `หักกระเป๋า ${formatThaiMoney(deduction)} → `}
               </span>
-              <span className={`font-bold flex items-center gap-1 ${profit > 0 ? 'text-emerald-700' : profit < 0 ? 'text-red-600' : 'text-slate-500'}`}>
-                <TrendingUp className="h-4 w-4" />
-                {profit === 0 ? 'ไม่มีมาร์กอัป (คอมจากค่าย)' : `กำไร ${formatThaiMoney(profit)}`}
-              </span>
+              {canSeeProfit && (
+                <span className={`font-bold flex items-center gap-1 ${profit > 0 ? 'text-emerald-700' : profit < 0 ? 'text-red-600' : 'text-slate-500'}`}>
+                  <TrendingUp className="h-4 w-4" />
+                  {profit === 0 ? 'ไม่มีมาร์กอัป (คอมจากค่าย)' : `กำไร ${formatThaiMoney(profit)}`}
+                </span>
+              )}
             </div>
           )}
 
@@ -807,7 +811,8 @@ export default function PackageSalesPage() {
 
   // Summary
   const totalRevenue = sales.reduce((s, r) => s + r.packageAmount, 0)
-  const totalProfit  = sales.reduce((s, r) => s + r.profit, 0)
+  const totalProfit  = sales.reduce((s, r) => s + (r.profit ?? 0), 0)
+  const canSeeProfit = useAuthStore((st) => st.hasPermission('reports.view'))
   const countBySaleType = sales.reduce((acc, r) => {
     acc[r.saleType] = (acc[r.saleType] ?? 0) + 1
     return acc
@@ -886,10 +891,12 @@ export default function PackageSalesPage() {
             <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">ยอดรับรวม</p>
             <p className="text-3xl font-bold text-slate-900 tabular-nums mt-1">{formatThaiMoney(totalRevenue)}</p>
           </div>
-          <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm">
-            <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide">กำไรรวม</p>
-            <p className="text-3xl font-bold text-emerald-700 tabular-nums mt-1">{formatThaiMoney(totalProfit)}</p>
-          </div>
+          {canSeeProfit && (
+            <div className="bg-white rounded-xl p-4 border border-emerald-100 shadow-sm">
+              <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide">กำไรรวม</p>
+              <p className="text-3xl font-bold text-emerald-700 tabular-nums mt-1">{formatThaiMoney(totalProfit)}</p>
+            </div>
+          )}
         </div>
 
         {/* Tabs + Filters */}
@@ -982,7 +989,7 @@ export default function PackageSalesPage() {
                     <th className="text-left py-3 px-4 font-semibold text-slate-600">ประเภท</th>
                     <th className="text-left py-3 px-4 font-semibold text-slate-600">ค่าย</th>
                     <th className="text-right py-3 px-4 font-semibold text-slate-600">ราคาขาย</th>
-                    <th className="text-right py-3 px-4 font-semibold text-slate-600">กำไร</th>
+                    {canSeeProfit && <th className="text-right py-3 px-4 font-semibold text-slate-600">กำไร</th>}
                     <th className="text-left py-3 px-4 font-semibold text-slate-600">เบอร์</th>
                     <th className="text-left py-3 px-4 font-semibold text-slate-600">พนักงาน</th>
                     <th className="text-left py-3 px-4 font-semibold text-slate-600">เวลา</th>
@@ -1008,7 +1015,7 @@ export default function PackageSalesPage() {
                           <span className="block text-[11px] font-semibold text-red-600">ค้าง {formatThaiMoney(row.amountDue)}</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-right tabular-nums font-semibold text-emerald-700">{formatThaiMoney(row.profit)}</td>
+                      {canSeeProfit && <td className="py-3 px-4 text-right tabular-nums font-semibold text-emerald-700">{formatThaiMoney(row.profit ?? 0)}</td>}
                       <td className="py-3 px-4 text-slate-500">{row.phoneNumber ?? '—'}</td>
                       <td className="py-3 px-4 text-slate-600">{row.createdBy?.name ?? row.cashierName}</td>
                       <td className="py-3 px-4 text-slate-500">

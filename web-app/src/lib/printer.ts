@@ -98,7 +98,7 @@ export interface PrintPackageSaleOptions {
   carrier:         string
   packageAmount:   number
   walletDeduction: number
-  profit:          number
+  profit?:         number  // not printed: the customer sees no cost or profit
   walletBalance:   number
   phoneNumber?:    string
   note?:           string
