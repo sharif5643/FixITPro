@@ -11,4 +11,9 @@ export class CloseShiftDto {
   @IsOptional()
   @IsString()
   note?: string;
+
+  /** Leaving early: the person in this shift who takes over the drawer and the carrier wallets */
+  @IsOptional()
+  @IsString()
+  handoverToUserId?: string;
 }

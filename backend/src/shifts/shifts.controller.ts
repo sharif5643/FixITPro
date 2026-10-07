@@ -14,6 +14,22 @@ import { CloseShiftDto } from './dto/close-shift.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { canSeeSimProfit } from '../carrier-wallet/hide-sim-profit';
+
+/**
+ * SIM / package profit is for people who see reports (owners, managers); the cashier closing
+ * the shift sees the amounts, not the profit.
+ */
+function hideProfit<T>(result: T, user: { role?: string; permissions?: string[] }): T {
+  if (!result || canSeeSimProfit(user)) {
+    return result;
+  }
+  const r = result as any;
+  if (r.summary?.packageSales) delete r.summary.packageSales.totalProfit;
+  if ('packageSaleRevenue' in r) delete r.packageSaleRevenue; // the live shift's SIM profit
+  for (const c of r.packageSalesByCarrier ?? r.summary?.packageSales?.byCarrier ?? []) delete c.profit;
+  return result;
+}
 
 @UseGuards(JwtAuthGuard, TenantActiveGuard)
 @Controller('shifts')
@@ -44,7 +60,7 @@ export class ShiftsController {
     @Body() dto: CloseShiftDto,
     @CurrentUser() user: { id: string; role?: string; branchId?: string | null; tenantId?: string | null },
   ) {
-    return this.shiftsService.closeShift(id, dto, user.id, user);
+    return this.shiftsService.closeShift(id, dto, user.id, user).then((r) => hideProfit(r, user));
   }
 
   /** Open shifts of my branch I can join (one cash drawer, several people). */
@@ -66,9 +82,15 @@ export class ShiftsController {
     return this.shiftsService.leaveShift(user);
   }
 
+  /** A shift someone handed to me when they left early, waiting for me to take it over. */
+  @Get('handover')
+  pendingHandover(@CurrentUser('id') userId: string) {
+    return this.shiftsService.pendingHandover(userId);
+  }
+
   @Get('current')
-  getCurrentShift(@CurrentUser('id') userId: string) {
-    return this.shiftsService.getCurrentShift(userId);
+  getCurrentShift(@CurrentUser() user: { id: string; role?: string; permissions?: string[] }) {
+    return this.shiftsService.getCurrentShift(user.id).then((r) => hideProfit(r, user));
   }
 
   /** Every money movement of a shift with who did it (people in the shift, owner, branch manager). */
@@ -86,7 +108,7 @@ export class ShiftsController {
     @Param('id') id: string,
     @CurrentUser() user: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
   ) {
-    return this.shiftsService.getClosedShiftSummary(id, user);
+    return this.shiftsService.getClosedShiftSummary(id, user).then((r) => hideProfit(r, user));
   }
 
   @Get()

@@ -1,6 +1,7 @@
 import {
   Injectable,
   BadRequestException,
+  ForbiddenException,
   Logger,
   NotFoundException,
   Optional,
@@ -12,6 +13,7 @@ import { PrismaService } from '../database/prisma.service';
 import { PackageSaleDto, PayPackageDebtDto } from './dto/package-sale.dto';
 import { randomBytes } from 'crypto';
 import { TopupDto } from './dto/topup.dto';
+import { activeShiftWhere } from '../shifts/active-shift';
 
 const DEDUCTION_RATE = 0.97;  // default: 97% deducted from carrier wallet, shop keeps 3%
 const CARRIERS = ['AIS', 'TRUE', 'DTAC', 'NT'] as const;
@@ -73,6 +75,18 @@ export class CarrierWalletService {
     @Optional() private accounting?: AccountingService,
     @Optional() private opsAccounting?: OpsAccountingAdapter,
   ) {}
+
+  /**
+   * The shift a SIM / package sale, debt payment or top-up belongs to: the person's own open
+   * shift or the shared one they joined, found on the server (the screen's shiftId is not
+   * trusted), so the money is counted in the right drawer. Required when the money is cash or
+   * the item is a sale; a top-up (paid by bank transfer) is attached when there is one.
+   */
+  private async shiftFor(userId: string, required: boolean): Promise<string | null> {
+    const shift = await this.prisma.shift.findFirst({ where: activeShiftWhere(userId), select: { id: true } });
+    if (!shift && required) throw new BadRequestException('กรุณาเปิดกะก่อนทำรายการ');
+    return shift?.id ?? null;
+  }
 
   /** The branch a SIM/package sale or top-up belongs to, from its shift. */
   private async branchOfShift(shiftId?: string | null): Promise<string | null> {
@@ -267,6 +281,7 @@ export class CarrierWalletService {
     const amount = round2(dto.amount);
     const sale = await this.prisma.packageSale.findFirst({ where: { id: saleId, ...scope(tenantId) } });
     if (!sale || Number(sale.creditAmount) <= 0) throw new NotFoundException('ไม่พบรายการค้างจ่าย');
+    dto = { ...dto, shiftId: (await this.shiftFor(userId, dto.paymentMethod === 'CASH')) ?? undefined };
     if (Number(sale.amountDue) <= 0) throw new BadRequestException('รายการนี้จ่ายครบแล้ว');
     if (amount > Number(sale.amountDue) + 0.001) {
       throw new BadRequestException(`ยอดค้างเหลือ ${Number(sale.amountDue).toLocaleString('th-TH')} บาท — รับเกินยอดค้างไม่ได้`);
@@ -332,6 +347,7 @@ export class CarrierWalletService {
   // ── Package sale ──────────────────────────────────────────────────────────────
 
   async createPackageSale(dto: PackageSaleDto, userId: string, tenantId: TenantId) {
+    dto = { ...dto, shiftId: (await this.shiftFor(userId, true)) ?? undefined };
     if (dto.dealerCost != null && dto.dealerCost > dto.packageAmount) {
       throw new BadRequestException('ต้นทุนดีลเลอร์ต้องไม่เกินราคาขาย');
     }
@@ -436,6 +452,7 @@ export class CarrierWalletService {
   // ── Top-up ────────────────────────────────────────────────────────────────────
 
   async topup(dto: TopupDto, userId: string, tenantId: TenantId) {
+    dto = { ...dto, shiftId: (await this.shiftFor(userId, false)) ?? undefined };
     await this.ensureWallets(tenantId, [dto.carrier]);
 
     const done = await this.prisma.$transaction(async (tx) => {
@@ -497,6 +514,7 @@ export class CarrierWalletService {
     userId: string,
     tenantId: TenantId,
   ) {
+    dto = { ...dto, shiftId: (await this.shiftFor(userId, true)) ?? undefined };
     const profit = Math.round((dto.packageAmount - dto.costPrice) * 100) / 100;
     const terms  = this.payTerms(dto);
     const change = terms.change;
@@ -590,7 +608,16 @@ export class CarrierWalletService {
     shiftId: string | null,
     userId: string,
     tenantId: TenantId,
+    role?: string,
   ) {
+    // In a shared shift only the person who opened it counts the carrier wallets (the others
+    // see the balances); owners and managers may count any time.
+    const boss = role === 'OWNER' || role === 'MANAGER' || role === 'SUPER_ADMIN';
+    const own = await this.prisma.shift.findFirst({ where: activeShiftWhere(userId), select: { id: true, userId: true } });
+    if (own && own.userId !== userId && !boss) {
+      throw new ForbiddenException('ตรวจยอดกระเป๋าได้เฉพาะคนที่เปิดกะ');
+    }
+    shiftId = own?.id ?? shiftId;
     await this.ensureWallets(tenantId, entries.map((e) => e.carrier));
 
     return this.prisma.$transaction(async (tx) => {
@@ -705,6 +732,9 @@ export class CarrierWalletService {
       .map(([carrier]) => carrier);
     await this.ensureWallets(tenantId, carriers);
 
+    // The opener counts the wallets: the system balance becomes the counted one and every
+    // difference is returned (and recorded as the OPENING movement's before/after)
+    const check: { carrier: string; systemBalance: number; actualBalance: number; difference: number }[] = [];
     await this.prisma.$transaction(async (tx) => {
       for (const [carrier, balance] of Object.entries(balances)) {
         if (balance === undefined || balance === null) continue;
@@ -713,6 +743,7 @@ export class CarrierWalletService {
 
         const currentBalance = Number(wallet.balance);
         const newBalance     = Math.round(Number(balance) * 100) / 100;
+        check.push({ carrier, systemBalance: currentBalance, actualBalance: newBalance, difference: Math.round((newBalance - currentBalance) * 100) / 100 });
 
         await tx.carrierWallet.update({
           where: { id: wallet.id },
@@ -735,6 +766,7 @@ export class CarrierWalletService {
         });
       }
     });
+    return check;
   }
 
   // ── Per-carrier summary of one shift (used by ShiftsService) ─────────────────

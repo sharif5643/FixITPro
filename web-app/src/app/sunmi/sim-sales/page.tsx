@@ -52,7 +52,7 @@ interface PackageSaleResult {
   carrier:         Carrier
   packageAmount:   number
   walletDeduction: number
-  profit:          number
+  profit?:         number  // only for owners and people who see reports
   amountPaid:      number
   change:          number
   walletBalance:   number
@@ -83,6 +83,8 @@ function CheckoutSheet({
   carrier, shiftId, settings, cashierName, walletBalance, onClose, onSuccess,
 }: CheckoutSheetProps) {
   const [method,       setMethod]       = useState<PaymentMethod>('CASH')
+  // SIM / package profit is for owners and people who see reports
+  const canSeeProfit = useAuthStore((st) => st.hasPermission('reports.view'))
   const [amountPaid,   setAmountPaid]   = useState('')
   const [phoneNumber,  setPhoneNumber]  = useState('')
   const [note,         setNote]         = useState('')
@@ -276,13 +278,15 @@ function CheckoutSheet({
                   {formatThaiMoney(walletDeduction)}
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">กำไร</span>
-                <span className="font-semibold text-green-600 flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" />
-                  {formatThaiMoney(profit)}
-                </span>
-              </div>
+              {canSeeProfit && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">กำไร</span>
+                  <span className="font-semibold text-green-600 flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3" />
+                    {formatThaiMoney(profit)}
+                  </span>
+                </div>
+              )}
               {costTooHigh && (
                 <p className="text-xs text-red-600 font-medium">ต้นทุนต้องไม่เกินราคาขาย</p>
               )}

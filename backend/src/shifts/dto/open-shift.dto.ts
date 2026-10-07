@@ -12,6 +12,11 @@ export class OpenShiftDto {
   @IsString()
   note?: string;
 
+  /** Taking over from someone who left early: the shift they closed and handed over */
+  @IsOptional()
+  @IsString()
+  handoverFromShiftId?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

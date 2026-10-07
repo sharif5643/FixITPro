@@ -50,6 +50,7 @@ import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { JoinShifts, LeaveShiftButton } from '@/components/shifts/join-shifts'
 import { ShiftLedgerSheet } from '@/components/shifts/shift-ledger'
+import { HandoverCard, HandoverPicker, usePendingHandover, WALLET_FIELD, type PendingHandover } from '@/components/shifts/handover'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ interface CarrierShiftSummary {
   salesCount: number
   salesAmount: number
   walletDeduction: number
-  profit: number
+  profit?: number
   topupCount: number
   topupAmount: number
 }
@@ -153,6 +154,13 @@ const CARRIER_COLORS: Record<Carrier, { bg: string; text: string; border: string
   NT:   { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800/60' },
 }
 
+/** Opening exactly what the person leaving early counted ("ยอดตรง ยืนยันรับกะ"). */
+function takeOver(h: PendingHandover): OpenForm & Record<string, unknown> {
+  const body: OpenForm & Record<string, unknown> = { openBalance: h.cash, note: `รับกะต่อจาก ${h.fromName ?? ''}`, handoverFromShiftId: h.shiftId }
+  for (const w of h.wallets) if (WALLET_FIELD[w.carrier] && Number(w.balance) !== 0) body[WALLET_FIELD[w.carrier]] = Number(w.balance)
+  return body
+}
+
 export default function ShiftsPage() {
   const queryClient = useQueryClient()
   const [ledgerShiftId, setLedgerShiftId] = useState<string | null>(null)
@@ -162,6 +170,9 @@ export default function ShiftsPage() {
   const [hasPrinted, setHasPrinted] = useState(false)
   const [paperSize, setPaperSize] = useState<'A4' | '80mm' | '58mm'>('80mm')
   const [walletInputs, setWalletInputs] = useState<Partial<Record<Carrier, string>>>({})
+  // Leaving early: who takes the drawer over; taking over: the shift handed to me
+  const [handoverTo, setHandoverTo] = useState('')
+  const [handoverFrom, setHandoverFrom] = useState<string | null>(null)
   const { isGlobalMode } = useBranchContext()
   const showWalletReconcile = hasModule('package_sales')
 
@@ -188,6 +199,8 @@ export default function ShiftsPage() {
       enabled: showWalletReconcile,
     })
 
+  const { data: handover } = usePendingHandover(!loadingCurrent && !currentShift)
+
   // ── Forms ──
   const openForm = useForm<OpenForm>({
     resolver: zodResolver(openSchema),
@@ -201,12 +214,18 @@ export default function ShiftsPage() {
 
   // ── Mutations ──
   const openMutation = useMutation({
-    mutationFn: async (data: OpenForm) =>
+    mutationFn: async (data: OpenForm & Record<string, unknown>) =>
       (await api.post('/shifts/open', data)).data,
-    onSuccess: () => {
+    onSuccess: (res: { walletCheck?: { carrier: string; difference: number }[] }, data) => {
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      queryClient.invalidateQueries({ queryKey: ['carrier-wallet'] })
       openForm.reset()
-      toast.success('เปิดกะสำเร็จ')
+      setHandoverFrom(null)
+      toast.success(data.handoverFromShiftId ? 'รับกะแล้ว — เริ่มขายได้เลย' : 'เปิดกะสำเร็จ')
+      const off = (res?.walletCheck ?? []).filter((w) => Math.abs(w.difference) >= 1)
+      if (off.length > 0) {
+        toast.warning(`ยอดกระเป๋าไม่ตรงกับระบบ: ${off.map((w) => `${w.carrier} ${w.difference > 0 ? '+' : ''}${formatThaiMoney(w.difference)}`).join(', ')} — แจ้งเจ้าของร้านแล้ว`, { duration: 8000 })
+      }
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message
@@ -216,7 +235,7 @@ export default function ShiftsPage() {
 
   const closeMutation = useMutation({
     mutationFn: async (data: CloseForm) => {
-      const fresh = await queryClient.fetchQuery<{ id: string } | null>({
+      const fresh = await queryClient.fetchQuery<{ id: string; joined?: boolean } | null>({
         queryKey: ['shifts', 'current'],
         queryFn: async () => (await api.get('/shifts/current')).data,
         staleTime: 0,
@@ -224,8 +243,8 @@ export default function ShiftsPage() {
       const shiftId = fresh?.id
       if (!shiftId) throw new Error('ไม่พบกะที่เปิดอยู่')
 
-      // Reconcile carrier wallets if any inputs were filled
-      if (showWalletReconcile) {
+      // Reconcile carrier wallets if any inputs were filled (the opener only, in a shared shift)
+      if (showWalletReconcile && !fresh?.joined) {
         const entries = CARRIERS
           .filter((c) => walletInputs[c] !== undefined && walletInputs[c] !== '')
           .map((c) => ({ carrier: c, actualBalance: Number(walletInputs[c]) }))
@@ -234,7 +253,7 @@ export default function ShiftsPage() {
         }
       }
 
-      return (await api.post(`/shifts/${shiftId}/close`, data)).data
+      return (await api.post(`/shifts/${shiftId}/close`, { ...data, handoverToUserId: handoverTo || undefined })).data
     },
     onSuccess: (result: CloseShiftResult) => {
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
@@ -244,7 +263,9 @@ export default function ShiftsPage() {
       setCloseResult(result)
       setWalletInputs({})
       closeForm.reset()
-      toast.success('ปิดกะสำเร็จ')
+      const to = (currentShift?.members ?? []).find((m) => m.userId === handoverTo)
+      toast.success(to ? `ปิดกะแล้ว — ส่งต่อให้ ${to.name} รอเขากดยืนยันรับกะ` : 'ปิดกะสำเร็จ')
+      setHandoverTo('')
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message
@@ -406,7 +427,20 @@ export default function ShiftsPage() {
       ) : (
         /* No active shift — join a colleague's shift (one drawer) or open one */
         <div className="space-y-4">
-        <JoinShifts onJoined={refresh} />
+        {handover && !handoverFrom && (
+          <HandoverCard
+            pending={handover}
+            busy={openMutation.isPending}
+            onConfirm={() => openMutation.mutate(takeOver(handover))}
+            onEdit={() => { setHandoverFrom(handover.shiftId); openForm.setValue('openBalance', handover.cash); openForm.setValue('note', `รับกะต่อจาก ${handover.fromName ?? ''}`) }}
+          />
+        )}
+        {handoverFrom && (
+          <p className="rounded-xl bg-violet-50 px-3 py-2 text-sm text-violet-800">
+            รับกะต่อจาก {handover?.fromName} — ใส่เงินสดที่นับได้จริงแล้วกด “ยืนยันรับกะ” (ยอดที่ไม่ตรงจะแจ้งเจ้าของร้าน)
+          </p>
+        )}
+        {!handoverFrom && <JoinShifts onJoined={refresh} />}
         <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/40 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6 sm:p-8">
           <div className="flex flex-col items-center text-center gap-4 mb-6">
             <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_8px_24px_rgba(16,185,129,0.35)]">
@@ -419,7 +453,7 @@ export default function ShiftsPage() {
           </div>
 
           <form
-            onSubmit={openForm.handleSubmit((data) => openMutation.mutate(data))}
+            onSubmit={openForm.handleSubmit((data) => openMutation.mutate(handoverFrom ? { ...data, handoverFromShiftId: handoverFrom } : data))}
             className="space-y-4 max-w-sm mx-auto"
           >
             <div className="space-y-1.5">
@@ -460,7 +494,7 @@ export default function ShiftsPage() {
               className="w-full gap-2 h-11 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold"
             >
               {openMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-              เปิดกะ
+              {handoverFrom ? 'ยืนยันรับกะ' : 'เปิดกะ'}
             </Button>
           </form>
         </div>
@@ -750,8 +784,17 @@ export default function ShiftsPage() {
               </div>
             )}
 
+            {!currentShift?.joined && (
+              <HandoverPicker people={currentShift?.members ?? []} value={handoverTo} onChange={setHandoverTo} />
+            )}
+
             {/* ── Carrier wallet reconciliation (package_sales module only) ── */}
-            {showWalletReconcile && (
+            {showWalletReconcile && currentShift?.joined && (
+              <p className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs text-muted-foreground">
+                ยอดกระเป๋าค่ายตรวจโดยคนเปิดกะ ({currentShift.user.name})
+              </p>
+            )}
+            {showWalletReconcile && !currentShift?.joined && (
               <div className="rounded-lg border border-slate-200 dark:border-slate-700/60 overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/60">
                   <Wifi className="h-3.5 w-3.5 text-slate-500" />
@@ -778,7 +821,7 @@ export default function ShiftsPage() {
                         {shiftSum && (shiftSum.salesCount > 0 || shiftSum.topupCount > 0) && (
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
                             <span>ขาย {shiftSum.salesCount} รายการ <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(shiftSum.salesAmount)}</span></span>
-                            <span>กำไร <span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(shiftSum.profit)}</span></span>
+                            {shiftSum.profit != null && <span>กำไร <span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(shiftSum.profit)}</span></span>}
                             <span>เติมกระเป๋า <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(shiftSum.topupAmount)}</span></span>
                           </div>
                         )}

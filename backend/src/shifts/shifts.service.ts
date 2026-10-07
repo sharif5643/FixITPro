@@ -15,6 +15,9 @@ import { CarrierWalletService } from '../carrier-wallet/carrier-wallet.service';
 import { activeShiftWhere } from './active-shift';
 import { buildShiftLedger, staffMoneyOf } from './shift-ledger';
 
+/** A hand-over waits a day for the person taking over */
+const HANDOVER_VALID_MS = 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class ShiftsService {
   private readonly logger = new Logger(ShiftsService.name);
@@ -74,8 +77,22 @@ export class ShiftsService {
     if (dto.dtacOpeningBalance != null) carrierBalances['DTAC'] = dto.dtacOpeningBalance;
     if (dto.ntOpeningBalance   != null) carrierBalances['NT']   = dto.ntOpeningBalance;
 
+    let walletCheck: { carrier: string; systemBalance: number; actualBalance: number; difference: number }[] = [];
     if (Object.keys(carrierBalances).length > 0) {
-      await this.carrierWalletService.recordOpeningBalances(shift.id, userId, carrierBalances, tenantId);
+      walletCheck = (await this.carrierWalletService.recordOpeningBalances(shift.id, userId, carrierBalances, tenantId)) ?? [];
+      const off = walletCheck.filter((w) => Math.abs(w.difference) >= 1);
+      if (off.length > 0) {
+        await this.notif.notify({
+          type:       'SHIFT_MISMATCH',
+          title:      'ยอดกระเป๋าค่ายไม่ตรงตอนเปิดกะ',
+          message:    `กะของ ${shift.user.name}: ` + off.map((w) => `${w.carrier} ระบบ ${w.systemBalance.toFixed(0)} นับได้ ${w.actualBalance.toFixed(0)} (${w.difference > 0 ? '+' : ''}${w.difference.toFixed(0)})`).join(', '),
+          severity:   'WARNING',
+          entityType: 'Shift',
+          entityId:   shift.id,
+          tenantId:   tenantId ?? null,
+          ...(branchId ? { branchId } : {}),
+        }).catch(() => undefined);
+      }
     }
 
     // Auto-open CashDrawerSession so CASH payments work immediately after opening a shift.
@@ -140,6 +157,8 @@ export class ShiftsService {
       }
     }
 
+    if (dto.handoverFromShiftId) await this.acceptHandover(dto, shift, tenantId ?? null, branchId ?? null);
+
     await this.auditLog.log({
       actorId: userId,
       actorName: shift.user.name,
@@ -150,7 +169,7 @@ export class ShiftsService {
     });
 
     this.logger.log(`openShift success shiftId=${shift.id} userId=${userId} branchId=${branchId ?? 'null'}`);
-    return shift;
+    return { ...shift, walletCheck };
   }
 
   /**
@@ -179,6 +198,18 @@ export class ShiftsService {
       || (actor?.role === 'OWNER' && sameShop)
       || (actor?.role === 'MANAGER' && sameShop && (!actor.branchId || actor.branchId === shift.branchId));
     if (!works && !boss) throw new NotFoundException('Active shift not found');
+
+    // Leaving early: hand the drawer to someone still working in this shift
+    let handoverTo: { id: string; name: string } | null = null;
+    if (dto.handoverToUserId) {
+      const inShift = dto.handoverToUserId === shift.userId
+        || (shift.members ?? []).some((m) => m.userId === dto.handoverToUserId);
+      if (!inShift || dto.handoverToUserId === userId) {
+        throw new BadRequestException('ส่งต่อกะได้เฉพาะคนที่อยู่ในกะนี้');
+      }
+      handoverTo = await this.prisma.user.findUnique({ where: { id: dto.handoverToUserId }, select: { id: true, name: true } });
+      if (!handoverTo) throw new BadRequestException('ส่งต่อกะได้เฉพาะคนที่อยู่ในกะนี้');
+    }
 
     const t = await this.computeShiftTotals(shift);
     const { salesCount, totalSales, cashSales, cashRepairs, cashSupplierPayments, cashExpensesTotal, cashRefundsTotal, expectedBalance } = t;
@@ -224,13 +255,117 @@ export class ShiftsService {
         severity:   Math.abs(difference) > 500 ? 'ERROR' : 'WARNING',
         entityType: 'Shift',
         entityId:   shiftId,
+        tenantId:   shift.user?.tenantId ?? null,
+        ...(shift.branchId ? { branchId: shift.branchId } : {}),
       });
+    }
+
+    if (handoverTo) {
+      await this.recordHandover(shift, handoverTo, dto.closeBalance, userId);
     }
 
     return {
       ...updatedShift,
       summary: { ...this.summaryOf(t, dto.closeBalance), staff: await this.staffMoney({ ...shift, closedAt: updatedShift.closedAt }) },
     };
+  }
+
+  // ── Hand-over: the person who opened the shift leaves early ──────────────────
+  // Their shift closes with the counted cash and carrier wallets; the person taking over sees
+  // those amounts, checks them, and opens their own shift with them (or with what they count).
+
+  private async recordHandover(
+    shift: { id: string; branchId: string | null; user?: { tenantId: string | null } | null },
+    to: { id: string; name: string },
+    cash: number,
+    closerId: string,
+  ) {
+    const tenantId = shift.user?.tenantId ?? null;
+    const closer = await this.prisma.user.findUnique({ where: { id: closerId }, select: { name: true } });
+    const wallets = await this.carrierWalletService.getBalances(tenantId);
+    await this.auditLog.log({
+      actorId: closerId,
+      actorName: closer?.name ?? '',
+      action: 'SHIFT_HANDOVER',
+      entityType: 'Shift',
+      entityId: shift.id,
+      afterData: { toUserId: to.id, toName: to.name, cash, wallets },
+    });
+    await this.notif.notify({
+      type:       'SHIFT_HANDOVER',
+      title:      `รับกะต่อจาก ${closer?.name ?? ''}`,
+      message:    `เงินสดในลิ้นชัก ${cash.toLocaleString('th-TH')} บาท — ตรวจยอดแล้วกดยืนยันรับกะที่หน้ากะ`,
+      severity:   'INFO',
+      entityType: 'Shift',
+      entityId:   shift.id,
+      tenantId,
+      userId:     to.id,
+    }).catch(() => undefined);
+  }
+
+  /** A shift handed to this person that they have not taken over yet (opened a shift since). */
+  async pendingHandover(userId: string) {
+    const log = await this.prisma.auditLog.findFirst({
+      where: {
+        action: 'SHIFT_HANDOVER',
+        createdAt: { gte: new Date(Date.now() - HANDOVER_VALID_MS) },
+        afterData: { path: ['toUserId'], equals: userId },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!log) return null;
+    const since = await this.prisma.shift.findFirst({
+      where: { OR: [{ userId, openedAt: { gt: log.createdAt } }, activeShiftWhere(userId)] },
+      select: { id: true },
+    });
+    if (since) return null;
+    const d = (log.afterData ?? {}) as { cash?: number; wallets?: { carrier: string; balance: number }[] };
+    return {
+      shiftId:  log.entityId,
+      fromName: log.actorName,
+      at:       log.createdAt,
+      cash:     Number(d.cash ?? 0),
+      wallets:  d.wallets ?? [],
+    };
+  }
+
+  private async acceptHandover(
+    dto: OpenShiftDto,
+    shift: { id: string; userId: string; user: { name: string } },
+    tenantId: string | null,
+    branchId: string | null,
+  ) {
+    const pending = await this.prisma.auditLog.findFirst({
+      where: {
+        action: 'SHIFT_HANDOVER',
+        entityId: dto.handoverFromShiftId,
+        createdAt: { gte: new Date(Date.now() - HANDOVER_VALID_MS) },
+        afterData: { path: ['toUserId'], equals: shift.userId },
+      },
+    });
+    if (!pending) return; // nothing handed to this person: an ordinary opening
+    const handed = Number((pending.afterData as any)?.cash ?? 0);
+    const difference = Math.round((Number(dto.openBalance) - handed) * 100) / 100;
+    await this.auditLog.log({
+      actorId: shift.userId,
+      actorName: shift.user.name,
+      action: 'SHIFT_HANDOVER_ACCEPTED',
+      entityType: 'Shift',
+      entityId: shift.id,
+      afterData: { fromShiftId: dto.handoverFromShiftId, fromName: pending.actorName, handedCash: handed, countedCash: Number(dto.openBalance), difference },
+    });
+    if (Math.abs(difference) >= 1) {
+      await this.notif.notify({
+        type:       'SHIFT_MISMATCH',
+        title:      `ส่งมอบกะ เงินสดไม่ตรง: ${difference > 0 ? '+' : ''}${difference.toFixed(0)} บาท`,
+        message:    `${pending.actorName ?? ''} ส่งมอบ ${handed.toFixed(0)} บาท — ${shift.user.name} นับได้ ${Number(dto.openBalance).toFixed(0)} บาท`,
+        severity:   'WARNING',
+        entityType: 'Shift',
+        entityId:   shift.id,
+        tenantId,
+        ...(branchId ? { branchId } : {}),
+      }).catch(() => undefined);
+    }
   }
 
   // Cash taken in this shift outside sales/final repair payments: repair deposits at intake and

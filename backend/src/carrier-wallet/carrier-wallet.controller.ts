@@ -21,6 +21,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
+import { hideSimProfit } from './hide-sim-profit';
 
 class ReconcileEntryDto {
   @IsEnum(CarrierEnum)
@@ -126,11 +127,12 @@ export class CarrierWalletController {
   @Post('package-sale')
   @RequirePermission('sales.create')
   createPackageSale(
+    @CurrentUser() user: { role?: string; permissions?: string[] },
     @Body() dto: PackageSaleDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.createPackageSale(dto, userId, tenantId);
+    return this.service.createPackageSale(dto, userId, tenantId).then((r) => hideSimProfit(r, user));
   }
 
   @Post('topup')
@@ -156,21 +158,23 @@ export class CarrierWalletController {
   @Get('package-sales')
   @RequirePermission('sales.create', 'reports.view')
   getPackageSales(
+    @CurrentUser() user: { role?: string; permissions?: string[] },
     @CurrentUser('tenantId') tenantId: string | null,
     @Query('date')    date?: string,
     @Query('carrier') carrier?: string,
   ) {
-    return this.service.getPackageSales(tenantId, date, carrier);
+    return this.service.getPackageSales(tenantId, date, carrier).then((r) => hideSimProfit(r, user));
   }
 
   @Post('sim-sale')
   @RequirePermission('sales.create')
   createSimSale(
+    @CurrentUser() user: { role?: string; permissions?: string[] },
     @Body() dto: SimSaleDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.createSimSale(dto, userId, tenantId);
+    return this.service.createSimSale(dto, userId, tenantId).then((r) => hideSimProfit(r, user));
   }
 
   // ── Pay later ("ค้างจ่าย") ─────────────────────────────────────────────────
@@ -180,11 +184,12 @@ export class CarrierWalletController {
   @Get('debts')
   @RequirePermission('sales.create', 'reports.view')
   listDebts(
+    @CurrentUser() user: { role?: string; permissions?: string[] },
     @CurrentUser('tenantId') tenantId: string | null,
     @Query('status') status?: 'open' | 'settled' | 'all',
     @Query('q') q?: string,
   ) {
-    return this.service.listDebts(tenantId, status ?? 'open', q);
+    return this.service.listDebts(tenantId, status ?? 'open', q).then((r) => hideSimProfit(r, user));
   }
 
   /** Whether this phone number still owes for an earlier sale (checked before a new credit sale). */
@@ -197,12 +202,13 @@ export class CarrierWalletController {
   @Post('debts/:saleId/pay')
   @RequirePermission('sales.create')
   payDebt(
+    @CurrentUser() user: { role?: string; permissions?: string[] },
     @Param('saleId') saleId: string,
     @Body() dto: PayPackageDebtDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.service.payDebt(saleId, dto, userId, tenantId);
+    return this.service.payDebt(saleId, dto, userId, tenantId).then((r) => hideSimProfit(r, user));
   }
 
   @Post('reconcile')
@@ -213,8 +219,9 @@ export class CarrierWalletController {
     @Body() dto: ReconcileDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string,
   ) {
-    return this.service.reconcileAtClose(dto.entries, dto.shiftId ?? null, userId, tenantId);
+    return this.service.reconcileAtClose(dto.entries, dto.shiftId ?? null, userId, tenantId, role);
   }
 
   // Owner-only: set a wallet to an exact balance (e.g. clear test top-ups). Kept in history.
@@ -234,6 +241,7 @@ export class CarrierWalletController {
   @UseGuards(ModuleGuard)
   @RequireModule('package_sales')
   listPackageSales(
+    @CurrentUser() user: { role?: string; permissions?: string[] },
     @CurrentUser('tenantId') tenantId: string | null,
     @Query('startDate') startDate?: string,
     @Query('endDate')   endDate?: string,
@@ -248,6 +256,6 @@ export class CarrierWalletController {
       carrier,
       saleType,
       tenantId,
-    });
+    }).then((r) => hideSimProfit(r, user));
   }
 }
