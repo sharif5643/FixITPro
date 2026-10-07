@@ -278,10 +278,10 @@ export class CarrierWalletService {
 
   /** The customer pays all or part of what a credit sale still owes. */
   async payDebt(saleId: string, dto: PayPackageDebtDto, userId: string, tenantId: TenantId) {
-    dto = { ...dto, shiftId: (await this.shiftFor(userId, dto.paymentMethod === 'CASH')) ?? undefined };
     const amount = round2(dto.amount);
     const sale = await this.prisma.packageSale.findFirst({ where: { id: saleId, ...scope(tenantId) } });
     if (!sale || Number(sale.creditAmount) <= 0) throw new NotFoundException('ไม่พบรายการค้างจ่าย');
+    dto = { ...dto, shiftId: (await this.shiftFor(userId, dto.paymentMethod === 'CASH')) ?? undefined };
     if (Number(sale.amountDue) <= 0) throw new BadRequestException('รายการนี้จ่ายครบแล้ว');
     if (amount > Number(sale.amountDue) + 0.001) {
       throw new BadRequestException(`ยอดค้างเหลือ ${Number(sale.amountDue).toLocaleString('th-TH')} บาท — รับเกินยอดค้างไม่ได้`);
