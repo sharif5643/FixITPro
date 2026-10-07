@@ -277,7 +277,31 @@ export class BranchesService implements OnModuleInit {
       );
     }
 
-    await this.prisma.branch.delete({ where: { id } });
+    // Bills, repair jobs, shifts and money records would lose their branch (and drop out of the
+    // shop's reports) if it went: a branch with any history is closed, not deleted
+    const p = this.prisma as any;
+    const history = (await Promise.all([
+      p.sale.count({ where: { branchId: id } }),
+      p.repair.count({ where: { branchId: id } }),
+      p.shift.count({ where: { branchId: id } }),
+      p.expense.count({ where: { branchId: id } }),
+      p.purchaseOrder.count({ where: { branchId: id } }),
+      p.stockMovement.count({ where: { branchId: id } }),
+      p.stockTransfer.count({ where: { OR: [{ fromBranchId: id }, { toBranchId: id }] } }),
+      p.cashDrawerTransaction.count({ where: { branchId: id } }),
+      p.cashDrawerSession.count({ where: { branchId: id } }),
+      p.dailyClose.count({ where: { branchId: id } }),
+      p.branchStock.count({ where: { branchId: id, quantity: { not: 0 } } }),
+    ])).reduce((a: number, b: number) => a + b, 0);
+    if (history > 0) {
+      throw new BadRequestException('สาขานี้มีประวัติ (บิล งานซ่อม กะ สต็อก ฯลฯ) — ใช้ "ปิดใช้งานสาขา" แทนการลบ ประวัติจะยังอยู่ครบ');
+    }
+
+    await this.prisma.$transaction([
+      // Empty stock rows only (every quantity is 0 here)
+      this.prisma.branchStock.deleteMany({ where: { branchId: id } }),
+      this.prisma.branch.delete({ where: { id } }),
+    ]);
 
     this.auditLog.log({
       actorId, actorName, action: 'BRANCH_DELETED',
