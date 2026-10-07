@@ -24,11 +24,13 @@ export class ClaimsController {
   constructor(private service: ClaimsService) {}
 
   @Get('stats')
+  @RequirePermission('claims.manage', 'warranty.view', 'reports.view')
   getStats(@CurrentUser('tenantId') tenantId: string | null) {
     return this.service.getStats(tenantId);
   }
 
   @Get()
+  @RequirePermission('claims.manage', 'warranty.view', 'reports.view')
   findAll(
     @Query()
     query: { status?: string; claimType?: string; search?: string; page?: string; limit?: string },
@@ -38,6 +40,7 @@ export class ClaimsController {
   }
 
   @Get(':id')
+  @RequirePermission('claims.manage', 'warranty.view', 'reports.view')
   findOne(
     @Param('id')           id: string,
     @CurrentUser('id')     userId: string,

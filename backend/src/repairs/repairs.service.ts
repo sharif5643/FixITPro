@@ -1797,7 +1797,7 @@ export class RepairsService {
   }
 
   async submitReview(repairId: string, rating: number, comment?: string, tenantId?: string | null) {
-    if (rating < 1 || rating > 5) {
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
       throw new BadRequestException('คะแนนต้องอยู่ระหว่าง 1 ถึง 5');
     }
     const where: any = { id: repairId };

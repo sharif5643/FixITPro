@@ -3,7 +3,7 @@
 import { CONDITION_OPTIONS_LIST, ACCESSORY_OPTIONS, DEVICE_TYPE_OPTIONS, ISSUE_TAG_OPTIONS, SPECIAL_ISSUE_TAGS } from '@/lib/repair-tags'
 import { AppBranchBar } from '@/components/app/app-branch-bar'
 import { useAppBranch } from '@/hooks/useAppBranch'
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -832,19 +832,18 @@ export default function RepairIntakePage() {
   })
 
   // Fetch users for technician assignment — silently skip if no permission
+  // Who can be given a repair: technicians, managers and anyone the owner made a technician.
+  // (/users is owner-only, so other staff got an empty list.)
   const { data: allUsers = [] } = useQuery<UserType[]>({
-    queryKey:  ['users'],
+    queryKey:  ['technicians', 'assignable'],
     queryFn:   async () => {
-      try { return (await api.get('/users')).data }
+      try { return (await api.get('/technicians/assignable')).data }
       catch { return [] }
     },
     staleTime: 60_000,
   })
 
-  const technicians = useMemo(
-    () => allUsers.filter((u) => u.role === 'TECHNICIAN' || u.role === 'MANAGER' || u.role === 'OWNER'),
-    [allUsers],
-  )
+  const technicians = allUsers
 
   const { online } = useNetworkStatus()
 

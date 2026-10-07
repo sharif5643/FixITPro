@@ -31,6 +31,8 @@ export class ExpensesController {
   // ── Categories ───────────────────────────────────────────────────────────────
 
   @Get('categories')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('expenses.manage', 'reports.view')
   findAllCategories(@CurrentUser('tenantId') tenantId: string | null) {
     return this.expensesService.findAllCategories(tenantId);
   }
@@ -61,6 +63,8 @@ export class ExpensesController {
   // ── Summary routes — must come before :id ───────────────────────────────────
 
   @Get('summary/daily')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('expenses.manage', 'reports.view')
   getDailySummary(
     @Query('date') date: string,
     @CurrentUser('tenantId') tenantId: string | null,
@@ -70,6 +74,8 @@ export class ExpensesController {
   }
 
   @Get('summary/monthly')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('expenses.manage', 'reports.view')
   getMonthlySummary(
     @Query('year') year: string,
     @Query('month') month: string,
@@ -97,6 +103,8 @@ export class ExpensesController {
   }
 
   @Get()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('expenses.manage', 'reports.view')
   findAll(
     @Query() query: {
       startDate?:  string;
@@ -118,6 +126,8 @@ export class ExpensesController {
   }
 
   @Get(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('expenses.manage', 'reports.view')
   findOne(
     @Param('id')             id: string,
     @CurrentUser('branchId') branchId: string | null,

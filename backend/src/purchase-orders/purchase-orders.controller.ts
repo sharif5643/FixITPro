@@ -29,6 +29,8 @@ export class PurchaseOrdersController {
   constructor(private poService: PurchaseOrdersService) {}
 
   @Get()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create', 'purchase.receive', 'supplier.pay', 'reports.view')
   findAll(
     @Query() query: { status?: string; supplierId?: string; search?: string },
     @CurrentUser('tenantId') tenantId: string | null,
@@ -39,6 +41,8 @@ export class PurchaseOrdersController {
   }
 
   @Get(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create', 'purchase.receive', 'supplier.pay', 'reports.view')
   findOne(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string | null,
@@ -97,6 +101,8 @@ export class PurchaseOrdersController {
   }
 
   @Get(':id/movements')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create', 'purchase.receive', 'supplier.pay', 'reports.view')
   getMovements(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string | null,
@@ -117,6 +123,8 @@ export class PurchaseOrdersController {
   }
 
   @Get(':id/payments')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('supplier.pay', 'purchase.create', 'reports.view')
   getPayments(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string | null,

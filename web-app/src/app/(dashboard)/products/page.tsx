@@ -60,6 +60,7 @@ export default function ProductsPage() {
   const user    = useAuthStore((s) => s.user)
   const hasPerm = useAuthStore((s) => s.hasPermission)
   const hasModule = useAuthStore((s) => s.hasModule)
+  const canViewCost = hasPerm('products.view_cost')
 
   const { branchId: effectiveBranch, isOwner, isGlobalMode: isViewAll } = useBranchContext()
 
@@ -308,12 +309,14 @@ export default function ProductsPage() {
           icon={Package}
           color="blue"
         />
-        <StatCard
-          label="มูลค่าสต็อก"
-          value={isLoading ? '—' : formatThaiMoney(stats.stockValue)}
-          icon={Wallet}
-          color="emerald"
-        />
+        {canViewCost && (
+          <StatCard
+            label="มูลค่าสต็อก"
+            value={isLoading ? '—' : formatThaiMoney(stats.stockValue)}
+            icon={Wallet}
+            color="emerald"
+          />
+        )}
         <StatCard
           label="สต็อกใกล้หมด"
           value={isLoading ? '—' : stats.lowStock}
@@ -373,7 +376,7 @@ export default function ProductsPage() {
             <DataTableHeadCell hidden>SKU / รหัส</DataTableHeadCell>
             <DataTableHeadCell hidden>ประเภท</DataTableHeadCell>
             <DataTableHeadCell right hidden>ราคาขาย</DataTableHeadCell>
-            <DataTableHeadCell right hidden>ต้นทุน</DataTableHeadCell>
+            {canViewCost && <DataTableHeadCell right hidden>ต้นทุน</DataTableHeadCell>}
             <DataTableHeadCell className="text-center">{isViewAll ? 'รวมทุกสาขา' : 'สต็อก'}</DataTableHeadCell>
             <DataTableHeadCell className="text-center">สถานะ</DataTableHeadCell>
             <DataTableHeadCell className="text-center">จัดการ</DataTableHeadCell>
@@ -453,10 +456,12 @@ export default function ProductsPage() {
                       </span>
                     </DataTableCell>
 
-                    {/* Cost */}
-                    <DataTableCell right hidden muted>
-                      <span className="tabular-nums">{formatThaiMoney(Number(p.costPrice))}</span>
-                    </DataTableCell>
+                    {/* Cost (only for people allowed to see cost prices) */}
+                    {canViewCost && (
+                      <DataTableCell right hidden muted>
+                        <span className="tabular-nums">{formatThaiMoney(Number(p.costPrice))}</span>
+                      </DataTableCell>
+                    )}
 
                     {/* Stock */}
                     <DataTableCell className="text-center">
@@ -554,7 +559,7 @@ export default function ProductsPage() {
                         )}
                         {isOwner && (isLow || isOut) && (
                           <Link
-                            href={`/purchase-orders?new=1&productId=${p.id}&productName=${encodeURIComponent(p.name)}&productSku=${encodeURIComponent(p.sku)}&productCost=${p.costPrice}`}
+                            href={`/purchase-orders?new=1&productId=${p.id}&productName=${encodeURIComponent(p.name)}&productSku=${encodeURIComponent(p.sku)}${canViewCost ? `&productCost=${p.costPrice}` : ''}`}
                             title="สร้าง PO สั่งซื้อสินค้านี้"
                           >
                             <Button

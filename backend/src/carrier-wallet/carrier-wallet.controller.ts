@@ -19,6 +19,8 @@ import { ModuleGuard } from '../common/guards/module.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { PermissionGuard } from '../common/guards/permission.guard';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 
 class ReconcileEntryDto {
   @IsEnum(CarrierEnum)
@@ -108,17 +110,21 @@ class SimSaleDto {
   @IsOptional() @IsString() @MaxLength(20)   debtorPhone?: string;
 }
 
-@UseGuards(JwtAuthGuard, TenantActiveGuard)
+// Selling SIMs / packages and topping up a carrier wallet is front-desk work (sales.create);
+// closing the shift count is cash-drawer work. Technicians and stock staff do neither.
+@UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard)
 @Controller('carrier-wallet')
 export class CarrierWalletController {
   constructor(private readonly service: CarrierWalletService) {}
 
   @Get('balances')
+  @RequirePermission('sales.create', 'reports.view')
   getBalances(@CurrentUser('tenantId') tenantId: string | null) {
     return this.service.getBalances(tenantId);
   }
 
   @Post('package-sale')
+  @RequirePermission('sales.create')
   createPackageSale(
     @Body() dto: PackageSaleDto,
     @CurrentUser('id') userId: string,
@@ -128,6 +134,7 @@ export class CarrierWalletController {
   }
 
   @Post('topup')
+  @RequirePermission('sales.create')
   topup(
     @Body() dto: TopupDto,
     @CurrentUser('id') userId: string,
@@ -137,6 +144,7 @@ export class CarrierWalletController {
   }
 
   @Get('movements')
+  @RequirePermission('sales.create', 'reports.view')
   getMovements(
     @CurrentUser('tenantId') tenantId: string | null,
     @Query('carrier') carrier?: string,
@@ -146,6 +154,7 @@ export class CarrierWalletController {
   }
 
   @Get('package-sales')
+  @RequirePermission('sales.create', 'reports.view')
   getPackageSales(
     @CurrentUser('tenantId') tenantId: string | null,
     @Query('date')    date?: string,
@@ -155,6 +164,7 @@ export class CarrierWalletController {
   }
 
   @Post('sim-sale')
+  @RequirePermission('sales.create')
   createSimSale(
     @Body() dto: SimSaleDto,
     @CurrentUser('id') userId: string,
@@ -168,6 +178,7 @@ export class CarrierWalletController {
 
   /** Unpaid (default) or all credit sales of this shop. */
   @Get('debts')
+  @RequirePermission('sales.create', 'reports.view')
   listDebts(
     @CurrentUser('tenantId') tenantId: string | null,
     @Query('status') status?: 'open' | 'settled' | 'all',
@@ -178,11 +189,13 @@ export class CarrierWalletController {
 
   /** Whether this phone number still owes for an earlier sale (checked before a new credit sale). */
   @Get('debts/check')
+  @RequirePermission('sales.create')
   checkDebtor(@CurrentUser('tenantId') tenantId: string | null, @Query('phone') phone: string) {
     return this.service.openDebtFor(tenantId, phone);
   }
 
   @Post('debts/:saleId/pay')
+  @RequirePermission('sales.create')
   payDebt(
     @Param('saleId') saleId: string,
     @Body() dto: PayPackageDebtDto,
@@ -193,6 +206,7 @@ export class CarrierWalletController {
   }
 
   @Post('reconcile')
+  @RequirePermission('cash_drawer.close_session')
   @UseGuards(ModuleGuard)
   @RequireModule('package_sales')
   reconcile(
@@ -216,6 +230,7 @@ export class CarrierWalletController {
   }
 
   @Get('package-sales/list')
+  @RequirePermission('sales.create', 'reports.view')
   @UseGuards(ModuleGuard)
   @RequireModule('package_sales')
   listPackageSales(

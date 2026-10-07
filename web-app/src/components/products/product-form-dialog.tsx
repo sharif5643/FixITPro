@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { useAuthStore } from '@/store/auth.store'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -106,6 +107,10 @@ export function ProductFormDialog({
   isOwnerGlobalMode = false,
 }: ProductFormDialogProps) {
   const isEditing = !!product
+  // Without products.view_cost the cost is hidden; it can still be entered for a new product
+  // (the API ignores a cost change from someone who cannot see it)
+  const canViewCost = useAuthStore((st) => st.hasPermission)('products.view_cost')
+  const showCost = canViewCost || !isEditing
 
   const {
     register,
@@ -170,7 +175,7 @@ export function ProductFormDialog({
         type:         product.type as ProductFormData['type'],
         categoryId:   product.categoryId ?? '',
         price:        Number(product.price),
-        costPrice:    Number(product.costPrice),
+        costPrice:    Number(product.costPrice ?? 0),
         stock:        product.stock,
         minStock:     product.minStock,
         description:  product.description ?? '',
@@ -369,7 +374,7 @@ export function ProductFormDialog({
               />
               {errors.price && <p className="text-xs text-red-500">{errors.price.message}</p>}
             </div>
-            <div className="space-y-1.5">
+            {showCost && <div className="space-y-1.5">
               <Label>ราคาต้นทุน (บาท) <span className="text-red-500">*</span></Label>
               <Input
                 type="number" step="1" min="0" placeholder="0"
@@ -378,7 +383,7 @@ export function ProductFormDialog({
                 className={errors.costPrice ? 'border-red-400' : ''}
               />
               {errors.costPrice && <p className="text-xs text-red-500">{errors.costPrice.message}</p>}
-            </div>
+            </div>}
           </div>
 
           {/* Stock */}

@@ -72,7 +72,7 @@ export const ROLE_PRESET_PERMISSIONS: Partial<Record<AppRole, string[]>> = {
   CASHIER: [
     'products.view',
     'sales.create', 'sales.discount',
-    'repair.create', 'repair.edit',
+    'repair.create', 'repair.edit', 'repair.close',
     'serials.manage',
     'warranty.view',
     'notification.view',
