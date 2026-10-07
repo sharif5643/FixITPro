@@ -5,6 +5,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
+import { activeShiftWhere } from '../shifts/active-shift';
 
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -116,7 +117,7 @@ export class ExpensesService implements OnModuleInit {
     }
     // Auto-attach to creator's active shift so cash expenses reduce expected drawer balance
     const activeShift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
       select: { id: true },
     });
     const { start } = this.thaiDateBounds(dto.expenseDate);

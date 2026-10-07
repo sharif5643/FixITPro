@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { activeShiftWhere } from '../shifts/active-shift';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { WarrantiesService } from '../warranties/warranties.service';
@@ -301,7 +302,7 @@ export class RepairsService {
       // A deposit taken at intake belongs to the receiving user's open shift (expected cash)
       const hasDeposit   = (dto.deposit ?? 0) > 0;
       const depositShift = hasDeposit && actorId
-        ? await tx.shift.findFirst({ where: { userId: actorId, isActive: true }, select: { id: true } })
+        ? await tx.shift.findFirst({ where: activeShiftWhere(actorId), select: { id: true } })
         : null;
 
       const newRepair = await tx.repair.create({
@@ -968,7 +969,7 @@ export class RepairsService {
 
   async processPayment(repairId: string, dto: RepairPaymentDto, userId: string, tenantId?: string | null) {
     const activeShift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
       select: { id: true },
     });
     if (!activeShift) {
@@ -1203,7 +1204,7 @@ export class RepairsService {
     }
 
     const activeShift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
       select: { id: true },
     });
 

@@ -48,6 +48,7 @@ import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
+import { JoinShifts, LeaveShiftButton } from '@/components/shifts/join-shifts'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,9 @@ interface ActiveShift {
   repairRevenue: number
   expectedCashBalance: number
   packageSalesByCarrier?: CarrierShiftSummary[]
+  /** working in someone else's shift (one cash drawer, several people) */
+  joined?: boolean
+  members?: { userId: string; name: string }[]
 }
 
 interface CarrierShiftSummary {
@@ -308,13 +312,17 @@ export default function ShiftsPage() {
             </div>
             <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">กะปัจจุบัน — กำลังดำเนินการ</span>
             <span className="ml-auto h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            {currentShift.joined && <LeaveShiftButton onLeft={refresh} className="h-8" />}
           </div>
           <div className="space-y-4">
             {/* Meta */}
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-slate-700 dark:text-slate-300">
               <span className="flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5 text-muted-foreground" />
-                {currentShift.user.name}
+                {currentShift.joined ? `ร่วมกะของ ${currentShift.user.name}` : currentShift.user.name}
+                {(currentShift.members ?? []).length > 0 && (
+                  <span className="text-muted-foreground"> · ร่วมกะ: {(currentShift.members ?? []).map((m: { name: string }) => m.name).join(', ')}</span>
+                )}
               </span>
               <span className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -393,7 +401,9 @@ export default function ShiftsPage() {
           <BranchQuickPick className="justify-center" />
         </div>
       ) : (
-        /* No active shift — hero open form */
+        /* No active shift — join a colleague's shift (one drawer) or open one */
+        <div className="space-y-4">
+        <JoinShifts onJoined={refresh} />
         <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/40 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6 sm:p-8">
           <div className="flex flex-col items-center text-center gap-4 mb-6">
             <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_8px_24px_rgba(16,185,129,0.35)]">
@@ -450,6 +460,7 @@ export default function ShiftsPage() {
               เปิดกะ
             </Button>
           </form>
+        </div>
         </div>
       )}
 

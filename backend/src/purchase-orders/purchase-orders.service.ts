@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { activeShiftWhere } from '../shifts/active-shift';
 import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -356,7 +357,7 @@ export class PurchaseOrdersService {
     // CASH payments must be made during an active shift
     if (dto.paymentMethod === 'CASH') {
       const activeShift = await this.prisma.shift.findFirst({
-        where: { userId, isActive: true },
+        where: activeShiftWhere(userId),
         select: { id: true },
       });
       if (!activeShift) {

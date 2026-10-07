@@ -18,6 +18,7 @@ import { formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
 import { useAuthStore } from '@/store/auth.store'
+import { JoinShifts, LeaveShiftButton } from '@/components/shifts/join-shifts'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,9 @@ type CurrentShift = {
   packageSaleRevenue: number
   packageSaleAmount: number
   expectedCashBalance: number
+  /** working in someone else's shift (one cash drawer, several people) */
+  joined?: boolean
+  members?: { userId: string; name: string; joinedAt: string }[]
 }
 
 type CloseSummary = {
@@ -48,6 +52,7 @@ type CloseSummary = {
   expectedBalance: number
   actualBalance: number
   difference: number
+  staffSales?: { userId: string; name: string; salesCount: number; salesTotal: number }[]
 }
 
 type WalletBalance = { carrier: string; balance: number }
@@ -260,8 +265,10 @@ function toClosingOpts(
     actualBalance:     summary.actualBalance,
     difference:        summary.difference,
     footer:            settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
+    staffSales:        summary.staffSales,
   }
 }
+
 
 interface ShiftListItem {
   id: string
@@ -389,6 +396,7 @@ export default function SunmiShiftsPage() {
     },
   })
 
+
   const closeMutation = useMutation({
     mutationFn: () =>
       api.post(`/shifts/${shift!.id}/close`, {
@@ -426,6 +434,9 @@ export default function SunmiShiftsPage() {
           <div className="bg-white rounded-2xl overflow-hidden divide-y divide-slate-100">
             <Row label="ยอดขาย" value={formatThaiMoney(closeSummary.totalSales)} sub={`${closeSummary.salesCount} รายการ`} />
             <Row label="งานซ่อม" value={formatThaiMoney(closeSummary.repairPayments.totalAmount)} sub={`${closeSummary.repairPayments.count} งาน`} />
+            {(closeSummary.staffSales ?? []).length > 1 && closeSummary.staffSales!.map((x) => (
+              <Row key={x.userId} label={`· ${x.name}`} value={formatThaiMoney(x.salesTotal)} sub={`${x.salesCount} บิล`} />
+            ))}
             {(closeSummary.packageSales?.count ?? 0) > 0 && (
               <Row
                 label="SIM / แพ็กเกจ"
@@ -512,6 +523,8 @@ export default function SunmiShiftsPage() {
               <p className="text-xs text-amber-600 mt-0.5">กรุณาเปิดกะก่อนเริ่มขายสินค้า</p>
             </div>
           </div>
+
+          <JoinShifts onJoined={() => queryClient.invalidateQueries({ queryKey: ['shifts'] })} />
 
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-600">ยอดเปิดกะ (บาท)</label>
@@ -613,15 +626,24 @@ export default function SunmiShiftsPage() {
         {/* Status */}
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3">
           <div className="h-3 w-3 rounded-full bg-green-500 shrink-0 shadow-[0_0_0_4px_rgba(34,197,94,0.15)]" />
-          <div>
-            <p className="font-bold text-green-800">กะเปิดอยู่</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-green-800">{shift.joined ? `ร่วมกะของ ${shift.user.name}` : 'กะเปิดอยู่'}</p>
             <p className="text-xs text-green-600 mt-0.5">
               เปิดตั้งแต่ {format(new Date(shift.openedAt), 'HH:mm', { locale: th })} น.
               {' · '}
               {shift.user.name}
+              {(shift.members ?? []).length > 0 && ` · ร่วมกะ: ${(shift.members ?? []).map((m) => m.name).join(', ')}`}
             </p>
           </div>
+          {shift.joined && (
+            <LeaveShiftButton onLeft={() => queryClient.invalidateQueries({ queryKey: ['shifts'] })} />
+          )}
         </div>
+        {shift.joined && (
+          <p className="text-xs text-slate-500 px-1">
+            ใช้ลิ้นชักเดียวกัน — ยอดขายของคุณรวมอยู่ในกะนี้ นับเงินและปิดกะครั้งเดียวตอนจบ (ใครในกะปิดก็ได้)
+          </p>
+        )}
 
         {/* Cash summary */}
         <div className="bg-white rounded-2xl overflow-hidden divide-y divide-slate-100">
