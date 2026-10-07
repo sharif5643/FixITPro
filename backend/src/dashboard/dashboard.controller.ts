@@ -11,25 +11,44 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 export class DashboardController {
   constructor(private dashboardService: DashboardService) {}
 
-  @RequirePermission('reports.view')
+  /**
+   * Everyone signed in gets the work figures of their branch (repairs, stock, warranties,
+   * shift), which the cashier / technician / stock dashboards show. Money,
+   * profit and rankings need reports.view; a cashier (sales.create) also gets the POS sales
+   * count and total, which the cashier dashboard shows.
+   */
   @Get('overview')
-  getOverview(
+  async getOverview(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('branchId') branchId?: string,
     @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
     @CurrentUser('tenantId') tenantId?: string,
+    @CurrentUser('permissions') permissions?: string[],
   ) {
     const isOwner = role === 'OWNER' || role === 'SUPER_ADMIN';
     const effectiveBranchId = isOwner ? branchId : (userBranchId ?? undefined);
-    return this.dashboardService.getOverview({
+    const overview = await this.dashboardService.getOverview({
       startDate,
       endDate,
       branchId: effectiveBranchId,
       isOwner,
       tenantId,
     });
+    const perms = permissions ?? [];
+    if (isOwner || perms.includes('reports.view')) return overview;
+    const o = overview as any;
+    return {
+      period:        o.period,
+      finance:       perms.includes('sales.create')
+        ? { salesRevenue: o.finance?.salesRevenue, salesCount: o.finance?.salesCount }
+        : {},
+      repairOps:     { ...o.repairOps, unpaidDebtTotal: undefined, unpaidDebtCount: undefined },
+      stock:         o.stock,
+      warranties:    o.warranties,
+      currentShift:  o.currentShift,
+    };
   }
 
   @UseGuards(TenantActiveGuard)
