@@ -432,7 +432,7 @@ export default function ShiftsPage() {
             pending={handover}
             busy={openMutation.isPending}
             onConfirm={() => openMutation.mutate(takeOver(handover))}
-            onEdit={() => { setHandoverFrom(handover.shiftId); openForm.setValue('openBalance', handover.cash) }}
+            onEdit={() => { setHandoverFrom(handover.shiftId); openForm.setValue('openBalance', handover.cash); openForm.setValue('note', `รับกะต่อจาก ${handover.fromName ?? ''}`) }}
           />
         )}
         {handoverFrom && (

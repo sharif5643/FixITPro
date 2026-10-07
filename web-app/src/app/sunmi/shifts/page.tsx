@@ -405,6 +405,7 @@ export default function SunmiShiftsPage() {
     if (!handover) return
     setHandoverFrom(handover.shiftId)
     setOpenBalance(String(handover.cash))
+    setOpenNote(`รับกะต่อจาก ${handover.fromName ?? ''}`)
     const bal = (c: string) => {
       const w = handover.wallets.find((x) => x.carrier === c)
       return w && Number(w.balance) !== 0 ? String(w.balance) : ''
