@@ -1,4 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { canViewCost, stripCost } from '../common/interceptors/hide-cost.interceptor';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
@@ -64,18 +65,26 @@ export class ReportsController {
     return this.reportsService.getVoidLog(reportDate, branchId, tenantId);
   }
 
-  @RequirePermission('reports.view')
+  // Also for whoever closes the cash drawer (cashiers): the shift-close report is printed from it
+  @RequirePermission('reports.view', 'cash_drawer.close_session')
   @Get('daily-closing')
-  getDailyClosingReport(
+  async getDailyClosingReport(
     @Query('date') date: string,
     @Query('branchId') branchId?: string,
     @CurrentUser('role')     role?: string,
     @CurrentUser('branchId') userBranchId?: string,
     @CurrentUser('tenantId') tenantId?: string,
+    @CurrentUser() user?: { role?: string; permissions?: string[] },
   ) {
     const reportDate = date || bangkokDate();
     const effectiveBranchId = (role === 'OWNER' || role === 'SUPER_ADMIN') ? branchId : (userBranchId ?? undefined);
-    return this.reportsService.getDailyClosingReport(reportDate, effectiveBranchId, tenantId);
+    const report = await this.reportsService.getDailyClosingReport(reportDate, effectiveBranchId, tenantId);
+    const isOwner = role === 'OWNER' || role === 'SUPER_ADMIN';
+    if (isOwner || (user?.permissions ?? []).includes('reports.view')) return report;
+    // Someone closing the drawer without reports.view: the day's money of their branch, without
+    // cost prices or the staff / product rankings
+    const { performance: _rankings, ...rest } = report as any;
+    return canViewCost(user) ? rest : stripCost(rest);
   }
 
   @RequirePermission('reports.view')

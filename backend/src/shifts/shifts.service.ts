@@ -156,6 +156,92 @@ export class ShiftsService {
 
     if (!shift) throw new NotFoundException('Active shift not found');
 
+    const t = await this.computeShiftTotals(shift);
+    const { salesCount, totalSales, cashSales, cashRepairs, cashSupplierPayments, cashExpensesTotal, cashRefundsTotal, expectedBalance } = t;
+
+    this.logger.log(
+      `ShiftClose id=${shiftId} sales=${salesCount} total=${totalSales} cashSales=${cashSales} cashRepairs=${cashRepairs} cashSupplier=${cashSupplierPayments} cashExpenses=${cashExpensesTotal} cashRefunds=${cashRefundsTotal} expected=${expectedBalance}`,
+    );
+
+    const updatedShift = await this.prisma.shift.update({
+      where: { id: shiftId },
+      data: {
+        closedAt: new Date(),
+        closeBalance: dto.closeBalance,
+        isActive: false,
+        note: dto.note,
+      },
+      include: { user: { select: { id: true, name: true } } },
+    });
+
+    await this.auditLog.log({
+      actorId: userId,
+      actorName: updatedShift.user.name,
+      action: 'SHIFT_CLOSED',
+      entityType: 'Shift',
+      entityId: shiftId,
+      afterData: {
+        closeBalance: dto.closeBalance,
+        totalSales,
+        salesCount,
+        expectedBalance,
+        difference: dto.closeBalance - expectedBalance,
+      },
+    });
+
+    const difference = dto.closeBalance - expectedBalance;
+    if (Math.abs(difference) > SHIFT_MISMATCH_THRESHOLD) {
+      await this.notif.notify({
+        type:       'SHIFT_MISMATCH',
+        title:      `เงินในลิ้นชักไม่ตรง: ${difference > 0 ? '+' : ''}${difference.toFixed(0)} บาท`,
+        message:    `กะของ ${updatedShift.user.name} — คาดว่า ${expectedBalance.toFixed(0)} บาท แต่นับได้ ${dto.closeBalance.toFixed(0)} บาท (ผิดพลาด ${Math.abs(difference).toFixed(0)} บาท)`,
+        severity:   Math.abs(difference) > 500 ? 'ERROR' : 'WARNING',
+        entityType: 'Shift',
+        entityId:   shiftId,
+      });
+    }
+
+    return {
+      ...updatedShift,
+      summary: this.summaryOf(t, dto.closeBalance),
+    };
+  }
+
+  // Cash taken in this shift outside sales/final repair payments: repair deposits at intake and
+  // debt payments (RepairAdditionalPayment). Both belong in the drawer's expected cash.
+  /** Cash taken in this shift for SIM/package sales sold earlier on credit. */
+  private async getCashPackageDebtPayments(shiftId: string) {
+    const agg = await this.prisma.packageSaleDebtPayment.aggregate({
+      where: { shiftId, paymentMethod: 'CASH' },
+      _sum: { amount: true },
+    });
+    return Number(agg?._sum?.amount ?? 0);
+  }
+
+  private async getCashRepairInflows(shiftId: string) {
+    const [deposits, debtPayments] = await Promise.all([
+      this.prisma.repair.aggregate({
+        where: { depositShiftId: shiftId, depositPaymentMethod: 'CASH' },
+        _sum:  { deposit: true },
+      }),
+      this.prisma.repairAdditionalPayment.aggregate({
+        where: { shiftId, paymentMethod: 'CASH' },
+        _sum:  { amount: true },
+      }),
+    ]);
+    return {
+      cashDeposits:     Number(deposits._sum.deposit ?? 0),
+      cashDebtPayments: Number(debtPayments._sum.amount ?? 0),
+    };
+  }
+
+  /**
+   * Shift totals: sales, repair payments, supplier payments, package sales, cash expenses and
+   * refunds, and the cash the drawer should hold. Used when closing a shift and to reprint the
+   * summary of a closed one (same numbers both times).
+   */
+  private async computeShiftTotals(shift: { id: string; openedAt: Date; closedAt: Date | null; openBalance: unknown; user?: { tenantId: string | null } | null }) {
+    const shiftId = shift.id;
     const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg, packageSalesByCarrier, repairInflows] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId, status: { not: 'VOIDED' } },
@@ -246,108 +332,85 @@ export class ShiftsService {
       Number(shift.openBalance) + cashSales + cashRepairs + cashDeposits + cashDebtPayments + cashPackageSales
       - cashSupplierPayments - cashExpensesTotal - cashRefundsTotal;
 
-    this.logger.log(
-      `ShiftClose id=${shiftId} sales=${salesCount} total=${totalSales} cashSales=${cashSales} cashRepairs=${cashRepairs} cashSupplier=${cashSupplierPayments} cashExpenses=${cashExpensesTotal} cashRefunds=${cashRefundsTotal} expected=${expectedBalance}`,
-    );
-
-    const updatedShift = await this.prisma.shift.update({
-      where: { id: shiftId },
-      data: {
-        closedAt: new Date(),
-        closeBalance: dto.closeBalance,
-        isActive: false,
-        note: dto.note,
-      },
-      include: { user: { select: { id: true, name: true } } },
-    });
-
-    await this.auditLog.log({
-      actorId: userId,
-      actorName: updatedShift.user.name,
-      action: 'SHIFT_CLOSED',
-      entityType: 'Shift',
-      entityId: shiftId,
-      afterData: {
-        closeBalance: dto.closeBalance,
-        totalSales,
-        salesCount,
-        expectedBalance,
-        difference: dto.closeBalance - expectedBalance,
-      },
-    });
-
-    const difference = dto.closeBalance - expectedBalance;
-    if (Math.abs(difference) > SHIFT_MISMATCH_THRESHOLD) {
-      await this.notif.notify({
-        type:       'SHIFT_MISMATCH',
-        title:      `เงินในลิ้นชักไม่ตรง: ${difference > 0 ? '+' : ''}${difference.toFixed(0)} บาท`,
-        message:    `กะของ ${updatedShift.user.name} — คาดว่า ${expectedBalance.toFixed(0)} บาท แต่นับได้ ${dto.closeBalance.toFixed(0)} บาท (ผิดพลาด ${Math.abs(difference).toFixed(0)} บาท)`,
-        severity:   Math.abs(difference) > 500 ? 'ERROR' : 'WARNING',
-        entityType: 'Shift',
-        entityId:   shiftId,
-      });
-    }
-
     return {
-      ...updatedShift,
-      summary: {
-        salesCount,
-        totalSales,
-        paymentBreakdown,
-        repairPayments: {
-          count: repairPayments.length,
-          totalAmount: repairTotalAmount,
-          paymentBreakdown: repairBreakdown,
-        },
-        supplierPayments: {
-          count: supplierPayments.length,
-          totalAmount: supplierTotalAmount,
-          paymentBreakdown: supplierBreakdown,
-        },
-        packageSales: {
-          count: packageSales.length,
-          totalAmount: packageSaleTotalAmount,
-          totalProfit: packageSaleProfit,
-          byCarrier: packageSalesByCarrier,
-          cashReceived: cashPackageSales,
-          cashDebtPayments: cashPackageDebtPayments,
-        },
-        cashDeposits,
-        cashDebtPayments,
-        cashExpenses: cashExpensesTotal,
-        cashRefunds: cashRefundsTotal,
-        expectedBalance,
-        actualBalance: dto.closeBalance,
-        difference: dto.closeBalance - expectedBalance,
-      },
+      salesCount, totalSales, paymentBreakdown,
+      repairPayments, repairTotalAmount, repairBreakdown,
+      supplierPayments, supplierTotalAmount, supplierBreakdown,
+      packageSales, packageSaleTotalAmount, packageSaleProfit, packageSalesByCarrier,
+      cashPackageSales, cashPackageDebtPayments,
+      cashDeposits, cashDebtPayments,
+      cashSales, cashRepairs, cashSupplierPayments, cashExpensesTotal, cashRefundsTotal,
+      expectedBalance,
     };
   }
 
-  // Cash taken in this shift outside sales/final repair payments: repair deposits at intake and
-  // debt payments (RepairAdditionalPayment). Both belong in the drawer's expected cash.
-  /** Cash taken in this shift for SIM/package sales sold earlier on credit. */
-  private async getCashPackageDebtPayments(shiftId: string) {
-    const agg = await this.prisma.packageSaleDebtPayment.aggregate({
-      where: { shiftId, paymentMethod: 'CASH' },
-      _sum: { amount: true },
-    });
-    return Number(agg?._sum?.amount ?? 0);
+  private summaryOf(t: Awaited<ReturnType<ShiftsService['computeShiftTotals']>>, closeBalance: number) {
+    return {
+      salesCount: t.salesCount,
+      totalSales: t.totalSales,
+      paymentBreakdown: t.paymentBreakdown,
+      repairPayments: {
+        count: t.repairPayments.length,
+        totalAmount: t.repairTotalAmount,
+        paymentBreakdown: t.repairBreakdown,
+      },
+      supplierPayments: {
+        count: t.supplierPayments.length,
+        totalAmount: t.supplierTotalAmount,
+        paymentBreakdown: t.supplierBreakdown,
+      },
+      packageSales: {
+        count: t.packageSales.length,
+        totalAmount: t.packageSaleTotalAmount,
+        totalProfit: t.packageSaleProfit,
+        byCarrier: t.packageSalesByCarrier,
+        cashReceived: t.cashPackageSales,
+        cashDebtPayments: t.cashPackageDebtPayments,
+      },
+      cashDeposits: t.cashDeposits,
+      cashDebtPayments: t.cashDebtPayments,
+      cashExpenses: t.cashExpensesTotal,
+      cashRefunds: t.cashRefundsTotal,
+      expectedBalance: t.expectedBalance,
+      actualBalance: closeBalance,
+      difference: closeBalance - t.expectedBalance,
+    };
   }
 
-  private async getCashRepairInflows(shiftId: string) {
-    const [deposits, debtPayments] = await Promise.all([
-      this.prisma.repair.aggregate({
-        where: { depositShiftId: shiftId, depositPaymentMethod: 'CASH' },
-        _sum:  { deposit: true },
-      }),
-      this.prisma.repairAdditionalPayment.aggregate({
-        where: { shiftId, paymentMethod: 'CASH' },
-        _sum:  { amount: true },
-      }),
-    ]);
+  /**
+   * The summary of a closed shift, to print it again. Anyone may reprint their own shift;
+   * owners and managers (cash_drawer.view_balance) any shift of their shop / branch.
+   */
+  async getClosedShiftSummary(
+    shiftId: string,
+    actor: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    const shift = await this.prisma.shift.findFirst({
+      where: { id: shiftId },
+      include: { user: { select: { id: true, name: true, tenantId: true } }, branch: { select: { tenantId: true } } },
+    });
+    const shopOf = shift ? (shift.branch?.tenantId ?? shift.user?.tenantId ?? null) : null;
+    if (!shift || (actor.role !== 'SUPER_ADMIN' && shopOf !== (actor.tenantId ?? null))) {
+      throw new NotFoundException('ไม่พบกะนี้');
+    }
+    const isOwner = actor.role === 'OWNER' || actor.role === 'SUPER_ADMIN';
+    const canSeeOthers = isOwner ||
+      ((actor.permissions ?? []).includes('cash_drawer.view_balance') && actor.role === 'MANAGER' &&
+        (!actor.branchId || shift.branchId === actor.branchId));
+    if (shift.userId !== actor.id && !canSeeOthers) {
+      throw new ForbiddenException('พิมพ์ซ้ำได้เฉพาะกะของตัวเอง');
+    }
+    if (shift.isActive || !shift.closedAt) throw new BadRequestException('กะนี้ยังไม่ปิด');
+    const t = await this.computeShiftTotals(shift);
+    const closeBalance = Number(shift.closeBalance ?? 0);
     return {
-      cashDeposits:     Number(deposits._sum.deposit ?? 0),
-      cashDebtPayments: Number(debtPayments._sum.amount ?? 0),
+      id: shift.id,
+      openedAt: shift.openedAt,
+      closedAt: shift.closedAt,
+      openBalance: Number(shift.openBalance),
+      note: shift.note,
+      user: { id: shift.user.id, name: shift.user.name },
+      summary: this.summaryOf(t, closeBalance),
     };
   }
 

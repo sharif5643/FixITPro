@@ -52,6 +52,15 @@ export class ShiftsController {
     return this.shiftsService.getCurrentShift(userId);
   }
 
+  /** A closed shift's summary, to print it again (own shift; owners / managers any). */
+  @Get(':id/summary')
+  getClosedShiftSummary(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    return this.shiftsService.getClosedShiftSummary(id, user);
+  }
+
   @Get()
   findAll(
     @Query() query: { date?: string; userId?: string; branchId?: string },

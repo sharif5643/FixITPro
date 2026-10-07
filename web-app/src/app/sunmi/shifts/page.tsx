@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { CheckCircle2, ShoppingCart, Wifi, Plus, Printer } from 'lucide-react'
+import { CheckCircle2, ShoppingCart, Wifi, Plus, Printer, History, Loader2 } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
 import { useAppShell } from '@/lib/app-shell'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
@@ -17,6 +17,7 @@ import {
 import { formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
+import { useAuthStore } from '@/store/auth.store'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -235,6 +236,100 @@ function WalletBalances({ shiftId }: { shiftId: string }) {
   )
 }
 
+// ── Shift summary → printable closing report ──────────────────────────────────
+
+function toClosingOpts(
+  summary: CloseSummary,
+  who: { userName: string; openedAt: string | Date; closedAt: string | Date },
+  settings: ShopSettings | undefined,
+): PrintDailyClosingOptions {
+  return {
+    shopName:          settings?.shopName ?? 'FixITPro',
+    shopPhone:         settings?.shopPhone ?? undefined,
+    cashierName:       who.userName,
+    openedAt:          format(new Date(who.openedAt), 'dd/MM/yyyy HH:mm', { locale: th }),
+    closedAt:          format(new Date(who.closedAt), 'dd/MM/yyyy HH:mm', { locale: th }),
+    salesCount:        summary.salesCount,
+    totalSales:        summary.totalSales,
+    repairCount:       summary.repairPayments.count,
+    repairTotal:       summary.repairPayments.totalAmount,
+    packageSaleCount:  summary.packageSales?.count ?? 0,
+    packageSaleTotal:  summary.packageSales?.totalAmount ?? 0,
+    packageSaleProfit: summary.packageSales?.totalProfit ?? 0,
+    expectedBalance:   summary.expectedBalance,
+    actualBalance:     summary.actualBalance,
+    difference:        summary.difference,
+    footer:            settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
+  }
+}
+
+interface ShiftListItem {
+  id: string
+  openedAt: string
+  closedAt: string | null
+  isActive: boolean
+  closeBalance: string | number | null
+  user: { id: string; name: string }
+}
+
+/** Closed shifts to print again: your own; owners and managers see the branch's. */
+function PastShifts({ settings, onPrint }: {
+  settings: ShopSettings | undefined
+  onPrint: (opts: PrintDailyClosingOptions) => void
+}) {
+  const me     = useAuthStore((st) => st.user)
+  const seeAll = me?.role === 'OWNER' || me?.role === 'MANAGER'
+  const [loadingId, setLoadingId] = useState<string | null>(null)
+  const { data: shifts = [] } = useQuery<ShiftListItem[]>({
+    queryKey: ['shifts', 'history', seeAll ? 'all' : me?.id],
+    queryFn:  async () => (await api.get('/shifts', { params: seeAll ? {} : { userId: me?.id } })).data,
+    staleTime: 30_000,
+  })
+  const closed = shifts.filter((x) => !x.isActive && x.closedAt && (seeAll || x.user.id === me?.id)).slice(0, 10)
+  if (closed.length === 0) return null
+
+  async function reprint(x: ShiftListItem) {
+    setLoadingId(x.id)
+    try {
+      const r = (await api.get(`/shifts/${x.id}/summary`)).data
+      onPrint(toClosingOpts(r.summary, { userName: r.user.name, openedAt: r.openedAt, closedAt: r.closedAt }, settings))
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? 'โหลดสรุปกะไม่สำเร็จ')
+    } finally {
+      setLoadingId(null)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden">
+      <p className="flex items-center gap-2 px-4 pt-3 pb-2 text-sm font-bold text-slate-700">
+        <History className="h-4 w-4 text-slate-400" /> พิมพ์สรุปกะย้อนหลัง
+      </p>
+      <div className="divide-y divide-slate-100">
+        {closed.map((x) => (
+          <div key={x.id} className="flex items-center gap-3 px-4 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-800">
+                {format(new Date(x.openedAt), 'd MMM HH:mm', { locale: th })} – {format(new Date(x.closedAt!), 'HH:mm', { locale: th })} น.
+              </p>
+              <p className="text-xs text-slate-400 truncate">
+                {x.user.name} · นับได้ {formatThaiMoney(Number(x.closeBalance ?? 0))}
+              </p>
+            </div>
+            <button
+              onClick={() => reprint(x)}
+              disabled={loadingId !== null}
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-slate-800 px-3 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {loadingId === x.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />} พิมพ์
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SunmiShiftsPage() {
@@ -249,6 +344,7 @@ export default function SunmiShiftsPage() {
   const [closeSummary,  setCloseSummary]  = useState<CloseSummary | null>(null)
   const [closingOpts,   setClosingOpts]   = useState<PrintDailyClosingOptions | null>(null)
   const [showPrint,     setShowPrint]     = useState(false)
+  const [reprintOpts,   setReprintOpts]   = useState<PrintDailyClosingOptions | null>(null)
   const [showCarrierInputs, setShowCarrierInputs] = useState(false)
 
   // Carrier opening balances
@@ -304,25 +400,7 @@ export default function SunmiShiftsPage() {
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
       const summary: CloseSummary = res.data.summary
       setCloseSummary(summary)
-      const now = new Date()
-      setClosingOpts({
-        shopName:          settings?.shopName ?? 'FixITPro',
-        shopPhone:         settings?.shopPhone ?? undefined,
-        cashierName:       shift!.user.name,
-        openedAt:          format(new Date(shift!.openedAt), 'dd/MM/yyyy HH:mm', { locale: th }),
-        closedAt:          format(now, 'dd/MM/yyyy HH:mm', { locale: th }),
-        salesCount:        summary.salesCount,
-        totalSales:        summary.totalSales,
-        repairCount:       summary.repairPayments.count,
-        repairTotal:       summary.repairPayments.totalAmount,
-        packageSaleCount:  summary.packageSales?.count ?? 0,
-        packageSaleTotal:  summary.packageSales?.totalAmount ?? 0,
-        packageSaleProfit: summary.packageSales?.totalProfit ?? 0,
-        expectedBalance:   summary.expectedBalance,
-        actualBalance:     summary.actualBalance,
-        difference:        summary.difference,
-        footer:            settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
-      })
+      setClosingOpts(toClosingOpts(summary, { userName: shift!.user.name, openedAt: shift!.openedAt, closedAt: new Date() }, settings))
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message
@@ -509,6 +587,16 @@ export default function SunmiShiftsPage() {
               ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
               : 'เปิดกะ'}
           </button>
+        <PastShifts settings={settings} onPrint={setReprintOpts} />
+        {reprintOpts && (
+          <PrinterFlowSheet
+            receiptHtml={buildDailyClosingHtml(reprintOpts)}
+            jobName={`สรุปปิดกะ ${reprintOpts.closedAt}`}
+            previewData={buildDailyClosingPreviewData(reprintOpts)}
+            onShare={async () => shareDailyClosing(reprintOpts)}
+            onClose={() => setReprintOpts(null)}
+          />
+        )}
         </div>
       </SunmiShell>
     )
@@ -591,6 +679,16 @@ export default function SunmiShiftsPage() {
             ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
             : 'ปิดกะ'}
         </button>
+        <PastShifts settings={settings} onPrint={setReprintOpts} />
+        {reprintOpts && (
+          <PrinterFlowSheet
+            receiptHtml={buildDailyClosingHtml(reprintOpts)}
+            jobName={`สรุปปิดกะ ${reprintOpts.closedAt}`}
+            previewData={buildDailyClosingPreviewData(reprintOpts)}
+            onShare={async () => shareDailyClosing(reprintOpts)}
+            onClose={() => setReprintOpts(null)}
+          />
+        )}
       </div>
     </SunmiShell>
   )
