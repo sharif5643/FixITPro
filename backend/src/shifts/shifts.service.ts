@@ -13,6 +13,7 @@ import { OpenShiftDto } from './dto/open-shift.dto';
 import { CloseShiftDto } from './dto/close-shift.dto';
 import { CarrierWalletService } from '../carrier-wallet/carrier-wallet.service';
 import { activeShiftWhere } from './active-shift';
+import { buildShiftLedger, staffMoneyOf } from './shift-ledger';
 
 @Injectable()
 export class ShiftsService {
@@ -228,7 +229,7 @@ export class ShiftsService {
 
     return {
       ...updatedShift,
-      summary: this.summaryOf(t, dto.closeBalance),
+      summary: { ...this.summaryOf(t, dto.closeBalance), staff: await this.staffMoney({ ...shift, closedAt: updatedShift.closedAt }) },
     };
   }
 
@@ -416,6 +417,59 @@ export class ShiftsService {
     };
   }
 
+  /** Per person: cash / other money in and out in the shift (never fails a close or a reprint). */
+  private async staffMoney(shift: { id: string; openedAt: Date; closedAt: Date | null; user?: { tenantId: string | null } | null }) {
+    try {
+      return staffMoneyOf(await buildShiftLedger(this.prisma, shift));
+    } catch (err) {
+      this.logger.warn(`staffMoney failed for shift ${shift.id}: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  /** Who may see a shift's money: the people in it, the owner, and the branch manager. */
+  private async assertCanSeeShift(
+    shift: { id: string; userId: string; branchId: string | null; tenantId: string | null },
+    actor: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    if (actor.role !== 'SUPER_ADMIN' && shift.tenantId !== (actor.tenantId ?? null)) {
+      throw new NotFoundException('ไม่พบกะนี้');
+    }
+    const isOwner = actor.role === 'OWNER' || actor.role === 'SUPER_ADMIN';
+    const manager = actor.role === 'MANAGER' && (actor.permissions ?? []).includes('cash_drawer.view_balance') &&
+      (!actor.branchId || shift.branchId === actor.branchId);
+    if (isOwner || manager || shift.userId === actor.id) return;
+    const member = await this.prisma.shiftMember.count({ where: { shiftId: shift.id, userId: actor.id } });
+    if (!member) throw new ForbiddenException('ดูได้เฉพาะกะที่ตัวเองอยู่');
+  }
+
+  /** Every money movement of a shift with who did it, and the totals per person. */
+  async getShiftLedger(
+    shiftId: string,
+    actor: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    const shift = await this.prisma.shift.findFirst({
+      where: { id: shiftId },
+      include: { user: { select: { id: true, name: true, tenantId: true } }, branch: { select: { tenantId: true } } },
+    });
+    if (!shift) throw new NotFoundException('ไม่พบกะนี้');
+    await this.assertCanSeeShift(
+      { id: shift.id, userId: shift.userId, branchId: shift.branchId, tenantId: shift.branch?.tenantId ?? shift.user?.tenantId ?? null },
+      actor,
+    );
+    const entries = await buildShiftLedger(this.prisma, shift);
+    return {
+      id: shift.id,
+      openedAt: shift.openedAt,
+      closedAt: shift.closedAt,
+      isActive: shift.isActive,
+      openBalance: Number(shift.openBalance),
+      openedBy: { id: shift.user.id, name: shift.user.name },
+      staff: staffMoneyOf(entries),
+      entries,
+    };
+  }
+
   /**
    * The summary of a closed shift, to print it again. Anyone may reprint their own shift;
    * owners and managers (cash_drawer.view_balance) any shift of their shop / branch.
@@ -452,7 +506,7 @@ export class ShiftsService {
       openBalance: Number(shift.openBalance),
       note: shift.note,
       user: { id: shift.user.id, name: shift.user.name },
-      summary: this.summaryOf(t, closeBalance),
+      summary: { ...this.summaryOf(t, closeBalance), staff: await this.staffMoney(shift) },
     };
   }
 

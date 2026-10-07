@@ -341,7 +341,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   {[
                     ['รับงาน', format(new Date(repair.receivedAt), 'dd/MM/yyyy HH:mm', { locale: th })],
                     ['อาการ', repair.issue],
-                    ['มัดจำ', `${formatThaiMoney(repair.deposit ?? 0)}`],
+                    ['มัดจำ', `${formatThaiMoney(repair.deposit ?? 0)}${(repair as any).depositReceivedBy ? ` · รับโดย ${(repair as any).depositReceivedBy}` : ''}`],
+                    ...((repair as any).paymentReceivedBy ? [['รับเงินโดย', (repair as any).paymentReceivedBy as string]] : []),
                     ...(repair.estimateCost ? [['ประมาณการ', formatThaiMoney(Number(repair.estimateCost))]] : []),
                     ...(repair.note ? [['หมายเหตุ', repair.note]] : []),
                   ].map(([k, v]) => (

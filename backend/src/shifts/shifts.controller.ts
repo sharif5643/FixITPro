@@ -71,6 +71,15 @@ export class ShiftsController {
     return this.shiftsService.getCurrentShift(userId);
   }
 
+  /** Every money movement of a shift with who did it (people in the shift, owner, branch manager). */
+  @Get(':id/ledger')
+  getShiftLedger(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    return this.shiftsService.getShiftLedger(id, user);
+  }
+
   /** A closed shift's summary, to print it again (own shift; owners / managers any). */
   @Get(':id/summary')
   getClosedShiftSummary(

@@ -471,7 +471,32 @@ export class RepairsService {
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
-    return repair;
+    return { ...repair, ...(await this.moneyReceivedBy(repair)) };
+  }
+
+  /**
+   * Who took the money on this job: the final payment and the deposit (later payments carry
+   * createdBy already). From the audit log, so it works for every job taken since it existed.
+   */
+  private async moneyReceivedBy(repair: { id: string; paidAt?: Date | null; deposit?: unknown }) {
+    try {
+      const logs = await this.prisma.auditLog.findMany({
+        where: { entityId: repair.id, action: { in: ['REPAIR_PAYMENT', 'REPAIR_CREATED'] } },
+        select: { action: true, actorId: true, actorName: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      const pay = repair.paidAt ? logs.find((l) => l.action === 'REPAIR_PAYMENT') : undefined;
+      const dep = Number(repair.deposit ?? 0) > 0 ? logs.find((l) => l.action === 'REPAIR_CREATED') : undefined;
+      const ids = [pay?.actorId, dep?.actorId].filter((x): x is string => !!x);
+      const users = ids.length
+        ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+        : [];
+      const nameOf = (l?: { actorId: string | null; actorName: string | null }) =>
+        l ? (users.find((u) => u.id === l.actorId)?.name ?? l.actorName ?? null) : null;
+      return { paymentReceivedBy: nameOf(pay), depositReceivedBy: nameOf(dep) };
+    } catch {
+      return { paymentReceivedBy: null, depositReceivedBy: null };
+    }
   }
 
   async addImages(repairId: string, images: { url: string; fileSize?: number }[]) {

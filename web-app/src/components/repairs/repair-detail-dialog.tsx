@@ -1134,13 +1134,19 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                       <span>{fmtDate(repair.paidAt)}</span>
                     </div>
                   )}
+                  {(repair as any).paymentReceivedBy && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">รับเงินโดย</span>
+                      <span className="font-medium">{(repair as any).paymentReceivedBy}</span>
+                    </div>
+                  )}
                   {/* Additional payments */}
                   {repair.additionalPayments && repair.additionalPayments.length > 0 && (
                     <div className="border-t border-slate-100 dark:border-slate-700/60 pt-2 mt-2 space-y-1">
                       <p className="text-xs font-semibold text-muted-foreground">ชำระเพิ่มเติม</p>
                       {repair.additionalPayments.map((ap) => (
                         <div key={ap.id} className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">{fmtDate(ap.createdAt)}</span>
+                          <span className="text-muted-foreground">{fmtDate(ap.createdAt)}{(ap as any).createdBy?.name ? ` · รับโดย ${(ap as any).createdBy.name}` : ''}</span>
                           <span className="font-medium tabular-nums">+{formatThaiMoney(Number(ap.amount))}</span>
                         </div>
                       ))}
@@ -1199,7 +1205,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">ค่าใช้จ่าย</p>
                 {Number(repair.deposit) > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">ค่ามัดจำ</span>
+                    <span className="text-muted-foreground">ค่ามัดจำ{(repair as any).depositReceivedBy ? ` · รับโดย ${(repair as any).depositReceivedBy}` : ''}</span>
                     <span className="font-medium tabular-nums">{formatThaiMoney(Number(repair.deposit))}</span>
                   </div>
                 )}

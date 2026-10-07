@@ -19,6 +19,7 @@ import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
 import { useAuthStore } from '@/store/auth.store'
 import { JoinShifts, LeaveShiftButton } from '@/components/shifts/join-shifts'
+import { ShiftLedgerSheet, StaffMoneyTable, type StaffMoney } from '@/components/shifts/shift-ledger'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ type CloseSummary = {
   actualBalance: number
   difference: number
   staffSales?: { userId: string; name: string; salesCount: number; salesTotal: number }[]
+  staff?: StaffMoney[]
 }
 
 type WalletBalance = { carrier: string; balance: number }
@@ -266,6 +268,7 @@ function toClosingOpts(
     difference:        summary.difference,
     footer:            settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
     staffSales:        summary.staffSales,
+    staffCash:         (summary.staff ?? []).map((x) => ({ name: x.name, netCash: x.netCash, otherIn: x.otherIn - x.otherOut })),
   }
 }
 
@@ -280,9 +283,10 @@ interface ShiftListItem {
 }
 
 /** Closed shifts to print again: your own; owners and managers see the branch's. */
-function PastShifts({ settings, onPrint }: {
+function PastShifts({ settings, onPrint, onView }: {
   settings: ShopSettings | undefined
   onPrint: (opts: PrintDailyClosingOptions) => void
+  onView: (shiftId: string) => void
 }) {
   const me     = useAuthStore((st) => st.user)
   const seeAll = me?.role === 'OWNER' || me?.role === 'MANAGER'
@@ -324,6 +328,12 @@ function PastShifts({ settings, onPrint }: {
               </p>
             </div>
             <button
+              onClick={() => onView(x.id)}
+              className="flex h-10 shrink-0 items-center rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700"
+            >
+              รายการ
+            </button>
+            <button
               onClick={() => reprint(x)}
               disabled={loadingId !== null}
               className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-slate-800 px-3 text-sm font-bold text-white disabled:opacity-60"
@@ -352,6 +362,8 @@ export default function SunmiShiftsPage() {
   const [closingOpts,   setClosingOpts]   = useState<PrintDailyClosingOptions | null>(null)
   const [showPrint,     setShowPrint]     = useState(false)
   const [reprintOpts,   setReprintOpts]   = useState<PrintDailyClosingOptions | null>(null)
+  const [ledgerShiftId, setLedgerShiftId] = useState<string | null>(null)
+  const [closedShiftId, setClosedShiftId] = useState<string | null>(null)
   const [showCarrierInputs, setShowCarrierInputs] = useState(false)
 
   // Carrier opening balances
@@ -407,6 +419,7 @@ export default function SunmiShiftsPage() {
       toast.success('ปิดกะสำเร็จ')
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
       const summary: CloseSummary = res.data.summary
+      setClosedShiftId(res.data.id ?? shift!.id)
       setCloseSummary(summary)
       setClosingOpts(toClosingOpts(summary, { userName: shift!.user.name, openedAt: shift!.openedAt, closedAt: new Date() }, settings))
     },
@@ -434,9 +447,7 @@ export default function SunmiShiftsPage() {
           <div className="bg-white rounded-2xl overflow-hidden divide-y divide-slate-100">
             <Row label="ยอดขาย" value={formatThaiMoney(closeSummary.totalSales)} sub={`${closeSummary.salesCount} รายการ`} />
             <Row label="งานซ่อม" value={formatThaiMoney(closeSummary.repairPayments.totalAmount)} sub={`${closeSummary.repairPayments.count} งาน`} />
-            {(closeSummary.staffSales ?? []).length > 1 && closeSummary.staffSales!.map((x) => (
-              <Row key={x.userId} label={`· ${x.name}`} value={formatThaiMoney(x.salesTotal)} sub={`${x.salesCount} บิล`} />
-            ))}
+
             {(closeSummary.packageSales?.count ?? 0) > 0 && (
               <Row
                 label="SIM / แพ็กเกจ"
@@ -453,6 +464,18 @@ export default function SunmiShiftsPage() {
               </span>
             </div>
           </div>
+
+          {(closeSummary.staff ?? []).length > 0 && (
+            <div className="space-y-2">
+              <p className="px-1 text-sm font-bold text-slate-700">ใครรับเงินเท่าไหร่</p>
+              <StaffMoneyTable staff={closeSummary.staff!} />
+              {closedShiftId && (
+                <button onClick={() => setLedgerShiftId(closedShiftId)} className="w-full h-11 rounded-2xl border-2 border-slate-200 bg-white text-sm font-semibold text-slate-700">
+                  ดูทุกรายการเงินในกะนี้
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2 pt-2">
             {closingOpts && (
@@ -481,6 +504,7 @@ export default function SunmiShiftsPage() {
         </div>
       </SunmiShell>
 
+      {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
       {showPrint && closingOpts && (
         <PrinterFlowSheet
           receiptHtml={buildDailyClosingHtml(closingOpts)}
@@ -600,7 +624,8 @@ export default function SunmiShiftsPage() {
               ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
               : 'เปิดกะ'}
           </button>
-        <PastShifts settings={settings} onPrint={setReprintOpts} />
+        <PastShifts settings={settings} onPrint={setReprintOpts} onView={setLedgerShiftId} />
+        {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
         {reprintOpts && (
           <PrinterFlowSheet
             receiptHtml={buildDailyClosingHtml(reprintOpts)}
@@ -660,6 +685,13 @@ export default function SunmiShiftsPage() {
           <Row label="เงินสดที่ควรมีในลิ้นชัก" value={formatThaiMoney(shift.expectedCashBalance)} highlight />
         </div>
 
+        <button
+          onClick={() => setLedgerShiftId(shift.id)}
+          className="w-full h-11 rounded-2xl border-2 border-slate-200 bg-white text-sm font-semibold text-slate-700"
+        >
+          ดูรายการเงินในกะ — ใครรับเท่าไหร่
+        </button>
+
         {/* Carrier wallet balances */}
         <WalletBalances shiftId={shift.id} />
 
@@ -701,7 +733,8 @@ export default function SunmiShiftsPage() {
             ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
             : 'ปิดกะ'}
         </button>
-        <PastShifts settings={settings} onPrint={setReprintOpts} />
+        <PastShifts settings={settings} onPrint={setReprintOpts} onView={setLedgerShiftId} />
+        {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
         {reprintOpts && (
           <PrinterFlowSheet
             receiptHtml={buildDailyClosingHtml(reprintOpts)}

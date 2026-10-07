@@ -49,6 +49,7 @@ import { BranchContextBar } from '@/components/layout/branch-context-bar'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { JoinShifts, LeaveShiftButton } from '@/components/shifts/join-shifts'
+import { ShiftLedgerSheet } from '@/components/shifts/shift-ledger'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +155,7 @@ const CARRIER_COLORS: Record<Carrier, { bg: string; text: string; border: string
 
 export default function ShiftsPage() {
   const queryClient = useQueryClient()
+  const [ledgerShiftId, setLedgerShiftId] = useState<string | null>(null)
   const { hasModule } = useAuthStore()
   const [closeOpen, setCloseOpen] = useState(false)
   const [closeResult, setCloseResult] = useState<CloseShiftResult | null>(null)
@@ -312,6 +314,7 @@ export default function ShiftsPage() {
             </div>
             <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">กะปัจจุบัน — กำลังดำเนินการ</span>
             <span className="ml-auto h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setLedgerShiftId(currentShift.id)}>รายการเงิน</Button>
             {currentShift.joined && <LeaveShiftButton onLeft={refresh} className="h-8" />}
           </div>
           <div className="space-y-4">
@@ -933,6 +936,13 @@ export default function ShiftsPage() {
                       </DataTableCell>
                       <DataTableCell className="text-center">
                         <button
+                          onClick={() => setLedgerShiftId(shift.id)}
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded px-1.5 py-1 transition-colors"
+                          title="รายการเงินในกะ — ใครรับเท่าไหร่"
+                        >
+                          รายการเงิน
+                        </button>
+                        <button
                           onClick={() => {
                             const date = format(new Date(shift.openedAt), 'yyyy-MM-dd')
                             const p = new URLSearchParams({
@@ -1001,12 +1011,19 @@ export default function ShiftsPage() {
                     <Printer className="h-3.5 w-3.5" />
                     พิมพ์รายงานกะนี้
                   </button>
+                  <button
+                    onClick={() => setLedgerShiftId(shift.id)}
+                    className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-lg px-3 py-1.5 w-full justify-center transition-colors"
+                  >
+                    รายการเงิน — ใครรับเท่าไหร่
+                  </button>
                 </div>
               ))}
             </div>
           </>
         )}
       </SectionCard>
+      {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
     </div>
   )
 }
