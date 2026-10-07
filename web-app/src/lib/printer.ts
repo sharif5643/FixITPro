@@ -1537,6 +1537,18 @@ export interface PrintDailyClosingOptions {
   actualBalance:      number
   difference:         number
   footer?:            string
+  /** A shared drawer: who sold what in the shift (shown when more than one person) */
+  staffSales?:        { name: string; salesCount: number; salesTotal: number }[]
+  /** Who took the money: each person's net cash (and transfers) in the shift */
+  staffCash?:         { name: string; netCash: number; otherIn: number }[]
+}
+
+function staffCashOf(opts: PrintDailyClosingOptions) {
+  return opts.staffCash ?? []
+}
+
+function staffSalesOf(opts: PrintDailyClosingOptions) {
+  return (opts.staffSales ?? []).length > 1 ? opts.staffSales! : []
 }
 
 export function buildDailyClosingHtml(opts: PrintDailyClosingOptions): string {
@@ -1557,11 +1569,13 @@ ${shopHeaderHtml(opts)}
 <div class="hr"></div>
 <div class="row"><span>ยอดขาย (${opts.salesCount} รายการ)</span><span class="v">฿${fmtB(opts.totalSales)}</span></div>
 <div class="row"><span>งานซ่อม (${opts.repairCount} งาน)</span><span class="v">฿${fmtB(opts.repairTotal)}</span></div>
+${staffSalesOf(opts).map((x) => `<div class="row xs"><span>· ${x.name} (${x.salesCount})</span><span class="v">฿${fmtB(x.salesTotal)}</span></div>`).join('')}
 ${opts.packageSaleCount > 0 ? `<div class="row"><span>SIM/แพ็กเกจ (${opts.packageSaleCount})</span><span class="v">฿${fmtB(opts.packageSaleTotal)}</span></div>
 <div class="row xs"><span>กำไร SIM</span><span class="v">฿${fmtB(opts.packageSaleProfit)}</span></div>` : ''}
 <div class="hr"></div>
 <div class="row"><span>เงินสดที่ควรมี</span><span class="v b">฿${fmtB(opts.expectedBalance)}</span></div>
 <div class="row"><span>ยอดที่นับได้</span><span class="v b">฿${fmtB(opts.actualBalance)}</span></div>
+${staffCashOf(opts).length ? `<div class="hr"></div><p class="xs b">เงินสดสุทธิต่อคน</p>${staffCashOf(opts).map((x) => `<div class="row xs"><span>${x.name}${x.otherIn ? ` (โอน ฿${fmtB(x.otherIn)})` : ''}</span><span class="v">฿${fmtB(x.netCash)}</span></div>`).join('')}` : ''}
 <div class="hr"></div>
 <div class="total" style="${diffColor}"><span>ส่วนต่าง</span><span class="v">${diffSign}฿${fmtB(diff)}</span></div>
 <div class="hr"></div>
@@ -1579,12 +1593,16 @@ export function buildDailyClosingPreviewData(opts: PrintDailyClosingOptions): Th
     { type: 'separator' },
     { type: 'row', label: `ยอดขาย (${opts.salesCount})`, value: `฿${fmtB(opts.totalSales)}` },
     { type: 'row', label: `งานซ่อม (${opts.repairCount})`, value: `฿${fmtB(opts.repairTotal)}` },
+    ...staffSalesOf(opts).map((x) => ({ type: 'row' as const, label: `· ${x.name} (${x.salesCount})`, value: `฿${fmtB(x.salesTotal)}` })),
     ...(opts.packageSaleCount > 0
       ? [{ type: 'row' as const, label: `SIM/แพ็กเกจ (${opts.packageSaleCount})`, value: `฿${fmtB(opts.packageSaleTotal)}` }]
       : []),
     { type: 'separator' },
     { type: 'row', label: 'เงินสดที่ควรมี', value: `฿${fmtB(opts.expectedBalance)}`, bold: true },
     { type: 'row', label: 'ยอดที่นับได้', value: `฿${fmtB(opts.actualBalance)}`, bold: true },
+    ...(staffCashOf(opts).length
+      ? [{ type: 'separator' as const }, ...staffCashOf(opts).map((x) => ({ type: 'row' as const, label: `เงินสด ${x.name}`, value: `฿${fmtB(x.netCash)}` }))]
+      : []),
     { type: 'separator' },
     { type: 'row', label: 'ส่วนต่าง', value: `${diffSign}฿${fmtB(diff)}`, bold: true },
   ]
@@ -1611,12 +1629,14 @@ export async function shareDailyClosing(opts: PrintDailyClosingOptions): Promise
     HR,
     `ยอดขาย (${opts.salesCount}): ฿${fmtB(opts.totalSales)}`,
     `งานซ่อม (${opts.repairCount}): ฿${fmtB(opts.repairTotal)}`,
+    ...staffSalesOf(opts).map((x) => `  · ${x.name} (${x.salesCount}): ฿${fmtB(x.salesTotal)}`),
     ...(opts.packageSaleCount > 0
       ? [`SIM/แพ็กเกจ (${opts.packageSaleCount}): ฿${fmtB(opts.packageSaleTotal)}`]
       : []),
     HR,
     `เงินสดที่ควรมี: ฿${fmtB(opts.expectedBalance)}`,
     `ยอดที่นับได้:   ฿${fmtB(opts.actualBalance)}`,
+    ...staffCashOf(opts).map((x) => `  เงินสด ${x.name}: ฿${fmtB(x.netCash)}${x.otherIn ? ` (โอน ฿${fmtB(x.otherIn)})` : ''}`),
     `ส่วนต่าง: ${diffSign}฿${fmtB(diff)}`,
     HR,
     opts.footer ?? 'ขอบคุณที่ใช้บริการ',

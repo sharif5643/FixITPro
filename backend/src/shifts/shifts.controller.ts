@@ -42,14 +42,51 @@ export class ShiftsController {
   closeShift(
     @Param('id') id: string,
     @Body() dto: CloseShiftDto,
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: { id: string; role?: string; branchId?: string | null; tenantId?: string | null },
   ) {
-    return this.shiftsService.closeShift(id, dto, userId);
+    return this.shiftsService.closeShift(id, dto, user.id, user);
+  }
+
+  /** Open shifts of my branch I can join (one cash drawer, several people). */
+  @Get('joinable')
+  listJoinable(@CurrentUser() user: { id: string; branchId?: string | null; tenantId?: string | null }) {
+    return this.shiftsService.listJoinable(user);
+  }
+
+  @Post(':id/join')
+  joinShift(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string; name?: string; branchId?: string | null; tenantId?: string | null },
+  ) {
+    return this.shiftsService.joinShift(id, user);
+  }
+
+  @Post('leave')
+  leaveShift(@CurrentUser() user: { id: string; name?: string }) {
+    return this.shiftsService.leaveShift(user);
   }
 
   @Get('current')
   getCurrentShift(@CurrentUser('id') userId: string) {
     return this.shiftsService.getCurrentShift(userId);
+  }
+
+  /** Every money movement of a shift with who did it (people in the shift, owner, branch manager). */
+  @Get(':id/ledger')
+  getShiftLedger(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    return this.shiftsService.getShiftLedger(id, user);
+  }
+
+  /** A closed shift's summary, to print it again (own shift; owners / managers any). */
+  @Get(':id/summary')
+  getClosedShiftSummary(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    return this.shiftsService.getClosedShiftSummary(id, user);
   }
 
   @Get()

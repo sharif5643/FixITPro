@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { CheckCircle2, ShoppingCart, Wifi, Plus, Printer } from 'lucide-react'
+import { CheckCircle2, ShoppingCart, Wifi, Plus, Printer, History, Loader2 } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
 import { useAppShell } from '@/lib/app-shell'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
@@ -17,6 +17,9 @@ import {
 import { formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
+import { useAuthStore } from '@/store/auth.store'
+import { JoinShifts, LeaveShiftButton } from '@/components/shifts/join-shifts'
+import { ShiftLedgerSheet, StaffMoneyTable, type StaffMoney } from '@/components/shifts/shift-ledger'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,6 +40,9 @@ type CurrentShift = {
   packageSaleRevenue: number
   packageSaleAmount: number
   expectedCashBalance: number
+  /** working in someone else's shift (one cash drawer, several people) */
+  joined?: boolean
+  members?: { userId: string; name: string; joinedAt: string }[]
 }
 
 type CloseSummary = {
@@ -47,6 +53,8 @@ type CloseSummary = {
   expectedBalance: number
   actualBalance: number
   difference: number
+  staffSales?: { userId: string; name: string; salesCount: number; salesTotal: number }[]
+  staff?: StaffMoney[]
 }
 
 type WalletBalance = { carrier: string; balance: number }
@@ -235,6 +243,110 @@ function WalletBalances({ shiftId }: { shiftId: string }) {
   )
 }
 
+// ── Shift summary → printable closing report ──────────────────────────────────
+
+function toClosingOpts(
+  summary: CloseSummary,
+  who: { userName: string; openedAt: string | Date; closedAt: string | Date },
+  settings: ShopSettings | undefined,
+): PrintDailyClosingOptions {
+  return {
+    shopName:          settings?.shopName ?? 'FixITPro',
+    shopPhone:         settings?.shopPhone ?? undefined,
+    cashierName:       who.userName,
+    openedAt:          format(new Date(who.openedAt), 'dd/MM/yyyy HH:mm', { locale: th }),
+    closedAt:          format(new Date(who.closedAt), 'dd/MM/yyyy HH:mm', { locale: th }),
+    salesCount:        summary.salesCount,
+    totalSales:        summary.totalSales,
+    repairCount:       summary.repairPayments.count,
+    repairTotal:       summary.repairPayments.totalAmount,
+    packageSaleCount:  summary.packageSales?.count ?? 0,
+    packageSaleTotal:  summary.packageSales?.totalAmount ?? 0,
+    packageSaleProfit: summary.packageSales?.totalProfit ?? 0,
+    expectedBalance:   summary.expectedBalance,
+    actualBalance:     summary.actualBalance,
+    difference:        summary.difference,
+    footer:            settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
+    staffSales:        summary.staffSales,
+    staffCash:         (summary.staff ?? []).map((x) => ({ name: x.name, netCash: x.netCash, otherIn: x.otherIn - x.otherOut })),
+  }
+}
+
+
+interface ShiftListItem {
+  id: string
+  openedAt: string
+  closedAt: string | null
+  isActive: boolean
+  closeBalance: string | number | null
+  user: { id: string; name: string }
+}
+
+/** Closed shifts to print again: your own; owners and managers see the branch's. */
+function PastShifts({ settings, onPrint, onView }: {
+  settings: ShopSettings | undefined
+  onPrint: (opts: PrintDailyClosingOptions) => void
+  onView: (shiftId: string) => void
+}) {
+  const me     = useAuthStore((st) => st.user)
+  const seeAll = me?.role === 'OWNER' || me?.role === 'MANAGER'
+  const [loadingId, setLoadingId] = useState<string | null>(null)
+  const { data: shifts = [] } = useQuery<ShiftListItem[]>({
+    queryKey: ['shifts', 'history', seeAll ? 'all' : me?.id],
+    queryFn:  async () => (await api.get('/shifts', { params: seeAll ? {} : { userId: me?.id } })).data,
+    staleTime: 30_000,
+  })
+  const closed = shifts.filter((x) => !x.isActive && x.closedAt && (seeAll || x.user.id === me?.id)).slice(0, 10)
+  if (closed.length === 0) return null
+
+  async function reprint(x: ShiftListItem) {
+    setLoadingId(x.id)
+    try {
+      const r = (await api.get(`/shifts/${x.id}/summary`)).data
+      onPrint(toClosingOpts(r.summary, { userName: r.user.name, openedAt: r.openedAt, closedAt: r.closedAt }, settings))
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? 'โหลดสรุปกะไม่สำเร็จ')
+    } finally {
+      setLoadingId(null)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden">
+      <p className="flex items-center gap-2 px-4 pt-3 pb-2 text-sm font-bold text-slate-700">
+        <History className="h-4 w-4 text-slate-400" /> พิมพ์สรุปกะย้อนหลัง
+      </p>
+      <div className="divide-y divide-slate-100">
+        {closed.map((x) => (
+          <div key={x.id} className="flex items-center gap-3 px-4 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-800">
+                {format(new Date(x.openedAt), 'd MMM HH:mm', { locale: th })} – {format(new Date(x.closedAt!), 'HH:mm', { locale: th })} น.
+              </p>
+              <p className="text-xs text-slate-400 truncate">
+                {x.user.name} · นับได้ {formatThaiMoney(Number(x.closeBalance ?? 0))}
+              </p>
+            </div>
+            <button
+              onClick={() => onView(x.id)}
+              className="flex h-10 shrink-0 items-center rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700"
+            >
+              รายการ
+            </button>
+            <button
+              onClick={() => reprint(x)}
+              disabled={loadingId !== null}
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-slate-800 px-3 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {loadingId === x.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />} พิมพ์
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SunmiShiftsPage() {
@@ -249,6 +361,9 @@ export default function SunmiShiftsPage() {
   const [closeSummary,  setCloseSummary]  = useState<CloseSummary | null>(null)
   const [closingOpts,   setClosingOpts]   = useState<PrintDailyClosingOptions | null>(null)
   const [showPrint,     setShowPrint]     = useState(false)
+  const [reprintOpts,   setReprintOpts]   = useState<PrintDailyClosingOptions | null>(null)
+  const [ledgerShiftId, setLedgerShiftId] = useState<string | null>(null)
+  const [closedShiftId, setClosedShiftId] = useState<string | null>(null)
   const [showCarrierInputs, setShowCarrierInputs] = useState(false)
 
   // Carrier opening balances
@@ -293,6 +408,7 @@ export default function SunmiShiftsPage() {
     },
   })
 
+
   const closeMutation = useMutation({
     mutationFn: () =>
       api.post(`/shifts/${shift!.id}/close`, {
@@ -303,26 +419,9 @@ export default function SunmiShiftsPage() {
       toast.success('ปิดกะสำเร็จ')
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
       const summary: CloseSummary = res.data.summary
+      setClosedShiftId(res.data.id ?? shift!.id)
       setCloseSummary(summary)
-      const now = new Date()
-      setClosingOpts({
-        shopName:          settings?.shopName ?? 'FixITPro',
-        shopPhone:         settings?.shopPhone ?? undefined,
-        cashierName:       shift!.user.name,
-        openedAt:          format(new Date(shift!.openedAt), 'dd/MM/yyyy HH:mm', { locale: th }),
-        closedAt:          format(now, 'dd/MM/yyyy HH:mm', { locale: th }),
-        salesCount:        summary.salesCount,
-        totalSales:        summary.totalSales,
-        repairCount:       summary.repairPayments.count,
-        repairTotal:       summary.repairPayments.totalAmount,
-        packageSaleCount:  summary.packageSales?.count ?? 0,
-        packageSaleTotal:  summary.packageSales?.totalAmount ?? 0,
-        packageSaleProfit: summary.packageSales?.totalProfit ?? 0,
-        expectedBalance:   summary.expectedBalance,
-        actualBalance:     summary.actualBalance,
-        difference:        summary.difference,
-        footer:            settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
-      })
+      setClosingOpts(toClosingOpts(summary, { userName: shift!.user.name, openedAt: shift!.openedAt, closedAt: new Date() }, settings))
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message
@@ -348,6 +447,7 @@ export default function SunmiShiftsPage() {
           <div className="bg-white rounded-2xl overflow-hidden divide-y divide-slate-100">
             <Row label="ยอดขาย" value={formatThaiMoney(closeSummary.totalSales)} sub={`${closeSummary.salesCount} รายการ`} />
             <Row label="งานซ่อม" value={formatThaiMoney(closeSummary.repairPayments.totalAmount)} sub={`${closeSummary.repairPayments.count} งาน`} />
+
             {(closeSummary.packageSales?.count ?? 0) > 0 && (
               <Row
                 label="SIM / แพ็กเกจ"
@@ -364,6 +464,18 @@ export default function SunmiShiftsPage() {
               </span>
             </div>
           </div>
+
+          {(closeSummary.staff ?? []).length > 0 && (
+            <div className="space-y-2">
+              <p className="px-1 text-sm font-bold text-slate-700">ใครรับเงินเท่าไหร่</p>
+              <StaffMoneyTable staff={closeSummary.staff!} />
+              {closedShiftId && (
+                <button onClick={() => setLedgerShiftId(closedShiftId)} className="w-full h-11 rounded-2xl border-2 border-slate-200 bg-white text-sm font-semibold text-slate-700">
+                  ดูทุกรายการเงินในกะนี้
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2 pt-2">
             {closingOpts && (
@@ -392,6 +504,7 @@ export default function SunmiShiftsPage() {
         </div>
       </SunmiShell>
 
+      {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
       {showPrint && closingOpts && (
         <PrinterFlowSheet
           receiptHtml={buildDailyClosingHtml(closingOpts)}
@@ -434,6 +547,8 @@ export default function SunmiShiftsPage() {
               <p className="text-xs text-amber-600 mt-0.5">กรุณาเปิดกะก่อนเริ่มขายสินค้า</p>
             </div>
           </div>
+
+          <JoinShifts onJoined={() => queryClient.invalidateQueries({ queryKey: ['shifts'] })} />
 
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-600">ยอดเปิดกะ (บาท)</label>
@@ -509,6 +624,17 @@ export default function SunmiShiftsPage() {
               ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
               : 'เปิดกะ'}
           </button>
+        <PastShifts settings={settings} onPrint={setReprintOpts} onView={setLedgerShiftId} />
+        {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
+        {reprintOpts && (
+          <PrinterFlowSheet
+            receiptHtml={buildDailyClosingHtml(reprintOpts)}
+            jobName={`สรุปปิดกะ ${reprintOpts.closedAt}`}
+            previewData={buildDailyClosingPreviewData(reprintOpts)}
+            onShare={async () => shareDailyClosing(reprintOpts)}
+            onClose={() => setReprintOpts(null)}
+          />
+        )}
         </div>
       </SunmiShell>
     )
@@ -525,15 +651,24 @@ export default function SunmiShiftsPage() {
         {/* Status */}
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3">
           <div className="h-3 w-3 rounded-full bg-green-500 shrink-0 shadow-[0_0_0_4px_rgba(34,197,94,0.15)]" />
-          <div>
-            <p className="font-bold text-green-800">กะเปิดอยู่</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-green-800">{shift.joined ? `ร่วมกะของ ${shift.user.name}` : 'กะเปิดอยู่'}</p>
             <p className="text-xs text-green-600 mt-0.5">
               เปิดตั้งแต่ {format(new Date(shift.openedAt), 'HH:mm', { locale: th })} น.
               {' · '}
               {shift.user.name}
+              {(shift.members ?? []).length > 0 && ` · ร่วมกะ: ${(shift.members ?? []).map((m) => m.name).join(', ')}`}
             </p>
           </div>
+          {shift.joined && (
+            <LeaveShiftButton onLeft={() => queryClient.invalidateQueries({ queryKey: ['shifts'] })} />
+          )}
         </div>
+        {shift.joined && (
+          <p className="text-xs text-slate-500 px-1">
+            ใช้ลิ้นชักเดียวกัน — ยอดขายของคุณรวมอยู่ในกะนี้ นับเงินและปิดกะครั้งเดียวตอนจบ (ใครในกะปิดก็ได้)
+          </p>
+        )}
 
         {/* Cash summary */}
         <div className="bg-white rounded-2xl overflow-hidden divide-y divide-slate-100">
@@ -549,6 +684,13 @@ export default function SunmiShiftsPage() {
           )}
           <Row label="เงินสดที่ควรมีในลิ้นชัก" value={formatThaiMoney(shift.expectedCashBalance)} highlight />
         </div>
+
+        <button
+          onClick={() => setLedgerShiftId(shift.id)}
+          className="w-full h-11 rounded-2xl border-2 border-slate-200 bg-white text-sm font-semibold text-slate-700"
+        >
+          ดูรายการเงินในกะ — ใครรับเท่าไหร่
+        </button>
 
         {/* Carrier wallet balances */}
         <WalletBalances shiftId={shift.id} />
@@ -591,6 +733,17 @@ export default function SunmiShiftsPage() {
             ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
             : 'ปิดกะ'}
         </button>
+        <PastShifts settings={settings} onPrint={setReprintOpts} onView={setLedgerShiftId} />
+        {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
+        {reprintOpts && (
+          <PrinterFlowSheet
+            receiptHtml={buildDailyClosingHtml(reprintOpts)}
+            jobName={`สรุปปิดกะ ${reprintOpts.closedAt}`}
+            previewData={buildDailyClosingPreviewData(reprintOpts)}
+            onShare={async () => shareDailyClosing(reprintOpts)}
+            onClose={() => setReprintOpts(null)}
+          />
+        )}
       </div>
     </SunmiShell>
   )

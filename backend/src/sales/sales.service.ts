@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { activeShiftWhere } from '../shifts/active-shift';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService, LARGE_REFUND_THRESHOLD } from '../notifications/notifications.service';
@@ -100,7 +101,7 @@ export class SalesService {
     if (branchId) await this.assertBranchActive(branchId, tenantId);
 
     const activeShift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
       select: { id: true },
     });
     if (!activeShift) {
@@ -739,7 +740,7 @@ export class SalesService {
 
   async voidSale(id: string, reason: string, userId: string, tenantId?: string | null) {
     const activeShift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
       select: { id: true },
     });
     if (!activeShift) {
@@ -947,7 +948,7 @@ export class SalesService {
     }
 
     const activeShift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
       select: { id: true },
     });
     if (!activeShift) throw new BadRequestException('กรุณาเปิดกะก่อนทำรายการเปลี่ยนสินค้า');

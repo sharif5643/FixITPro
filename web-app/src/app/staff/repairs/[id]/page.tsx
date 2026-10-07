@@ -1204,6 +1204,12 @@ export default function RepairDetailPage() {
                       <span className="text-slate-600">{fmtDate(repair.paidAt)}</span>
                     </div>
                   )}
+                  {(repair as any).paymentReceivedBy && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">รับเงินโดย</span>
+                      <span className="font-medium text-slate-700">{(repair as any).paymentReceivedBy}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Additional payments list */}
@@ -1212,7 +1218,7 @@ export default function RepairDetailPage() {
                     <p className="text-xs font-semibold text-slate-400">ชำระเพิ่มเติม</p>
                     {repair.additionalPayments.map((ap) => (
                       <div key={ap.id} className="flex justify-between text-xs">
-                        <span className="text-slate-400">{fmtDate(ap.createdAt)} · {pmLabel(ap.paymentMethod)}</span>
+                        <span className="text-slate-400">{fmtDate(ap.createdAt)} · {pmLabel(ap.paymentMethod)}{(ap as any).createdBy?.name ? ` · ${(ap as any).createdBy.name}` : ''}</span>
                         <span className="font-medium tabular-nums">+{fmtMoney(Number(ap.amount))}</span>
                       </div>
                     ))}

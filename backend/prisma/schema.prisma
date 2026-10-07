@@ -474,6 +474,7 @@ model User {
   refreshTokens RefreshToken[]
 
   shifts                   Shift[]
+  shiftMemberships         ShiftMember[]
   sales                    Sale[]
   repairs                  Repair[]
   purchaseOrders           PurchaseOrder[]
@@ -544,12 +545,28 @@ model Shift {
   ntOpeningBalance   Decimal? @db.Decimal(12, 2)
 
   sales          Sale[]
-  repairPayments Repair[]  @relation("RepairPayments")
+  repairPayments Repair[]      @relation("RepairPayments")
   expenses       Expense[]
+  members        ShiftMember[]
 
   @@index([userId])
   @@index([isActive])
   @@index([openedAt])
+}
+
+/// Staff who joined someone else's shift (one cash drawer used by several people). Their sales and
+/// payments go into that shift; the drawer is counted once when the shift closes.
+model ShiftMember {
+  id       String    @id @default(cuid())
+  shiftId  String
+  shift    Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  @@unique([shiftId, userId])
+  @@index([userId, leftAt])
 }
 
 model CategoryType {

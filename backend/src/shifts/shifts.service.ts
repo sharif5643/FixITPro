@@ -12,6 +12,8 @@ import { NotificationsService, SHIFT_MISMATCH_THRESHOLD } from '../notifications
 import { OpenShiftDto } from './dto/open-shift.dto';
 import { CloseShiftDto } from './dto/close-shift.dto';
 import { CarrierWalletService } from '../carrier-wallet/carrier-wallet.service';
+import { activeShiftWhere } from './active-shift';
+import { buildShiftLedger, staffMoneyOf } from './shift-ledger';
 
 @Injectable()
 export class ShiftsService {
@@ -39,11 +41,14 @@ export class ShiftsService {
     if (branchId) await this.assertBranchActive(branchId);
 
     const activeShift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
     });
 
     if (activeShift) {
       this.logger.warn(`openShift rejected: userId=${userId} already has active shift id=${activeShift.id}`);
+      if (activeShift.userId !== userId) {
+        throw new BadRequestException('คุณเข้าร่วมกะของคนอื่นอยู่ — ออกจากกะก่อนจึงจะเปิดกะเองได้');
+      }
       throw new BadRequestException('You already have an open shift');
     }
 
@@ -148,18 +153,128 @@ export class ShiftsService {
     return shift;
   }
 
-  async closeShift(shiftId: string, dto: CloseShiftDto, userId: string) {
+  /**
+   * Close a shift and count the drawer. With a shared drawer anyone working in the shift may
+   * close it (the one who opened it or anyone who joined), and so may the owner, or a manager of
+   * that branch. Everyone who joined leaves it with the close.
+   */
+  async closeShift(
+    shiftId: string,
+    dto: CloseShiftDto,
+    userId: string,
+    actor?: { role?: string; branchId?: string | null; tenantId?: string | null },
+  ) {
     const shift = await this.prisma.shift.findFirst({
-      where: { id: shiftId, userId, isActive: true },
-      include: { user: { select: { tenantId: true } } },
+      where: { id: shiftId, isActive: true },
+      include: {
+        user: { select: { tenantId: true } },
+        members: { where: { leftAt: null }, select: { userId: true } },
+      },
     });
 
     if (!shift) throw new NotFoundException('Active shift not found');
+    const works = shift.userId === userId || (shift.members ?? []).some((m) => m.userId === userId);
+    const sameShop = !!actor?.tenantId && shift.user?.tenantId === actor.tenantId;
+    const boss = actor?.role === 'SUPER_ADMIN'
+      || (actor?.role === 'OWNER' && sameShop)
+      || (actor?.role === 'MANAGER' && sameShop && (!actor.branchId || actor.branchId === shift.branchId));
+    if (!works && !boss) throw new NotFoundException('Active shift not found');
 
+    const t = await this.computeShiftTotals(shift);
+    const { salesCount, totalSales, cashSales, cashRepairs, cashSupplierPayments, cashExpensesTotal, cashRefundsTotal, expectedBalance } = t;
+
+    this.logger.log(
+      `ShiftClose id=${shiftId} sales=${salesCount} total=${totalSales} cashSales=${cashSales} cashRepairs=${cashRepairs} cashSupplier=${cashSupplierPayments} cashExpenses=${cashExpensesTotal} cashRefunds=${cashRefundsTotal} expected=${expectedBalance}`,
+    );
+
+    const updatedShift = await this.prisma.shift.update({
+      where: { id: shiftId },
+      data: {
+        closedAt: new Date(),
+        closeBalance: dto.closeBalance,
+        isActive: false,
+        note: dto.note,
+      },
+      include: { user: { select: { id: true, name: true } } },
+    });
+    // Everyone who joined the shift leaves it with the close
+    await this.prisma.shiftMember.updateMany({ where: { shiftId, leftAt: null }, data: { leftAt: new Date() } });
+
+    await this.auditLog.log({
+      actorId: userId,
+      actorName: updatedShift.user.name,
+      action: 'SHIFT_CLOSED',
+      entityType: 'Shift',
+      entityId: shiftId,
+      afterData: {
+        closeBalance: dto.closeBalance,
+        totalSales,
+        salesCount,
+        expectedBalance,
+        difference: dto.closeBalance - expectedBalance,
+      },
+    });
+
+    const difference = dto.closeBalance - expectedBalance;
+    if (Math.abs(difference) > SHIFT_MISMATCH_THRESHOLD) {
+      await this.notif.notify({
+        type:       'SHIFT_MISMATCH',
+        title:      `เงินในลิ้นชักไม่ตรง: ${difference > 0 ? '+' : ''}${difference.toFixed(0)} บาท`,
+        message:    `กะของ ${updatedShift.user.name} — คาดว่า ${expectedBalance.toFixed(0)} บาท แต่นับได้ ${dto.closeBalance.toFixed(0)} บาท (ผิดพลาด ${Math.abs(difference).toFixed(0)} บาท)`,
+        severity:   Math.abs(difference) > 500 ? 'ERROR' : 'WARNING',
+        entityType: 'Shift',
+        entityId:   shiftId,
+      });
+    }
+
+    return {
+      ...updatedShift,
+      summary: { ...this.summaryOf(t, dto.closeBalance), staff: await this.staffMoney({ ...shift, closedAt: updatedShift.closedAt }) },
+    };
+  }
+
+  // Cash taken in this shift outside sales/final repair payments: repair deposits at intake and
+  // debt payments (RepairAdditionalPayment). Both belong in the drawer's expected cash.
+  /** Cash taken in this shift for SIM/package sales sold earlier on credit. */
+  private async getCashPackageDebtPayments(shiftId: string) {
+    const agg = await this.prisma.packageSaleDebtPayment.aggregate({
+      where: { shiftId, paymentMethod: 'CASH' },
+      _sum: { amount: true },
+    });
+    return Number(agg?._sum?.amount ?? 0);
+  }
+
+  private async getCashRepairInflows(shiftId: string) {
+    const [deposits, debtPayments] = await Promise.all([
+      this.prisma.repair.aggregate({
+        where: { depositShiftId: shiftId, depositPaymentMethod: 'CASH' },
+        _sum:  { deposit: true },
+      }),
+      this.prisma.repairAdditionalPayment.aggregate({
+        where: { shiftId, paymentMethod: 'CASH' },
+        _sum:  { amount: true },
+      }),
+    ]);
+    return {
+      cashDeposits:     Number(deposits._sum.deposit ?? 0),
+      cashDebtPayments: Number(debtPayments._sum.amount ?? 0),
+    };
+  }
+
+  /**
+   * Shift totals: sales, repair payments, supplier payments, package sales, cash expenses and
+   * refunds, and the cash the drawer should hold. Used when closing a shift and to reprint the
+   * summary of a closed one (same numbers both times).
+   */
+  private async computeShiftTotals(shift: { id: string; openedAt: Date; closedAt: Date | null; openBalance: unknown; user?: { tenantId: string | null } | null }) {
+    const shiftId = shift.id;
     const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg, packageSalesByCarrier, repairInflows] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId, status: { not: 'VOIDED' } },
-        select: { total: true, paymentMethod: true, payments: { select: { paymentMethod: true, amount: true } } },
+        select: {
+          total: true, paymentMethod: true, payments: { select: { paymentMethod: true, amount: true } },
+          userId: true, user: { select: { name: true } },
+        },
       }),
       this.prisma.repair.findMany({
         where: { paymentShiftId: shiftId },
@@ -191,6 +306,16 @@ export class ShiftsService {
 
     const totalSales = sales.reduce((sum, s) => sum + Number(s.total), 0);
     const salesCount = sales.length;
+    // Who sold what in this shift (a shared drawer has several people)
+    const byStaff = new Map<string, { userId: string; name: string; salesCount: number; salesTotal: number }>();
+    for (const sale of sales as Array<{ total: unknown; userId?: string; user?: { name: string } | null }>) {
+      const id = sale.userId ?? 'unknown';
+      const row = byStaff.get(id) ?? { userId: id, name: sale.user?.name ?? '-', salesCount: 0, salesTotal: 0 };
+      row.salesCount += 1;
+      row.salesTotal += Number(sale.total);
+      byStaff.set(id, row);
+    }
+    const staffSales = [...byStaff.values()].sort((a, b) => b.salesTotal - a.salesTotal);
 
     const paymentBreakdown = sales.reduce(
       (acc, s) => {
@@ -246,116 +371,151 @@ export class ShiftsService {
       Number(shift.openBalance) + cashSales + cashRepairs + cashDeposits + cashDebtPayments + cashPackageSales
       - cashSupplierPayments - cashExpensesTotal - cashRefundsTotal;
 
-    this.logger.log(
-      `ShiftClose id=${shiftId} sales=${salesCount} total=${totalSales} cashSales=${cashSales} cashRepairs=${cashRepairs} cashSupplier=${cashSupplierPayments} cashExpenses=${cashExpensesTotal} cashRefunds=${cashRefundsTotal} expected=${expectedBalance}`,
-    );
-
-    const updatedShift = await this.prisma.shift.update({
-      where: { id: shiftId },
-      data: {
-        closedAt: new Date(),
-        closeBalance: dto.closeBalance,
-        isActive: false,
-        note: dto.note,
-      },
-      include: { user: { select: { id: true, name: true } } },
-    });
-
-    await this.auditLog.log({
-      actorId: userId,
-      actorName: updatedShift.user.name,
-      action: 'SHIFT_CLOSED',
-      entityType: 'Shift',
-      entityId: shiftId,
-      afterData: {
-        closeBalance: dto.closeBalance,
-        totalSales,
-        salesCount,
-        expectedBalance,
-        difference: dto.closeBalance - expectedBalance,
-      },
-    });
-
-    const difference = dto.closeBalance - expectedBalance;
-    if (Math.abs(difference) > SHIFT_MISMATCH_THRESHOLD) {
-      await this.notif.notify({
-        type:       'SHIFT_MISMATCH',
-        title:      `เงินในลิ้นชักไม่ตรง: ${difference > 0 ? '+' : ''}${difference.toFixed(0)} บาท`,
-        message:    `กะของ ${updatedShift.user.name} — คาดว่า ${expectedBalance.toFixed(0)} บาท แต่นับได้ ${dto.closeBalance.toFixed(0)} บาท (ผิดพลาด ${Math.abs(difference).toFixed(0)} บาท)`,
-        severity:   Math.abs(difference) > 500 ? 'ERROR' : 'WARNING',
-        entityType: 'Shift',
-        entityId:   shiftId,
-      });
-    }
-
     return {
-      ...updatedShift,
-      summary: {
-        salesCount,
-        totalSales,
-        paymentBreakdown,
-        repairPayments: {
-          count: repairPayments.length,
-          totalAmount: repairTotalAmount,
-          paymentBreakdown: repairBreakdown,
-        },
-        supplierPayments: {
-          count: supplierPayments.length,
-          totalAmount: supplierTotalAmount,
-          paymentBreakdown: supplierBreakdown,
-        },
-        packageSales: {
-          count: packageSales.length,
-          totalAmount: packageSaleTotalAmount,
-          totalProfit: packageSaleProfit,
-          byCarrier: packageSalesByCarrier,
-          cashReceived: cashPackageSales,
-          cashDebtPayments: cashPackageDebtPayments,
-        },
-        cashDeposits,
-        cashDebtPayments,
-        cashExpenses: cashExpensesTotal,
-        cashRefunds: cashRefundsTotal,
-        expectedBalance,
-        actualBalance: dto.closeBalance,
-        difference: dto.closeBalance - expectedBalance,
-      },
+      salesCount, totalSales, paymentBreakdown, staffSales,
+      repairPayments, repairTotalAmount, repairBreakdown,
+      supplierPayments, supplierTotalAmount, supplierBreakdown,
+      packageSales, packageSaleTotalAmount, packageSaleProfit, packageSalesByCarrier,
+      cashPackageSales, cashPackageDebtPayments,
+      cashDeposits, cashDebtPayments,
+      cashSales, cashRepairs, cashSupplierPayments, cashExpensesTotal, cashRefundsTotal,
+      expectedBalance,
     };
   }
 
-  // Cash taken in this shift outside sales/final repair payments: repair deposits at intake and
-  // debt payments (RepairAdditionalPayment). Both belong in the drawer's expected cash.
-  /** Cash taken in this shift for SIM/package sales sold earlier on credit. */
-  private async getCashPackageDebtPayments(shiftId: string) {
-    const agg = await this.prisma.packageSaleDebtPayment.aggregate({
-      where: { shiftId, paymentMethod: 'CASH' },
-      _sum: { amount: true },
-    });
-    return Number(agg?._sum?.amount ?? 0);
+  private summaryOf(t: Awaited<ReturnType<ShiftsService['computeShiftTotals']>>, closeBalance: number) {
+    return {
+      salesCount: t.salesCount,
+      totalSales: t.totalSales,
+      paymentBreakdown: t.paymentBreakdown,
+      staffSales: t.staffSales,
+      repairPayments: {
+        count: t.repairPayments.length,
+        totalAmount: t.repairTotalAmount,
+        paymentBreakdown: t.repairBreakdown,
+      },
+      supplierPayments: {
+        count: t.supplierPayments.length,
+        totalAmount: t.supplierTotalAmount,
+        paymentBreakdown: t.supplierBreakdown,
+      },
+      packageSales: {
+        count: t.packageSales.length,
+        totalAmount: t.packageSaleTotalAmount,
+        totalProfit: t.packageSaleProfit,
+        byCarrier: t.packageSalesByCarrier,
+        cashReceived: t.cashPackageSales,
+        cashDebtPayments: t.cashPackageDebtPayments,
+      },
+      cashDeposits: t.cashDeposits,
+      cashDebtPayments: t.cashDebtPayments,
+      cashExpenses: t.cashExpensesTotal,
+      cashRefunds: t.cashRefundsTotal,
+      expectedBalance: t.expectedBalance,
+      actualBalance: closeBalance,
+      difference: closeBalance - t.expectedBalance,
+    };
   }
 
-  private async getCashRepairInflows(shiftId: string) {
-    const [deposits, debtPayments] = await Promise.all([
-      this.prisma.repair.aggregate({
-        where: { depositShiftId: shiftId, depositPaymentMethod: 'CASH' },
-        _sum:  { deposit: true },
-      }),
-      this.prisma.repairAdditionalPayment.aggregate({
-        where: { shiftId, paymentMethod: 'CASH' },
-        _sum:  { amount: true },
-      }),
-    ]);
+  /** Per person: cash / other money in and out in the shift (never fails a close or a reprint). */
+  private async staffMoney(shift: { id: string; openedAt: Date; closedAt: Date | null; user?: { tenantId: string | null } | null }) {
+    try {
+      return staffMoneyOf(await buildShiftLedger(this.prisma, shift));
+    } catch (err) {
+      this.logger.warn(`staffMoney failed for shift ${shift.id}: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  /** Who may see a shift's money: the people in it, the owner, and the branch manager. */
+  private async assertCanSeeShift(
+    shift: { id: string; userId: string; branchId: string | null; tenantId: string | null },
+    actor: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    if (actor.role !== 'SUPER_ADMIN' && shift.tenantId !== (actor.tenantId ?? null)) {
+      throw new NotFoundException('ไม่พบกะนี้');
+    }
+    const isOwner = actor.role === 'OWNER' || actor.role === 'SUPER_ADMIN';
+    const manager = actor.role === 'MANAGER' && (actor.permissions ?? []).includes('cash_drawer.view_balance') &&
+      (!actor.branchId || shift.branchId === actor.branchId);
+    if (isOwner || manager || shift.userId === actor.id) return;
+    const member = await this.prisma.shiftMember.count({ where: { shiftId: shift.id, userId: actor.id } });
+    if (!member) throw new ForbiddenException('ดูได้เฉพาะกะที่ตัวเองอยู่');
+  }
+
+  /** Every money movement of a shift with who did it, and the totals per person. */
+  async getShiftLedger(
+    shiftId: string,
+    actor: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    const shift = await this.prisma.shift.findFirst({
+      where: { id: shiftId },
+      include: { user: { select: { id: true, name: true, tenantId: true } }, branch: { select: { tenantId: true } } },
+    });
+    if (!shift) throw new NotFoundException('ไม่พบกะนี้');
+    await this.assertCanSeeShift(
+      { id: shift.id, userId: shift.userId, branchId: shift.branchId, tenantId: shift.branch?.tenantId ?? shift.user?.tenantId ?? null },
+      actor,
+    );
+    const entries = await buildShiftLedger(this.prisma, shift);
     return {
-      cashDeposits:     Number(deposits._sum.deposit ?? 0),
-      cashDebtPayments: Number(debtPayments._sum.amount ?? 0),
+      id: shift.id,
+      openedAt: shift.openedAt,
+      closedAt: shift.closedAt,
+      isActive: shift.isActive,
+      openBalance: Number(shift.openBalance),
+      openedBy: { id: shift.user.id, name: shift.user.name },
+      staff: staffMoneyOf(entries),
+      entries,
+    };
+  }
+
+  /**
+   * The summary of a closed shift, to print it again. Anyone may reprint their own shift;
+   * owners and managers (cash_drawer.view_balance) any shift of their shop / branch.
+   */
+  async getClosedShiftSummary(
+    shiftId: string,
+    actor: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    const shift = await this.prisma.shift.findFirst({
+      where: { id: shiftId },
+      include: { user: { select: { id: true, name: true, tenantId: true } }, branch: { select: { tenantId: true } } },
+    });
+    const shopOf = shift ? (shift.branch?.tenantId ?? shift.user?.tenantId ?? null) : null;
+    if (!shift || (actor.role !== 'SUPER_ADMIN' && shopOf !== (actor.tenantId ?? null))) {
+      throw new NotFoundException('ไม่พบกะนี้');
+    }
+    const isOwner = actor.role === 'OWNER' || actor.role === 'SUPER_ADMIN';
+    const canSeeOthers = isOwner ||
+      ((actor.permissions ?? []).includes('cash_drawer.view_balance') && actor.role === 'MANAGER' &&
+        (!actor.branchId || shift.branchId === actor.branchId));
+    const wasMember = shift.userId !== actor.id && !canSeeOthers
+      ? (await this.prisma.shiftMember.count({ where: { shiftId, userId: actor.id } })) > 0
+      : false;
+    if (shift.userId !== actor.id && !canSeeOthers && !wasMember) {
+      throw new ForbiddenException('พิมพ์ซ้ำได้เฉพาะกะของตัวเอง');
+    }
+    if (shift.isActive || !shift.closedAt) throw new BadRequestException('กะนี้ยังไม่ปิด');
+    const t = await this.computeShiftTotals(shift);
+    const closeBalance = Number(shift.closeBalance ?? 0);
+    return {
+      id: shift.id,
+      openedAt: shift.openedAt,
+      closedAt: shift.closedAt,
+      openBalance: Number(shift.openBalance),
+      note: shift.note,
+      user: { id: shift.user.id, name: shift.user.name },
+      summary: { ...this.summaryOf(t, closeBalance), staff: await this.staffMoney(shift) },
     };
   }
 
   async getCurrentShift(userId: string) {
     const shift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
       include: {
         user: { select: { id: true, name: true, tenantId: true } },
+        members: { where: { leftAt: null }, select: { userId: true, joinedAt: true, user: { select: { name: true } } } },
       },
     });
 
@@ -422,6 +582,9 @@ export class ShiftsService {
 
     return {
       ...shift,
+      // joined: this person works in someone else's shift (shared drawer)
+      joined: shift.userId !== userId,
+      members: (shift.members ?? []).map((m) => ({ userId: m.userId, name: m.user.name, joinedAt: m.joinedAt })),
       salesCount: sales.length,
       totalSales,
       repairCount: repairPayments.length,
@@ -441,10 +604,81 @@ export class ShiftsService {
     };
   }
 
+  /** Open shifts this person could join: same shop, and their own branch when they have one. */
+  async listJoinable(user: { id: string; branchId?: string | null; tenantId?: string | null }) {
+    if (!user.tenantId) return [];
+    const shifts = await this.prisma.shift.findMany({
+      where: {
+        isActive: true,
+        userId: { not: user.id },
+        user: { tenantId: user.tenantId },
+        ...(user.branchId ? { branchId: user.branchId } : {}),
+      },
+      include: {
+        user: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
+        members: { where: { leftAt: null }, select: { user: { select: { name: true } } } },
+      },
+      orderBy: { openedAt: 'desc' },
+    });
+    return shifts.map((x) => ({
+      id: x.id,
+      openedAt: x.openedAt,
+      user: x.user,
+      branch: x.branch,
+      members: x.members.map((m) => m.user.name),
+    }));
+  }
+
+  /** Work in someone else's open shift (one cash drawer, several people). */
+  async joinShift(shiftId: string, user: { id: string; name?: string; branchId?: string | null; tenantId?: string | null }) {
+    const shift = await this.prisma.shift.findFirst({
+      where: { id: shiftId, isActive: true },
+      include: { user: { select: { tenantId: true, name: true } } },
+    });
+    if (!shift || !user.tenantId || shift.user?.tenantId !== user.tenantId) {
+      throw new NotFoundException('ไม่พบกะที่เปิดอยู่');
+    }
+    if (user.branchId && shift.branchId && shift.branchId !== user.branchId) {
+      throw new BadRequestException('เข้าร่วมได้เฉพาะกะของสาขาตัวเอง');
+    }
+    if (shift.userId === user.id) throw new BadRequestException('นี่คือกะของคุณเอง');
+    const current = await this.prisma.shift.findFirst({ where: activeShiftWhere(user.id), select: { id: true } });
+    if (current) {
+      throw new BadRequestException(current.id === shiftId ? 'คุณอยู่ในกะนี้แล้ว' : 'คุณมีกะที่เปิดอยู่แล้ว — ปิดหรือออกจากกะนั้นก่อน');
+    }
+    await this.prisma.shiftMember.upsert({
+      where:  { shiftId_userId: { shiftId, userId: user.id } },
+      create: { shiftId, userId: user.id },
+      update: { leftAt: null, joinedAt: new Date() },
+    });
+    await this.auditLog.log({
+      actorId: user.id, actorName: user.name ?? '', action: 'SHIFT_JOINED',
+      entityType: 'Shift', entityId: shiftId, afterData: { openedBy: shift.user?.name },
+    });
+    return this.getCurrentShift(user.id);
+  }
+
+  /** Stop working in a shift you joined; your sales so far stay in it. */
+  async leaveShift(user: { id: string; name?: string }) {
+    const membership = await this.prisma.shiftMember.findFirst({
+      where: { userId: user.id, leftAt: null, shift: { isActive: true } },
+      select: { id: true, shiftId: true },
+    });
+    if (!membership) throw new BadRequestException('คุณไม่ได้เข้าร่วมกะของใครอยู่');
+    await this.prisma.shiftMember.update({ where: { id: membership.id }, data: { leftAt: new Date() } });
+    await this.auditLog.log({
+      actorId: user.id, actorName: user.name ?? '', action: 'SHIFT_LEFT',
+      entityType: 'Shift', entityId: membership.shiftId, afterData: {},
+    });
+    return { left: true, shiftId: membership.shiftId };
+  }
+
   async findAll(query: { date?: string; userId?: string; branchId?: string; tenantId?: string }) {
     const where: any = {};
 
-    if (query.userId)   where.userId   = query.userId;
+    // A person's shifts: the ones they opened and the ones they joined
+    if (query.userId) where.AND = [{ OR: [{ userId: query.userId }, { members: { some: { userId: query.userId } } }] }];
     // Scope shifts to tenant: match branch.tenantId OR branchless shifts by user.tenantId
     if (query.branchId) {
       where.branchId = query.branchId;

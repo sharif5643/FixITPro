@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { activeShiftWhere } from '../shifts/active-shift';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -70,7 +71,7 @@ export class DebtPaymentsService {
 
     // The receiving user's open shift — cash collected here counts toward its expected cash
     const activeShift = await this.prisma.shift.findFirst({
-      where:  { userId, isActive: true },
+      where:  activeShiftWhere(userId),
       select: { id: true },
     });
 

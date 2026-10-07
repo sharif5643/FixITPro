@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { activeShiftWhere } from '../shifts/active-shift';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { WarrantiesService } from '../warranties/warranties.service';
@@ -301,7 +302,7 @@ export class RepairsService {
       // A deposit taken at intake belongs to the receiving user's open shift (expected cash)
       const hasDeposit   = (dto.deposit ?? 0) > 0;
       const depositShift = hasDeposit && actorId
-        ? await tx.shift.findFirst({ where: { userId: actorId, isActive: true }, select: { id: true } })
+        ? await tx.shift.findFirst({ where: activeShiftWhere(actorId), select: { id: true } })
         : null;
 
       const newRepair = await tx.repair.create({
@@ -470,7 +471,32 @@ export class RepairsService {
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
-    return repair;
+    return { ...repair, ...(await this.moneyReceivedBy(repair)) };
+  }
+
+  /**
+   * Who took the money on this job: the final payment and the deposit (later payments carry
+   * createdBy already). From the audit log, so it works for every job taken since it existed.
+   */
+  private async moneyReceivedBy(repair: { id: string; paidAt?: Date | null; deposit?: unknown }) {
+    try {
+      const logs = await this.prisma.auditLog.findMany({
+        where: { entityId: repair.id, action: { in: ['REPAIR_PAYMENT', 'REPAIR_CREATED'] } },
+        select: { action: true, actorId: true, actorName: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      const pay = repair.paidAt ? logs.find((l) => l.action === 'REPAIR_PAYMENT') : undefined;
+      const dep = Number(repair.deposit ?? 0) > 0 ? logs.find((l) => l.action === 'REPAIR_CREATED') : undefined;
+      const ids = [pay?.actorId, dep?.actorId].filter((x): x is string => !!x);
+      const users = ids.length
+        ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+        : [];
+      const nameOf = (l?: { actorId: string | null; actorName: string | null }) =>
+        l ? (users.find((u) => u.id === l.actorId)?.name ?? l.actorName ?? null) : null;
+      return { paymentReceivedBy: nameOf(pay), depositReceivedBy: nameOf(dep) };
+    } catch {
+      return { paymentReceivedBy: null, depositReceivedBy: null };
+    }
   }
 
   async addImages(repairId: string, images: { url: string; fileSize?: number }[]) {
@@ -968,7 +994,7 @@ export class RepairsService {
 
   async processPayment(repairId: string, dto: RepairPaymentDto, userId: string, tenantId?: string | null) {
     const activeShift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
       select: { id: true },
     });
     if (!activeShift) {
@@ -1203,7 +1229,7 @@ export class RepairsService {
     }
 
     const activeShift = await this.prisma.shift.findFirst({
-      where: { userId, isActive: true },
+      where: activeShiftWhere(userId),
       select: { id: true },
     });
 
