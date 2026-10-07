@@ -189,5 +189,17 @@ SELECT b."tenantId", count(*) AS expenses,
        count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "JournalEntry" j WHERE j."sourceType" = 'EXPENSE_PAYMENT' AND j."sourceId" = e.id)) AS with_entry
 FROM "Expense" e JOIN "Branch" b ON b.id = e."branchId" JOIN first f ON f."tenantId" = b."tenantId"
 WHERE e."createdAt" >= f.t0 AND e."voidedAt" IS NULL GROUP BY 1;
+\echo '20f. Activity since the shop''s first journal entry: repairs paid / with an entry, deposits / with an entry, SIM sales'
+WITH first AS (SELECT "tenantId", min("createdAt") AS t0 FROM "JournalEntry" GROUP BY 1)
+SELECT f."tenantId",
+  (SELECT count(*) FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId" WHERE b."tenantId" = f."tenantId" AND r."updatedAt" >= f.t0 AND r."paidAmount" > 0) AS repairs_paid,
+  (SELECT count(*) FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId" WHERE b."tenantId" = f."tenantId" AND r."updatedAt" >= f.t0 AND r."paidAmount" > 0
+     AND EXISTS (SELECT 1 FROM "JournalEntry" j WHERE j."sourceType" = 'REPAIR_FINAL_PAYMENT' AND j."sourceId" = r.id)) AS with_entry,
+  (SELECT count(*) FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId" WHERE b."tenantId" = f."tenantId" AND r."receivedAt" >= f.t0 AND r.deposit > 0) AS deposits,
+  (SELECT count(*) FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId" WHERE b."tenantId" = f."tenantId" AND r."receivedAt" >= f.t0 AND r.deposit > 0
+     AND EXISTS (SELECT 1 FROM "JournalEntry" j WHERE j."sourceType" = 'REPAIR_DEPOSIT' AND j."sourceId" = r.id)) AS deposit_entries,
+  (SELECT count(*) FROM "PackageSale" p WHERE p."tenantId" = f."tenantId" AND p."createdAt" >= f.t0) AS sim_sales,
+  (SELECT count(*) FROM "Expense" e JOIN "Branch" b ON b.id = e."branchId" WHERE b."tenantId" = f."tenantId" AND e."createdAt" >= f.t0) AS expenses
+FROM first f;
 
 ROLLBACK;
