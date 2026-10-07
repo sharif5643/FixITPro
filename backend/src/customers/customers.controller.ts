@@ -69,6 +69,7 @@ export class CustomersController {
   }
 
   @Get('debt-summary')
+  @RequirePermission('repair.close', 'reports.view')
   getDebtSummary(@CurrentUser('tenantId') tenantId: string) {
     return this.customersService.getDebtSummary(tenantId);
   }

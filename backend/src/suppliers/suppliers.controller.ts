@@ -35,6 +35,8 @@ export class SuppliersController {
   constructor(private suppliersService: SuppliersService) {}
 
   @Get()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create', 'purchase.receive', 'supplier.pay', 'reports.view')
   findAll(
     @Query() query: { search?: string; includeInactive?: string },
     @CurrentUser('tenantId') tenantId: string,
@@ -43,11 +45,15 @@ export class SuppliersController {
   }
 
   @Get('payables/aging')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('supplier.pay', 'reports.view')
   getAgingReport(@CurrentUser('tenantId') tenantId: string) {
     return this.suppliersService.getAgingReport(tenantId);
   }
 
   @Get(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create', 'purchase.receive', 'supplier.pay', 'reports.view')
   findOne(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string,
@@ -87,6 +93,8 @@ export class SuppliersController {
   }
 
   @Get(':id/statement')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('supplier.pay', 'reports.view')
   getStatement(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string,

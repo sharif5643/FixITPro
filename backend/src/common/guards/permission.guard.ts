@@ -7,7 +7,7 @@ export class PermissionGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const permission = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, [
+    const permission = this.reflector.getAllAndOverride<string | string[]>(PERMISSION_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
@@ -21,8 +21,10 @@ export class PermissionGuard implements CanActivate {
     if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') return true;
 
     // req.user.permissions already merges role grants + user-specific grants (from JwtStrategy)
-    if (!(user.permissions as string[])?.includes(permission)) {
-      throw new ForbiddenException(`ไม่มีสิทธิ์: ${permission}`);
+    const anyOf = Array.isArray(permission) ? permission : [permission];
+    const held = (user.permissions as string[]) ?? [];
+    if (!anyOf.some((p) => held.includes(p))) {
+      throw new ForbiddenException(`ไม่มีสิทธิ์: ${anyOf.join(' หรือ ')}`);
     }
     return true;
   }

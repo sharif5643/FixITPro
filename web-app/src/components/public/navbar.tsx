@@ -13,6 +13,8 @@ const navLinks = [
   { href: '/contact',  label: 'ติดต่อ' },
 ]
 
+const DARK_HERO = ['/', '/about', '/contact', '/features', '/pricing']
+
 export function PublicNavbar() {
   const pathname  = usePathname()
   const [open, setOpen]       = useState(false)
@@ -26,10 +28,14 @@ export function PublicNavbar() {
 
   useEffect(() => { setOpen(false) }, [pathname])
 
+  // Pages without a dark hero (download, register, track, billing) get the solid bar from the
+  // start; on them the white logo and menu were invisible on the light page.
+  const solid = scrolled || !DARK_HERO.includes(pathname)
+
   return (
     <header className={cn(
       'fixed top-0 inset-x-0 z-50 transition-all duration-300',
-      scrolled
+      solid
         ? 'bg-white/90 backdrop-blur-md border-b border-slate-200/60 shadow-sm'
         : 'bg-transparent',
     )}>
@@ -43,7 +49,7 @@ export function PublicNavbar() {
             </div>
             <span className={cn(
               'text-lg font-bold tracking-tight transition-colors',
-              scrolled ? 'text-slate-900' : 'text-white',
+              solid ? 'text-slate-900' : 'text-white',
             )}>
               FixIT<span className="text-blue-400">Pro</span>
             </span>
@@ -58,8 +64,8 @@ export function PublicNavbar() {
                 className={cn(
                   'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
                   pathname === l.href
-                    ? scrolled ? 'bg-blue-50 text-blue-700' : 'bg-white/15 text-white'
-                    : scrolled ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-white/80 hover:text-white hover:bg-white/10',
+                    ? solid ? 'bg-blue-50 text-blue-700' : 'bg-white/15 text-white'
+                    : solid ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-white/80 hover:text-white hover:bg-white/10',
                 )}
               >
                 {l.label}
@@ -73,7 +79,7 @@ export function PublicNavbar() {
               href="/login"
               className={cn(
                 'text-sm font-medium transition-colors px-4 py-2 rounded-lg',
-                scrolled ? 'text-slate-600 hover:text-slate-900' : 'text-white/80 hover:text-white',
+                solid ? 'text-slate-600 hover:text-slate-900' : 'text-white/80 hover:text-white',
               )}
             >
               เข้าสู่ระบบ
@@ -88,7 +94,7 @@ export function PublicNavbar() {
 
           {/* Mobile hamburger */}
           <button
-            className={cn('md:hidden p-2 rounded-lg transition-colors', scrolled ? 'text-slate-700 hover:bg-slate-100' : 'text-white hover:bg-white/10')}
+            className={cn('md:hidden p-2 rounded-lg transition-colors', solid ? 'text-slate-700 hover:bg-slate-100' : 'text-white hover:bg-white/10')}
             onClick={() => setOpen(o => !o)}
             aria-label="Toggle menu"
           >

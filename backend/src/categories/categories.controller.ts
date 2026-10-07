@@ -15,8 +15,11 @@ import { CreateCategoryTypeDto } from './dto/create-category-type.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { PermissionGuard } from '../common/guards/permission.guard';
+import { RequirePermission } from '../common/decorators/permission.decorator';
 
-@UseGuards(JwtAuthGuard, TenantActiveGuard)
+// Anyone signed in reads categories; changing them is part of managing products.
+@UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard)
 @Controller('categories')
 export class CategoriesController {
   constructor(private categoriesService: CategoriesService) {}
@@ -24,6 +27,7 @@ export class CategoriesController {
   // ── Category Types (shared types + each tenant's own) ───────────
 
   @Post('types')
+  @RequirePermission('products.create', 'products.edit')
   createType(@Body() dto: CreateCategoryTypeDto, @CurrentUser('tenantId') tenantId: string | null) {
     return this.categoriesService.createType(dto, tenantId);
   }
@@ -34,6 +38,7 @@ export class CategoriesController {
   }
 
   @Put('types/:id')
+  @RequirePermission('products.create', 'products.edit')
   updateType(
     @Param('id') id: string,
     @Body() dto: Partial<CreateCategoryTypeDto>,
@@ -44,6 +49,7 @@ export class CategoriesController {
   }
 
   @Delete('types/:id')
+  @RequirePermission('products.create', 'products.edit')
   removeType(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string | null,
@@ -55,6 +61,7 @@ export class CategoriesController {
   // ── Categories ──────────────────────────────────────────────────
 
   @Post()
+  @RequirePermission('products.create', 'products.edit')
   create(
     @Body() dto: CreateCategoryDto,
     @CurrentUser('tenantId') tenantId: string,
@@ -71,6 +78,7 @@ export class CategoriesController {
   }
 
   @Put(':id')
+  @RequirePermission('products.create', 'products.edit')
   update(
     @Param('id') id: string,
     @Body() dto: Partial<CreateCategoryDto>,
@@ -80,6 +88,7 @@ export class CategoriesController {
   }
 
   @Delete(':id')
+  @RequirePermission('products.create', 'products.edit')
   remove(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string,

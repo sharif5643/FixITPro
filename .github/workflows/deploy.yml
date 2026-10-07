@@ -56,3 +56,23 @@ jobs:
           done
           echo "❌ Verification failed — HTTP $STATUS"
           exit 1
+
+      # A deploy starts a new web container, and the Android apps published to /download
+      # (android-apps.yml) did not survive it. The server keeps the last published files in
+      # /root/fixitpro-android/out; copy them into the new container. Only these three files
+      # are copied, and a failure here only warns: the site itself is already up.
+      - name: Put the Android apps back on /download
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 'set -e
+            OUT=/root/fixitpro-android/out
+            [ -f "$OUT/apps.json" ] || { echo "No apps published yet"; exit 0; }
+            c=$(docker ps --format "{{.Names}}" | grep "^frontend-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
+            [ -n "$c" ] || { echo "frontend container not found"; exit 1; }
+            for f in FixITPro-POS.apk FixITPro-Staff.apk apps.json; do
+              docker cp "$OUT/$f" "$c:/app/public/downloads/$f.tmp"
+              docker exec -u 0 "$c" sh -c "chmod 644 /app/public/downloads/$f.tmp && mv /app/public/downloads/$f.tmp /app/public/downloads/$f"
+            done
+            echo "Android apps restored into $c"' \
+          || echo "::warning::Android apps not restored on /download — run the Android apps workflow"
+          code=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/downloads/apps.json --max-time 30 || true)
+          echo "apps.json → HTTP $code"

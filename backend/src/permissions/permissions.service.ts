@@ -38,7 +38,8 @@ export const ROLE_PRESETS: Record<string, string[]> = {
   CASHIER: [
     'products.view',
     'sales.create', 'sales.discount',
-    'repair.create', 'repair.edit',
+    // repair.close: take payment and hand the device back (front desk)
+    'repair.create', 'repair.edit', 'repair.close',
     'serials.manage',
     'warranty.view',
     'notification.view',

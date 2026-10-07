@@ -33,7 +33,7 @@ export function useAppAccess() {
     transfers: has('stock') && hasModule('stock') && hasPerm('stock.transfer'),
     customers: has('customers') && hasModule('crm'),
     reports:   has('reports') && hasModule('report') && hasPerm('reports.view'),
-    sim:       has('sim') && hasModule('package_sales'),
+    sim:       has('sim') && hasModule('package_sales') && hasPerm('sales.create'),
     shift:     has('money'),
     debt:      has('money') && hasPerm('repair.close'),
     expenses:  has('money') && hasModule('finance') && hasPerm('expenses.manage'),

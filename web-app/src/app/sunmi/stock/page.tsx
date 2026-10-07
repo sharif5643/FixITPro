@@ -20,6 +20,7 @@ import { nativeScan } from '@/lib/native-barcode-scanner'
 import { Platform } from '@/lib/platform'
 import { pushBackHandler } from '@/lib/back-stack'
 import { formatThaiMoney, cn } from '@/lib/utils'
+import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import type { Product, Category } from '@/types'
 
@@ -230,6 +231,7 @@ function ProductMiniCard({ product, onTap }: { product: Product; onTap: () => vo
 // ── Product detail info card ──────────────────────────────────────────────────
 
 function ProductDetailCard({ product }: { product: Product }) {
+  const canViewCost = useAuthStore((st) => st.hasPermission)('products.view_cost')
   const qty   = product.branchQuantity ?? product.stock
   const isOut = qty <= 0
   const isLow = !isOut && qty <= product.minStock
@@ -300,10 +302,12 @@ function ProductDetailCard({ product }: { product: Product }) {
             <p className="text-xs text-slate-400">ราคาขาย</p>
             <p className="font-bold text-slate-900 text-xl mt-0.5">{formatThaiMoney(Number(product.price))}</p>
           </div>
-          <div>
-            <p className="text-xs text-slate-400">ต้นทุน</p>
-            <p className="font-semibold text-slate-600 text-xl mt-0.5">{formatThaiMoney(Number(product.costPrice))}</p>
-          </div>
+          {canViewCost && (
+            <div>
+              <p className="text-xs text-slate-400">ต้นทุน</p>
+              <p className="font-semibold text-slate-600 text-xl mt-0.5">{formatThaiMoney(Number(product.costPrice))}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -462,6 +466,8 @@ interface ProductFormScreenProps {
 }
 
 function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: ProductFormScreenProps) {
+  // Without products.view_cost the cost is not shown; it can be entered for a new product only
+  const canViewCost = useAuthStore((st) => st.hasPermission)('products.view_cost')
   const isEditing  = !!product
   const queryClient = useQueryClient()
   const branch      = useAppBranch()
@@ -478,7 +484,7 @@ function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: Pro
       type:        product.type,
       categoryId:  product.categoryId ?? '',
       price:       Number(product.price),
-      costPrice:   Number(product.costPrice),
+      costPrice:   Number(product.costPrice ?? 0),
       stock:       product.stock,
       minStock:    product.minStock,
       description: product.description ?? '',
@@ -516,8 +522,9 @@ function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: Pro
 
   const mutation = useMutation({
     mutationFn: (data: ProductFormData) => {
-      const { stock, ...editableFields } = data
-      const base = isEditing ? editableFields : data   // never send stock on edit
+      const { stock, costPrice, ...editableFields } = data
+      // never send stock on edit; nor a cost the user cannot see
+      const base = isEditing ? (canViewCost ? { ...editableFields, costPrice } : editableFields) : data
       const payload = {
         ...base,
         barcode:     base.barcode?.trim()     || undefined,
@@ -614,10 +621,12 @@ function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: Pro
             <input {...register('price')} type="number" inputMode="numeric" min="0" placeholder="0" className={CLS.input} />
             {errors.price && <p className="text-xs text-red-500 mt-1">{errors.price.message}</p>}
           </div>
-          <div>
-            <label className={CLS.label}>ต้นทุน (บาท)</label>
-            <input {...register('costPrice')} type="number" inputMode="numeric" min="0" placeholder="0" className={CLS.input} />
-          </div>
+          {(canViewCost || !product) && (
+            <div>
+              <label className={CLS.label}>ต้นทุน (บาท)</label>
+              <input {...register('costPrice')} type="number" inputMode="numeric" min="0" placeholder="0" className={CLS.input} />
+            </div>
+          )}
         </div>
 
         {/* Stock + MinStock */}

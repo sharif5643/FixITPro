@@ -14,6 +14,7 @@ import {
   ForbiddenException,
   PayloadTooLargeException,
 } from '@nestjs/common';
+import { HideCostInterceptor } from '../common/interceptors/hide-cost.interceptor';
 import { unlinkSync } from 'fs';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -68,6 +69,7 @@ const imageStorage = diskStorage({
 
 @RequireModule('repair')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
+@UseInterceptors(HideCostInterceptor)
 @Controller('repairs')
 export class RepairsController {
   constructor(
@@ -115,6 +117,8 @@ export class RepairsController {
   }
 
   @Get('outstanding')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.close', 'reports.view')
   getOutstandingRepairs(
     @Query('branchId') queryBranchId: string | undefined,
     @CurrentUser('role') role: string,
@@ -138,6 +142,8 @@ export class RepairsController {
   }
 
   @Get('ar-aging')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.close', 'reports.view')
   getArAging(
     @Query('branchId') queryBranchId: string | undefined,
     @CurrentUser('role') role: string,
@@ -151,6 +157,8 @@ export class RepairsController {
   }
 
   @Get(':id/profit')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('reports.view')
   getProfit(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string | null,

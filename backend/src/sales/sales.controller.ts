@@ -1,4 +1,4 @@
-import {
+import { UseInterceptors,
   Controller,
   Get,
   Post,
@@ -7,6 +7,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { HideCostInterceptor } from '../common/interceptors/hide-cost.interceptor';
 import { SalesService } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { VoidSaleDto } from './dto/void-sale.dto';
@@ -22,6 +23,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @RequireModule('pos')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
+@UseInterceptors(HideCostInterceptor)
 @Controller('sales')
 export class SalesController {
   constructor(private salesService: SalesService) {}
@@ -48,6 +50,8 @@ export class SalesController {
   }
 
   @Get()
+  @UseGuards(PermissionGuard)
+  @RequirePermission('sales.create', 'sales.refund', 'reports.view')
   findAll(
     @Query() query: { date?: string; customerId?: string; shiftId?: string; branchId?: string; limit?: string; cursor?: string },
     @CurrentUser('role') role: string,
@@ -62,6 +66,8 @@ export class SalesController {
   }
 
   @Get(':id')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('sales.create', 'sales.refund', 'reports.view')
   findOne(
     @Param('id') id: string,
     @CurrentUser('tenantId') tenantId: string | null,

@@ -111,7 +111,7 @@ export default function PurchaseOrdersPage() {
     const pid   = searchParams.get('productId')   ?? ''
     const pname = searchParams.get('productName') ?? ''
     const psku  = searchParams.get('productSku')  ?? ''
-    const pcost = parseFloat(searchParams.get('productCost') ?? '0')
+    const pcost = (parseFloat(searchParams.get('productCost') ?? '0') || 0)
     setSupplierId('')
     setCreateBranchId(contextBranchId ?? '')
     setExpectedDate(''); setVatPercent(0); setOrderDiscount(0); setNote('')
@@ -310,7 +310,7 @@ export default function PurchaseOrdersPage() {
     setItems((prev) => {
       const exists = prev.find((i) => i.productId === p.id)
       if (exists) return prev.map((i) => i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i)
-      return [...prev, { productId: p.id, productName: p.name, sku: p.sku, quantity: 1, unitCost: p.costPrice, discount: 0 }]
+      return [...prev, { productId: p.id, productName: p.name, sku: p.sku, quantity: 1, unitCost: p.costPrice ?? 0, discount: 0 }]
     })
     setProductSearch('')
   }
@@ -631,7 +631,7 @@ export default function PurchaseOrdersPage() {
                       <button key={p.id} type="button" className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 text-sm border-b dark:border-slate-700/60 last:border-0" onClick={() => addProduct(p)}>
                         <span className="font-medium dark:text-slate-200">{p.name}</span>
                         <span className="text-muted-foreground ml-2 text-xs">({p.sku})</span>
-                        <span className="float-right text-slate-500 dark:text-slate-400 text-xs">ราคาทุน: ฿{fmt(p.costPrice)}</span>
+                        {p.costPrice != null && <span className="float-right text-slate-500 dark:text-slate-400 text-xs">ราคาทุน: ฿{fmt(p.costPrice)}</span>}
                       </button>
                     ))}
                   </div>

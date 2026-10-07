@@ -1,4 +1,4 @@
-import {
+import { UseInterceptors,
   Controller,
   Get,
   Post,
@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { HideCostInterceptor, canViewCost } from '../common/interceptors/hide-cost.interceptor';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -23,6 +24,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @RequireModule('stock')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
+@UseInterceptors(HideCostInterceptor)
 @Controller('products')
 export class ProductsController {
   constructor(private productsService: ProductsService) {}
@@ -133,7 +135,10 @@ export class ProductsController {
     @CurrentUser('id')       actorId: string,
     @CurrentUser('name')     actorName: string,
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser() user: { role?: string; permissions?: string[] },
   ) {
+    // Someone who cannot see cost prices cannot change them either
+    if (!canViewCost(user)) delete (dto as { costPrice?: unknown }).costPrice;
     return this.productsService.update(id, dto, actorId, actorName, tenantId);
   }
 

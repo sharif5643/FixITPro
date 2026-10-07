@@ -145,6 +145,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const nextStatus    = NEXT_STATUS[repair.status]
   // Payment / handover is allowed from both (same as the API)
   const isReady       = repair.status === 'COMPLETED' || repair.status === 'READY_PICKUP'
+  const canViewCost   = useAuthStore((st) => st.hasPermission)('products.view_cost')
   const canQc         = useAuthStore((st) => st.hasPermission)('repairs.qc.perform')
   // The API undoes only a fully paid handover (a pay-later one is settled with more payments)
   const canReverse    = useAuthStore((st) => st.hasPermission)('repair.close') && repair.paymentStatus === 'PAID'
@@ -703,7 +704,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                             <p className="text-sm font-semibold text-slate-900 truncate">{product.name}</p>
                             <p className="text-xs text-slate-400">
                               {product.sku} · คงเหลือ <span className={product.stock > 0 ? 'text-slate-500' : 'text-red-500'}>{product.stock}</span>
-                              {' · '}ทุน {formatThaiMoney(Number(product.costPrice))}
+                              {canViewCost && <>{' · '}ทุน {formatThaiMoney(Number(product.costPrice))}</>}
                             </p>
                           </div>
                           <label className="flex items-center gap-2 text-xs text-slate-600">

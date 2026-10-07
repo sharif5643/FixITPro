@@ -68,7 +68,9 @@ export class RepairsService {
    * Technicians work only on their own jobs. Any technician may look at every job (to answer a
    * customer), take a job nobody has yet, or hand back their own; changing another technician's
    * job is refused. Taking payment and handing the device back are not work on the job, so the
-   * payment endpoints do not call this. Owners, managers and cashiers are not limited.
+   * payment endpoints do not call this. The same applies to anyone else the owner made a
+   * technician (permission repair.technician), e.g. a cashier who also repairs. Only owners and
+   * managers may change any job; cashiers and stock staff who are not technicians are not limited.
    */
   async assertCanWorkOn(
     repairId: string,
@@ -76,7 +78,8 @@ export class RepairsService {
     tenantId: string | null | undefined,
     change: { technicianId?: string | null } = {},
   ) {
-    if (actor.role !== 'TECHNICIAN') return;
+    if (actor.role === 'OWNER' || actor.role === 'SUPER_ADMIN' || actor.role === 'MANAGER') return;
+    if (actor.role !== 'TECHNICIAN' && !(await this.isRepairTechnician(actor.id, tenantId))) return;
     const where: any = { id: repairId };
     if (tenantId) where.OR = [{ branch: { tenantId } }, { branchId: null, customer: { tenantId } }];
     const repair = await this.prisma.repair.findFirst({
@@ -98,6 +101,12 @@ export class RepairsService {
       throw new ForbiddenException('งานนี้ยังไม่มีช่างรับ — กด "รับงานนี้" ก่อนจึงจะแก้ไขได้');
     }
     throw new ForbiddenException(`งานนี้เป็นของช่าง ${repair.technician?.name ?? 'คนอื่น'} — ดูได้อย่างเดียว แก้ไขไม่ได้`);
+  }
+
+  /** Whether this user was made a technician by the owner (by role permission or personally). */
+  private async isRepairTechnician(userId: string, tenantId: string | null | undefined) {
+    const techs = await repairTechnicianWhere(this.prisma, tenantId);
+    return (await this.prisma.user.count({ where: { id: userId, ...techs } })) > 0;
   }
 
   /** A repair can only be given to an active technician or manager of the same shop. */
@@ -1788,7 +1797,7 @@ export class RepairsService {
   }
 
   async submitReview(repairId: string, rating: number, comment?: string, tenantId?: string | null) {
-    if (rating < 1 || rating > 5) {
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
       throw new BadRequestException('คะแนนต้องอยู่ระหว่าง 1 ถึง 5');
     }
     const where: any = { id: repairId };
