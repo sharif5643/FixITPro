@@ -35,6 +35,21 @@ jobs:
           |1|ibmwetm0PAiC8BgSyTtf4uTAKd8=|eE9sCjfTwZLn5uRd6FLxn8RF2do= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLrzre/wkU0criEqkVfDAb3Dx1xjcWhPtoWGVXr7hKPyWz32Zd5rIuLBoqRrf+Llc9ODEUj6Zumb/3ummYQCjHc=
           EOF
 
+      - name: App containers and recent logs (read-only)
+        # What is running and why it stopped: container states, memory/disk, and the last log
+        # lines of the backend and frontend. Nothing is changed.
+        continue-on-error: true
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            docker ps -a --format "{{.Names}}\t{{.Status}}\t{{.Image}}" | grep -E "z9m1c1i9nr6kbyo4qn0vuv1b" | head -20
+            echo "--- memory / disk"; free -m; df -h / | tail -1
+            for app in backend frontend; do
+              c=$(docker ps -a --format "{{.Names}}" | grep "^${app}-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
+              echo "=== ${app}: ${c:-none}"
+              [ -n "$c" ] && docker logs --tail 80 "$c" 2>&1 | grep -v -i "password\|secret\|token" | tail -80
+            done
+            exit 0'
+
       - name: Install backup + drill scripts
         # pg_backup_coolify.sh is also what the server's daily cron runs; the old copy is kept as
         # pg_backup_coolify.sh.bak-<date> next to it.
