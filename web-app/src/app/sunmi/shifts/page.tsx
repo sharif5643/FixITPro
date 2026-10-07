@@ -37,7 +37,8 @@ type CurrentShift = {
   supplierPaymentCount: number
   supplierExpenses: number
   packageSaleCount: number
-  packageSaleRevenue: number
+  /** SIM profit: only for people who see reports */
+  packageSaleRevenue?: number
   packageSaleAmount: number
   expectedCashBalance: number
   /** working in someone else's shift (one cash drawer, several people) */
@@ -49,7 +50,7 @@ type CloseSummary = {
   salesCount: number
   totalSales: number
   repairPayments: { count: number; totalAmount: number }
-  packageSales: { count: number; totalAmount: number; totalProfit: number }
+  packageSales: { count: number; totalAmount: number; totalProfit?: number }
   expectedBalance: number
   actualBalance: number
   difference: number
@@ -133,6 +134,7 @@ function TopupSheet({
           <div className="w-10 h-1.5 rounded-full bg-slate-300" />
         </div>
         <p className="font-bold text-lg text-slate-900 text-center">เติมกระเป๋า Carrier</p>
+        <p className="text-xs text-slate-500 text-center -mt-2">บันทึกเมื่อโอนจากบัญชีร้านเข้าแอปดีลเลอร์ — ไม่หักเงินสดในลิ้นชัก</p>
 
         <div className="grid grid-cols-4 gap-2">
           {CARRIERS.map((c) => (
@@ -262,7 +264,7 @@ function toClosingOpts(
     repairTotal:       summary.repairPayments.totalAmount,
     packageSaleCount:  summary.packageSales?.count ?? 0,
     packageSaleTotal:  summary.packageSales?.totalAmount ?? 0,
-    packageSaleProfit: summary.packageSales?.totalProfit ?? 0,
+    packageSaleProfit: summary.packageSales?.totalProfit,
     expectedBalance:   summary.expectedBalance,
     actualBalance:     summary.actualBalance,
     difference:        summary.difference,
@@ -371,6 +373,14 @@ export default function SunmiShiftsPage() {
   const [trueOpening, setTrueOpening] = useState('')
   const [dtacOpening, setDtacOpening] = useState('')
   const [ntOpening,   setNtOpening]   = useState('')
+  // Closing: the opener counts the carrier wallets (members of a shared shift only see them)
+  const [closeWallet, setCloseWallet] = useState<Record<string, string>>({})
+  const { data: walletBal = [] } = useQuery<WalletBalance[]>({
+    queryKey:  ['carrier-wallet', 'balances'],
+    queryFn:   async () => (await api.get('/carrier-wallet/balances')).data,
+    staleTime: 15_000,
+  })
+  const systemOf = (c: string) => Number(walletBal.find((w) => w.carrier === c)?.balance ?? 0)
 
   const { data: shift, isLoading } = useQuery<CurrentShift | null>({
     queryKey: ['shifts', 'current'],
@@ -396,8 +406,12 @@ export default function SunmiShiftsPage() {
       if (ntOpening   !== '') body.ntOpeningBalance   = Number(ntOpening)
       return api.post('/shifts/open', body)
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success('เปิดกะสำเร็จ')
+      const off = ((res?.data?.walletCheck ?? []) as { carrier: string; difference: number }[]).filter((w) => Math.abs(w.difference) >= 1)
+      if (off.length > 0) {
+        toast.warning(`ยอดกระเป๋าไม่ตรงกับระบบ: ${off.map((w) => `${w.carrier} ${w.difference > 0 ? '+' : ''}${formatThaiMoney(w.difference)}`).join(', ')} — แจ้งเจ้าของร้านแล้ว`, { duration: 8000 })
+      }
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
       queryClient.invalidateQueries({ queryKey: ['carrier-wallet'] })
       router.push(shell.pos)
@@ -410,11 +424,18 @@ export default function SunmiShiftsPage() {
 
 
   const closeMutation = useMutation({
-    mutationFn: () =>
-      api.post(`/shifts/${shift!.id}/close`, {
+    mutationFn: async () => {
+      const entries = Object.entries(closeWallet)
+        .filter(([, v]) => v !== '')
+        .map(([carrier, v]) => ({ carrier, actualBalance: Number(v) }))
+      if (!shift!.joined && entries.length > 0) {
+        await api.post('/carrier-wallet/reconcile', { entries, shiftId: shift!.id })
+      }
+      return api.post(`/shifts/${shift!.id}/close`, {
         closeBalance: Number(closeBalance) || 0,
         note: closeNote.trim() || undefined,
-      }),
+      })
+    },
     onSuccess: (res) => {
       toast.success('ปิดกะสำเร็จ')
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
@@ -452,7 +473,7 @@ export default function SunmiShiftsPage() {
               <Row
                 label="SIM / แพ็กเกจ"
                 value={formatThaiMoney(closeSummary.packageSales.totalAmount)}
-                sub={`${closeSummary.packageSales.count} รายการ · กำไร ${formatThaiMoney(closeSummary.packageSales.totalProfit)}`}
+                sub={`${closeSummary.packageSales.count} รายการ${closeSummary.packageSales.totalProfit != null ? ` · กำไร ${formatThaiMoney(closeSummary.packageSales.totalProfit)}` : ''}`}
               />
             )}
             <Row label="เงินสดที่ควรมี" value={formatThaiMoney(closeSummary.expectedBalance)} />
@@ -581,7 +602,7 @@ export default function SunmiShiftsPage() {
             >
               <span className="flex items-center gap-2 font-semibold text-sm">
                 <Wifi className="h-4 w-4" />
-                ยอดกระเป๋า Carrier (ถ้ามี)
+                ตรวจยอดกระเป๋าค่าย (ถ้ามี)
               </span>
               <span className="text-xs font-medium opacity-70">
                 {showCarrierInputs ? 'ซ่อน ▲' : 'ใส่ยอด ▼'}
@@ -597,8 +618,9 @@ export default function SunmiShiftsPage() {
                   ['NT',   ntOpening,   setNtOpening,   'border-green-300'],
                 ] as [string, string, (v: string) => void, string][]).map(([label, val, setVal, border]) => (
                   <div key={label} className="space-y-1">
-                    <label className={`text-xs font-bold ${CARRIER_COLORS[label as CarrierKey].split(' ')[1]}`}>
-                      {label}
+                    <label className={`flex justify-between text-xs font-bold ${CARRIER_COLORS[label as CarrierKey].split(' ')[1]}`}>
+                      <span>{label}</span>
+                      <span className="font-medium text-slate-400">ระบบ {formatThaiMoney(systemOf(label))}</span>
                     </label>
                     <input
                       type="number"
@@ -679,7 +701,7 @@ export default function SunmiShiftsPage() {
             <Row
               label="SIM / แพ็กเกจ"
               value={formatThaiMoney(shift.packageSaleAmount ?? 0)}
-              sub={`${shift.packageSaleCount} รายการ · กำไร ${formatThaiMoney(shift.packageSaleRevenue ?? 0)}`}
+              sub={`${shift.packageSaleCount} รายการ${shift.packageSaleRevenue != null ? ` · กำไร ${formatThaiMoney(shift.packageSaleRevenue)}` : ''}`}
             />
           )}
           <Row label="เงินสดที่ควรมีในลิ้นชัก" value={formatThaiMoney(shift.expectedCashBalance)} highlight />
@@ -713,6 +735,42 @@ export default function SunmiShiftsPage() {
             </p>
           )}
         </div>
+
+        {walletBal.length > 0 && (shift.joined ? (
+          <p className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-500">
+            ยอดกระเป๋าค่ายตรวจโดยคนเปิดกะ ({shift.user.name}) — คุณดูยอดคงเหลือได้ด้านบน
+          </p>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-slate-600">นับยอดกระเป๋าค่าย (ถ้ามี)</p>
+            <div className="grid grid-cols-2 gap-3">
+              {walletBal.map((w) => {
+                const v = closeWallet[w.carrier] ?? ''
+                const diff = v !== '' ? Number(v) - Number(w.balance) : null
+                return (
+                  <div key={w.carrier} className="space-y-1">
+                    <label className="flex justify-between text-xs font-bold text-slate-600">
+                      <span>{w.carrier}</span>
+                      <span className="font-medium text-slate-400">ระบบ {formatThaiMoney(Number(w.balance))}</span>
+                    </label>
+                    <input
+                      type="number" inputMode="numeric" min="0"
+                      value={v}
+                      onChange={(e) => setCloseWallet((m) => ({ ...m, [w.carrier]: e.target.value }))}
+                      placeholder={String(Math.round(Number(w.balance)))}
+                      className="w-full h-12 px-3 border-2 border-slate-200 rounded-xl text-lg font-bold bg-white focus:outline-none focus:border-blue-500 tabular-nums"
+                    />
+                    {diff !== null && Math.abs(diff) >= 0.01 && (
+                      <p className={`text-right text-xs font-bold ${diff < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                        {diff > 0 ? '+' : ''}{formatThaiMoney(diff)}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
 
         <div className="space-y-1.5">
           <label className="text-sm font-semibold text-slate-600">หมายเหตุ (ไม่บังคับ)</label>

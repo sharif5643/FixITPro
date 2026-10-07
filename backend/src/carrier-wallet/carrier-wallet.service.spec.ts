@@ -8,6 +8,7 @@ describe('CarrierWalletService.createPackageSale — P0-4', () => {
 
   beforeEach(() => {
     prisma = mockPrisma();
+    (prisma.shift.findFirst as jest.Mock).mockResolvedValue({ id: 'shift-1', userId: 'u1' }); // an open shift (sales need one)
     service = new (CarrierWalletService as any)(prisma);
   });
 
@@ -86,6 +87,7 @@ describe('CarrierWalletService.createPackageSale — dealerCost / saleType', () 
 
   beforeEach(() => {
     prisma = mockPrisma();
+    (prisma.shift.findFirst as jest.Mock).mockResolvedValue({ id: 'shift-1', userId: 'u1' }); // an open shift (sales need one)
     service = new (CarrierWalletService as any)(prisma);
     tx = {
       carrierWallet: {
@@ -143,6 +145,7 @@ describe('CarrierWalletService — receipt numbers', () => {
 
   beforeEach(() => {
     prisma = mockPrisma();
+    (prisma.shift.findFirst as jest.Mock).mockResolvedValue({ id: 'shift-1', userId: 'u1' }); // an open shift (sales need one)
     service = new (CarrierWalletService as any)(prisma);
   });
 

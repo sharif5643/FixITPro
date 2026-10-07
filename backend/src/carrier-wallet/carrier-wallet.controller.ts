@@ -213,8 +213,9 @@ export class CarrierWalletController {
     @Body() dto: ReconcileDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string,
   ) {
-    return this.service.reconcileAtClose(dto.entries, dto.shiftId ?? null, userId, tenantId);
+    return this.service.reconcileAtClose(dto.entries, dto.shiftId ?? null, userId, tenantId, role);
   }
 
   // Owner-only: set a wallet to an exact balance (e.g. clear test top-ups). Kept in history.

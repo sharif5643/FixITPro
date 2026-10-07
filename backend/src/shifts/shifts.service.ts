@@ -74,8 +74,20 @@ export class ShiftsService {
     if (dto.dtacOpeningBalance != null) carrierBalances['DTAC'] = dto.dtacOpeningBalance;
     if (dto.ntOpeningBalance   != null) carrierBalances['NT']   = dto.ntOpeningBalance;
 
+    let walletCheck: { carrier: string; systemBalance: number; actualBalance: number; difference: number }[] = [];
     if (Object.keys(carrierBalances).length > 0) {
-      await this.carrierWalletService.recordOpeningBalances(shift.id, userId, carrierBalances, tenantId);
+      walletCheck = (await this.carrierWalletService.recordOpeningBalances(shift.id, userId, carrierBalances, tenantId)) ?? [];
+      const off = walletCheck.filter((w) => Math.abs(w.difference) >= 1);
+      if (off.length > 0) {
+        await this.notif.notify({
+          type:       'SHIFT_MISMATCH',
+          title:      'ยอดกระเป๋าค่ายไม่ตรงตอนเปิดกะ',
+          message:    `กะของ ${shift.user.name}: ` + off.map((w) => `${w.carrier} ระบบ ${w.systemBalance.toFixed(0)} นับได้ ${w.actualBalance.toFixed(0)} (${w.difference > 0 ? '+' : ''}${w.difference.toFixed(0)})`).join(', '),
+          severity:   'WARNING',
+          entityType: 'Shift',
+          entityId:   shift.id,
+        }).catch(() => undefined);
+      }
     }
 
     // Auto-open CashDrawerSession so CASH payments work immediately after opening a shift.
@@ -150,7 +162,7 @@ export class ShiftsService {
     });
 
     this.logger.log(`openShift success shiftId=${shift.id} userId=${userId} branchId=${branchId ?? 'null'}`);
-    return shift;
+    return { ...shift, walletCheck };
   }
 
   /**

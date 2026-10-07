@@ -76,7 +76,7 @@ interface CarrierShiftSummary {
   salesCount: number
   salesAmount: number
   walletDeduction: number
-  profit: number
+  profit?: number
   topupCount: number
   topupAmount: number
 }
@@ -216,7 +216,7 @@ export default function ShiftsPage() {
 
   const closeMutation = useMutation({
     mutationFn: async (data: CloseForm) => {
-      const fresh = await queryClient.fetchQuery<{ id: string } | null>({
+      const fresh = await queryClient.fetchQuery<{ id: string; joined?: boolean } | null>({
         queryKey: ['shifts', 'current'],
         queryFn: async () => (await api.get('/shifts/current')).data,
         staleTime: 0,
@@ -224,8 +224,8 @@ export default function ShiftsPage() {
       const shiftId = fresh?.id
       if (!shiftId) throw new Error('ไม่พบกะที่เปิดอยู่')
 
-      // Reconcile carrier wallets if any inputs were filled
-      if (showWalletReconcile) {
+      // Reconcile carrier wallets if any inputs were filled (the opener only, in a shared shift)
+      if (showWalletReconcile && !fresh?.joined) {
         const entries = CARRIERS
           .filter((c) => walletInputs[c] !== undefined && walletInputs[c] !== '')
           .map((c) => ({ carrier: c, actualBalance: Number(walletInputs[c]) }))
@@ -751,7 +751,12 @@ export default function ShiftsPage() {
             )}
 
             {/* ── Carrier wallet reconciliation (package_sales module only) ── */}
-            {showWalletReconcile && (
+            {showWalletReconcile && currentShift?.joined && (
+              <p className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs text-muted-foreground">
+                ยอดกระเป๋าค่ายตรวจโดยคนเปิดกะ ({currentShift.user.name})
+              </p>
+            )}
+            {showWalletReconcile && !currentShift?.joined && (
               <div className="rounded-lg border border-slate-200 dark:border-slate-700/60 overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/60">
                   <Wifi className="h-3.5 w-3.5 text-slate-500" />
@@ -778,7 +783,7 @@ export default function ShiftsPage() {
                         {shiftSum && (shiftSum.salesCount > 0 || shiftSum.topupCount > 0) && (
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
                             <span>ขาย {shiftSum.salesCount} รายการ <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(shiftSum.salesAmount)}</span></span>
-                            <span>กำไร <span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(shiftSum.profit)}</span></span>
+                            {shiftSum.profit != null && <span>กำไร <span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(shiftSum.profit)}</span></span>}
                             <span>เติมกระเป๋า <span className="font-semibold text-slate-700 dark:text-slate-300">{formatThaiMoney(shiftSum.topupAmount)}</span></span>
                           </div>
                         )}

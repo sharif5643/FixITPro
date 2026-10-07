@@ -1195,8 +1195,6 @@ ${opts.phoneNumber ? `<div class="row"><span class="xs">เบอร์</span><s
 ${opts.note ? `<div class="row"><span class="xs">หมายเหตุ</span><span class="v xs">${opts.note}</span></div>` : ''}
 <div class="hr"></div>
 <div class="total"><span>ราคาขาย</span><span class="v">฿${fmtB(opts.packageAmount)}</span></div>
-<div class="row xs"><span>ต้นทุน (97%)</span><span class="v">฿${fmtB(opts.walletDeduction)}</span></div>
-<div class="row xs"><span>กำไร (3%)</span><span class="v">฿${fmtB(opts.profit)}</span></div>
 <div class="hr"></div>
 <div class="row"><span>${PM[opts.paymentMethod] ?? opts.paymentMethod}</span><span class="v">฿${fmtB(opts.amountPaid)}</span></div>
 ${opts.change > 0 ? `<div class="row"><span>เงินทอน</span><span class="v">฿${fmtB(opts.change)}</span></div>` : ''}
@@ -1222,8 +1220,6 @@ export function buildPackageSalePreviewData(opts: PrintPackageSaleOptions): Ther
       : []),
     { type: 'separator' },
     { type: 'row', label: 'ราคาขาย', value: `฿${fmtB(opts.packageAmount)}`, bold: true },
-    { type: 'row', label: 'ต้นทุน (97%)', value: `฿${fmtB(opts.walletDeduction)}` },
-    { type: 'row', label: 'กำไร (3%)', value: `฿${fmtB(opts.profit)}` },
     { type: 'separator' },
     { type: 'row', label: PM_LABEL[opts.paymentMethod] ?? opts.paymentMethod, value: `฿${fmtB(opts.amountPaid)}` },
     ...(opts.change > 0
@@ -1260,7 +1256,6 @@ export async function sharePackageSale(opts: PrintPackageSaleOptions): Promise<v
     ...(opts.note ? [`หมายเหตุ: ${opts.note}`] : []),
     HR,
     `ราคาขาย: ฿${fmtB(opts.packageAmount)}`,
-    `กำไร: ฿${fmtB(opts.profit)}`,
     `${PM[opts.paymentMethod] ?? opts.paymentMethod}: ฿${fmtB(opts.amountPaid)}`,
     ...(opts.change > 0 ? [`เงินทอน: ฿${fmtB(opts.change)}`] : []),
     ...(opts.amountDue ? [`ค้างจ่าย: ฿${fmtB(opts.amountDue)}`] : []),
@@ -1532,7 +1527,8 @@ export interface PrintDailyClosingOptions {
   repairTotal:        number
   packageSaleCount:   number
   packageSaleTotal:   number
-  packageSaleProfit:  number
+  /** only for people who see reports */
+  packageSaleProfit?: number
   expectedBalance:    number
   actualBalance:      number
   difference:         number
@@ -1571,7 +1567,7 @@ ${shopHeaderHtml(opts)}
 <div class="row"><span>งานซ่อม (${opts.repairCount} งาน)</span><span class="v">฿${fmtB(opts.repairTotal)}</span></div>
 ${staffSalesOf(opts).map((x) => `<div class="row xs"><span>· ${x.name} (${x.salesCount})</span><span class="v">฿${fmtB(x.salesTotal)}</span></div>`).join('')}
 ${opts.packageSaleCount > 0 ? `<div class="row"><span>SIM/แพ็กเกจ (${opts.packageSaleCount})</span><span class="v">฿${fmtB(opts.packageSaleTotal)}</span></div>
-<div class="row xs"><span>กำไร SIM</span><span class="v">฿${fmtB(opts.packageSaleProfit)}</span></div>` : ''}
+${opts.packageSaleProfit != null ? `<div class="row xs"><span>กำไร SIM</span><span class="v">฿${fmtB(opts.packageSaleProfit)}</span></div>` : ''}` : ''}
 <div class="hr"></div>
 <div class="row"><span>เงินสดที่ควรมี</span><span class="v b">฿${fmtB(opts.expectedBalance)}</span></div>
 <div class="row"><span>ยอดที่นับได้</span><span class="v b">฿${fmtB(opts.actualBalance)}</span></div>
