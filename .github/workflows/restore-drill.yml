@@ -65,29 +65,11 @@ jobs:
             exit 0'
 
       - name: Start the app again (only when restart_app)
-        # Outage recovery (owner approved 2026-10-08): the newest backend/frontend containers were
-        # stopped and nothing served the site. Start them as they are (no rebuild, no data change)
-        # and point Traefik's file at their coolify-network addresses; the old file is kept as .bak.
+        # Outage recovery (owner approved 2026-10-08): start the newest stopped app containers and
+        # point Traefik at them — the same script the deploy uses (scripts/deploy/recover-app.sh).
         if: ${{ inputs.restart_app }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 'set -e
-            APP=z9m1c1i9nr6kbyo4qn0vuv1b
-            B=$(docker ps -a --format "{{.Names}}" | grep "^backend-$APP" | head -1)
-            F=$(docker ps -a --format "{{.Names}}" | grep "^frontend-$APP" | head -1)
-            echo "starting $B and $F"
-            docker start "$B" "$F"
-            sleep 25
-            ip() { docker inspect "$1" --format "{{(index .NetworkSettings.Networks \"coolify\").IPAddress}}"; }
-            BIP=$(ip "$B"); FIP=$(ip "$F")
-            echo "backend=$BIP frontend=$FIP"
-            T=/data/coolify/proxy/dynamic/fixitpro.yaml
-            cp -p "$T" "$T.bak-$(date +%Y%m%d%H%M%S)"
-            OLD_B=$(grep "url:" "$T" | head -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")
-            OLD_F=$(grep "url:" "$T" | tail -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")
-            if [ -n "$BIP" ] && [ -n "$OLD_B" ]; then sed -i "s|$OLD_B|$BIP|g" "$T"; fi
-            if [ -n "$FIP" ] && [ -n "$OLD_F" ]; then sed -i "s|$OLD_F|$FIP|g" "$T"; fi
-            grep "url:" "$T"
-            docker ps --format "{{.Names}}\t{{.Status}}" | grep "$APP"'
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 'sh -s' < scripts/deploy/recover-app.sh
           sleep 10
           for i in 1 2 3 4 5 6 7 8 9 10; do
             code=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/login --max-time 10 || true)
