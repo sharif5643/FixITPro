@@ -202,4 +202,137 @@ SELECT f."tenantId",
   (SELECT count(*) FROM "Expense" e JOIN "Branch" b ON b.id = e."branchId" WHERE b."tenantId" = f."tenantId" AND e."createdAt" >= f.t0) AS expenses
 FROM first f;
 
+-- 21. Money: do the stored figures add up? (counts and sums per shop, no customer data)
+\echo '21a. Sales whose total does not match subtotal - discount, or whose items do not add up to the subtotal'
+SELECT b."tenantId", count(*) AS sales,
+  count(*) FILTER (WHERE s.total <> s.subtotal - s.discount) AS total_mismatch,
+  count(*) FILTER (WHERE abs(s.subtotal - coalesce((SELECT sum(i.total) FROM "SaleItem" i WHERE i."saleId" = s.id), 0)) > 0.01) AS items_mismatch,
+  count(*) FILTER (WHERE s.total < 0 OR s.subtotal < 0 OR s.discount < 0) AS negative
+FROM "Sale" s LEFT JOIN "Branch" b ON b.id = s."branchId" WHERE s.status::text <> 'VOIDED' GROUP BY 1 ORDER BY 2 DESC;
+\echo '21b. Sales whose payments do not add up to the total (non-voided)'
+SELECT b."tenantId",
+  count(*) FILTER (WHERE p.n = 0) AS no_payment_rows,
+  count(*) FILTER (WHERE p.n > 0 AND abs(p.paid - s.total) > 0.01) AS paid_differs,
+  sum(p.paid - s.total) FILTER (WHERE p.n > 0 AND abs(p.paid - s.total) > 0.01) AS diff_sum,
+  count(*) FILTER (WHERE s."paymentMethod"::text = 'CASH' AND abs((s."amountPaid" - s.change) - s.total) > 0.01) AS cash_change_mismatch
+FROM "Sale" s LEFT JOIN "Branch" b ON b.id = s."branchId"
+CROSS JOIN LATERAL (SELECT count(*) AS n, coalesce(sum(sp.amount), 0) AS paid FROM "SalePayment" sp WHERE sp."saleId" = s.id) p
+WHERE s.status::text <> 'VOIDED' GROUP BY 1 ORDER BY 1;
+\echo '21c. Sale payment problems by day (last 60 days): sales with payments that differ from the total'
+SELECT b."tenantId", s."createdAt"::date AS day, count(*) AS sales, sum(p.paid - s.total) AS diff
+FROM "Sale" s LEFT JOIN "Branch" b ON b.id = s."branchId"
+CROSS JOIN LATERAL (SELECT count(*) AS n, coalesce(sum(sp.amount), 0) AS paid FROM "SalePayment" sp WHERE sp."saleId" = s.id) p
+WHERE s.status::text <> 'VOIDED' AND p.n > 0 AND abs(p.paid - s.total) > 0.01 AND s."createdAt" > now() - interval '60 days'
+GROUP BY 1, 2 ORDER BY 1, 2;
+\echo '21d. Refunds: more refunded than sold, item quantities, refund total vs its items, status'
+SELECT b."tenantId",
+  count(DISTINCT s.id) AS sales_with_refund,
+  count(DISTINCT s.id) FILTER (WHERE r.refunded > s.total + 0.01) AS refunded_more_than_total,
+  count(DISTINCT s.id) FILTER (WHERE s.status::text = 'COMPLETED') AS still_completed,
+  count(DISTINCT s.id) FILTER (WHERE s.status::text = 'REFUNDED' AND r.refunded < s.total - 0.01) AS refunded_status_but_partial,
+  (SELECT count(*) FROM "SaleItem" i JOIN "Sale" s2 ON s2.id = i."saleId" LEFT JOIN "Branch" b2 ON b2.id = s2."branchId"
+     WHERE b2."tenantId" IS NOT DISTINCT FROM b."tenantId" AND (i."refundedQty" > i.quantity OR i."refundedQty" < 0)) AS item_over_refunded,
+  (SELECT count(*) FROM "SaleRefund" rf JOIN "Sale" s3 ON s3.id = rf."saleId" LEFT JOIN "Branch" b3 ON b3.id = s3."branchId"
+     WHERE b3."tenantId" IS NOT DISTINCT FROM b."tenantId"
+       AND abs(rf."totalRefund" - coalesce((SELECT sum(ri.total) FROM "SaleRefundItem" ri WHERE ri."refundId" = rf.id), 0)) > 0.01) AS refund_vs_items
+FROM "Sale" s LEFT JOIN "Branch" b ON b.id = s."branchId"
+JOIN LATERAL (SELECT sum(rf."totalRefund") AS refunded FROM "SaleRefund" rf WHERE rf."saleId" = s.id) r ON r.refunded IS NOT NULL
+GROUP BY 1 ORDER BY 1;
+\echo '21e. Repairs: payment status vs amounts, deposits, reversals'
+SELECT b."tenantId", count(*) AS repairs,
+  count(*) FILTER (WHERE r."paymentStatus"::text = 'PAID' AND coalesce(r."paidAmount", 0) = 0 AND r.deposit = 0 AND coalesce(r."finalCost", 0) > 0) AS paid_without_amount,
+  count(*) FILTER (WHERE r."paymentStatus"::text = 'PENDING' AND coalesce(r."paidAmount", 0) > 0) AS pending_with_amount,
+  count(*) FILTER (WHERE r."finalCost" IS NOT NULL AND coalesce(r."paidAmount", 0) + r.deposit
+                    > r."finalCost" - coalesce(r.discount, 0) + coalesce((SELECT sum(a.amount) FROM "RepairAdditionalPayment" a WHERE a."repairId" = r.id), 0) + 0.01) AS paid_more_than_cost,
+  count(*) FILTER (WHERE r.deposit < 0 OR coalesce(r."paidAmount", 0) < 0 OR coalesce(r."finalCost", 0) < 0) AS negative,
+  count(*) FILTER (WHERE r.status::text = 'DELIVERED' AND r."paymentStatus"::text <> 'PAID') AS delivered_not_paid,
+  (SELECT count(*) FROM "RepairPaymentReversal" v JOIN "Repair" r2 ON r2.id = v."repairId" LEFT JOIN "Branch" b2 ON b2.id = r2."branchId"
+     WHERE b2."tenantId" IS NOT DISTINCT FROM b."tenantId") AS reversals
+FROM "Repair" r LEFT JOIN "Branch" b ON b.id = r."branchId" GROUP BY 1 ORDER BY 2 DESC;
+\echo '21f. Closed shifts (last 90 days): counted vs expected cash as recorded at close'
+SELECT b."tenantId", count(*) AS closed,
+  count(*) FILTER (WHERE abs((a."afterData"->>'difference')::numeric) >= 1) AS with_difference,
+  sum((a."afterData"->>'difference')::numeric) FILTER (WHERE (a."afterData"->>'difference')::numeric < 0) AS short_total,
+  sum((a."afterData"->>'difference')::numeric) FILTER (WHERE (a."afterData"->>'difference')::numeric > 0) AS over_total,
+  count(*) FILTER (WHERE a.id IS NULL) AS no_close_record
+FROM "Shift" sh LEFT JOIN "Branch" b ON b.id = sh."branchId"
+LEFT JOIN LATERAL (SELECT al.id, al."afterData" FROM "AuditLog" al WHERE al.action = 'SHIFT_CLOSED' AND al."entityId" = sh.id ORDER BY al."createdAt" DESC LIMIT 1) a ON true
+WHERE sh."closedAt" > now() - interval '90 days' GROUP BY 1 ORDER BY 1;
+\echo '21g. Shifts still open: per shop, and how long'
+SELECT b."tenantId", count(*) AS open_shifts, count(*) FILTER (WHERE sh."openedAt" < now() - interval '24 hours') AS open_over_24h,
+  min(sh."openedAt")::date AS oldest
+FROM "Shift" sh LEFT JOIN "Branch" b ON b.id = sh."branchId" WHERE sh."isActive" GROUP BY 1 ORDER BY 1;
+\echo '21h. Money taken outside any shift (last 60 days): sales, repair payments, expenses'
+SELECT b."tenantId",
+  count(*) FILTER (WHERE x.kind = 'sale') AS sales, sum(x.amt) FILTER (WHERE x.kind = 'sale') AS sales_amt,
+  count(*) FILTER (WHERE x.kind = 'repair') AS repairs, sum(x.amt) FILTER (WHERE x.kind = 'repair') AS repairs_amt,
+  count(*) FILTER (WHERE x.kind = 'expense') AS expenses, sum(x.amt) FILTER (WHERE x.kind = 'expense') AS expenses_amt
+FROM (
+  SELECT 'sale' AS kind, s."branchId", s.total AS amt FROM "Sale" s
+    WHERE s."shiftId" IS NULL AND s.status::text <> 'VOIDED' AND s."createdAt" > now() - interval '60 days'
+  UNION ALL SELECT 'repair', r."branchId", r."paidAmount" FROM "Repair" r
+    WHERE r."paymentShiftId" IS NULL AND coalesce(r."paidAmount", 0) > 0 AND r."paidAt" > now() - interval '60 days'
+  UNION ALL SELECT 'expense', e."branchId", e.amount FROM "Expense" e
+    WHERE e."shiftId" IS NULL AND e."voidedAt" IS NULL AND e."createdAt" > now() - interval '60 days'
+) x LEFT JOIN "Branch" b ON b.id = x."branchId" GROUP BY 1 ORDER BY 1;
+\echo '21i. SIM wallets: balance vs last movement, broken movement chain, negative balance'
+SELECT w."tenantId", w.carrier, w.balance, m.last_after,
+  (w.balance <> coalesce(m.last_after, w.balance)) AS balance_differs,
+  (SELECT count(*) FROM "CarrierWalletMovement" mv WHERE mv."walletId" = w.id
+     AND NOT CASE mv.type::text
+       WHEN 'TOPUP' THEN mv."balanceAfter" = mv."balanceBefore" + mv.amount
+       WHEN 'DEDUCTION' THEN mv."balanceAfter" = mv."balanceBefore" - mv.amount
+       WHEN 'ADJUSTMENT' THEN abs(mv."balanceAfter" - mv."balanceBefore") = mv.amount
+       ELSE mv."balanceAfter" = mv.amount END) AS bad_steps,
+  (w.balance < 0) AS negative,
+  (SELECT count(*) FROM (SELECT mv."balanceBefore", lag(mv."balanceAfter") OVER (ORDER BY mv."createdAt", mv.id) AS prev
+     FROM "CarrierWalletMovement" mv WHERE mv."walletId" = w.id) q WHERE q.prev IS NOT NULL AND q.prev <> q."balanceBefore") AS chain_breaks
+FROM "CarrierWallet" w
+LEFT JOIN LATERAL (SELECT mv."balanceAfter" AS last_after FROM "CarrierWalletMovement" mv WHERE mv."walletId" = w.id ORDER BY mv."createdAt" DESC, mv.id DESC LIMIT 1) m ON true
+ORDER BY 1, 2;
+\echo '21j. SIM sales: profit, amount due vs debt payments, settled flag'
+SELECT p."tenantId", count(*) AS sim_sales,
+  count(*) FILTER (WHERE abs(p.profit - (p."packageAmount" - p."walletDeduction")) > 0.01) AS profit_mismatch,
+  count(*) FILTER (WHERE p."amountDue" > 0) AS on_credit,
+  count(*) FILTER (WHERE p."amountDue" > 0 AND d.paid > p."amountDue" + 0.01) AS overpaid_debt,
+  count(*) FILTER (WHERE p."amountDue" > 0 AND p."settledAt" IS NOT NULL AND d.paid < p."amountDue" - 0.01) AS settled_but_short,
+  count(*) FILTER (WHERE p."amountDue" > 0 AND p."settledAt" IS NULL AND d.paid >= p."amountDue" - 0.01) AS paid_not_marked,
+  sum(p."amountDue" - d.paid) FILTER (WHERE p."amountDue" > 0 AND p."settledAt" IS NULL) AS outstanding
+FROM "PackageSale" p
+CROSS JOIN LATERAL (SELECT coalesce(sum(dp.amount), 0) AS paid FROM "PackageSaleDebtPayment" dp WHERE dp."packageSaleId" = p.id) d
+GROUP BY 1 ORDER BY 1;
+\echo '21k. Cash drawer sessions: expected vs movements, difference vs counted, sessions left open'
+SELECT cs."tenantId", count(*) AS sessions,
+  count(*) FILTER (WHERE cs.status::text = 'OPEN') AS open_now,
+  count(*) FILTER (WHERE cs.status::text = 'OPEN' AND cs."openedAt" < now() - interval '24 hours') AS open_over_24h,
+  count(*) FILTER (WHERE cs."countedAmount" IS NOT NULL AND cs."expectedAmount" IS NOT NULL
+                    AND abs(coalesce(cs."differenceAmount", 0) - (cs."countedAmount" - cs."expectedAmount")) > 0.01) AS diff_field_wrong,
+  count(*) FILTER (WHERE cs."expectedAmount" IS NOT NULL AND abs(cs."expectedAmount" - t.net) > 0.01) AS expected_vs_movements,
+  count(*) FILTER (WHERE abs(coalesce(cs."differenceAmount", 0)) >= 1) AS with_difference
+FROM "CashDrawerSession" cs
+CROSS JOIN LATERAL (SELECT coalesce(sum(CASE WHEN ct.direction::text = 'IN' THEN ct.amount ELSE -ct.amount END), 0) AS net
+  FROM "CashDrawerTransaction" ct WHERE ct."sessionId" = cs.id) t
+GROUP BY 1 ORDER BY 1;
+\echo '21l. Books: entries that do not balance, entries without lines, voided'
+SELECT j."tenantId", count(*) AS entries,
+  count(*) FILTER (WHERE l.n = 0) AS no_lines,
+  count(*) FILTER (WHERE l.n > 0 AND l.dr <> l.cr) AS unbalanced,
+  sum(l.dr - l.cr) FILTER (WHERE l.dr <> l.cr) AS unbalanced_by,
+  count(*) FILTER (WHERE j."isVoided") AS voided,
+  count(*) - count(DISTINCT (j."sourceType", j."sourceId")) FILTER (WHERE j."sourceId" IS NOT NULL AND NOT j."isVoided")
+    - count(*) FILTER (WHERE j."sourceId" IS NULL OR j."isVoided") AS duplicate_source
+FROM "JournalEntry" j
+CROSS JOIN LATERAL (SELECT count(*) AS n, coalesce(sum(jl.debit), 0) AS dr, coalesce(sum(jl.credit), 0) AS cr FROM "JournalLine" jl WHERE jl."entryId" = j.id) l
+GROUP BY 1 ORDER BY 2 DESC;
+\echo '21m. Expenses: zero or negative, no branch, voided'
+SELECT b."tenantId", count(*) AS expenses, sum(e.amount) FILTER (WHERE e."voidedAt" IS NULL) AS amount,
+  count(*) FILTER (WHERE e.amount <= 0) AS zero_or_negative, count(*) FILTER (WHERE e."branchId" IS NULL) AS no_branch,
+  count(*) FILTER (WHERE e."voidedAt" IS NOT NULL) AS voided
+FROM "Expense" e LEFT JOIN "Branch" b ON b.id = e."branchId" GROUP BY 1 ORDER BY 1;
+\echo '21n. Daily closes: cash counted vs expected, and the last close'
+SELECT dc."tenantId", count(*) AS closes,
+  count(*) FILTER (WHERE dc."actualCash" IS NOT NULL AND abs(coalesce(dc."cashDifference", 0)) >= 1) AS with_cash_difference,
+  max(dc.date) AS last_close
+FROM "DailyClose" dc GROUP BY 1 ORDER BY 1;
+
 ROLLBACK;
