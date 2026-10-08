@@ -88,8 +88,8 @@ type ActivationCheck =
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-// Reconciliation scan is blocked if the activation timestamp is older than this.
-// Prevents an accidentally far-past timestamp from backfilling all historical transactions.
+// The scan never reaches further back than this: with an older activation timestamp it covers the
+// last 24 hours only, so an accidentally far-past timestamp cannot back-fill all history.
 const ACTIVATION_MAX_AGE_HOURS = 24;
 const ACTIVATION_MAX_AGE_MS    = ACTIVATION_MAX_AGE_HOURS * 60 * 60 * 1000;
 
@@ -110,6 +110,7 @@ const REPAIR_ID_SOURCE_TYPES = [
 @Injectable()
 export class AccountingReconciliationService implements OnModuleInit {
   private readonly logger = new Logger(AccountingReconciliationService.name);
+  private reportedRollingWindow = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -146,21 +147,28 @@ export class AccountingReconciliationService implements OnModuleInit {
     }
 
     // Phase 4B.2.2: validate activation timestamp before scanning.
-    // Fail if missing, invalid, or older than the 24-hour safety window.
+    // Fail if missing or invalid; once older than the 24-hour window, scan the last 24 hours.
     const activation = this.validateActivationTimestamp();
-    if (activation.ok === false) {
-      if (activation.reason === 'TOO_OLD') {
-        this.logger.error(
-          'Accounting activation timestamp is older than allowed safety window; reconciliation blocked.',
-        );
-      } else {
-        this.logger.error(
-          `AccountingReconciliationService: ${activation.message} — scan skipped.`,
+    let activationTs: Date;
+    if (activation.ok === false && activation.reason === 'TOO_OLD') {
+      // Past the first day the scan keeps running as a safety net, over the last 24 hours only:
+      // it still never back-fills history (the reason for the window), and an entry missed today
+      // (e.g. a dropped connection) is still recovered. Before, it stopped for good after day one.
+      activationTs = new Date(Date.now() - ACTIVATION_MAX_AGE_MS);
+      if (!this.reportedRollingWindow) {
+        this.reportedRollingWindow = true;
+        this.logger.log(
+          `Accounting activation timestamp is older than ${ACTIVATION_MAX_AGE_HOURS}h; reconciliation scans the last ${ACTIVATION_MAX_AGE_HOURS}h only.`,
         );
       }
+    } else if (activation.ok === false) {
+      this.logger.error(
+        `AccountingReconciliationService: ${activation.message} — scan skipped.`,
+      );
       return this.emptyReport(options?.tenantId ?? null);
+    } else {
+      activationTs = activation.date;
     }
-    const activationTs = activation.date;
 
     if (options?.tenantId) {
       return this.scanTenants([options.tenantId], activationTs, options.tenantId);
