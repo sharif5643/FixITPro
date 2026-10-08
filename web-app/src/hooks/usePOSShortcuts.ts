@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react'
 import { Platform } from '@/lib/platform'
 
 export interface POSShortcutHandlers {
+  /** F1 — new bill: close the receipt and put the cursor in the scan box */
+  onNewSale?: () => void
+  /** F9 — take cash out of the drawer (amount, Enter, the drawer opens) */
+  onCashOut?: () => void
   /** F2 — focus product search input */
   onFocusSearch: () => void
   /** F3 — open customer search dialog */
@@ -34,6 +38,7 @@ export interface POSShortcutHandlers {
  * Global keyboard shortcuts for the POS page.
  *
  * Key map:
+ *   F1 = บิลใหม่ (สแกนต่อ)   F9 = เบิกเงินจากลิ้นชัก
  *   F2 = ค้นหาสินค้า    F3 = ค้นหาลูกค้า   F4 = ส่วนลด
  *   F5 = QR             F6 = เงินสด         F7 = โอน
  *   F8 = คิดเงิน
@@ -42,6 +47,8 @@ export interface POSShortcutHandlers {
  * All callbacks are kept in a ref so the effect re-runs only when `enabled` changes.
  */
 export function usePOSShortcuts({
+  onNewSale,
+  onCashOut,
   onFocusSearch,
   onFocusCustomerSearch,
   onFocusDiscount,
@@ -57,6 +64,8 @@ export function usePOSShortcuts({
   enabled = true,
 }: POSShortcutHandlers) {
   const cb = useRef({
+    onNewSale,
+    onCashOut,
     onFocusSearch,
     onFocusCustomerSearch,
     onFocusDiscount,
@@ -73,6 +82,8 @@ export function usePOSShortcuts({
 
   useEffect(() => {
     cb.current = {
+      onNewSale,
+      onCashOut,
       onFocusSearch,
       onFocusCustomerSearch,
       onFocusDiscount,
@@ -97,6 +108,8 @@ export function usePOSShortcuts({
       const inInput = tag === 'input' || tag === 'textarea' || tag === 'select'
 
       switch (e.key) {
+        case 'F1': e.preventDefault(); cb.current.onNewSale?.(); return
+        case 'F9': e.preventDefault(); cb.current.onCashOut?.(); return
         case 'F2': e.preventDefault(); cb.current.onFocusSearch(); return
         case 'F3': e.preventDefault(); cb.current.onFocusCustomerSearch(); return
         case 'F4': e.preventDefault(); cb.current.onFocusDiscount(); return

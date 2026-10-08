@@ -29,9 +29,11 @@ interface ReceiptDialogProps {
   open: boolean
   sale: Sale | null
   onClose: () => void
+  /** The drawer already opened when the sale was saved: printing does not open it again */
+  drawerOpened?: boolean
 }
 
-export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
+export function ReceiptDialog({ open, sale, onClose, drawerOpened }: ReceiptDialogProps) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [flowOpen,    setFlowOpen]    = useState(false)
   const user = useAuthStore((s) => s.user)
@@ -105,7 +107,7 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
         const onMessage = (e: MessageEvent) => {
           if (e.data === 'receipt-afterprint') {
             window.removeEventListener('message', onMessage)
-            openCashDrawer().catch((err) => console.error('[CashDrawer]', err))
+            if (!drawerOpened) openCashDrawer().catch((err) => console.error('[CashDrawer]', err))
           }
         }
         window.addEventListener('message', onMessage)
@@ -127,6 +129,15 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mt-1">ชำระเงินสำเร็จ!</h2>
             <p className="text-sm text-muted-foreground">ขอบคุณที่ใช้บริการ</p>
           </div>
+
+          {/* Change to give back: big, it is what the cashier needs right now */}
+          {Number(sale.change) > 0 && (
+            <div className="rounded-2xl bg-green-600 text-white text-center py-3">
+              <p className="text-sm font-semibold opacity-90">เงินทอน</p>
+              <p className="text-4xl font-black tabular-nums">{formatThaiMoney(Number(sale.change))}</p>
+              <p className="text-xs opacity-80 mt-0.5">รับมา {formatThaiMoney(Number(sale.amountPaid))}</p>
+            </div>
+          )}
 
           {/* Receipt preview */}
           <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 p-4 font-mono text-sm space-y-3">
@@ -238,8 +249,8 @@ export function ReceiptDialog({ open, sale, onClose }: ReceiptDialogProps) {
                 </div>
               )}
             </div>
-            <Button onClick={onClose} className="flex-1 font-semibold">
-              ขายต่อ
+            <Button onClick={onClose} className="flex-1 font-semibold" autoFocus>
+              ขายต่อ (Enter / F1)
             </Button>
           </div>
         </DialogContent>
