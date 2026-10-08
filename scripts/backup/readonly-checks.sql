@@ -335,4 +335,37 @@ SELECT dc."tenantId", count(*) AS closes,
   max(dc.date) AS last_close
 FROM "DailyClose" dc GROUP BY 1 ORDER BY 1;
 
+-- 22. Shift cash differences: one row per closed shift of the busiest shop (amounts only)
+\echo '22a. Closed shifts of the busiest shop, last 45 days: opening, counted, expected and its parts'
+WITH shop AS (SELECT 'cmsc05do8001u7i29q3p5x6zp'::text AS id)
+SELECT to_char(sh."openedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS opened,
+  to_char(sh."closedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS closed,
+  sh."openBalance" AS open_bal, sh."closeBalance" AS counted,
+  (a."afterData"->>'expectedBalance')::numeric AS expected, (a."afterData"->>'difference')::numeric AS diff,
+  (SELECT coalesce(sum(sp.amount), 0) FROM "SalePayment" sp JOIN "Sale" s ON s.id = sp."saleId" WHERE s."shiftId" = sh.id AND s.status::text <> 'VOIDED' AND sp."paymentMethod"::text = 'CASH') AS cash_legs,
+  (SELECT coalesce(sum(s.total), 0) FROM "Sale" s WHERE s."shiftId" = sh.id AND s.status::text <> 'VOIDED' AND s."paymentMethod"::text = 'CASH'
+     AND NOT EXISTS (SELECT 1 FROM "SalePayment" sp WHERE sp."saleId" = s.id)) AS cash_no_legs,
+  (SELECT coalesce(sum(sp.amount), 0) FROM "SalePayment" sp JOIN "Sale" s ON s.id = sp."saleId" WHERE s."shiftId" = sh.id AND s.status::text <> 'VOIDED' AND sp."paymentMethod"::text <> 'CASH') AS other_legs,
+  (SELECT count(*) FROM "Sale" s WHERE s."shiftId" = sh.id) AS sales,
+  (SELECT count(*) FROM "Sale" s WHERE s."shiftId" = sh.id AND s.status::text = 'VOIDED') AS voided,
+  (SELECT count(*) FROM "Shift" o WHERE o.id <> sh.id AND o."branchId" IS NOT DISTINCT FROM sh."branchId"
+     AND o."openedAt" < coalesce(sh."closedAt", now()) AND coalesce(o."closedAt", now()) > sh."openedAt") AS overlapping,
+  (SELECT count(*) FROM "ShiftMember" m WHERE m."shiftId" = sh.id) AS members,
+  (SELECT count(*) FROM "Sale" s WHERE s."shiftId" = sh.id AND s."createdAt" > sh."closedAt") AS sales_after_close,
+  (SELECT count(*) FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = shop.id AND s."shiftId" IS DISTINCT FROM sh.id
+     AND s."createdAt" BETWEEN sh."openedAt" AND sh."closedAt" AND s."branchId" IS NOT DISTINCT FROM sh."branchId") AS other_shift_sales_meanwhile
+FROM "Shift" sh CROSS JOIN shop JOIN "Branch" b ON b.id = sh."branchId" AND b."tenantId" = shop.id
+LEFT JOIN LATERAL (SELECT al."afterData" FROM "AuditLog" al WHERE al.action = 'SHIFT_CLOSED' AND al."entityId" = sh.id ORDER BY al."createdAt" DESC LIMIT 1) a ON true
+WHERE sh."closedAt" > now() - interval '45 days' ORDER BY sh."openedAt";
+\echo '22b. Same shop: shifts per user and branch, and how many branches'
+SELECT b.id AS branch, u.role, count(*) AS shifts, sum(CASE WHEN sh."isActive" THEN 1 ELSE 0 END) AS open
+FROM "Shift" sh JOIN "Branch" b ON b.id = sh."branchId" JOIN "User" u ON u.id = sh."userId"
+WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' GROUP BY 1, 2 ORDER BY 1, 2;
+\echo '22c. Same shop: the sale whose payments differ from its total'
+SELECT s."createdAt"::date, s.status, s."paymentMethod", s.total, s."amountPaid", s.change,
+  (SELECT json_agg(json_build_object('m', sp."paymentMethod", 'a', sp.amount)) FROM "SalePayment" sp WHERE sp."saleId" = s.id) AS legs
+FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND s.status::text <> 'VOIDED'
+  AND EXISTS (SELECT 1 FROM "SalePayment" sp WHERE sp."saleId" = s.id)
+  AND abs((SELECT sum(sp.amount) FROM "SalePayment" sp WHERE sp."saleId" = s.id) - s.total) > 0.01;
+
 ROLLBACK;
