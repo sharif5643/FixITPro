@@ -596,6 +596,12 @@ export class SalesService {
 
     const totalRefund = dto.items.reduce((sum, item) => sum + item.refundPrice * item.quantity, 0);
 
+    // The refund leaves from the shift open now (not the shift of the sale, which may be closed)
+    const refundShift = await this.prisma.shift.findFirst({ where: activeShiftWhere(userId), select: { id: true } });
+    if (!refundShift && dto.paymentMethod === 'CASH') {
+      throw new BadRequestException('กรุณาเปิดกะก่อนคืนเงินสด');
+    }
+
     const refundResult = await this.prisma.$transaction(async (tx) => {
       const refundedQty = await this.lockAndValidateRefund(tx, id, dto.items);
 
@@ -603,6 +609,7 @@ export class SalesService {
         data: {
           refundNumber: this.generateRefundNumber(),
           saleId: id,
+          shiftId: refundShift?.id ?? null,
           customerId: sale.customerId,
           createdById: userId,
           reason: dto.reason,
@@ -965,6 +972,7 @@ export class SalesService {
         data: {
           refundNumber,
           saleId: id,
+          shiftId: activeShift.id,
           customerId: sale.customerId,
           createdById: userId,
           reason: dto.reason,

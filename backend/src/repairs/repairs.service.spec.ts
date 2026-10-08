@@ -335,6 +335,8 @@ function makeRefundCancelService() {
   );
 
   (prisma.repair.findFirst as jest.Mock).mockResolvedValue(DELIVERED_REPAIR);
+  // The person giving the money back has a shift open
+  (prisma.shift.findFirst as jest.Mock).mockResolvedValue({ id: 'shift-now' });
 
   (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
     const tx: any = {
@@ -349,6 +351,7 @@ function makeRefundCancelService() {
       stockMovement:        { create: jest.fn().mockResolvedValue({}) },
       product:              { update: jest.fn().mockResolvedValue({}) },
       repairPaymentReversal:{ create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+      shiftCashMovement: { create: jest.fn() },
       repairAdditionalPayment: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       repair:               { update: jest.fn().mockResolvedValue(UPDATED_DELIVERED_CANCELLED) },
       auditLog:             { create: jest.fn() },
@@ -559,6 +562,7 @@ describe('RepairsService.refundAndCancel — Phase 4B.4M', () => {
         },
         product: { update: jest.fn().mockResolvedValue({}) },
         repairPaymentReversal: { create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+        shiftCashMovement: { create: jest.fn() },
         repairAdditionalPayment: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
         repair: { update: jest.fn().mockResolvedValue(UPDATED_DELIVERED_CANCELLED) },
         auditLog: { create: jest.fn() },

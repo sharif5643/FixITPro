@@ -16,6 +16,7 @@ import {
 } from '@/lib/printer'
 import { formatThaiMoney } from '@/lib/utils'
 import { HandoverCard, HandoverPicker, usePendingHandover, WALLET_FIELD } from '@/components/shifts/handover'
+import { ShiftCashMovements } from '@/components/shifts/cash-movements'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
 import { useAuthStore } from '@/store/auth.store'
@@ -42,6 +43,10 @@ type CurrentShift = {
   packageSaleRevenue?: number
   packageSaleAmount: number
   expectedCashBalance: number
+  cashRefunds?: number
+  cashRepairRefunds?: number
+  cashManualIn?: number
+  cashManualOut?: number
   /** working in someone else's shift (one cash drawer, several people) */
   joined?: boolean
   members?: { userId: string; name: string; joinedAt: string }[]
@@ -55,6 +60,10 @@ type CloseSummary = {
   expectedBalance: number
   actualBalance: number
   difference: number
+  cashManualIn?: number
+  cashManualOut?: number
+  cashRefunds?: number
+  cashRepairRefunds?: number
   staffSales?: { userId: string; name: string; salesCount: number; salesTotal: number }[]
   staff?: StaffMoney[]
 }
@@ -272,6 +281,9 @@ function toClosingOpts(
     footer:            settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
     staffSales:        summary.staffSales,
     staffCash:         (summary.staff ?? []).map((x) => ({ name: x.name, netCash: x.netCash, otherIn: x.otherIn - x.otherOut })),
+    cashIn:            summary.cashManualIn,
+    cashOut:           summary.cashManualOut,
+    cashRefunds:       (summary.cashRefunds ?? 0) + (summary.cashRepairRefunds ?? 0),
   }
 }
 
@@ -749,6 +761,12 @@ export default function SunmiShiftsPage() {
               sub={`${shift.packageSaleCount} รายการ${shift.packageSaleRevenue != null ? ` · กำไร ${formatThaiMoney(shift.packageSaleRevenue)}` : ''}`}
             />
           )}
+          {((shift.cashManualIn ?? 0) > 0 || (shift.cashManualOut ?? 0) > 0) && (
+            <Row label="เงินเข้า / ออกลิ้นชัก" value={`+${formatThaiMoney(shift.cashManualIn ?? 0)} / −${formatThaiMoney(shift.cashManualOut ?? 0)}`} />
+          )}
+          {((shift.cashRefunds ?? 0) + (shift.cashRepairRefunds ?? 0)) > 0 && (
+            <Row label="คืนเงินสดลูกค้า" value={`−${formatThaiMoney((shift.cashRefunds ?? 0) + (shift.cashRepairRefunds ?? 0))}`} />
+          )}
           <Row label="เงินสดที่ควรมีในลิ้นชัก" value={formatThaiMoney(shift.expectedCashBalance)} highlight />
         </div>
 
@@ -758,6 +776,8 @@ export default function SunmiShiftsPage() {
         >
           ดูรายการเงินในกะ — ใครรับเท่าไหร่
         </button>
+
+        <ShiftCashMovements shiftId={shift.id} />
 
         {/* Carrier wallet balances */}
         <WalletBalances shiftId={shift.id} />

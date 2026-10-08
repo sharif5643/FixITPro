@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { activeShiftWhere } from '../shifts/active-shift';
+import { REPAIR_MONEY, SHIFT_CASH_KIND } from '../shifts/shift-cash';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { WarrantiesService } from '../warranties/warranties.service';
@@ -1118,14 +1119,57 @@ export class RepairsService {
     return paid;
   }
 
+  /** The open shift that pays money back to a customer; cash cannot leave without one. */
+  private async shiftForMoneyBack(userId: string, cash: boolean) {
+    const shift = await this.prisma.shift.findFirst({ where: activeShiftWhere(userId), select: { id: true } });
+    if (!shift && cash) throw new BadRequestException('กรุณาเปิดกะก่อนคืนเงินสดให้ลูกค้า');
+    return shift;
+  }
+
+  /**
+   * Repair money given back: each payment stays in the figures of the shift that took it
+   * (the repair stops pointing at that shift), and leaves from the shift open now.
+   */
+  private async recordMoneyBack(
+    tx: any,
+    p: {
+      repairId: string; ticketNumber: string; userId: string; outShiftId: string | null;
+      branchId: string | null; tenantId: string | null;
+      legs: { type: string; amount: number; method: string; shiftId: string | null; at: Date | null; receivedById: string }[];
+    },
+  ) {
+    const common = { referenceId: p.repairId, branchId: p.branchId, tenantId: p.tenantId };
+    for (const leg of p.legs) {
+      if (!(leg.amount > 0)) continue;
+      if (leg.shiftId) {
+        await tx.shiftCashMovement.create({
+          data: {
+            ...common, kind: SHIFT_CASH_KIND.REPAIR_PAYMENT_KEPT, direction: 'IN', amount: leg.amount,
+            paymentMethod: leg.method, referenceType: leg.type, reason: p.ticketNumber,
+            shiftId: leg.shiftId, createdById: leg.receivedById, ...(leg.at ? { createdAt: leg.at } : {}),
+          },
+        });
+      }
+      if (p.outShiftId) {
+        await tx.shiftCashMovement.create({
+          data: {
+            ...common, kind: SHIFT_CASH_KIND.REPAIR_REFUND, direction: 'OUT', amount: leg.amount,
+            paymentMethod: leg.method, referenceType: leg.type, reason: `คืนเงินงานซ่อม ${p.ticketNumber}`,
+            shiftId: p.outShiftId, createdById: p.userId,
+          },
+        });
+      }
+    }
+  }
+
   async reversePayment(repairId: string, dto: ReversePaymentDto, userId: string, tenantId?: string | null) {
     const revWhere: any = { id: repairId };
     if (tenantId) revWhere.branch = { tenantId };
     const repair = await this.prisma.repair.findFirst({
       where: revWhere,
       select: {
-        id: true, status: true, paymentStatus: true,
-        paymentMethod: true, paidAmount: true,
+        id: true, ticketNumber: true, status: true, paymentStatus: true,
+        paymentMethod: true, paidAmount: true, paidAt: true, paymentShiftId: true,
         branchId: true, branch: { select: { tenantId: true } },
       },
     });
@@ -1137,17 +1181,28 @@ export class RepairsService {
     if (repair.paymentStatus !== 'PAID') {
       throw new BadRequestException('งานซ่อมนี้ยังไม่ได้ชำระเงิน');
     }
+    const method = repair.paymentMethod ?? 'CASH';
+    const outShift = await this.shiftForMoneyBack(userId, method === 'CASH');
 
     const reversed = await this.prisma.$transaction(async (tx) => {
       await tx.repairPaymentReversal.create({
         data: {
           repairId,
           amount: repair.paidAmount ?? 0,
-          paymentMethod: (repair.paymentMethod ?? 'CASH') as any,
+          paymentMethod: method as any,
           reason: dto.reason,
           note: dto.note,
           createdById: userId,
         },
+      });
+
+      await this.recordMoneyBack(tx, {
+        repairId, ticketNumber: repair.ticketNumber, userId, outShiftId: outShift?.id ?? null,
+        branchId: repair.branchId, tenantId: (repair as any).branch?.tenantId ?? tenantId ?? null,
+        legs: [{
+          type: REPAIR_MONEY.FINAL, amount: Number(repair.paidAmount ?? 0), method,
+          shiftId: repair.paymentShiftId, at: repair.paidAt, receivedById: userId,
+        }],
       });
 
       const updated = await tx.repair.update({
@@ -1366,14 +1421,19 @@ export class RepairsService {
         paymentStatus: true,
         paymentMethod: true,
         paidAmount:    true,
+        paidAt:        true,
+        paymentShiftId: true,
         deposit:       true,
+        depositShiftId: true,
+        depositPaymentMethod: true,
+        receivedAt:    true,
         branchId:      true,
         branch:        { select: { tenantId: true } },
         parts:         {
           select: { id: true, productId: true, quantity: true, costPrice: true, isVoided: true },
         },
         additionalPayments: {
-          select: { id: true, amount: true, paymentMethod: true },
+          select: { id: true, amount: true, paymentMethod: true, shiftId: true, createdAt: true, createdById: true },
         },
       },
     });
@@ -1417,7 +1477,28 @@ export class RepairsService {
       }
     }
 
+    // Money given back to the customer, per payment: the shift that took it keeps it in its
+    // figures, the shift open now pays it out (cash needs an open shift)
+    const moneyBack = [
+      { type: REPAIR_MONEY.FINAL, amount: paidAmount, method: repair.paymentMethod ?? 'CASH',
+        shiftId: repair.paymentShiftId, at: repair.paidAt, receivedById: userId },
+      { type: REPAIR_MONEY.DEPOSIT, amount: deposit,
+        method: repair.depositPaymentMethod ?? depositPaymentMethod ?? 'CASH',
+        // the shift counted the deposit only when its method was recorded as such
+        shiftId: repair.depositPaymentMethod ? repair.depositShiftId : null, at: repair.receivedAt, receivedById: userId },
+      ...(repair.additionalPayments ?? []).map((a) => ({
+        type: REPAIR_MONEY.ADDITIONAL, amount: Number(a.amount ?? 0), method: a.paymentMethod as string,
+        shiftId: a.shiftId, at: a.createdAt, receivedById: a.createdById,
+      })),
+    ].filter((l) => l.amount > 0);
+    const outShift = await this.shiftForMoneyBack(userId, moneyBack.some((l) => l.method === 'CASH'));
+
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.recordMoneyBack(tx, {
+        repairId, ticketNumber: repair.ticketNumber, userId, outShiftId: outShift?.id ?? null,
+        branchId: repairBranchId, tenantId: repairTenantId, legs: moneyBack,
+      });
+
       // 1. Void all currently-active parts + return stock
       const activeParts = await tx.repairPart.findMany({
         where:   { repairId, isVoided: false },

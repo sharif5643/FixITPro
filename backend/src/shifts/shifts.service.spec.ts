@@ -1,5 +1,6 @@
 import { ShiftsService } from './shifts.service';
 import { mockPrisma } from '../test/prisma-mock';
+import { supplierPaymentsOfShiftWhere } from './shift-cash';
 
 const MOCK_SHIFT = {
   id: 'shift1', userId: 'u1', isActive: true, openBalance: 1000,
@@ -112,13 +113,12 @@ describe('ShiftsService.getClosedShiftSummary — print a closed shift again', (
   });
 });
 
-describe('ShiftsService — supplier payments in a shift', () => {
-  const service = new (ShiftsService as any)({}, {}, {}, {});
+describe('supplier payments in a shift', () => {
   const openedAt = new Date('2026-10-08T12:00:00Z');
   const closedAt = new Date('2026-10-08T23:00:00Z');
 
   it('only counts purchase orders of the shift branch', () => {
-    const where = service.supplierPaymentsWhere({ openedAt, closedAt, branchId: 'b1', user: { tenantId: 't1' } });
+    const where = supplierPaymentsOfShiftWhere({ openedAt, closedAt, branchId: 'b1', user: { tenantId: 't1' } });
     expect(where).toEqual({
       paidAt: { gte: openedAt, lt: closedAt },
       purchaseOrder: { supplier: { tenantId: 't1' }, branchId: 'b1' },
@@ -126,7 +126,7 @@ describe('ShiftsService — supplier payments in a shift', () => {
   });
 
   it('falls back to the whole shop when the shift has no branch', () => {
-    const where = service.supplierPaymentsWhere({ openedAt, closedAt, branchId: null, user: { tenantId: 't1' } });
+    const where = supplierPaymentsOfShiftWhere({ openedAt, closedAt, branchId: null, user: { tenantId: 't1' } });
     expect(where.purchaseOrder).toEqual({ supplier: { tenantId: 't1' } });
   });
 });

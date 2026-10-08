@@ -51,6 +51,7 @@ import api from '@/lib/api'
 import { JoinShifts, LeaveShiftButton } from '@/components/shifts/join-shifts'
 import { ShiftLedgerSheet } from '@/components/shifts/shift-ledger'
 import { HandoverCard, HandoverPicker, usePendingHandover, WALLET_FIELD, type PendingHandover } from '@/components/shifts/handover'
+import { ShiftCashMovements } from '@/components/shifts/cash-movements'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -109,6 +110,10 @@ interface CloseShiftResult {
       totalAmount: number
       paymentBreakdown: Record<string, number>
     }
+    cashManualIn?: number
+    cashManualOut?: number
+    cashRefunds?: number
+    cashRepairRefunds?: number
     expectedBalance: number
     actualBalance: number
     difference: number
@@ -400,6 +405,8 @@ export default function ShiftsPage() {
               </span>
             </div>
 
+            <ShiftCashMovements shiftId={currentShift.id} />
+
             <div className="flex justify-end pt-1">
               <Button
                 variant="destructive"
@@ -634,6 +641,28 @@ export default function ShiftsPage() {
                 </div>
               </div>
             )}
+
+            {/* Cash in / out of the drawer by hand, and cash given back to customers */}
+            {(() => {
+              const sm = closeResult.summary
+              const back = (sm.cashRefunds ?? 0) + (sm.cashRepairRefunds ?? 0)
+              const rows = [
+                ...((sm.cashManualIn ?? 0) > 0 ? [['รับเงินเข้าลิ้นชัก', `+${formatThaiMoney(sm.cashManualIn ?? 0)}`, 'text-emerald-700']] : []),
+                ...((sm.cashManualOut ?? 0) > 0 ? [['นำเงินออกจากลิ้นชัก', `−${formatThaiMoney(sm.cashManualOut ?? 0)}`, 'text-red-600']] : []),
+                ...(back > 0 ? [['คืนเงินสดลูกค้า', `−${formatThaiMoney(back)}`, 'text-red-600']] : []),
+              ]
+              if (!rows.length) return null
+              return (
+                <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 px-3 py-2 space-y-1 text-sm">
+                  {rows.map(([label, value, cls]) => (
+                    <div key={label} className="flex justify-between">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className={`font-semibold tabular-nums ${cls}`}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
         </div>
       )}
 

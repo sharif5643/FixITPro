@@ -17,6 +17,7 @@ function prisma() {
     packageSaleDebtPayment: { findMany: jest.fn(async () => []) },
     expense: { findMany: jest.fn(async () => [{ description: 'ค่าน้ำแข็ง', createdAt: t(6), amount: 50, paymentMethod: 'CASH', createdById: 'b' }]) },
     supplierPayment: { findMany: jest.fn(async () => []) },
+    shiftCashMovement: { findMany: jest.fn(async () => [] as any[]) },
     auditLog: { findMany: jest.fn(async () => [
       { action: 'REPAIR_PAYMENT', entityId: 'r1', actorId: 'a', createdAt: t(4) },
       { action: 'REPAIR_CREATED', entityId: 'r2', actorId: 'b', createdAt: t(1) },
@@ -53,3 +54,25 @@ describe('who took the money in a shift', () => {
     expect(1000 + staff.reduce((s, x) => s + x.netCash, 0)).toBe(2900);
   });
 });
+
+describe('cash put in / taken out by hand, and repair money given back', () => {
+  const shift = { id: 's1', openedAt: t(0), closedAt: t(7), user: { tenantId: 't1' } };
+
+  it('shows them with the right sign and person; the original taker keeps a repair given back later', async () => {
+    const db = prisma();
+    db.shiftCashMovement.findMany = jest.fn(async () => [
+      { createdAt: t(5), kind: 'MANUAL_OUT', amount: 1000, paymentMethod: 'CASH', reason: 'เจ้าของเบิก', referenceType: null, referenceId: null, createdById: 'a' },
+      { createdAt: t(5), kind: 'MANUAL_IN', amount: 200, paymentMethod: 'CASH', reason: 'เงินทอนเพิ่ม', referenceType: null, referenceId: null, createdById: 'b' },
+      { createdAt: t(6), kind: 'REPAIR_REFUND', amount: 300, paymentMethod: 'CASH', reason: 'คืนเงินงานซ่อม T9', referenceType: 'REPAIR_FINAL', referenceId: 'r9', createdById: 'b' },
+      { createdAt: t(4), kind: 'REPAIR_PAYMENT_KEPT', amount: 700, paymentMethod: 'CASH', reason: 'T8', referenceType: 'REPAIR_FINAL', referenceId: 'r1', createdById: 'b' },
+    ]);
+    const e = await buildShiftLedger(db, shift);
+    const pick = (k: string) => e.filter((x) => x.kind === k).map((x) => [x.name, x.amount]);
+    expect(pick('CASH_OUT')).toEqual([['เอ', -1000]]);
+    expect(pick('CASH_IN')).toEqual([['บี', 200]]);
+    expect(pick('REPAIR_REFUND')).toEqual([['บี', -300]]);
+    // r1 was paid to 'เอ' (audit log), so the kept payment is theirs
+    expect(pick('REPAIR_PAYMENT')).toEqual([['เอ', 1000], ['เอ', 700]]);
+  });
+});
+

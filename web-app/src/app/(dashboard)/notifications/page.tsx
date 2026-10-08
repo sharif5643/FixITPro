@@ -85,6 +85,7 @@ const TYPE_LABEL: Record<string, string> = {
   NEGATIVE_STOCK:             'สินค้าติดลบ',
   OVERDUE_AP:                 'AP เกินกำหนด',
   SHIFT_MISMATCH:             'เงินในลิ้นชักไม่ตรง',
+  SHIFT_CASH_OUT:             'นำเงินออกจากลิ้นชัก',
   LARGE_REFUND:               'คืนเงินจำนวนมาก',
   VOID_SALE:                  'ยกเลิกบิล',
   OVERDUE_REPAIR:             'งานซ่อมเกินกำหนด',
