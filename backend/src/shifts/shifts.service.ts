@@ -397,11 +397,26 @@ export class ShiftsService {
   }
 
   /**
+   * Supplier payments made while the shift was open. They carry no shift, so they are matched by
+   * time, and by the branch of the purchase order: a shop with several branches must not take one
+   * branch's payment out of every other branch's drawer.
+   */
+  private supplierPaymentsWhere(shift: { openedAt: Date; closedAt: Date | null; branchId?: string | null; user?: { tenantId: string | null } | null }) {
+    const purchaseOrder: Record<string, unknown> = {};
+    if (shift.user?.tenantId) purchaseOrder.supplier = { tenantId: shift.user.tenantId };
+    if (shift.branchId) purchaseOrder.branchId = shift.branchId;
+    return {
+      paidAt: { gte: shift.openedAt, lt: shift.closedAt ?? new Date() },
+      ...(Object.keys(purchaseOrder).length ? { purchaseOrder } : {}),
+    };
+  }
+
+  /**
    * Shift totals: sales, repair payments, supplier payments, package sales, cash expenses and
    * refunds, and the cash the drawer should hold. Used when closing a shift and to reprint the
    * summary of a closed one (same numbers both times).
    */
-  private async computeShiftTotals(shift: { id: string; openedAt: Date; closedAt: Date | null; openBalance: unknown; user?: { tenantId: string | null } | null }) {
+  private async computeShiftTotals(shift: { id: string; openedAt: Date; closedAt: Date | null; openBalance: unknown; branchId?: string | null; user?: { tenantId: string | null } | null }) {
     const shiftId = shift.id;
     const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg, packageSalesByCarrier, repairInflows] = await Promise.all([
       this.prisma.sale.findMany({
@@ -416,10 +431,7 @@ export class ShiftsService {
         select: { paidAmount: true, paymentMethod: true },
       }),
       this.prisma.supplierPayment.findMany({
-        where: {
-          paidAt: { gte: shift.openedAt, lt: shift.closedAt ?? new Date() },
-          ...(shift.user?.tenantId ? { purchaseOrder: { supplier: { tenantId: shift.user.tenantId } } } : {}),
-        },
+        where: this.supplierPaymentsWhere(shift),
         select: { amount: true, paymentMethod: true },
       }),
       this.prisma.packageSale.findMany({
@@ -666,10 +678,7 @@ export class ShiftsService {
         select: { paidAmount: true, paymentMethod: true },
       }),
       this.prisma.supplierPayment.findMany({
-        where: {
-          paidAt: { gte: shift.openedAt, lt: shift.closedAt ?? new Date() },
-          ...(shift.user?.tenantId ? { purchaseOrder: { supplier: { tenantId: shift.user.tenantId } } } : {}),
-        },
+        where: this.supplierPaymentsWhere(shift),
         select: { amount: true, paymentMethod: true },
       }),
       this.prisma.packageSale.findMany({
