@@ -90,6 +90,11 @@ const SPECIAL_TAGS = [
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
+/** The issue saved on the job: what was typed, or else the problem chips picked (not ด่วน / เคลม). */
+function issueTextOf(typed: string | undefined, tags: string[]): string {
+  return typed?.trim() || tags.filter((t) => t !== 'ด่วน' && t !== 'เคลม').join(', ')
+}
+
 const repairSchema = z.object({
   customerName:  z.string().optional(),
   customerPhone: z.string().optional(),
@@ -97,7 +102,8 @@ const repairSchema = z.object({
   deviceModel:   z.string().min(1, 'กรุณากรอกรุ่น'),
   deviceColor:   z.string().optional(),
   deviceImei:    z.string().optional(),
-  issue:         z.string().min(1, 'กรุณากรอกอาการเสีย'),
+  // Picking a problem chip is enough; the text is for anything extra
+  issue:         z.string().optional(),
   note:          z.string().optional(),
   deposit:               z.coerce.number().min(0).optional(),
   depositPaymentMethod:  z.string().optional(),
@@ -130,9 +136,17 @@ function SectionLabel({ num, label }: { num: number; label: string }) {
 
 export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: RepairFormDialogProps) {
   const queryClient = useQueryClient()
+  // The shop's paper size first; the other sizes stay one tap away
+  const { data: shopSettings } = useQuery<{ paperWidth?: string }>({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/settings').then((r) => r.data),
+    staleTime: 60_000,
+  })
+  const paper = shopSettings?.paperWidth === '80mm' ? '80mm' : '58mm'
+  const [otherSizes, setOtherSizes] = useState(false)
 
   const {
-    register, handleSubmit, watch, reset, setValue,
+    register, handleSubmit, watch, reset, setValue, setError,
     formState: { errors },
   } = useForm<RepairFormData>({
     resolver: zodResolver(repairSchema),
@@ -249,7 +263,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
         accessories:       accessories.length > 0 ? accessories.join(', ') : undefined,
         deviceConditions:  deviceConditions.length > 0 ? deviceConditions : undefined,
         issueTags:         issueTags.length > 0 ? issueTags : undefined,
-        issue:             data.issue.trim(),
+        issue:             issueTextOf(data.issue, issueTags),
         note:              data.note?.trim() || undefined,
         deposit:                data.deposit || 0,
         depositPaymentMethod:   data.deposit ? (data.depositPaymentMethod ?? 'CASH') : undefined,
@@ -330,11 +344,27 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
             {!Platform.isNative() && (
               <>
                 <button type="button"
-                  onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm&copies=2`, '_blank')}
+                  onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=${paper}&copies=2`, '_blank')}
                   className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-blue-600 bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
                   <Printer className="h-5 w-5" />
-                  พิมพ์ 2 ฉบับ (ร้าน + ลูกค้า) ✂
+                  พิมพ์ 2 ฉบับ (ร้าน + ลูกค้า) ✂ · {paper}
                 </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=${paper}&copy=shop`, '_blank')}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+                    <Printer className="h-4 w-4" />ใบร้าน
+                  </button>
+                  <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=${paper}`, '_blank')}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
+                    <Printer className="h-4 w-4" />ใบลูกค้า
+                  </button>
+                </div>
+                {!otherSizes ? (
+                  <button type="button" onClick={() => setOtherSizes(true)} className="w-full text-xs text-slate-500 underline">
+                    ขนาดกระดาษอื่น (58mm / 80mm / A4)
+                  </button>
+                ) : (
+                  <>
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button" onClick={() => window.open(`/print/repair/${createdRepair.id}?paper=58mm&copy=shop`, '_blank')}
                     className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors">
@@ -357,6 +387,8 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                   className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors">
                   <FileText className="h-5 w-5" />A4 (เอกสาร)
                 </button>
+                  </>
+                )}
               </>
             )}
 
@@ -378,7 +410,13 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
 
         {/* ─── Form ─── */}
         {!createdRepair && (
-          <form onSubmit={handleSubmit((data) => createMutation.mutateAsync(data))} className="space-y-5 pt-1">
+          <form onSubmit={handleSubmit((data) => {
+            if (!issueTextOf(data.issue, issueTags)) {
+              setError('issue', { message: 'เลือกอาการด้านบน หรือพิมพ์อาการเสีย' })
+              return
+            }
+            return createMutation.mutateAsync(data)
+          })} className="space-y-5 pt-1">
 
             {/* ── Section 1: ลูกค้า ── */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
@@ -586,7 +624,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
 
                 {/* Issue text */}
                 <div className="space-y-1.5">
-                  <Label>รายละเอียดอาการ <span className="text-red-500">*</span></Label>
+                  <Label>รายละเอียดอาการ <span className="text-xs font-normal text-muted-foreground">(ถ้าเลือกอาการด้านบนแล้ว ไม่ต้องพิมพ์ก็ได้)</span></Label>
                   <textarea rows={3} placeholder="ระบุอาการที่พบโดยละเอียด..."
                     className="w-full rounded-md border border-input bg-white dark:bg-[#1E293B] px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
                     {...register('issue')} />

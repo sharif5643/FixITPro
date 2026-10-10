@@ -47,6 +47,14 @@ export function useBranchContext(): BranchContext {
     if (isOwner && !known) setSelected(null)
   }, [isOwner, known, setSelected])
 
+  // A shop with one branch has nothing to choose: use it, so opening a shift, selling and taking
+  // repairs work straight away (before, a new shop was stuck in "all branches" on every new device)
+  const onlyBranch = isSuccess ? branches.filter((b) => b.isActive !== false) : []
+  const autoBranchId = isOwner && !isSunmi && onlyBranch.length === 1 && !selectedBranchId ? onlyBranch[0].id : null
+  useEffect(() => {
+    if (autoBranchId) setSelected(autoBranchId)
+  }, [autoBranchId, setSelected])
+
   // Staff / SUNMI → always JWT branch. OWNER → selected or undefined (global).
   const branchId: string | undefined = isBranchLocked
     ? (user?.branchId ?? undefined)

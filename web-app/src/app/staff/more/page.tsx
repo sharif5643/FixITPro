@@ -51,7 +51,9 @@ export default function MorePage() {
         ...(access.customers ? [{ icon:<Users className="h-5 w-5 text-purple-500"/>, label:'ลูกค้า', to:'/staff/customers' }] : []),
         ...(access.reports ? [{ icon:<BarChart3 className="h-5 w-5 text-brand-info"/>, label:'รายงาน', to:'/staff/reports' }] : []),
         { icon:<Bell className="h-5 w-5 text-amber-500"/>,         label:'แจ้งเตือน',      to:'/staff/notifications' },
-        ...(access.drawer ? [{ icon:<Wallet className="h-5 w-5 text-amber-500"/>, label:'ลิ้นชักเงินสด', to:'/staff/cash-drawer' }] : []),
+        // The shift already opens the drawer and records its cash (cash in / out too): a second
+        // "cash drawer" menu next to "open/close shift" confused staff, so it shows only without shifts
+        ...(access.drawer && !access.shift ? [{ icon:<Wallet className="h-5 w-5 text-amber-500"/>, label:'ลิ้นชักเงินสด', to:'/staff/cash-drawer' }] : []),
         ...(isOwner ? [{ icon:<Building2 className="h-5 w-5 text-brand-yellow"/>, label:'Dashboard เจ้าของ', to:'/staff/owner' }] : []),
       ],
     },

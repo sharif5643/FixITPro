@@ -69,6 +69,7 @@ export default function ProductsPage() {
     queryFn:  () => api.get('/branches').then((r) => r.data),
     staleTime: 5 * 60_000,
   })
+  const branchCount = branches.length
   const effectiveBranchName = effectiveBranch
     ? (branches.find((b) => b.id === effectiveBranch)?.name ?? effectiveBranch)
     : undefined
@@ -280,24 +281,30 @@ export default function ProductsPage() {
               : `${products.length} รายการ${effectiveBranchName ? ` · ${effectiveBranchName}` : ''}`
           )
         }
+        // The owner's main button adds a product; bringing a product the shop already has into a
+        // branch only matters with several branches (two similar buttons confused new shops)
         secondaryActions={
-          isOwner ? (
-            <Button
-              variant="outline"
-              onClick={() => { setEditProduct(null); setFormOpen(true) }}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">สร้างสินค้าใหม่</span>
+          isOwner && branchCount > 1 ? (
+            <Button variant="outline" onClick={() => setCatalogEnrollOpen(true)} className="gap-2">
+              <PackagePlus className="h-4 w-4" />
+              <span className="hidden sm:inline">นำสินค้าที่มีอยู่เข้าสาขานี้</span>
             </Button>
           ) : undefined
         }
         primaryAction={
-          <Button onClick={() => setCatalogEnrollOpen(true)} className="gap-2">
-            <PackagePlus className="h-4 w-4" />
-            <span className="hidden sm:inline">เพิ่มสินค้าเข้าสาขา</span>
-            <span className="sm:hidden">เพิ่ม</span>
-          </Button>
+          isOwner ? (
+            <Button onClick={() => { setEditProduct(null); setFormOpen(true) }} className="gap-2">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">เพิ่มสินค้าใหม่</span>
+              <span className="sm:hidden">เพิ่ม</span>
+            </Button>
+          ) : (
+            <Button onClick={() => setCatalogEnrollOpen(true)} className="gap-2">
+              <PackagePlus className="h-4 w-4" />
+              <span className="hidden sm:inline">เพิ่มสินค้าเข้าสาขา</span>
+              <span className="sm:hidden">เพิ่ม</span>
+            </Button>
+          )
         }
       />
 

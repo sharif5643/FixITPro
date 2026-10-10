@@ -81,6 +81,35 @@ const CHANGEABLE_STATUSES: RepairStatus[] = [
   'WAITING_PARTS', 'IN_PROGRESS', 'COMPLETED', 'READY_PICKUP', 'CANCELLED',
 ]
 
+// Where a job can go next — the same rules as the server (repairs.service ALLOWED), so the list
+// never offers a step that would be refused
+const NEXT_STATUSES: Partial<Record<RepairStatus, RepairStatus[]>> = {
+  RECEIVED:         ['DIAGNOSING'],
+  DIAGNOSING:       ['WAITING_APPROVAL', 'APPROVED', 'IN_PROGRESS'],
+  WAITING_APPROVAL: ['APPROVED'],
+  APPROVED:         ['WAITING_PARTS', 'IN_PROGRESS'],
+  WAITING_PARTS:    ['IN_PROGRESS'],
+  IN_PROGRESS:      ['WAITING_APPROVAL', 'WAITING_PARTS', 'COMPLETED'],
+  COMPLETED:        ['READY_PICKUP'],
+  READY_PICKUP:     [],
+}
+
+// The usual next step as one button, and a shortcut to "done" that walks the required steps
+const NEXT_ACTION: Partial<Record<RepairStatus, { to: RepairStatus; label: string }>> = {
+  RECEIVED:      { to: 'DIAGNOSING',   label: 'เริ่มตรวจเช็ค' },
+  DIAGNOSING:    { to: 'IN_PROGRESS',  label: 'เริ่มซ่อม' },
+  APPROVED:      { to: 'IN_PROGRESS',  label: 'เริ่มซ่อม' },
+  WAITING_PARTS: { to: 'IN_PROGRESS',  label: 'อะไหล่มาแล้ว — เริ่มซ่อม' },
+  IN_PROGRESS:   { to: 'COMPLETED',    label: 'ซ่อมเสร็จ' },
+  COMPLETED:     { to: 'READY_PICKUP', label: 'แจ้งลูกค้ามารับเครื่อง' },
+}
+const PATH_TO_DONE: Partial<Record<RepairStatus, RepairStatus[]>> = {
+  RECEIVED:      ['DIAGNOSING', 'IN_PROGRESS', 'COMPLETED'],
+  DIAGNOSING:    ['IN_PROGRESS', 'COMPLETED'],
+  APPROVED:      ['IN_PROGRESS', 'COMPLETED'],
+  WAITING_PARTS: ['IN_PROGRESS', 'COMPLETED'],
+}
+
 const PAYMENT_OPTIONS = [
   { value: 'CASH',     label: 'เงินสด',    Icon: Banknote },
   { value: 'TRANSFER', label: 'โอนเงิน',   Icon: TransferIcon },
@@ -382,9 +411,38 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   })
 
   const handleStatusSave = () => {
-    updateMutation.mutate({ status: localStatus }, {
+    updateMutation.mutate({ status: localStatus, ...priceExtra() }, {
       onSuccess: () => toast.success('อัปเดตสถานะสำเร็จ'),
     })
+  }
+
+  const savedPrice = Number(repair?.estimatedTotal ?? 0)
+  const priceDirty = estimatePrice.trim() !== '' && Number(estimatePrice) !== savedPrice
+  // A typed price goes along with the next step instead of being lost
+  const priceExtra = () => (priceDirty && Number(estimatePrice) > 0 ? { estimatedTotal: Number(estimatePrice) } : {})
+
+  const [stepping, setStepping] = useState(false)
+  const advanceTo = async (steps: RepairStatus[], done: string) => {
+    setStepping(true)
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        await updateMutation.mutateAsync({ status: steps[i], ...(i === 0 ? priceExtra() : {}) })
+      }
+      toast.success(done)
+    } catch { /* the mutation already showed why */ } finally {
+      setStepping(false)
+    }
+  }
+
+  const handleSavePrice = () => {
+    const price = Number(estimatePrice)
+    if (!price) { toast.error('กรุณาระบุราคาค่าซ่อม'); return }
+    updateMutation.mutate({ estimatedTotal: price }, { onSuccess: () => toast.success('บันทึกราคาแล้ว') })
+  }
+
+  const handleClose = () => {
+    if (priceDirty && !window.confirm(`ราคา ${estimatePrice} บาท ยังไม่ได้บันทึก — ปิดโดยไม่บันทึก?`)) return
+    onClose()
   }
 
   const handleSendEstimate = () => {
@@ -447,7 +505,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
 
   return (
     <>
-      <Dialog open={!!repairId} onOpenChange={(v) => { if (!v) onClose() }}>
+      <Dialog open={!!repairId} onOpenChange={(v) => { if (!v) handleClose() }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="sticky top-0 bg-background z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pb-3 mb-1 border-b">
             <DialogTitle className="flex items-center justify-between">
@@ -526,6 +584,44 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                   รับงาน: {fmtDate(repair.receivedAt)}
                 </span>
               </div>
+
+              {/* Next step: one tap, no scrolling to the bottom */}
+              {(NEXT_ACTION[repair.status] || ((repair.status === 'COMPLETED' || repair.status === 'READY_PICKUP') && repair.paymentStatus === 'PENDING')) && (
+                <div className="flex flex-wrap gap-2 rounded-xl border border-blue-100 dark:border-blue-700/40 bg-blue-50/60 dark:bg-blue-900/10 p-3">
+                  {(repair.status === 'COMPLETED' || repair.status === 'READY_PICKUP') && repair.paymentStatus === 'PENDING' && (
+                    <Button
+                      className="flex-1 min-w-[10rem] gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => setPayOpen(true)}
+                      disabled={!currentShift}
+                      title={!currentShift ? 'กรุณาเปิดกะก่อนรับเงิน' : undefined}
+                    >
+                      <DollarSign className="h-4 w-4" />
+                      ส่งมอบ / รับเงิน
+                    </Button>
+                  )}
+                  {NEXT_ACTION[repair.status] && (
+                  <Button
+                    className="flex-1 min-w-[10rem] gap-1.5"
+                    disabled={stepping || updateMutation.isPending}
+                    onClick={() => advanceTo([NEXT_ACTION[repair.status]!.to], `เปลี่ยนเป็น “${STATUS_LABEL[NEXT_ACTION[repair.status]!.to]}” แล้ว`)}
+                  >
+                    {stepping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+                    {NEXT_ACTION[repair.status]!.label}
+                  </Button>
+                  )}
+                  {PATH_TO_DONE[repair.status] && PATH_TO_DONE[repair.status]!.length > 1 && (
+                    <Button
+                      variant="outline"
+                      className="gap-1.5 border-green-300 text-green-700 hover:bg-green-50"
+                      disabled={stepping || updateMutation.isPending}
+                      onClick={() => advanceTo(PATH_TO_DONE[repair.status]!, 'ซ่อมเสร็จแล้ว')}
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      ซ่อมเสร็จเลย
+                    </Button>
+                  )}
+                </div>
+              )}
 
               {/* Customer */}
               {repair.customer && (
@@ -959,6 +1055,19 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     </div>
                   )}
 
+                  {priceDirty && (
+                    <p className="text-xs font-medium text-amber-700">ยังไม่ได้บันทึกราคานี้</p>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full gap-1.5"
+                    onClick={handleSavePrice}
+                    disabled={!priceDirty || !Number(estimatePrice) || updateMutation.isPending}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    บันทึกราคา
+                  </Button>
                   <Button
                     size="sm"
                     className="w-full gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
@@ -1266,7 +1375,9 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {CHANGEABLE_STATUSES.map((s) => (
+                        {CHANGEABLE_STATUSES
+                          .filter((s) => s === repair.status || s === 'CANCELLED' || (NEXT_STATUSES[repair.status] ?? []).includes(s))
+                          .map((s) => (
                           <SelectItem key={s} value={s}>
                             {STATUS_LABEL[s]}
                           </SelectItem>
@@ -1304,7 +1415,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
           )}
           {repair && (
             <div className="sticky bottom-0 bg-background -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 mt-2 border-t">
-              <Button variant="outline" onClick={onClose} className="w-full">ปิด</Button>
+              <Button variant="outline" onClick={handleClose} className="w-full">ปิด</Button>
             </div>
           )}
         </DialogContent>

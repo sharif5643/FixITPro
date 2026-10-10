@@ -398,10 +398,12 @@ export default function ShiftsPage() {
             <div className="rounded-xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800/60 px-4 py-3 flex items-center justify-between text-sm">
               <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                 <TrendingUp className="h-3.5 w-3.5" />
-                <span>รายรับรวมในกะ (ทุกช่องทาง)</span>
+                <span>เงินสดที่ควรมีในลิ้นชัก</span>
               </div>
+              {/* Was "income in the shift" but added the opening cash; the drawer figure is what
+                  the cashier checks against */}
               <span className="font-bold tabular-nums text-slate-900 dark:text-white">
-                {formatThaiMoney(Number(currentShift.openBalance) + Number(currentShift.totalSales) + Number(currentShift.repairRevenue ?? 0))}
+                {formatThaiMoney(Math.max(0, Number(currentShift.expectedCashBalance ?? 0)))}
               </span>
             </div>
 

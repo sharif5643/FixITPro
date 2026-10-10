@@ -33,6 +33,8 @@ function makeTx(overrides: Record<string, any> = {}) {
     tenant: { create: jest.fn().mockResolvedValue({ id: 'tenant-1', shopName: validDto.shopName, email: validDto.email }) },
     branch: { create: jest.fn().mockResolvedValue({ id: 'branch-1' }) },
     shopSettings: { create: jest.fn().mockResolvedValue({}) },
+    categoryType: { create: jest.fn().mockResolvedValue({ id: 'type-1' }) },
+    category: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
     user: { create: jest.fn().mockResolvedValue({ id: 'user-1', name: validDto.ownerName, email: validDto.email }) },
     tenantRenewal: { create: jest.fn().mockResolvedValue({ id: 'renewal-1' }) },
     ...overrides,
@@ -154,3 +156,13 @@ describe('PublicRegisterService', () => {
     expect(diffDays).toBeLessThanOrEqual(14)
   })
 })
+
+describe('starter categories for a new shop', () => {
+  const { starterCategories } = require('./public-register.service');
+  it('gives a repair shop parts and accessories, and every shop at least one type', () => {
+    expect(starterCategories('mobile_repair').map((t: { name: string }) => t.name)).toEqual(['อะไหล่', 'อุปกรณ์เสริม']);
+    expect(starterCategories('accessories').map((t: { name: string }) => t.name)).toEqual(['อุปกรณ์เสริม']);
+    expect(starterCategories(undefined)).toHaveLength(3);
+  });
+});
+

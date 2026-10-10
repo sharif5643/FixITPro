@@ -13,6 +13,8 @@ import {
   HardHat, History, ListOrdered, HandCoins, Coins, Star, PanelLeftClose, PanelLeftOpen, Hammer,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useQuery } from '@tanstack/react-query'
+import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
 import { useShopName, useShopLogo } from '@/hooks/useShopName'
 import { useBranchContext } from '@/hooks/useBranchContext'
@@ -25,6 +27,8 @@ type NavItem = {
   permission?: string | null; ownerOnly?: true; module?: string; statusParam?: string
   /** only for people who do repair work beside their role (permission repair.technician) */
   repairWork?: true
+  /** only means something with more than one branch */
+  multiBranch?: true
 }
 /** `key` names the group for remembering open/closed; `open` is its default state. */
 type NavSection = { key: string; label: string | null; open?: boolean; items: NavItem[] }
@@ -51,7 +55,7 @@ const SHOP_SECTIONS: NavSection[] = [
   ]},
   { key: 'stock', label: 'สต็อก', open: true, items: [
     { href: '/products',        icon: Package,        label: 'สินค้า',           permission: 'products.view',   module: 'stock' },
-    { href: '/transfers',       icon: ArrowRightLeft, label: 'โอนสต็อก',         permission: 'stock.transfer',  module: 'stock' },
+    { href: '/transfers',       icon: ArrowRightLeft, label: 'โอนสต็อก',         permission: 'stock.transfer',  module: 'stock', multiBranch: true },
     { href: '/purchase-orders', icon: ClipboardList,  label: 'ใบสั่งซื้อ (PO)',  permission: 'purchase.create', module: 'finance' },
     { href: '/suppliers',       icon: Building2,      label: 'ซัพพลายเออร์',     permission: 'purchase.create', module: 'finance' },
     { href: '/serials',         icon: ShieldCheck,    label: 'Serial / IMEI',    permission: 'serials.manage',  module: 'stock' },
@@ -69,7 +73,7 @@ const SHOP_SECTIONS: NavSection[] = [
     { href: '/finance',               icon: Wallet,      label: 'ภาพรวมการเงิน',       permission: 'reports.view',    module: 'finance' },
     { href: '/finance/transactions',  icon: ListOrdered, label: 'รายการรับ-จ่าย',       permission: 'reports.view',    module: 'finance' },
     { href: '/finance/daily-close',   icon: CalendarDays, label: 'ปิดบัญชีประจำวัน',   permission: 'reports.view',    module: 'finance' },
-    { href: '/finance/branch-pnl',    icon: GitBranch,   label: 'กำไร-ขาดทุนรายสาขา',  permission: 'reports.view',    ownerOnly: true, module: 'finance' },
+    { href: '/finance/branch-pnl',    icon: GitBranch,   label: 'กำไร-ขาดทุนรายสาขา',  permission: 'reports.view',    ownerOnly: true, module: 'finance', multiBranch: true },
     { href: '/reconciliation',        icon: Scale,       label: 'กระทบยอดเงินสด',      permission: 'cash_drawer.view_balance', module: 'finance' },
     { href: '/expenses',              icon: Receipt,     label: 'ค่าใช้จ่าย',           permission: 'expenses.manage', module: 'finance' },
     { href: '/reports/payables',      icon: HandCoins,   label: 'รายงานเจ้าหนี้',      permission: 'reports.view',    module: 'finance' },
@@ -184,7 +188,17 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
     }
   }, [role])
 
+  // A shop with one branch does not need branch-to-branch menus (fewer items for a new shop)
+  const { data: branchList } = useQuery<{ id: string }[]>({
+    queryKey: ['branches-simple'],
+    queryFn:  () => api.get('/branches').then((r) => r.data),
+    staleTime: 5 * 60_000,
+    enabled:  role !== 'SUPER_ADMIN',
+  })
+  const singleBranch = Array.isArray(branchList) && branchList.length <= 1
+
   function isVisible(item: NavItem): boolean {
+    if (item.multiBranch && singleBranch) return false
     if (item.ownerOnly && !isOwner) return false
     // Owners see every job anyway; others get "my jobs" when the owner made them a technician
     if (item.repairWork && (role === 'OWNER' || role === 'SUPER_ADMIN' || role === 'TECHNICIAN' || !hasPerm('repair.technician'))) return false

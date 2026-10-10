@@ -52,6 +52,13 @@ const REPAIR_INCLUDE = {
   },
 } as const;
 
+/** Thai names of repair statuses, for messages the shop reads */
+const REPAIR_STATUS_TH: Record<string, string> = {
+  RECEIVED: 'รับงาน', DIAGNOSING: 'ตรวจสอบ', WAITING_APPROVAL: 'รอลูกค้าอนุมัติ', APPROVED: 'อนุมัติแล้ว',
+  WAITING_PARTS: 'รออะไหล่', IN_PROGRESS: 'กำลังซ่อม', QC_PENDING: 'รอตรวจ QC', COMPLETED: 'ซ่อมเสร็จ',
+  READY_PICKUP: 'พร้อมรับเครื่อง', DELIVERED: 'ส่งคืนแล้ว', CANCELLED: 'ยกเลิก',
+};
+
 @Injectable()
 export class RepairsService {
   private readonly logger = new Logger(RepairsService.name);
@@ -560,8 +567,11 @@ export class RepairsService {
       };
       const allowed = ALLOWED[repair.status] ?? [];
       if (!allowed.includes(dto.status)) {
+        const label = (st: string) => REPAIR_STATUS_TH[st] ?? st;
+        const next = allowed.map(label).join(' / ');
         throw new BadRequestException(
-          `ไม่สามารถเปลี่ยนสถานะจาก ${repair.status} เป็น ${dto.status} ได้`,
+          `เปลี่ยนจาก “${label(repair.status)}” เป็น “${label(dto.status)}” โดยตรงไม่ได้` +
+          (next ? ` — ขั้นถัดไปคือ ${next}` : ''),
         );
       }
     }

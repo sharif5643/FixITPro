@@ -5,6 +5,8 @@ import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthThrottlerGuard } from '../common/guards/auth-throttler.guard';
 import { AuthService } from './auth.service';
+import { RedisService } from '../redis/redis.service';
+import { LoginFailures } from './login-failures';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -37,7 +39,12 @@ export class AuthController {
     private authService: AuthService,
     private config: ConfigService,
     @Optional() private push?: PushService,
-  ) {}
+    @Optional() private redis?: RedisService,
+  ) {
+    this.loginFailures = redis ? new LoginFailures(redis) : null;
+  }
+
+  private readonly loginFailures: LoginFailures | null;
 
   private setAuthCookies(res: Response, accessToken: string, refreshToken: string, role: string, tenantExpiryDate?: string | null) {
     const secure   = process.env.COOKIE_SECURE === 'true';
@@ -64,15 +71,25 @@ export class AuthController {
     }
   }
 
+  // Wrong passwords are limited per address (LoginFailures); this only stops a flood of requests
   @UseGuards(AuthThrottlerGuard)
-  @Throttle({ auth_login: { limit: 10, ttl: 15 * 60 * 1000 } })
+  @Throttle({ auth_login: { limit: 60, ttl: 15 * 60 * 1000 } })
   @SkipThrottle({ auth_register: true, auth_change_pwd: true })
   @Post('login')
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
+    @Req() req?: Request,
   ) {
-    const result = await this.authService.login(dto);
+    const ip = req?.ip ?? 'unknown';
+    await this.loginFailures?.assertAllowed(ip);
+    let result: Awaited<ReturnType<AuthService['login']>>;
+    try {
+      result = await this.authService.login(dto);
+    } catch (err) {
+      if (err instanceof UnauthorizedException) await this.loginFailures?.recordFailure(ip);
+      throw err;
+    }
 
     this.setAuthCookies(res, result.accessToken, result.refreshToken, result.user.role, result.user.tenantExpiryDate);
 
