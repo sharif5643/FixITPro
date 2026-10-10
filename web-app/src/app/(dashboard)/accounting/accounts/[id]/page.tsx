@@ -1,6 +1,7 @@
 'use client'
 
-import { use, useState } from 'react'
+import { useState } from 'react'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
@@ -320,8 +321,9 @@ function LedgerContent({ accountId }: { accountId: string }) {
   )
 }
 
-export default function LedgerPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function LedgerPage() {
+  // Next 14 passes params as a plain object: use(params) crashed the page (React error #438)
+  const { id } = useParams<{ id: string }>()
   return (
     <ModuleGate module="accounting">
       <LedgerContent accountId={id} />

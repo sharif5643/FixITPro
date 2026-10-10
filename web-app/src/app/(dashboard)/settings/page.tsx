@@ -769,7 +769,7 @@ export default function SettingsPage() {
 
                 <SectionCard title="Backup & Restore" description="สำรองและกู้คืนข้อมูลระบบ" icon={Database}>
                   <Link
-                    href="/settings/backup"
+                    href="/backup"
                     className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
                   >
                     <div className="flex items-center gap-3">

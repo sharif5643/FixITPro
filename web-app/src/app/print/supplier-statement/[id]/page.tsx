@@ -2,8 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { use, useEffect, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useEffect, useRef } from 'react'
+import { useSearchParams, useParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -31,8 +31,9 @@ const PAY_METHOD_LABEL: Record<string, string> = {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function SupplierStatementPrintPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id }         = use(params)
+export default function SupplierStatementPrintPage() {
+  // Next 14 passes params as a plain object: use(params) crashed the page (React error #438)
+  const { id }         = useParams<{ id: string }>()
   const searchParams   = useSearchParams()
   const autoPrintFired = useRef(false)
 

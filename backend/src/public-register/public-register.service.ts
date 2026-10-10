@@ -66,6 +66,8 @@ export class PublicRegisterService {
       await tx.shopSettings.create({
         data: {
           shopName: dto.shopName,
+          // The phone given at sign-up is the shop's phone on receipts (the setup list asked for it again)
+          shopPhone: dto.phone ?? null,
           tenantId: tenant.id,
           // What the owner picked on the sign-up page is the shop's look from the first login
           themeKey:    dto.themeKey ?? null,

@@ -5,7 +5,9 @@ import { RedisService } from './redis/redis.service';
 
 // RC2-002: skip all throttlers — Docker/Coolify healthchecks must never be rate-limited.
 @SkipThrottle()
-@Controller('health')
+// /health for container checks (outside the /api/v1 prefix); /api/v1/system/health for the
+// super admin production page, which only reaches the API under /api/v1
+@Controller(['health', 'system/health'])
 export class HealthController {
   constructor(
     private readonly prisma: PrismaService,

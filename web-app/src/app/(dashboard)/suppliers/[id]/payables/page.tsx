@@ -1,6 +1,7 @@
 'use client'
 
-import { use, useState } from 'react'
+import { useState } from 'react'
+import { useParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
@@ -44,8 +45,9 @@ const PAY_METHOD_LABEL: Record<string, string> = {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function SupplierPayablesPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function SupplierPayablesPage() {
+  // Next 14 passes params as a plain object: use(params) crashed the page (React error #438)
+  const { id } = useParams<{ id: string }>()
 
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()))
   const startDate = format(viewMonth, 'yyyy-MM-dd')

@@ -15,6 +15,8 @@ import { SectionCard } from '@/components/ui/section-card'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/auth.store'
+import { ShopBackupPage } from '@/components/backup/shop-backup'
 
 interface BackupStatus {
   pgDumpAvailable: boolean
@@ -31,7 +33,14 @@ interface BackupFile {
   modifiedAt: string
 }
 
+/** The server backup is for the system admin; a shop owner gets their own shop's backups. */
 export default function BackupPage() {
+  const role = useAuthStore((s) => s.user?.role)
+  if (role !== 'SUPER_ADMIN') return <ShopBackupPage />
+  return <ServerBackupSettings />
+}
+
+function ServerBackupSettings() {
   const qc = useQueryClient()
   const [purging, setPurging] = useState(false)
 

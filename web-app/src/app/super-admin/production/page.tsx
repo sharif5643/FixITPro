@@ -105,7 +105,7 @@ function CheckRow({
 export default function ProductionPage() {
   const { data: health, isLoading: healthLoading, refetch: refetchHealth } = useQuery<HealthResponse>({
     queryKey: ['production-health'],
-    queryFn: () => api.get('/health').then((r) => r.data),
+    queryFn: () => api.get('/system/health').then((r) => r.data),
     staleTime: 30_000,
     retry: 1,
   })
