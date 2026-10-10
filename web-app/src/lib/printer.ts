@@ -1537,6 +1537,19 @@ export interface PrintDailyClosingOptions {
   staffSales?:        { name: string; salesCount: number; salesTotal: number }[]
   /** Who took the money: each person's net cash (and transfers) in the shift */
   staffCash?:         { name: string; netCash: number; otherIn: number }[]
+  /** Cash put in / taken out of the drawer by hand, and cash given back to customers */
+  cashIn?:            number
+  cashOut?:           number
+  cashRefunds?:       number
+}
+
+/** Drawer lines other than sales: shown only when there is something */
+function drawerMovesOf(opts: PrintDailyClosingOptions): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = []
+  if (opts.cashIn) rows.push({ label: 'รับเงินเข้าลิ้นชัก', value: `+฿${fmtB(opts.cashIn)}` })
+  if (opts.cashOut) rows.push({ label: 'นำเงินออกจากลิ้นชัก', value: `-฿${fmtB(opts.cashOut)}` })
+  if (opts.cashRefunds) rows.push({ label: 'คืนเงินสดลูกค้า', value: `-฿${fmtB(opts.cashRefunds)}` })
+  return rows
 }
 
 function staffCashOf(opts: PrintDailyClosingOptions) {
@@ -1568,6 +1581,7 @@ ${shopHeaderHtml(opts)}
 ${staffSalesOf(opts).map((x) => `<div class="row xs"><span>· ${x.name} (${x.salesCount})</span><span class="v">฿${fmtB(x.salesTotal)}</span></div>`).join('')}
 ${opts.packageSaleCount > 0 ? `<div class="row"><span>SIM/แพ็กเกจ (${opts.packageSaleCount})</span><span class="v">฿${fmtB(opts.packageSaleTotal)}</span></div>
 ${opts.packageSaleProfit != null ? `<div class="row xs"><span>กำไร SIM</span><span class="v">฿${fmtB(opts.packageSaleProfit)}</span></div>` : ''}` : ''}
+${drawerMovesOf(opts).map((x) => `<div class="row"><span>${x.label}</span><span class="v">${x.value}</span></div>`).join('')}
 <div class="hr"></div>
 <div class="row"><span>เงินสดที่ควรมี</span><span class="v b">฿${fmtB(opts.expectedBalance)}</span></div>
 <div class="row"><span>ยอดที่นับได้</span><span class="v b">฿${fmtB(opts.actualBalance)}</span></div>
@@ -1593,6 +1607,7 @@ export function buildDailyClosingPreviewData(opts: PrintDailyClosingOptions): Th
     ...(opts.packageSaleCount > 0
       ? [{ type: 'row' as const, label: `SIM/แพ็กเกจ (${opts.packageSaleCount})`, value: `฿${fmtB(opts.packageSaleTotal)}` }]
       : []),
+    ...drawerMovesOf(opts).map((x) => ({ type: 'row' as const, label: x.label, value: x.value })),
     { type: 'separator' },
     { type: 'row', label: 'เงินสดที่ควรมี', value: `฿${fmtB(opts.expectedBalance)}`, bold: true },
     { type: 'row', label: 'ยอดที่นับได้', value: `฿${fmtB(opts.actualBalance)}`, bold: true },
@@ -1629,6 +1644,7 @@ export async function shareDailyClosing(opts: PrintDailyClosingOptions): Promise
     ...(opts.packageSaleCount > 0
       ? [`SIM/แพ็กเกจ (${opts.packageSaleCount}): ฿${fmtB(opts.packageSaleTotal)}`]
       : []),
+    ...drawerMovesOf(opts).map((x) => `${x.label}: ${x.value}`),
     HR,
     `เงินสดที่ควรมี: ฿${fmtB(opts.expectedBalance)}`,
     `ยอดที่นับได้:   ฿${fmtB(opts.actualBalance)}`,

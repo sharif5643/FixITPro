@@ -3,9 +3,12 @@
  * drawer. Same sources as the shift's expected cash (shifts.service computeShiftTotals), so the
  * opening cash plus everyone's net cash equals the cash the drawer should hold.
  */
+import { REPAIR_MONEY, SHIFT_CASH_KIND, refundsOfShiftWhere, supplierPaymentsOfShiftWhere } from './shift-cash';
+
 export type LedgerKind =
   | 'SALE' | 'REFUND' | 'REPAIR_PAYMENT' | 'REPAIR_DEPOSIT' | 'REPAIR_DEBT_PAYMENT'
-  | 'PACKAGE_SALE' | 'PACKAGE_DEBT_PAYMENT' | 'EXPENSE' | 'SUPPLIER_PAYMENT';
+  | 'PACKAGE_SALE' | 'PACKAGE_DEBT_PAYMENT' | 'EXPENSE' | 'SUPPLIER_PAYMENT'
+  | 'CASH_IN' | 'CASH_OUT' | 'REPAIR_REFUND';
 
 export interface LedgerEntry {
   at: Date
@@ -34,17 +37,17 @@ type Db = any;
 
 export async function buildShiftLedger(
   prisma: Db,
-  shift: { id: string; openedAt: Date; closedAt: Date | null; user?: { tenantId: string | null } | null },
+  shift: { id: string; openedAt: Date; closedAt: Date | null; branchId?: string | null; user?: { tenantId: string | null } | null },
 ): Promise<LedgerEntry[]> {
   const shiftId = shift.id;
   const until = shift.closedAt ?? new Date();
-  const [sales, refunds, repairs, deposits, debts, packages, packageDebts, expenses, supplierPays] = await Promise.all([
+  const [sales, refunds, repairs, deposits, debts, packages, packageDebts, expenses, supplierPays, movements] = await Promise.all([
     prisma.sale.findMany({
       where: { shiftId, status: { not: 'VOIDED' } },
       select: { receiptNumber: true, createdAt: true, total: true, paymentMethod: true, userId: true, payments: { select: { paymentMethod: true, amount: true } } },
     }),
     prisma.saleRefund.findMany({
-      where: { sale: { shiftId } },
+      where: refundsOfShiftWhere(shiftId),
       select: { refundNumber: true, createdAt: true, totalRefund: true, paymentMethod: true, createdById: true },
     }),
     prisma.repair.findMany({
@@ -72,16 +75,18 @@ export async function buildShiftLedger(
       select: { description: true, createdAt: true, amount: true, paymentMethod: true, createdById: true },
     }),
     prisma.supplierPayment.findMany({
-      where: {
-        paidAt: { gte: shift.openedAt, lt: until },
-        ...(shift.user?.tenantId ? { purchaseOrder: { supplier: { tenantId: shift.user.tenantId } } } : {}),
-      },
+      where: supplierPaymentsOfShiftWhere(shift),
       select: { paidAt: true, amount: true, paymentMethod: true, purchaseOrderId: true, purchaseOrder: { select: { poNumber: true } } },
+    }),
+    prisma.shiftCashMovement.findMany({
+      where: { shiftId },
+      select: { createdAt: true, kind: true, amount: true, paymentMethod: true, reason: true, referenceType: true, referenceId: true, createdById: true },
     }),
   ]);
 
   // Who took a repair payment / deposit, and who paid a supplier: from the audit log
-  const repairIds = [...repairs.map((r: any) => r.id), ...deposits.map((r: any) => r.id)];
+  const kept = movements.filter((m: any) => m.kind === SHIFT_CASH_KIND.REPAIR_PAYMENT_KEPT && m.referenceId);
+  const repairIds = [...repairs.map((r: any) => r.id), ...deposits.map((r: any) => r.id), ...kept.map((m: any) => m.referenceId)];
   const poIds = supplierPays.map((p: any) => p.purchaseOrderId);
   const logs = repairIds.length || poIds.length
     ? await prisma.auditLog.findMany({
@@ -122,6 +127,22 @@ export async function buildShiftLedger(
   }
   for (const p of packageDebts) entries.push({ at: p.createdAt, kind: 'PACKAGE_DEBT_PAYMENT', ref: p.receiptNumber, method: p.paymentMethod, amount: Number(p.amount), userId: p.createdById });
   for (const e of expenses) entries.push({ at: e.createdAt, kind: 'EXPENSE', ref: e.description, method: e.paymentMethod, amount: -Number(e.amount), userId: e.createdById });
+  for (const m of movements) {
+    const amount = Number(m.amount);
+    if (m.kind === SHIFT_CASH_KIND.MANUAL_IN) entries.push({ at: m.createdAt, kind: 'CASH_IN', ref: m.reason ?? '-', method: m.paymentMethod, amount, userId: m.createdById });
+    else if (m.kind === SHIFT_CASH_KIND.MANUAL_OUT) entries.push({ at: m.createdAt, kind: 'CASH_OUT', ref: m.reason ?? '-', method: m.paymentMethod, amount: -amount, userId: m.createdById });
+    else if (m.kind === SHIFT_CASH_KIND.REPAIR_REFUND) entries.push({ at: m.createdAt, kind: 'REPAIR_REFUND', ref: m.reason ?? '-', method: m.paymentMethod, amount: -amount, userId: m.createdById });
+    else if (m.kind === SHIFT_CASH_KIND.REPAIR_PAYMENT_KEPT) {
+      // createdAt is when the money was taken; the person comes from the audit log like a live payment
+      // (a debt payment row keeps the person who took it in createdById)
+      const deposit = m.referenceType === REPAIR_MONEY.DEPOSIT;
+      const additional = m.referenceType === REPAIR_MONEY.ADDITIONAL;
+      const kind: LedgerKind = deposit ? 'REPAIR_DEPOSIT' : additional ? 'REPAIR_DEBT_PAYMENT' : 'REPAIR_PAYMENT';
+      const userId = additional ? m.createdById
+        : actorOf(deposit ? 'REPAIR_CREATED' : 'REPAIR_PAYMENT', m.referenceId, deposit ? undefined : m.createdAt) ?? m.createdById;
+      entries.push({ at: m.createdAt, kind, ref: m.reason ?? '-', method: m.paymentMethod, amount, userId });
+    }
+  }
   for (const p of supplierPays) entries.push({ at: p.paidAt, kind: 'SUPPLIER_PAYMENT', ref: p.purchaseOrder?.poNumber ?? '-', method: p.paymentMethod, amount: -Number(p.amount), userId: actorOf('PO_PAYMENT', p.purchaseOrderId, p.paidAt) });
 
   const ids = [...new Set(entries.map((e) => e.userId).filter(Boolean))] as string[];

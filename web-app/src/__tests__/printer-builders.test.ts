@@ -248,3 +248,17 @@ describe('buildDailyClosingPreviewData', () => {
     expect(row.value).toContain('+')
   })
 })
+
+describe('shift closing slip: cash in / out of the drawer and cash refunds', () => {
+  it('prints the lines only when there is something', () => {
+    const plain = buildDailyClosingPreviewData(closingOpts).lines.map((l: any) => l.label)
+    expect(plain).not.toContain('นำเงินออกจากลิ้นชัก')
+
+    const opts = { ...closingOpts, cashIn: 200, cashOut: 1000, cashRefunds: 150 }
+    const rows = buildDailyClosingPreviewData(opts).lines.filter((l: any) => l.type === 'row').map((l: any) => [l.label, l.value])
+    expect(rows).toContainEqual(['รับเงินเข้าลิ้นชัก', '+฿200.00'])
+    expect(rows).toContainEqual(['นำเงินออกจากลิ้นชัก', '-฿1,000.00'])
+    expect(rows).toContainEqual(['คืนเงินสดลูกค้า', '-฿150.00'])
+    expect(buildDailyClosingHtml(opts)).toContain('นำเงินออกจากลิ้นชัก')
+  })
+})

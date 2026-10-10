@@ -66,6 +66,8 @@ export class PublicRegisterService {
       await tx.shopSettings.create({
         data: {
           shopName: dto.shopName,
+          // The phone given at sign-up is the shop's phone on receipts (the setup list asked for it again)
+          shopPhone: dto.phone ?? null,
           tenantId: tenant.id,
           // What the owner picked on the sign-up page is the shop's look from the first login
           themeKey:    dto.themeKey ?? null,
@@ -73,6 +75,15 @@ export class PublicRegisterService {
           logoUrl:     dto.logoDataUrl ?? null,
         },
       })
+
+      // Ready-made product types and categories for the kind of shop, so the first product can be
+      // added straight away (a new shop had none and had to build them before adding anything)
+      for (const t of starterCategories(dto.businessType)) {
+        const type = await tx.categoryType.create({ data: { name: t.name, slug: t.slug, tenantId: tenant.id } });
+        await tx.category.createMany({
+          data: t.categories.map(([slug, name]) => ({ name, slug, categoryTypeId: type.id, tenantId: tenant.id })),
+        });
+      }
 
       const user = await tx.user.create({
         data: {
@@ -130,3 +141,28 @@ export class PublicRegisterService {
     }
   }
 }
+
+type StarterType = { slug: string; name: string; categories: [string, string][] };
+
+const STARTER: Record<'phone' | 'accessory' | 'part', StarterType> = {
+  phone: { slug: 'phone', name: 'มือถือ', categories: [['phone-new', 'มือถือใหม่'], ['phone-used', 'มือถือมือสอง']] },
+  accessory: {
+    slug: 'accessory', name: 'อุปกรณ์เสริม',
+    categories: [['acc-film', 'ฟิล์ม / กระจก'], ['acc-case', 'เคส'], ['acc-charger', 'สายชาร์จ / หัวชาร์จ'], ['acc-audio', 'หูฟัง / ลำโพง']],
+  },
+  part: {
+    slug: 'part', name: 'อะไหล่',
+    categories: [['part-screen', 'จอ'], ['part-battery', 'แบตเตอรี่'], ['part-other', 'อะไหล่อื่นๆ']],
+  },
+};
+
+/** The starter product types for a shop of this kind (all of them when it is not said). */
+export function starterCategories(businessType?: string | null): StarterType[] {
+  switch (businessType) {
+    case 'mobile_repair': return [STARTER.part, STARTER.accessory];
+    case 'mobile_shop':   return [STARTER.phone, STARTER.accessory];
+    case 'accessories':   return [STARTER.accessory];
+    default:              return [STARTER.phone, STARTER.accessory, STARTER.part];
+  }
+}
+

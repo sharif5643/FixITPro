@@ -79,6 +79,22 @@ export class ProductsService {
     return `SK${branch.branchNumber}-${String(branch.stockCodeSeq).padStart(6, '0')}`;
   }
 
+  /**
+   * The category a product may use: none when left empty (the form sends ""), otherwise one of
+   * this shop's categories. Before, "" failed the database's foreign key with a 500 error, so a
+   * product without a sub-category could not be created.
+   */
+  private async categoryOf(categoryId: string | undefined, tenantId?: string | null): Promise<string | undefined> {
+    if (!categoryId) return undefined;
+    const found = await this.prisma.category.findFirst({
+      // this shop's own, or a shared one (no shop)
+      where: { id: categoryId, ...(tenantId ? { OR: [{ tenantId }, { tenantId: null }] } : {}) },
+      select: { id: true },
+    });
+    if (!found) throw new BadRequestException('ไม่พบหมวดหมู่นี้ในร้าน — เลือกหมวดหมู่ใหม่');
+    return found.id;
+  }
+
   async create(
     dto: CreateProductDto,
     actorId?: string,
@@ -126,7 +142,7 @@ export class ProductsService {
           minStock:     dto.minStock ?? 0,
           description:  dto.description,
           imageUrl:     dto.imageUrl,
-          categoryId:   dto.categoryId,
+          categoryId:   await this.categoryOf(dto.categoryId, tenantId),
           warrantyType: (dto.warrantyType as any) ?? 'NO_WARRANTY',
           warrantyDays: dto.warrantyDays ?? null,
           hasSerial:    dto.hasSerial ?? false,
@@ -390,7 +406,8 @@ export class ProductsService {
         minStock: dto.minStock,
         description: dto.description,
         imageUrl: dto.imageUrl,
-        categoryId: dto.categoryId,
+        // An empty choice clears the category (it used to fail with a server error)
+        categoryId: dto.categoryId === '' ? null : await this.categoryOf(dto.categoryId, tenantId),
         warrantyType: dto.warrantyType as any,
         warrantyDays: dto.warrantyDays,
         hasSerial: dto.hasSerial,

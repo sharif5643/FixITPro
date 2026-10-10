@@ -225,12 +225,14 @@ function ProductCard({
 interface ProductSearchProps {
   category?: string
   onCategoryChange?: (cat: string) => void
+  /** Enter on an empty scan box: done scanning, go to payment */
+  onEmptyEnter?: () => void
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>(
-  ({ category = 'ALL', onCategoryChange }, ref) => {
+  ({ category = 'ALL', onCategoryChange, onEmptyEnter }, ref) => {
     const [search, setSearch]                     = useState('')
     const [transferProduct, setTransferProduct]   = useState<Product | null>(null)
     const [pendingSerialProduct, setPendingSerialProduct] = useState<Product | null>(null)
@@ -415,7 +417,7 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
       if (e.key === 'Escape') { e.preventDefault(); setSearch(''); return }
       if (e.key === 'Enter') {
         e.preventDefault()
-        if (!search.trim()) return
+        if (!search.trim()) { onEmptyEnter?.(); return }
         const elapsed      = burstStart.current ? Date.now() - burstStart.current : Infinity
         const isScanBurst  = elapsed < SCANNER_MS && search.length >= 3
         burstStart.current = null

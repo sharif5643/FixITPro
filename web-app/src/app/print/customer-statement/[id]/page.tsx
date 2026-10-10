@@ -2,7 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { use, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
+import { useParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -76,8 +77,9 @@ function fmtDate(d?: string | null): string {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function CustomerStatementPrintPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id }         = use(params)
+export default function CustomerStatementPrintPage() {
+  // Next 14 passes params as a plain object: use(params) crashed the page (React error #438)
+  const { id }         = useParams<{ id: string }>()
   const autoPrintFired = useRef(false)
 
   const { data: customer, isLoading, isError } = useQuery<CustomerDetail>({

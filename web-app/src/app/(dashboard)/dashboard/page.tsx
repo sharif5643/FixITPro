@@ -32,6 +32,7 @@ import { CashDrawerWidget } from '@/components/dashboard/cash-drawer-widget'
 import { OwnerCommandCenter } from '@/components/dashboard/owner-command-center/index'
 import type { OperationalAlert } from '@/components/alerts/operational-alert-center'
 import type { Repair } from '@/types'
+import { SetupBanner } from '@/components/dashboard/setup-banner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -722,7 +723,12 @@ export default function DashboardPage() {
 
   // Owner Command Center replaces the entire dashboard for OWNER / SUPER_ADMIN
   if (isOwner) {
-    return <OwnerCommandCenter />
+    return (
+      <>
+        <SetupBanner />
+        <OwnerCommandCenter />
+      </>
+    )
   }
 
   return (

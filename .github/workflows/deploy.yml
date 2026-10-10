@@ -30,12 +30,20 @@ jobs:
           |1|ibmwetm0PAiC8BgSyTtf4uTAKd8=|eE9sCjfTwZLn5uRd6FLxn8RF2do= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLrzre/wkU0criEqkVfDAb3Dx1xjcWhPtoWGVXr7hKPyWz32Zd5rIuLBoqRrf+Llc9ODEUj6Zumb/3ummYQCjHc=
           EOF
 
+      # The server's deploy script copies its settings from the running backend: when nothing is
+      # running (a deploy that ended with every container stopped), start the newest ones first.
+      - name: Make sure the app is running before deploying
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 'sh -s' < scripts/deploy/recover-app.sh
+
       - name: Deploy via SSH
         run: |
           ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 root@91.98.151.10 \
             "bash /root/trigger-coolify-deploy.sh" 2>&1
 
       - name: Verify deployment
+        id: verify
+        continue-on-error: true
         run: |
           echo "Waiting for containers to be healthy..."
           sleep 20
@@ -55,6 +63,22 @@ jobs:
             ELAPSED=$((ELAPSED + 15))
           done
           echo "❌ Verification failed — HTTP $STATUS"
+          exit 1
+
+      # Outage of 2026-10-08: Coolify redeployed by itself during this deploy and every app
+      # container ended up stopped. If the site is not up, start the newest containers again
+      # (no rebuild, no data change) and check once more; the job fails if it is still down.
+      - name: Recover the site if it did not come up
+        if: steps.verify.outcome == 'failure'
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 'sh -s' < scripts/deploy/recover-app.sh
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/login --max-time 10 || true)
+            echo "login page: HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "❌ Site still down after recovery"
           exit 1
 
       # A deploy starts a new web container, and the Android apps published to /download

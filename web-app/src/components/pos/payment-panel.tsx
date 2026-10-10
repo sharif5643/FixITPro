@@ -14,6 +14,8 @@ import type { ShopSettings, PaymentMethod } from '@/types'
 
 interface PaymentPanelProps {
   onCheckout: (opts: { paymentMethod: PaymentMethod; amountPaid: number }) => void
+  /** Enter in the cash box: sell straight away (no second confirm) */
+  onQuickCheckout?: (opts: { paymentMethod: PaymentMethod; amountPaid: number }) => void
 }
 
 export interface PaymentPanelHandle {
@@ -34,7 +36,7 @@ const METHODS: { value: PaymentMethod; label: string; Icon: React.ElementType }[
 const QUICK_AMOUNTS = [100, 500, 1000, 2000]
 
 export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
-  ({ onCheckout }, ref) => {
+  ({ onCheckout, onQuickCheckout }, ref) => {
     const { items, discount, setDiscount } = useCartStore()
 
     const [method,    setMethod]    = useState<PaymentMethod>('CASH')
@@ -187,7 +189,12 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
                   step={1}
                   value={cashInput}
                   onChange={(e) => setCashInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && canCheckout) handleCheckout() }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' || !canCheckout) return
+                    e.preventDefault()
+                    if (onQuickCheckout) onQuickCheckout({ paymentMethod: method, amountPaid })
+                    else handleCheckout()
+                  }}
                   placeholder={String(total)}
                   className="h-12 pl-8 text-lg font-bold text-right tabular-nums"
                 />

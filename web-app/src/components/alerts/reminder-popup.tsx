@@ -180,6 +180,8 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
   })
 
+  const [view, setView] = useState<'one' | 'all' | 'pill'>('one')
+
   // Filter new reminder items by settings + local dismiss
   const visibleReminderItems = mounted && settings
     ? rawReminderItems.filter(item => {
@@ -284,8 +286,16 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
   if (!mounted || !settings?.enabled || !hasAnything) return null
 
   // UX-4: non-CRITICAL items that can be bulk-snoozed
+  // One card at a time (several big cards covered the products on the POS and the title on SUNMI);
+  // "ดูทั้งหมด" opens the rest, "ย่อ" leaves only a small button with the count
+  const total = visibleAlerts.length + visibleReminderItems.length
+  const perList = view === 'all' ? (variant === 'desktop' ? 4 : 2) : view === 'one' ? 1 : 0
+  const alertsShown = visibleAlerts.slice(0, perList)
+  const remindersShown = view === 'one' && alertsShown.length > 0 ? [] : visibleReminderItems.slice(0, perList)
+  const hiddenCount = total - alertsShown.length - remindersShown.length
+
   const snoozableItems = visibleReminderItems.filter(i => i.severity !== 'CRITICAL')
-  const showSnoozeAll  = snoozableItems.length >= 2
+  const showSnoozeAll  = snoozableItems.length >= 2 && view === 'all'
 
   async function snoozeAll() {
     if (snoozeAllPending || snoozableItems.length === 0) return
@@ -379,9 +389,10 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
           'fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-4 z-50 flex flex-col gap-2 max-h-[70vh] overflow-y-auto',
           pathname === '/sales' ? 'right-3 items-end md:right-auto md:left-20 md:items-start' : 'right-3 md:right-4 items-end',
         )}>
+          {total > 0 && <ReminderViewControls view={view} setView={setView} total={total} hidden={hiddenCount} />}
           <AnimatePresence initial={false}>
             {/* ── Existing operational alert cards ── */}
-            {visibleAlerts.slice(0, 4).map((a) => {
+            {alertsShown.map((a) => {
               const scfg = SEV_CFG[a.severity] ?? SEV_CFG.INFO
               const TypeIc = TYPE_ICON[a.type] ?? Wrench
 
@@ -421,7 +432,7 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
             })}
 
             {/* ── Phase 16: new reminder item cards ── */}
-            {visibleReminderItems.slice(0, 4).map((item) => {
+            {remindersShown.map((item) => {
               const scfg   = SEV_CFG[item.severity] ?? SEV_CFG.INFO
               const TypeIc = REMINDER_TYPE_ICON[item.type] ?? Wrench
               const label  = REMINDER_TYPE_LABEL[item.type] ?? item.type
@@ -534,9 +545,14 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
   return (
     <>
       <div className="fixed top-[56px] left-0 right-0 z-50 px-3 pt-2 space-y-2 pointer-events-none">
+        {total > 0 && (
+          <div className="pointer-events-auto flex justify-end">
+            <ReminderViewControls view={view} setView={setView} total={total} hidden={hiddenCount} />
+          </div>
+        )}
         <AnimatePresence initial={false}>
           {/* Existing operational alert cards */}
-          {visibleAlerts.slice(0, 2).map((a) => {
+          {alertsShown.map((a) => {
             const TypeIc = TYPE_ICON[a.type] ?? Wrench
             const sevText = SUNMI_TEXT[a.severity] ?? SUNMI_TEXT.INFO
 
@@ -572,7 +588,7 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
           })}
 
           {/* Phase 16 new reminder item cards (SUNMI dark theme) */}
-          {visibleReminderItems.slice(0, 2).map((item) => {
+          {remindersShown.map((item) => {
             const TypeIc  = REMINDER_TYPE_ICON[item.type] ?? Wrench
             const sevText = SUNMI_TEXT[item.severity] ?? SUNMI_TEXT.INFO
 
@@ -662,3 +678,41 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
     </>
   )
 }
+
+/** Show one reminder, all of them, or just a small button with the count. */
+function ReminderViewControls({ view, setView, total, hidden }: {
+  view: 'one' | 'all' | 'pill'
+  setView: (v: 'one' | 'all' | 'pill') => void
+  total: number
+  hidden: number
+}) {
+  if (view === 'pill') {
+    return (
+      <button
+        onClick={() => setView('one')}
+        className="flex items-center gap-1.5 rounded-full bg-slate-800/90 px-3 py-1.5 text-xs font-semibold text-white shadow-lg"
+      >
+        <Clock className="h-3.5 w-3.5" />
+        {total} เรื่องรอ
+      </button>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5">
+      {view === 'one' && hidden > 0 && (
+        <button onClick={() => setView('all')} className="rounded-full bg-slate-800/90 px-3 py-1 text-xs font-semibold text-white shadow">
+          +{hidden} ดูทั้งหมด
+        </button>
+      )}
+      {view === 'all' && (
+        <button onClick={() => setView('one')} className="rounded-full bg-slate-800/90 px-3 py-1 text-xs font-semibold text-white shadow">
+          แสดงทีละรายการ
+        </button>
+      )}
+      <button onClick={() => setView('pill')} className="rounded-full bg-white/90 border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow">
+        ย่อ
+      </button>
+    </div>
+  )
+}
+

@@ -8,6 +8,7 @@ import {
   Eye, EyeOff, Wrench, Palette, ImageIcon, AlertCircle,
 } from 'lucide-react'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/auth.store'
 import { ThemeSetPicker } from '@/components/theme/theme-set-picker'
 
 const businessTypes = [
@@ -57,6 +58,7 @@ type FormState = {
 
 export default function RegisterPage() {
   const router = useRouter()
+  const setAuth = useAuthStore((s) => s.setAuth)
   const [form, setForm] = useState<FormState>({
     shopName: '', ownerName: '', phone: '', email: '',
     password: '', confirmPassword: '', businessType: '',
@@ -103,6 +105,16 @@ export default function RegisterPage() {
         logoDataUrl,
       })
       setSubmitted(true)
+      // Sign straight in and open the getting-started list (before: type the email and password again)
+      try {
+        const res = await api.post('/auth/login', { email: form.email.trim().toLowerCase(), password: form.password })
+        const { user: u, permissions = [], enabledModules = [] } = res.data ?? {}
+        if (u) {
+          setAuth(u, permissions, enabledModules)
+          setTimeout(() => router.push('/settings/setup'), 1500)
+          return
+        }
+      } catch { /* fall back to the login page */ }
       setTimeout(() => router.push('/login'), 3000)
     } catch (err: any) {
       const msg =
@@ -129,7 +141,7 @@ export default function RegisterPage() {
           <h2 className="text-2xl font-bold text-slate-900 mb-2">สมัครสำเร็จ!</h2>
           <p className="text-slate-500 mb-6">
             ระบบ FixITPro พร้อมใช้งานแล้ว ทดลองได้ฟรี 14 วัน
-            <br />กำลังพาคุณไปหน้าเข้าสู่ระบบ…
+            <br />กำลังพาเข้าสู่ร้านของคุณ…
           </p>
           <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700 mb-8">
             <p className="font-semibold mb-1">ชื่อร้าน: {form.shopName}</p>

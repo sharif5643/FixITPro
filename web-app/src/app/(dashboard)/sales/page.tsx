@@ -2,7 +2,7 @@
 
 import { BranchQuickPick } from '@/components/layout/branch-context-bar'
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Clock, Globe, Keyboard, PauseCircle, Play } from 'lucide-react'
 import { toast } from 'sonner'
@@ -15,8 +15,9 @@ import { PaymentPanel, type PaymentPanelHandle } from '@/components/pos/payment-
 import { CheckoutDialog } from '@/components/pos/checkout-dialog'
 import { ReceiptDialog } from '@/components/pos/receipt-dialog'
 import { CustomerSearchDialog } from '@/components/pos/customer-search-dialog'
+import { CashOutDialog } from '@/components/pos/cash-out-dialog'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn, apiErrorMessage } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { usePOSShortcuts } from '@/hooks/usePOSShortcuts'
 import { useAuthStore } from '@/store/auth.store'
@@ -55,6 +56,12 @@ export default function SalesPage() {
   // Customer search
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
   const [selectedCustomer,   setSelectedCustomer]   = useState<{ name: string; phone?: string } | null>(null)
+
+  // Keyboard selling: F9 cash out, the drawer already opened for this receipt
+  const [cashOutOpen,   setCashOutOpen]   = useState(false)
+  const [drawerOpened,  setDrawerOpened]  = useState(false)
+  const quickSaleBusy = useRef(false)
+  const queryClient = useQueryClient()
 
   // Hold bills
   const [heldBills,     setHeldBills]     = useState<HeldBill[]>([])
@@ -166,11 +173,12 @@ export default function SalesPage() {
   }, [isLgLayout, total, items.length, hasZeroPriceItem])
 
   const handleEscape = useCallback(() => {
+    if (cashOutOpen)  { setCashOutOpen(false);  return }
     if (checkoutOpen) { setCheckoutOpen(false); return }
     if (receipt)      { setReceipt(null);        return }
     if (customerSearchOpen) { setCustomerSearchOpen(false); return }
     searchRef.current?.clearAndFocus()
-  }, [checkoutOpen, receipt, customerSearchOpen])
+  }, [checkoutOpen, receipt, customerSearchOpen, cashOutOpen])
 
   const handleClearCart = useCallback(() => {
     if (items.length === 0) return
@@ -242,7 +250,86 @@ export default function SalesPage() {
 
   const hasModule = useAuthStore((s) => s.hasModule)
 
+
+
+  // ── Checkout success ───────────────────────────────────────────────────────
+
+  const handleSuccess = useCallback((sale: Sale) => {
+    setCheckoutOpen(false)
+    setPreSelectedPayment(null)
+    setSelectedCustomer(null)
+    clearCart()
+    // Cash taken: open the drawer now to give the change (not only after printing)
+    const tookCash = sale.paymentMethod === 'CASH' ||
+      ((sale as { payments?: { paymentMethod: string }[] }).payments ?? []).some((p) => p.paymentMethod === 'CASH')
+    const openNow = tookCash && !isSunmi && !Platform.isNative()
+    if (openNow) openCashDrawer().catch((e) => console.error('[CashDrawer sale]', e))
+    setDrawerOpened(openNow)
+    setReceipt(sale)
+  }, [clearCart, isSunmi])
+
+  /**
+   * Enter in the cash box: save the sale straight away (no second confirm). Bills that need
+   * a choice first (IMEI / serial numbers not picked yet) still go through the checkout dialog.
+   */
+  const handleQuickCheckout = useCallback(async (opts: { paymentMethod: PaymentMethod; amountPaid: number }) => {
+    if (items.length === 0 || hasZeroPriceItem || quickSaleBusy.current) return
+    const needsSerials = items.some((i) => i.product.hasSerial && (i.serialIds?.length ?? 0) < i.quantity)
+    if (needsSerials) { handlePaymentPanelCheckout(opts); return }
+    if (opts.paymentMethod === 'CASH' && opts.amountPaid < total) {
+      toast.error('รับเงินมาน้อยกว่ายอดสุทธิ')
+      return
+    }
+    quickSaleBusy.current = true
+    try {
+      const res = await api.post<Sale>('/sales', {
+        customerName:  selectedCustomer?.name?.trim() || undefined,
+        customerPhone: selectedCustomer?.phone?.trim() || undefined,
+        discount,
+        shiftId:       currentShift?.id ?? undefined,
+        branchId:      effectiveBranch ?? undefined,
+        items: items.map((i) => ({
+          productId: i.product.id,
+          quantity:  i.quantity,
+          price:     Number(i.product.price),
+          discount:  (i.itemDiscount ?? 0) * i.quantity || undefined,
+          serialIds: i.product.hasSerial ? (i.serialIds ?? []) : undefined,
+        })),
+        paymentMethod: opts.paymentMethod,
+        amountPaid:    opts.amountPaid,
+      })
+      for (const key of [['products'], ['low-stock'], ['daily-report'], ['shifts', 'current'], ['serials']]) {
+        queryClient.invalidateQueries({ queryKey: key })
+      }
+      handleSuccess(res.data)
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
+    } finally {
+      quickSaleBusy.current = false
+    }
+  }, [items, hasZeroPriceItem, total, discount, selectedCustomer, currentShift?.id, effectiveBranch, queryClient, handleSuccess, handlePaymentPanelCheckout])
+
+  // F1: new bill — close the receipt and scan again
+  const handleNewSale = useCallback(() => {
+    if (checkoutOpen || cashOutOpen) return
+    if (receipt) setReceipt(null)
+    searchRef.current?.clearAndFocus()
+  }, [checkoutOpen, cashOutOpen, receipt])
+
+  // Enter on the empty scan box: done scanning, type the cash received
+  const handleScanDone = useCallback(() => {
+    if (items.length === 0) return
+    handleSelectCash()
+  }, [items.length, handleSelectCash])
+
+  const handleReceiptClose = useCallback(() => {
+    setReceipt(null)
+    searchRef.current?.focusSearch()
+  }, [])
+
   usePOSShortcuts({
+    onNewSale:             handleNewSale,
+    onCashOut:             () => { if (!checkoutOpen && !receipt) setCashOutOpen(true) },
     onFocusSearch:         handleFocusSearch,
     onFocusCustomerSearch: handleFocusCustomerSearch,
     onFocusDiscount:       handleFocusDiscount,
@@ -257,22 +344,6 @@ export default function SalesPage() {
     onDecreaseQty:         handleDecreaseQty,
     enabled: !shiftLoading && !isGlobalMode,
   })
-
-  // ── Checkout success ───────────────────────────────────────────────────────
-
-  const handleSuccess = useCallback((sale: Sale) => {
-    setCheckoutOpen(false)
-    setPreSelectedPayment(null)
-    setSelectedCustomer(null)
-    clearCart()
-    setReceipt(sale)
-  }, [clearCart])
-
-  const handleReceiptClose = useCallback(() => {
-    setReceipt(null)
-    searchRef.current?.focusSearch()
-  }, [])
-
   // ── Guard screens ─────────────────────────────────────────────────────────
 
   if (!hasModule('pos')) return <ModuleGate module="pos">{null}</ModuleGate>
@@ -397,6 +468,7 @@ export default function SalesPage() {
             ref={searchRef}
             category={selectedCategory}
             onCategoryChange={setSelectedCategory}
+            onEmptyEnter={handleScanDone}
           />
         </div>
 
@@ -433,7 +505,7 @@ export default function SalesPage() {
               </button>
             )}
           </div>
-          <PaymentPanel ref={paymentPanelRef} onCheckout={handlePaymentPanelCheckout} />
+          <PaymentPanel ref={paymentPanelRef} onCheckout={handlePaymentPanelCheckout} onQuickCheckout={handleQuickCheckout} />
         </div>
       </div>
 
@@ -442,6 +514,8 @@ export default function SalesPage() {
         <div className="hidden lg:flex items-center gap-4 pt-2 pb-0.5 px-1 shrink-0">
           <Keyboard className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
           {[
+            { key: 'F1', label: 'บิลใหม่' },
+            { key: 'Enter', label: 'สแกนเสร็จ → รับเงิน' },
             { key: 'F2', label: 'ค้นหา' },
             { key: 'F3', label: 'ลูกค้า' },
             { key: 'F4', label: 'ส่วนลด' },
@@ -449,6 +523,7 @@ export default function SalesPage() {
             { key: 'F6', label: 'เปิดลิ้นชัก' },
             { key: 'F7', label: 'โอน' },
             { key: 'F8', label: 'คิดเงิน' },
+            { key: 'F9', label: 'เบิกเงิน' },
             { key: 'ESC', label: 'ยกเลิก' },
           ].map(({ key, label }) => (
             <span key={key} className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 select-none">
@@ -544,6 +619,12 @@ export default function SalesPage() {
         open={!!receipt}
         sale={receipt}
         onClose={handleReceiptClose}
+        drawerOpened={drawerOpened}
+      />
+
+      <CashOutDialog
+        open={cashOutOpen}
+        onClose={() => { setCashOutOpen(false); searchRef.current?.focusSearch() }}
       />
 
       <CustomerSearchDialog

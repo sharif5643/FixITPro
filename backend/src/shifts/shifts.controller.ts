@@ -11,6 +11,7 @@ import {
 import { ShiftsService } from './shifts.service';
 import { OpenShiftDto } from './dto/open-shift.dto';
 import { CloseShiftDto } from './dto/close-shift.dto';
+import { CashMovementDto } from './dto/cash-movement.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -91,6 +92,23 @@ export class ShiftsController {
   @Get('current')
   getCurrentShift(@CurrentUser() user: { id: string; role?: string; permissions?: string[] }) {
     return this.shiftsService.getCurrentShift(user.id).then((r) => hideProfit(r, user));
+  }
+
+  /** Put cash into / take cash out of the drawer by hand, in my current shift (with a reason). */
+  @Post('cash-movements')
+  addCashMovement(
+    @Body() dto: CashMovementDto,
+    @CurrentUser() user: { id: string; name?: string; tenantId?: string | null },
+  ) {
+    return this.shiftsService.addCashMovement(dto, user);
+  }
+
+  @Get(':id/cash-movements')
+  listCashMovements(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    return this.shiftsService.listCashMovements(id, user);
   }
 
   /** Every money movement of a shift with who did it (people in the shift, owner, branch manager). */

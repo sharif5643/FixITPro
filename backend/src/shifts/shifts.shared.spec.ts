@@ -26,7 +26,8 @@ function make(shift: any, current: any = null) {
     packageSale: { findMany: jest.fn(async () => []) },
     packageSaleDebtPayment: { aggregate: jest.fn(async () => ({ _sum: { amount: 0 } })) },
     expense: { aggregate: jest.fn(async () => ({ _sum: { amount: 0 } })) },
-    saleRefund: { aggregate: jest.fn(async () => ({ _sum: { totalRefund: 0 } })) },
+    saleRefund: { aggregate: jest.fn(async () => ({ _sum: { totalRefund: 0 } })), findMany: jest.fn(async () => []) },
+    shiftCashMovement: { findMany: jest.fn(async () => []) },
   };
   const svc = new (ShiftsService as any)(prisma, { getShiftCarrierSummary: jest.fn(async () => []) }, { log: jest.fn() }, { notify: jest.fn() });
   svc.getCashRepairInflows = jest.fn(async () => ({ cashDeposits: 0, cashDebtPayments: 0 }));

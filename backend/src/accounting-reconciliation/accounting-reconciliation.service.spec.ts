@@ -698,20 +698,23 @@ describe('AccountingReconciliationService', () => {
 
   // ── R29: Activation timestamp >24h past → blocked (SF-4 fix) ─────────────
 
-  it('R29: ACCOUNTING_ACTIVATION_TIMESTAMP older than 24h → blocked, ERROR logged', async () => {
+  it('R29: ACCOUNTING_ACTIVATION_TIMESTAMP older than 24h → scans the last 24h only, never history', async () => {
     process.env.ACCOUNTING_CORE_ENABLED         = 'true';
     process.env.ACCOUNTING_ACTIVATION_TIMESTAMP = ACTIVATION_TS_OLD; // '2020-01-01...'
     process.env.ACCOUNTING_ENABLED_TENANTS      = TENANT_ID;
+    (prisma.sale.findMany as jest.Mock).mockResolvedValue([]);
 
     const errSpy = jest.spyOn(service['logger'] as any, 'error').mockImplementation(() => {});
+    const before = Date.now();
 
     const result = await service.runReconciliation({ tenantId: TENANT_ID });
 
-    expect(result.summary.scanned).toBe(0);
-    expect(prisma.branch.findMany).not.toHaveBeenCalled();
-    expect(errSpy).toHaveBeenCalledWith(
-      'Accounting activation timestamp is older than allowed safety window; reconciliation blocked.',
-    );
+    // The safety net keeps running, from 24 hours ago — not from 2020 (no back-fill of history)
+    const from: Date = (prisma.sale.findMany as jest.Mock).mock.calls[0][0].where.createdAt.gte;
+    expect(Math.abs(from.getTime() - (before - 24 * 60 * 60 * 1000))).toBeLessThan(60_000);
+    expect(from.getTime()).toBeGreaterThan(new Date(ACTIVATION_TS_OLD).getTime());
+    expect(result.activationTs).toBe(from.toISOString());
+    expect(errSpy).not.toHaveBeenCalled();
   });
 
   // ── R30: Historical sale excluded by fresh activation timestamp ───────────
@@ -1102,19 +1105,25 @@ describe('AccountingReconciliationService', () => {
     expect(prisma.expense.findMany).not.toHaveBeenCalled();
   });
 
-  // ── G16 (Spec P): Activation timestamp too old → blocked ─────────────────
+  // ── G16 (Spec P): Activation timestamp too old → last 24h only ───────────
 
-  it('G16: ACCOUNTING_ACTIVATION_TIMESTAMP >24h ago → all scans blocked', async () => {
+  it('G16: ACCOUNTING_ACTIVATION_TIMESTAMP >24h ago → repairs and expenses scanned over the last 24h only', async () => {
     process.env.ACCOUNTING_CORE_ENABLED         = 'true';
     process.env.ACCOUNTING_ACTIVATION_TIMESTAMP = ACTIVATION_TS_OLD;
     process.env.ACCOUNTING_ENABLED_TENANTS      = TENANT_ID;
-    jest.spyOn(service['logger'] as any, 'error').mockImplementation(() => {});
+    (prisma.sale.findMany as jest.Mock).mockResolvedValue([]);
+    const before = Date.now();
 
-    const result = await service.runReconciliation({ tenantId: TENANT_ID });
+    await service.runReconciliation({ tenantId: TENANT_ID });
 
-    expect(result.repairItems).toHaveLength(0);
-    expect(result.expenseItems).toHaveLength(0);
-    expect(prisma.repair.findMany).not.toHaveBeenCalled();
+    const dayAgo = before - 24 * 60 * 60 * 1000;
+    expect(prisma.repair.findMany).toHaveBeenCalled();
+    const repairFrom: Date = (prisma.repair.findMany as jest.Mock).mock.calls[0][0].where.receivedAt.gte;
+    expect(Math.abs(repairFrom.getTime() - dayAgo)).toBeLessThan(60_000);
+    for (const [args] of (prisma.repair.findMany as jest.Mock).mock.calls) {
+      const gte = args?.where?.receivedAt?.gte as Date | undefined;
+      if (gte) expect(gte.getTime()).toBeGreaterThan(new Date(ACTIVATION_TS_OLD).getTime());
+    }
   });
 
   // ── G17 (Spec Q): No allowlist → zero tenants ─────────────────────────────

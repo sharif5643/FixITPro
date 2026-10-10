@@ -11,6 +11,14 @@ on:
         description: Take a fresh backup before the drill
         type: boolean
         default: true
+      restart_app:
+        description: Start the newest stopped backend + frontend and point Traefik at them (outage recovery)
+        type: boolean
+        default: false
+      restore_apps:
+        description: Put the Android apps back on /download (same as the deploy's last step)
+        type: boolean
+        default: false
 
 concurrency:
   group: restore-drill
@@ -34,6 +42,56 @@ jobs:
           |1|DvsnTBCxLHm8F065S5GQgbFtQ7A=|p3bzmY/gf4hK9k12IVBMYJRUmW0= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJXdI/T+EG5TAdAn1+taAQ11ZngzxKD1IfntVnXaH9du
           |1|ibmwetm0PAiC8BgSyTtf4uTAKd8=|eE9sCjfTwZLn5uRd6FLxn8RF2do= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLrzre/wkU0criEqkVfDAb3Dx1xjcWhPtoWGVXr7hKPyWz32Zd5rIuLBoqRrf+Llc9ODEUj6Zumb/3ummYQCjHc=
           EOF
+
+      - name: App containers and recent logs (read-only)
+        # What is running and why it stopped: container states, memory/disk, and the last log
+        # lines of the backend and frontend. Nothing is changed.
+        continue-on-error: true
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            docker ps -a --format "{{.Names}}\t{{.Status}}\t{{.Image}}" | grep -E "z9m1c1i9nr6kbyo4qn0vuv1b" | head -20
+            echo "--- memory / disk"; free -m; df -h / | tail -1
+            for app in backend frontend; do
+              c=$(docker ps -a --format "{{.Names}}" | grep "^${app}-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
+              echo "=== ${app}: ${c:-none}"
+              [ -n "$c" ] && docker logs --tail 80 "$c" 2>&1 | grep -v -i "password\|secret\|token" | tail -80
+            done
+            echo "--- deploy script"; sed -E "s/(PASSWORD|SECRET|TOKEN|KEY)=[^ ]*/\\1=***/g" /root/trigger-coolify-deploy.sh
+            echo "--- networks / labels of the newest app containers"
+            for c in $(docker ps -a --format "{{.Names}}" | grep -E "^(backend|frontend)-z9m1c1i9nr6kbyo4qn0vuv1b" | head -2); do
+              echo "$c"; docker inspect "$c" --format "{{json .NetworkSettings.Networks}}" | head -c 400; echo
+              docker inspect "$c" --format "{{range \$k,\$v := .Config.Labels}}{{\$k}}={{\$v}}{{println}}{{end}}" | grep -i "traefik.http.routers\|coolify.name\|rule" | head -6
+            done
+            exit 0'
+
+      - name: Start the app again (only when restart_app)
+        # Outage recovery (owner approved 2026-10-08): start the newest stopped app containers and
+        # point Traefik at them — the same script the deploy uses (scripts/deploy/recover-app.sh).
+        if: ${{ inputs.restart_app }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 'sh -s' < scripts/deploy/recover-app.sh
+          sleep 10
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/login --max-time 10 || true)
+            echo "login page: HTTP $code"; [ "$code" = "200" ] && break; sleep 10
+          done
+
+      - name: Put the Android apps back on /download (only when restore_apps)
+        # The same copy as deploy.yml's last step, for when a deploy did not reach it.
+        if: ${{ inputs.restore_apps }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 'set -e
+            OUT=/root/fixitpro-android/out
+            [ -f "$OUT/apps.json" ] || { echo "No apps published yet"; exit 0; }
+            c=$(docker ps --format "{{.Names}}" | grep "^frontend-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
+            [ -n "$c" ] || { echo "frontend container not found"; exit 1; }
+            for f in FixITPro-POS.apk FixITPro-Staff.apk apps.json; do
+              docker cp "$OUT/$f" "$c:/app/public/downloads/$f.tmp"
+              docker exec -u 0 "$c" sh -c "chmod 644 /app/public/downloads/$f.tmp && mv /app/public/downloads/$f.tmp /app/public/downloads/$f"
+            done
+            echo "Android apps restored into $c"'
+          code=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/downloads/apps.json --max-time 30 || true)
+          echo "apps.json → HTTP $code"
 
       - name: Install backup + drill scripts
         # pg_backup_coolify.sh is also what the server's daily cron runs; the old copy is kept as

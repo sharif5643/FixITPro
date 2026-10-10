@@ -13,6 +13,8 @@ import { OpenShiftDto } from './dto/open-shift.dto';
 import { CloseShiftDto } from './dto/close-shift.dto';
 import { CarrierWalletService } from '../carrier-wallet/carrier-wallet.service';
 import { activeShiftWhere } from './active-shift';
+import { SHIFT_CASH_KIND, movementTotals, refundsOfShiftWhere, supplierPaymentsOfShiftWhere } from './shift-cash';
+import { CashMovementDto } from './dto/cash-movement.dto';
 import { buildShiftLedger, staffMoneyOf } from './shift-ledger';
 
 /** A hand-over waits a day for the person taking over */
@@ -370,6 +372,13 @@ export class ShiftsService {
 
   // Cash taken in this shift outside sales/final repair payments: repair deposits at intake and
   // debt payments (RepairAdditionalPayment). Both belong in the drawer's expected cash.
+  private cashMovementsOf(shiftId: string) {
+    return this.prisma.shiftCashMovement.findMany({
+      where: { shiftId },
+      select: { kind: true, direction: true, amount: true, paymentMethod: true, referenceType: true },
+    });
+  }
+
   /** Cash taken in this shift for SIM/package sales sold earlier on credit. */
   private async getCashPackageDebtPayments(shiftId: string) {
     const agg = await this.prisma.packageSaleDebtPayment.aggregate({
@@ -401,9 +410,9 @@ export class ShiftsService {
    * refunds, and the cash the drawer should hold. Used when closing a shift and to reprint the
    * summary of a closed one (same numbers both times).
    */
-  private async computeShiftTotals(shift: { id: string; openedAt: Date; closedAt: Date | null; openBalance: unknown; user?: { tenantId: string | null } | null }) {
+  private async computeShiftTotals(shift: { id: string; openedAt: Date; closedAt: Date | null; openBalance: unknown; branchId?: string | null; user?: { tenantId: string | null } | null }) {
     const shiftId = shift.id;
-    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg, packageSalesByCarrier, repairInflows] = await Promise.all([
+    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg, packageSalesByCarrier, repairInflows, movements] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId, status: { not: 'VOIDED' } },
         select: {
@@ -416,10 +425,7 @@ export class ShiftsService {
         select: { paidAmount: true, paymentMethod: true },
       }),
       this.prisma.supplierPayment.findMany({
-        where: {
-          paidAt: { gte: shift.openedAt, lt: shift.closedAt ?? new Date() },
-          ...(shift.user?.tenantId ? { purchaseOrder: { supplier: { tenantId: shift.user.tenantId } } } : {}),
-        },
+        where: supplierPaymentsOfShiftWhere(shift),
         select: { amount: true, paymentMethod: true },
       }),
       this.prisma.packageSale.findMany({
@@ -432,12 +438,14 @@ export class ShiftsService {
       }),
       // P0-3 FIX: sum CASH refunds for this shift so they are subtracted from expectedBalance
       (this.prisma as any).saleRefund.aggregate({
-        where: { paymentMethod: 'CASH', sale: { shiftId } },
+        where: { paymentMethod: 'CASH', ...refundsOfShiftWhere(shiftId) },
         _sum: { totalRefund: true },
       }),
       this.carrierWalletService.getShiftCarrierSummary(shiftId),
       this.getCashRepairInflows(shiftId),
+      this.cashMovementsOf(shiftId),
     ]);
+    const moves = movementTotals(movements);
 
     const totalSales = sales.reduce((sum, s) => sum + Number(s.total), 0);
     const salesCount = sales.length;
@@ -465,15 +473,16 @@ export class ShiftsService {
       {} as Record<string, number>,
     );
 
+    // Repair payments of this shift, plus those given back later (the repair no longer points here)
     const repairBreakdown = repairPayments.reduce(
       (acc, r) => {
         const m = r.paymentMethod ?? 'CASH';
         acc[m] = (acc[m] || 0) + Number(r.paidAmount ?? 0);
         return acc;
       },
-      {} as Record<string, number>,
+      { ...moves.keptFinal } as Record<string, number>,
     );
-    const repairTotalAmount = repairPayments.reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0);
+    const repairTotalAmount = Object.values(repairBreakdown).reduce((sum, v) => sum + v, 0);
 
     const supplierBreakdown = supplierPayments.reduce(
       (acc, p) => {
@@ -501,10 +510,12 @@ export class ShiftsService {
     const cashSupplierPayments = supplierBreakdown['CASH'] ?? 0;
     const cashExpensesTotal = Number(cashExpensesAgg._sum.amount ?? 0);
     const cashRefundsTotal  = Number(cashRefundsAgg._sum.totalRefund ?? 0);
-    const { cashDeposits, cashDebtPayments } = repairInflows;
+    const cashDeposits     = repairInflows.cashDeposits + moves.keptDepositCash;
+    const cashDebtPayments = repairInflows.cashDebtPayments + moves.keptAdditionalCash;
+    const { manualIn: cashManualIn, manualOut: cashManualOut, repairRefundCash: cashRepairRefunds } = moves;
     const expectedBalance =
       Number(shift.openBalance) + cashSales + cashRepairs + cashDeposits + cashDebtPayments + cashPackageSales
-      - cashSupplierPayments - cashExpensesTotal - cashRefundsTotal;
+      + cashManualIn - cashSupplierPayments - cashExpensesTotal - cashRefundsTotal - cashRepairRefunds - cashManualOut;
 
     return {
       salesCount, totalSales, paymentBreakdown, staffSales,
@@ -514,6 +525,7 @@ export class ShiftsService {
       cashPackageSales, cashPackageDebtPayments,
       cashDeposits, cashDebtPayments,
       cashSales, cashRepairs, cashSupplierPayments, cashExpensesTotal, cashRefundsTotal,
+      cashRepairRefunds, cashManualIn, cashManualOut, cashMovementCount: moves.manualCount,
       expectedBalance,
     };
   }
@@ -546,6 +558,9 @@ export class ShiftsService {
       cashDebtPayments: t.cashDebtPayments,
       cashExpenses: t.cashExpensesTotal,
       cashRefunds: t.cashRefundsTotal,
+      cashRepairRefunds: t.cashRepairRefunds,
+      cashManualIn: t.cashManualIn,
+      cashManualOut: t.cashManualOut,
       expectedBalance: t.expectedBalance,
       actualBalance: closeBalance,
       difference: closeBalance - t.expectedBalance,
@@ -656,7 +671,7 @@ export class ShiftsService {
 
     if (!shift) return null;
 
-    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg, packageSalesByCarrier, repairInflows] = await Promise.all([
+    const [sales, repairPayments, supplierPayments, packageSales, cashExpensesAgg, cashRefundsAgg, packageSalesByCarrier, repairInflows, movements] = await Promise.all([
       this.prisma.sale.findMany({
         where: { shiftId: shift.id, status: { not: 'VOIDED' } },
         select: { total: true, paymentMethod: true, payments: { select: { paymentMethod: true, amount: true } } },
@@ -666,10 +681,7 @@ export class ShiftsService {
         select: { paidAmount: true, paymentMethod: true },
       }),
       this.prisma.supplierPayment.findMany({
-        where: {
-          paidAt: { gte: shift.openedAt, lt: shift.closedAt ?? new Date() },
-          ...(shift.user?.tenantId ? { purchaseOrder: { supplier: { tenantId: shift.user.tenantId } } } : {}),
-        },
+        where: supplierPaymentsOfShiftWhere(shift),
         select: { amount: true, paymentMethod: true },
       }),
       this.prisma.packageSale.findMany({
@@ -682,15 +694,18 @@ export class ShiftsService {
       }),
       // P0-3 FIX: sum CASH refunds for live shift expectedCashBalance
       (this.prisma as any).saleRefund.aggregate({
-        where: { paymentMethod: 'CASH', sale: { shiftId: shift.id } },
+        where: { paymentMethod: 'CASH', ...refundsOfShiftWhere(shift.id) },
         _sum: { totalRefund: true },
       }),
       this.carrierWalletService.getShiftCarrierSummary(shift.id),
       this.getCashRepairInflows(shift.id),
+      this.cashMovementsOf(shift.id),
     ]);
+    const moves = movementTotals(movements);
+    const keptFinalTotal = Object.values(moves.keptFinal).reduce((a, b) => a + b, 0);
 
     const totalSales = sales.reduce((sum, s) => sum + Number(s.total), 0);
-    const repairRevenue = repairPayments.reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0);
+    const repairRevenue = repairPayments.reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0) + keptFinalTotal;
     const supplierExpenses = supplierPayments.reduce((sum, p) => sum + Number(p.amount), 0);
     const packageSaleRevenue = packageSales.reduce((sum, p) => sum + Number(p.profit), 0);
     const packageSaleAmount = packageSales.reduce((sum, p) => sum + Number(p.packageAmount), 0);
@@ -701,7 +716,8 @@ export class ShiftsService {
         : s.paymentMethod === 'CASH' ? [Number(s.total)] : [];
       return sum + legs.reduce((a, b) => a + b, 0);
     }, 0);
-    const cashRepairs = repairPayments.filter(r => r.paymentMethod === 'CASH').reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0);
+    const cashRepairs = repairPayments.filter(r => r.paymentMethod === 'CASH').reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0)
+      + (moves.keptFinal.CASH ?? 0);
     const cashSupplierPayments = supplierPayments.filter(p => p.paymentMethod === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0);
     const cashPackageDebtPayments = await this.getCashPackageDebtPayments(shift.id);
     const cashPackageSales = packageSales
@@ -710,10 +726,12 @@ export class ShiftsService {
       + cashPackageDebtPayments;
     const cashExpenses = Number(cashExpensesAgg._sum.amount ?? 0);
     const cashRefunds  = Number(cashRefundsAgg._sum.totalRefund ?? 0);
-    const { cashDeposits, cashDebtPayments } = repairInflows;
+    const cashDeposits     = repairInflows.cashDeposits + moves.keptDepositCash;
+    const cashDebtPayments = repairInflows.cashDebtPayments + moves.keptAdditionalCash;
+    const { manualIn: cashManualIn, manualOut: cashManualOut, repairRefundCash: cashRepairRefunds } = moves;
     const expectedCashBalance =
       Number(shift.openBalance) + cashSales + cashRepairs + cashDeposits + cashDebtPayments + cashPackageSales
-      - cashSupplierPayments - cashExpenses - cashRefunds;
+      + cashManualIn - cashSupplierPayments - cashExpenses - cashRefunds - cashRepairRefunds - cashManualOut;
 
     return {
       ...shift,
@@ -735,8 +753,88 @@ export class ShiftsService {
       cashDebtPayments,
       cashExpenses,
       cashRefunds,
+      cashRepairRefunds,
+      cashManualIn,
+      cashManualOut,
       expectedCashBalance,
     };
+  }
+
+  /** Cash put into or taken out of the drawer by hand, in the shift this person works in now. */
+  async addCashMovement(dto: CashMovementDto, user: { id: string; name?: string; tenantId?: string | null }) {
+    const shift = await this.prisma.shift.findFirst({
+      where: activeShiftWhere(user.id),
+      include: { user: { select: { tenantId: true } } },
+    });
+    if (!shift) throw new BadRequestException('กรุณาเปิดกะก่อน');
+    const tenantId = shift.user?.tenantId ?? user.tenantId ?? null;
+    const out = dto.direction === 'OUT';
+    const amount = Math.round(Number(dto.amount) * 100) / 100;
+
+    const movement = await this.prisma.shiftCashMovement.create({
+      data: {
+        shiftId: shift.id,
+        kind: out ? SHIFT_CASH_KIND.MANUAL_OUT : SHIFT_CASH_KIND.MANUAL_IN,
+        direction: dto.direction,
+        amount,
+        paymentMethod: 'CASH',
+        reason: dto.reason,
+        createdById: user.id,
+        tenantId,
+        branchId: shift.branchId,
+      },
+    });
+    await this.auditLog.log({
+      actorId: user.id,
+      actorName: user.name,
+      action: out ? 'SHIFT_CASH_OUT' : 'SHIFT_CASH_IN',
+      entityType: 'Shift',
+      entityId: shift.id,
+      afterData: { movementId: movement.id, amount, reason: dto.reason },
+    });
+    if (out) {
+      // Owners hear about cash leaving the drawer
+      await this.notif.notify({
+        type:       'SHIFT_CASH_OUT',
+        title:      `นำเงินออกจากลิ้นชัก ${amount.toLocaleString('th-TH')} บาท`,
+        message:    `${user.name ?? ''} — ${dto.reason}`,
+        severity:   'INFO',
+        entityType: 'Shift',
+        entityId:   shift.id,
+        tenantId,
+        ...(shift.branchId ? { branchId: shift.branchId } : {}),
+      }).catch(() => undefined);
+    }
+    return { ...movement, amount: Number(movement.amount) };
+  }
+
+  /** Cash put in / taken out by hand in a shift, newest first, with who did it. */
+  async listCashMovements(
+    shiftId: string,
+    actor: { id: string; role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] },
+  ) {
+    const shift = await this.prisma.shift.findFirst({
+      where: { id: shiftId },
+      include: { user: { select: { tenantId: true } }, branch: { select: { tenantId: true } } },
+    });
+    if (!shift) throw new NotFoundException('ไม่พบกะนี้');
+    await this.assertCanSeeShift(
+      { id: shift.id, userId: shift.userId, branchId: shift.branchId, tenantId: shift.branch?.tenantId ?? shift.user?.tenantId ?? null },
+      actor,
+    );
+    const rows = await this.prisma.shiftCashMovement.findMany({
+      where: { shiftId, kind: { in: [SHIFT_CASH_KIND.MANUAL_IN, SHIFT_CASH_KIND.MANUAL_OUT] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const ids = [...new Set(rows.map((r) => r.createdById))];
+    const users = ids.length
+      ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+      : [];
+    const nameOf = new Map(users.map((u) => [u.id, u.name]));
+    return rows.map((r) => ({
+      id: r.id, direction: r.direction, amount: Number(r.amount), reason: r.reason,
+      createdAt: r.createdAt, createdBy: { id: r.createdById, name: nameOf.get(r.createdById) ?? '-' },
+    }));
   }
 
   /** Open shifts this person could join: same shop, and their own branch when they have one. */

@@ -546,9 +546,11 @@ model Shift {
   ntOpeningBalance   Decimal? @db.Decimal(12, 2)
 
   sales          Sale[]
-  repairPayments Repair[]      @relation("RepairPayments")
+  repairPayments Repair[]            @relation("RepairPayments")
   expenses       Expense[]
   members        ShiftMember[]
+  refunds        SaleRefund[]
+  cashMovements  ShiftCashMovement[]
 
   @@index([userId])
   @@index([isActive])
@@ -834,11 +836,17 @@ model SaleRefund {
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
 
+  // The shift the money left from (null on refunds made before this was recorded:
+  // those count against the shift of the sale)
+  shiftId String?
+  shift   Shift?  @relation(fields: [shiftId], references: [id])
+
   items SaleRefundItem[]
 
   @@index([saleId])
   @@index([createdAt])
   @@index([customerId])
+  @@index([shiftId])
 }
 
 model SaleRefundItem {
@@ -2191,4 +2199,32 @@ model StaffCommission {
   updatedAt   DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+/// Money in or out of a shift that is not a sale, repair payment or expense:
+/// - MANUAL_IN / MANUAL_OUT: cash put into or taken out of the drawer by hand, with a reason
+/// - REPAIR_REFUND (OUT): repair money given back to the customer, in the shift that paid it out
+/// - REPAIR_PAYMENT_KEPT (IN): repair money a shift received before it was given back later;
+///   the repair itself no longer points at that shift, this row keeps the shift's figures intact
+model ShiftCashMovement {
+  id            String        @id @default(cuid())
+  kind          String
+  direction     String
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod @default(CASH)
+  reason        String?
+  referenceType String?
+  referenceId   String?
+  createdAt     DateTime      @default(now())
+
+  shiftId String
+  shift   Shift  @relation(fields: [shiftId], references: [id])
+
+  createdById String
+  tenantId    String?
+  branchId    String?
+
+  @@index([shiftId])
+  @@index([referenceType, referenceId])
+  @@index([tenantId, createdAt])
 }

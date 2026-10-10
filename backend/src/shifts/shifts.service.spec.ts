@@ -1,5 +1,6 @@
 import { ShiftsService } from './shifts.service';
 import { mockPrisma } from '../test/prisma-mock';
+import { supplierPaymentsOfShiftWhere } from './shift-cash';
 
 const MOCK_SHIFT = {
   id: 'shift1', userId: 'u1', isActive: true, openBalance: 1000,
@@ -109,5 +110,23 @@ describe('ShiftsService.getClosedShiftSummary — print a closed shift again', (
     await expect(service.getClosedShiftSummary('shift1', { id: 'o', role: 'OWNER', tenantId: 't2' })).rejects.toThrow('ไม่พบกะนี้');
     (prisma.shift.findFirst as jest.Mock).mockResolvedValue({ ...CLOSED, isActive: true, closedAt: null });
     await expect(service.getClosedShiftSummary('shift1', { id: 'u1', role: 'CASHIER', tenantId: 't1' })).rejects.toThrow('ยังไม่ปิด');
+  });
+});
+
+describe('supplier payments in a shift', () => {
+  const openedAt = new Date('2026-10-08T12:00:00Z');
+  const closedAt = new Date('2026-10-08T23:00:00Z');
+
+  it('only counts purchase orders of the shift branch', () => {
+    const where = supplierPaymentsOfShiftWhere({ openedAt, closedAt, branchId: 'b1', user: { tenantId: 't1' } });
+    expect(where).toEqual({
+      paidAt: { gte: openedAt, lt: closedAt },
+      purchaseOrder: { supplier: { tenantId: 't1' }, branchId: 'b1' },
+    });
+  });
+
+  it('falls back to the whole shop when the shift has no branch', () => {
+    const where = supplierPaymentsOfShiftWhere({ openedAt, closedAt, branchId: null, user: { tenantId: 't1' } });
+    expect(where.purchaseOrder).toEqual({ supplier: { tenantId: 't1' } });
   });
 });

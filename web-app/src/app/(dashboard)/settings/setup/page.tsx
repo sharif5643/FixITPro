@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   Store, Phone, Receipt, Image, Bell, Database, Wifi,
-  CheckCircle2, XCircle, AlertCircle, ChevronRight, Loader2,
+  CheckCircle2, XCircle, AlertCircle, ChevronRight, Loader2, Package, Clock,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { SectionCard } from '@/components/ui/section-card'
@@ -53,6 +53,18 @@ export default function SetupPage() {
     staleTime: 60_000,
   })
 
+  // Getting started: the first product and the first shift
+  const { data: productCount = 0 } = useQuery<number>({
+    queryKey: ['setup', 'products'],
+    queryFn: () => api.get('/products').then((r) => (Array.isArray(r.data) ? r.data.length : (r.data?.total ?? r.data?.data?.length ?? 0))),
+    staleTime: 60_000,
+  })
+  const { data: shiftCount = 0 } = useQuery<number>({
+    queryKey: ['setup', 'shifts'],
+    queryFn: () => api.get('/shifts').then((r) => (Array.isArray(r.data) ? r.data.length : (r.data?.data?.length ?? 0))),
+    staleTime: 60_000,
+  })
+
   // This shop's own backups (the server-wide backup is the system admin's)
   const { data: shopBackups = [] } = useShopBackups()
 
@@ -74,6 +86,22 @@ export default function SetupPage() {
       href: '/settings',
       icon: Phone,
       done: !!settings?.shopPhone,
+    },
+    {
+      key: 'firstProduct',
+      label: 'เพิ่มสินค้าแรก',
+      description: 'เพิ่มสินค้าที่ขายหรืออะไหล่ (มีหมวดหมู่ให้เลือกแล้ว) หรือนำเข้าจากไฟล์ CSV',
+      href: '/products',
+      icon: Package,
+      done: productCount > 0,
+    },
+    {
+      key: 'firstShift',
+      label: 'เปิดกะแรก',
+      description: 'ใส่เงินทอนในลิ้นชักแล้วเปิดกะ จึงจะขายและรับเงินได้',
+      href: '/shifts',
+      icon: Clock,
+      done: shiftCount > 0,
     },
     {
       key: 'taxId',
