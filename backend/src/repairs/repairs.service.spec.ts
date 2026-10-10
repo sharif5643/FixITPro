@@ -94,7 +94,7 @@ function makeCancelService() {
 
   const auditLog = { log: jest.fn(), logWithTx: jest.fn() };
   const warranties = { createForRepair: jest.fn() };
-  const lineMsg = { notifyRepairStatus: jest.fn() };
+  const lineMsg = { notifyRepairStatus: jest.fn().mockResolvedValue(undefined) };
   const accounting = { record: jest.fn().mockResolvedValue(null) };
   const repairAccounting = {
     isEnabledForTenant:              jest.fn().mockReturnValue(true),
@@ -318,7 +318,7 @@ function makeRefundCancelService() {
 
   const auditLog = { log: jest.fn(), logWithTx: jest.fn() };
   const warranties = { createForRepair: jest.fn() };
-  const lineMsg = { notifyRepairStatus: jest.fn() };
+  const lineMsg = { notifyRepairStatus: jest.fn().mockResolvedValue(undefined) };
   const accounting = { record: jest.fn().mockResolvedValue(null) };
   const repairAccounting = {
     isEnabledForTenant:                          jest.fn().mockReturnValue(true),

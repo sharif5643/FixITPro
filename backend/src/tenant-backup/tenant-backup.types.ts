@@ -58,6 +58,8 @@ export interface BackupCounts {
   partnerQuotations: number;
   partnerQuotationEvents: number;
   shifts: number;
+  shiftCashMovements: number;
+  repairPrices: number;
   shopSettings: number;
 }
 

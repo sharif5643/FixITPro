@@ -13,6 +13,11 @@ import {
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { QrScannerDialog } from '@/components/repairs/qr-scanner-dialog'
+import { useAuthStore } from '@/store/auth.store'
+import { loadDraft, clearDraft, useDraftAutosave } from '@/lib/form-draft'
+import { DraftRestoredBanner } from '@/components/repairs/draft-restored-banner'
+import { RepairPriceChips } from '@/components/repair-prices/repair-price-chips'
+import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
 
 /* ─── Constants ────────────────────────────────────────────────────────────── */
 
@@ -101,6 +106,14 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 
 /* ─── Page ──────────────────────────────────────────────────────────────────── */
 
+type StaffDraft = {
+  selectedCust: Customer | null; newCustName: string; newCustPhone: string
+  deviceType: string; brand: string; model: string; imei: string; serial: string; colorLabel: string
+  issueTags: string[]; issueDesc: string; conditions: string[]; accessories: string[]
+  laborCost: string; partsCost: string; deposit: string; depositPM: string; discount: string
+  dueDate: string; note: string; techId: string; status: string
+}
+
 export default function CreateRepairPage() {
   const router = useRouter()
   const appBranch = useAppBranch()
@@ -157,19 +170,70 @@ export default function CreateRepairPage() {
 
   const [loading, setLoading] = useState(false)
 
+  // Jobs picked from the shop's price list: the job goes into the issue, its price into labour
+  const [pricedJobs, setPricedJobs] = useState<RepairPrice[]>([])
+  function pickPrice(p: RepairPrice) {
+    const next = togglePricedJob(pricedJobs, p, issueDesc, parseFloat(laborCost) || 0)
+    setPricedJobs(next.picked)
+    setIssueDesc(next.issue)
+    setLaborCost(next.estimate ? String(next.estimate) : '')
+  }
+
   const total     = (parseFloat(laborCost) || 0) + (parseFloat(partsCost) || 0)
   const remaining = total - (parseFloat(deposit) || 0) - (parseFloat(discount) || 0)
+
+  // What was typed stays on this device until the job is saved (leaving the page loses nothing)
+  const userId   = useAuthStore((s) => s.user?.id)
+  const draftKey = userId ? `repair-intake-staff-${userId}` : null
+  const [restored,   setRestored]   = useState(false)
+  const [draftReady, setDraftReady] = useState(false)
+  const draft: StaffDraft = {
+    selectedCust, newCustName, newCustPhone, deviceType, brand, model, imei, serial, colorLabel,
+    issueTags, issueDesc, conditions, accessories, laborCost, partsCost, deposit, depositPM, discount,
+    dueDate, note, techId, status,
+  }
+  const hasContent = !!(
+    selectedCust || newCustName || newCustPhone || brand || model || imei || serial || issueTags.length ||
+    issueDesc || laborCost || partsCost || note
+  )
+  useDraftAutosave(draftKey, draft, draftReady && !loading, hasContent)
+
+  function applyDraft(d: Partial<StaffDraft>) {
+    setSelectedCust(d.selectedCust ?? null); setNewCustName(d.newCustName ?? ''); setNewCustPhone(d.newCustPhone ?? '')
+    setDeviceType(d.deviceType ?? 'มือถือ'); setBrand(d.brand ?? ''); setModel(d.model ?? '')
+    setImei(d.imei ?? ''); setSerial(d.serial ?? ''); setColorLabel(d.colorLabel ?? '')
+    setIssueTags(d.issueTags ?? []); setIssueDesc(d.issueDesc ?? ''); setConditions(d.conditions ?? [])
+    setAccessories(d.accessories ?? ['เครื่อง'])
+    setLaborCost(d.laborCost ?? ''); setPartsCost(d.partsCost ?? ''); setDeposit(d.deposit ?? '')
+    setDepositPM(d.depositPM ?? 'CASH'); setDiscount(d.discount ?? '')
+    setDueDate(d.dueDate ?? ''); setNote(d.note ?? ''); setTechId(d.techId ?? ''); setStatus(d.status ?? 'RECEIVED')
+  }
+
+  function discardDraft() {
+    if (draftKey) clearDraft(draftKey)
+    applyDraft({})
+    setPricedJobs([])
+    setRestored(false)
+  }
 
   // "รับเครื่องถัดไป (ลูกค้าเดิม)" opens this page with ?customerId= — start with that customer picked
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('customerId')
-    if (!id) return
+    if (!id) {
+      const d = draftKey ? loadDraft<StaffDraft>(draftKey) : null
+      if (d) { applyDraft(d); setRestored(true) }
+      setDraftReady(true)
+      return
+    }
+    setDraftReady(true)
     api.get(`/customers/${id}`)
       .then((r) => {
         const c = r.data
         if (c?.id) setSelectedCust({ id: c.id, name: c.name, phone: c.phone ?? '', totalRepairs: c._count?.repairs ?? 0 })
       })
       .catch(() => { /* pick the customer by hand */ })
+  // Once on open: the draft key comes from the signed-in user, already known here
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Handlers ──
@@ -273,6 +337,7 @@ export default function CreateRepairPage() {
         await api.post(`/repairs/${repairId}/images`, fd).catch(() => { /* non-fatal */ })
       }
 
+      if (draftKey) clearDraft(draftKey)
       router.replace(`/staff/create/success?id=${repairId}`)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message
@@ -301,6 +366,7 @@ export default function CreateRepairPage() {
       </div>
 
       <div className="flex flex-col gap-4 p-4">
+        {restored && <DraftRestoredBanner onClear={discardDraft} />}
 
         {/* ① ข้อมูลลูกค้า */}
         <Card>
@@ -410,6 +476,7 @@ export default function CreateRepairPage() {
               )}
             </div>
           </div>
+          <RepairPriceChips brand={brand} model={model} picked={pricedJobs.map((p) => p.service)} onPick={pickPrice} className="mb-3" />
 
           {/* IMEI + Serial */}
           <div className="relative mb-3">

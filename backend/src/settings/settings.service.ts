@@ -270,6 +270,8 @@ export class SettingsService {
       }
       if (branchIds.length) {
         await tx.expense.deleteMany({ where: { branchId: { in: branchIds } } });
+        // Cash movements point at their shift (no cascade): they go first or the shifts cannot be removed
+        await tx.shiftCashMovement.deleteMany({ where: { shift: { branchId: { in: branchIds } } } });
         await tx.shift.deleteMany({ where: { branchId: { in: branchIds } } });
       }
       // Delete all BranchStocks for this tenant's products — use productIds, not branchIds,

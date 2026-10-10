@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { centralLine, END_STATUSES, followLink } from '../line-messaging/line-central';
 
 const STATUS_LABEL: Record<string, string> = {
   RECEIVED:         'รับงานแล้ว',
@@ -35,6 +36,11 @@ export function maskName(name: string | null | undefined): string | null {
 }
 
 const MIN_PHONE_DIGITS = 9;
+
+function lineFollowUrlFor(ticketNumber: string, status: string): string | null {
+  const line = centralLine();
+  return line.ready && !END_STATUSES.has(status) ? followLink(line.oaId, ticketNumber) : null;
+}
 
 @Injectable()
 export class PublicTrackingService {
@@ -151,6 +157,8 @@ export class PublicTrackingService {
       warranties:        phoneVerified ? repair.warranties : [],
       warrantyExpiresAt: phoneVerified ? repair.warrantyExpiresAt : null,
       warrantyNote:      phoneVerified ? repair.warrantyNote : null,
+      // One tap: LINE opens FixITPro's chat with "ติดตามงาน <ticket>" typed in (hidden when not set up)
+      lineFollowUrl:     lineFollowUrlFor(repair.ticketNumber, repair.status),
     };
   }
 

@@ -689,6 +689,10 @@ export class RepairsService {
         await this.repairAccounting.recordDepositRefundJournal(updated as any, tenantId, actorId);
       }
 
+      // This path returns early: tell the customer here (it used to skip the LINE notice)
+      if (repair.status !== 'CANCELLED') {
+        this.lineMsg.notifyRepairStatus(id, 'CANCELLED', (repair as any).branch?.tenantId ?? null).catch(() => {});
+      }
       return updated;
     }
 
@@ -698,7 +702,7 @@ export class RepairsService {
     if (dto.status === 'COMPLETED') {
       const repairBranchId = (repair as any).branchId ?? null;
 
-      return this.prisma.$transaction(async (tx) => {
+      const done = await this.prisma.$transaction(async (tx) => {
         const legacyParts = await tx.repairPart.findMany({
           where: {
             repairId: id,
@@ -753,6 +757,11 @@ export class RepairsService {
         await this.auditLog.log({ actorId, actorName, action: 'REPAIR_UPDATED', entityType: 'Repair', entityId: id, afterData: updateData });
         return updated;
       });
+      // This path returns early: tell the customer here (it used to skip the LINE notice)
+      if (repair.status !== 'COMPLETED') {
+        this.lineMsg.notifyRepairStatus(id, 'COMPLETED', (repair as any).branch?.tenantId ?? null).catch(() => {});
+      }
+      return done;
     }
 
     const updated = await this.prisma.repair.update({

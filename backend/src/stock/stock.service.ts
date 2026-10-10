@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -258,5 +259,64 @@ export class StockService {
       stockCode:  r.stockCode ?? null,
       severity:   r.severity as 'OUT_OF_STOCK' | 'LOW_STOCK',
     }));
+  }
+  /**
+   * Phones still in stock that have not sold for `days` days: counted from the last sale at that
+   * branch, or from the first time stock arrived there when none has ever sold. Money tied up =
+   * cost price × quantity on hand, only for people allowed to see cost prices.
+   */
+  async getAgingPhones(tenantId: string, branchId?: string, days = 60, withCost = false) {
+    const branchFilter = branchId ? Prisma.sql`AND bs."branchId" = ${branchId}` : Prisma.empty;
+    const rows: any[] = await this.prisma.$queryRaw`
+      SELECT * FROM (
+        SELECT
+          p.id                              AS "productId",
+          p.name,
+          p.sku,
+          CAST(bs.quantity AS INTEGER)      AS stock,
+          p."costPrice"                     AS "costPrice",
+          bs."branchId",
+          b.name                            AS "branchName",
+          COALESCE(
+            (SELECT MAX(m."createdAt") FROM "StockMovement" m
+              WHERE m."productId" = p.id AND m."branchId" = bs."branchId" AND m.type = 'SALE'),
+            (SELECT MIN(m."createdAt") FROM "StockMovement" m
+              WHERE m."productId" = p.id AND m."branchId" = bs."branchId"),
+            p."createdAt"
+          )                                 AS since
+        FROM "BranchStock" bs
+        JOIN "Product" p ON p.id = bs."productId"
+        JOIN "Branch"  b ON b.id = bs."branchId"
+        WHERE p."isActive" = true
+          AND p.type = 'PHONE'
+          AND bs.quantity > 0
+          AND p."tenantId" = ${tenantId}
+          ${branchFilter}
+      ) t
+      WHERE t.since <= NOW() - (${days} * INTERVAL '1 day')
+      ORDER BY t.since ASC
+      LIMIT 200
+    `;
+    const now = Date.now();
+    const items = rows.map((r) => {
+      const stock = Number(r.stock);
+      const cost = Number(r.costPrice ?? 0);
+      return {
+        productId:  r.productId,
+        name:       r.name,
+        sku:        r.sku,
+        stock,
+        branchId:   r.branchId,
+        branchName: r.branchName,
+        daysIdle:   Math.floor((now - new Date(r.since).getTime()) / 86_400_000),
+        tiedUp:     withCost ? Math.round(cost * stock * 100) / 100 : null,
+      };
+    });
+    return {
+      days,
+      count: items.reduce((s, i) => s + i.stock, 0),
+      tiedUp: withCost ? Math.round(items.reduce((s, i) => s + (i.tiedUp ?? 0), 0) * 100) / 100 : null,
+      items,
+    };
   }
 }

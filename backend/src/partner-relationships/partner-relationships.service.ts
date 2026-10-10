@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { randomInt } from 'crypto';
 import { PartnerRelationshipStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -18,6 +19,11 @@ const PARTNER_SELECT = {
   phone:    true,
   email:    false, // never expose partner email to other party
 } as const;
+
+// No 0/O, 1/I/L: the code is read out over the phone and typed by hand
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const newCode = () => Array.from({ length: 6 }, () => CODE_CHARS[randomInt(CODE_CHARS.length)]).join('');
+export const normalizeCode = (code: string) => (code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 const USER_SELECT = {
   id:   true,
@@ -284,5 +290,100 @@ export class PartnerRelationshipsService {
       },
       orderBy: { respondedAt: 'desc' },
     });
+  }
+  // ── Shop code / invite link ────────────────────────────────────────────────
+
+  /** This shop's partner code; made the first time it is asked for. */
+  async myCode(tenantId: string): Promise<{ code: string }> {
+    const t = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { partnerCode: true } });
+    if (t?.partnerCode) return { code: t.partnerCode };
+    return this.setNewCode(tenantId);
+  }
+
+  /** A new code: the old one (and any invite link carrying it) stops working. */
+  async setNewCode(tenantId: string): Promise<{ code: string }> {
+    for (let i = 0; i < 6; i++) {
+      const code = newCode();
+      try {
+        await this.prisma.tenant.update({ where: { id: tenantId }, data: { partnerCode: code } });
+        return { code };
+      } catch (e) {
+        if ((e as { code?: string }).code !== 'P2002') throw e;
+      }
+    }
+    throw new ConflictException('สร้างรหัสร้านไม่สำเร็จ กรุณาลองใหม่');
+  }
+
+  /**
+   * Connect with the shop whose code was typed (or whose invite link was opened). Sharing the code
+   * is that shop's yes, so the two shops are partners straight away; a request either of them had
+   * sent before is completed instead of a second one being made.
+   */
+  async connectByCode(tenantId: string, rawCode: string, actorId: string, actorName: string) {
+    const code = normalizeCode(rawCode);
+    const target = code.length === 6
+      ? await this.prisma.tenant.findUnique({ where: { partnerCode: code }, select: { id: true, shopName: true, status: true } })
+      : null;
+    if (!target || target.id === tenantId || target.status === 'DELETED') {
+      throw new NotFoundException('ไม่พบร้านจากรหัสนี้ ตรวจรหัสอีกครั้ง');
+    }
+
+    const pair = await this.prisma.partnerRelationship.findMany({
+      where: {
+        OR: [
+          { initiatorTenantId: tenantId, partnerTenantId: target.id },
+          { initiatorTenantId: target.id, partnerTenantId: tenantId },
+        ],
+      },
+    });
+    if (pair.some((r) => r.status === 'ACCEPTED')) {
+      throw new ConflictException(`เป็นพาร์ทเนอร์กับ ${target.shopName} อยู่แล้ว`);
+    }
+    const pending = pair.find((r) => r.status === 'PENDING');
+
+    const now = new Date();
+    let rel;
+    if (pending) {
+      rel = await this.prisma.partnerRelationship.update({
+        where: { id: pending.id },
+        data: { status: 'ACCEPTED', respondedAt: now, ...(pending.partnerTenantId === tenantId ? { respondedById: actorId } : {}) },
+      });
+    } else {
+      // An old rejected / cancelled request from this shop would block the pair: replace it
+      const old = pair.find((r) => r.initiatorTenantId === tenantId);
+      if (old) await this.prisma.partnerRelationship.delete({ where: { id: old.id } });
+      rel = await this.prisma.partnerRelationship.create({
+        data: {
+          initiatorTenantId: tenantId,
+          partnerTenantId:   target.id,
+          requestedById:     actorId,
+          note:              'เชื่อมด้วยรหัสร้าน',
+          status:            'ACCEPTED',
+          respondedAt:       now,
+        },
+      });
+    }
+
+    this.auditLog.log({
+      actorId,
+      actorName,
+      action:     'PARTNER_RELATIONSHIP_ACCEPTED',
+      entityType: 'PartnerRelationship',
+      entityId:   rel.id,
+      afterData:  { status: 'ACCEPTED', by: 'partner_code', initiatorTenantId: rel.initiatorTenantId, partnerTenantId: rel.partnerTenantId },
+    }).catch(() => undefined);
+
+    const me = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { shopName: true } });
+    this.notif.notify({
+      type:       'PARTNER_RELATIONSHIP_ACCEPTED',
+      title:      'มีร้านเชื่อมเป็นพาร์ทเนอร์',
+      message:    `${me?.shopName ?? 'ร้านพาร์ทเนอร์'} เชื่อมเป็นพาร์ทเนอร์ด้วยรหัสร้านของคุณแล้ว ส่งงานซ่อมหากันได้เลย`,
+      severity:   'INFO',
+      entityType: 'PartnerRelationship',
+      entityId:   rel.id,
+      tenantId:   target.id,
+    }).catch(() => undefined);
+
+    return { ...rel, partnerShopName: target.shopName };
   }
 }
