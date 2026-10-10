@@ -279,6 +279,7 @@ export class TenantRestoreService {
       serialNumbers, saleRefundItems, warranties, claims, claimHistories,
       partnerRelationships, partnerTransfers, partnerTransferEvents,
       partnerQuotations, partnerQuotationEvents,
+      shiftCashMovements, repairPrices,
     ] = await Promise.all([
       read('branches.json'),
       read('users.json'),
@@ -330,6 +331,9 @@ export class TenantRestoreService {
       read('partner_transfer_events.json'),
       read('partner_quotations.json'),
       read('partner_quotation_events.json'),
+      // Older backups have neither file: read() gives [] and nothing is restored for them
+      read('shift_cash_movements.json'),
+      read('repair_prices.json'),
     ]);
 
     // Helper: parse dates in an object
@@ -416,7 +420,10 @@ export class TenantRestoreService {
       await tx.expense.deleteMany({ where: { branch: { tenantId } } });
       await tx.repair.deleteMany({ where: { branch: { tenantId } } });
       await tx.sale.deleteMany({ where: { branch: { tenantId } } });
+      // Cash movements point at their shift (no cascade): they go first or the shifts cannot be removed
+      await tx.shiftCashMovement.deleteMany({ where: { shift: { branch: { tenantId } } } });
       await tx.shift.deleteMany({ where: { branch: { tenantId } } });
+      await tx.repairPrice.deleteMany({ where: { tenantId } });
       await tx.purchaseOrder.deleteMany({ where: { supplier: { tenantId } } });
 
       // Tier 1
@@ -529,6 +536,16 @@ export class TenantRestoreService {
       // Shifts
       for (const s of withDates(shifts as Record<string, unknown>[])) {
         await tx.shift.create({ data: s as Parameters<typeof tx.shift.create>[0]['data'] });
+      }
+
+      // Shift cash movements (after their shifts)
+      for (const m of withDates(shiftCashMovements as Record<string, unknown>[])) {
+        await tx.shiftCashMovement.create({ data: m as Parameters<typeof tx.shiftCashMovement.create>[0]['data'] });
+      }
+
+      // Repair price list
+      for (const rp of withDates(repairPrices as Record<string, unknown>[])) {
+        await tx.repairPrice.create({ data: rp as Parameters<typeof tx.repairPrice.create>[0]['data'] });
       }
 
       // Sales

@@ -29,6 +29,11 @@ import { ISSUE_TAG_OPTIONS, ACCESSORY_OPTIONS } from '@/lib/repair-tags'
 import { TechnicianAvatar } from '@/components/ui/technician-avatar'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { localDay } from '@/lib/repair-batch'
+import { loadDraft, clearDraft, useDraftAutosave } from '@/lib/form-draft'
+import { useAuthStore } from '@/store/auth.store'
+import { DraftRestoredBanner } from '@/components/repairs/draft-restored-banner'
+import { RepairPriceChips } from '@/components/repair-prices/repair-price-chips'
+import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
 import type { Customer, RepairStatus } from '@/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -114,6 +119,17 @@ const repairSchema = z.object({
 
 type RepairFormData = z.infer<typeof repairSchema>
 
+type IntakeDraft = {
+  form: Partial<RepairFormData>
+  customer: CustomerSearchResult | null
+  deviceType: string
+  accessories: string[]
+  deviceConditions: string[]
+  issueTags: string[]
+  techId: string | null
+  showExtra: boolean
+}
+
 interface RepairFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -146,7 +162,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
   const [otherSizes, setOtherSizes] = useState(false)
 
   const {
-    register, handleSubmit, watch, reset, setValue, setError,
+    register, handleSubmit, watch, reset, setValue, setError, getValues,
     formState: { errors },
   } = useForm<RepairFormData>({
     resolver: zodResolver(repairSchema),
@@ -165,6 +181,15 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
   const [selectedTechId,   setSelectedTechId]   = useState<string | null>(null)
   const [photos,           setPhotos]           = useState<File[]>([])
   const [showExtra,        setShowExtra]        = useState(false)
+  // Jobs picked from the shop's price list (their prices are in the estimate)
+  const [pricedJobs,       setPricedJobs]       = useState<RepairPrice[]>([])
+
+  function pickPrice(p: RepairPrice) {
+    const next = togglePricedJob(pricedJobs, p, getValues('issue') ?? '', Number(getValues('estimateCost')) || 0)
+    setPricedJobs(next.picked)
+    setValue('issue', next.issue, { shouldDirty: true })
+    setValue('estimateCost', next.estimate, { shouldDirty: true })
+  }
 
   const { data: techUsers = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['technicians-simple'],
@@ -188,22 +213,67 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
   const normalizedSearch = customerSearch.replace(/[\s\-+()​]/g, '')
   const debouncedSearch  = useDebounce(normalizedSearch, 350)
 
+  // What was typed stays on this device until the job is saved (closing the dialog by mistake loses nothing)
+  const userId   = useAuthStore((s) => s.user?.id)
+  const draftKey = userId ? `repair-intake-${userId}` : null
+  const [restored, setRestored] = useState(false)
+
+  // Every text field named: reset() leaves an input showing its old text when no value is given
+  const EMPTY_FORM: RepairFormData = {
+    customerName: '', customerPhone: '', deviceBrand: '', deviceModel: '', deviceColor: '', deviceImei: '',
+    issue: '', note: '', dueDate: '', deposit: 0, estimateCost: 0, discount: 0, depositPaymentMethod: 'CASH',
+  }
+
+  function startEmpty() {
+    reset(EMPTY_FORM)
+    setSelectedCustomer(null)
+    setCustomerSearch('')
+    setSearchOpen(false)
+    setCreatedRepair(null)
+    setDeviceType('')
+    setAccessories([])
+    setDeviceConditions([])
+    setIssueTags([])
+    setSelectedTechId(null)
+    setPhotos([])
+    setShowExtra(false)
+    setPricedJobs([])
+    setRestored(false)
+  }
+
   useEffect(() => {
-    if (open) {
-      reset({ deposit: 0, estimateCost: 0, discount: 0 })
-      setSelectedCustomer(null)
-      setCustomerSearch('')
-      setSearchOpen(false)
-      setCreatedRepair(null)
-      setDeviceType('')
-      setAccessories([])
-      setDeviceConditions([])
-      setIssueTags([])
-      setSelectedTechId(null)
-      setPhotos([])
-      setShowExtra(false)
+    if (!open) return
+    startEmpty()
+    const d = draftKey ? loadDraft<IntakeDraft>(draftKey) : null
+    if (d) {
+      reset({ ...EMPTY_FORM, ...d.form })
+      setSelectedCustomer(d.customer)
+      setDeviceType(d.deviceType)
+      setAccessories(d.accessories)
+      setDeviceConditions(d.deviceConditions)
+      setIssueTags(d.issueTags)
+      setSelectedTechId(d.techId)
+      setShowExtra(d.showExtra)
+      setRestored(true)
     }
-  }, [open, reset])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, reset, draftKey])
+
+  const formValues = watch()
+  const draft: IntakeDraft = {
+    form: formValues, customer: selectedCustomer, deviceType, accessories, deviceConditions, issueTags,
+    techId: selectedTechId, showExtra,
+  }
+  const hasContent = !!(
+    formValues.customerName || formValues.customerPhone || formValues.deviceBrand || formValues.deviceModel ||
+    formValues.deviceImei || formValues.issue || formValues.note || estimateCost || selectedCustomer || issueTags.length
+  )
+  useDraftAutosave(draftKey, draft, open && !createdRepair, hasContent)
+
+  function discardDraft() {
+    if (draftKey) clearDraft(draftKey)
+    startEmpty()
+  }
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -281,6 +351,8 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
       return repair
     },
     onSuccess: (repair) => {
+      if (draftKey) clearDraft(draftKey)
+      setRestored(false)
       toast.success(`สร้างงานซ่อม ${repair.ticketNumber} สำเร็จ`)
       setCreatedRepair({ id: repair.id, ticketNumber: repair.ticketNumber, receivedAt: repair.receivedAt, customer: repair.customer })
       queryClient.invalidateQueries({ queryKey: ['repairs'] })
@@ -307,6 +379,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
     setDeviceConditions([])
     setIssueTags([])
     setPhotos([])
+    setPricedJobs([])
     setShowExtra(false)
     setCreatedRepair(null)
   }
@@ -417,6 +490,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
             }
             return createMutation.mutateAsync(data)
           })} className="space-y-5 pt-1">
+            {restored && <DraftRestoredBanner onClear={discardDraft} />}
 
             {/* ── Section 1: ลูกค้า ── */}
             <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
@@ -582,6 +656,12 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                     {errors.deviceModel && <p className="text-xs text-red-500">{errors.deviceModel.message}</p>}
                   </div>
                 </div>
+                <RepairPriceChips
+                  brand={watch('deviceBrand') ?? ''}
+                  model={watch('deviceModel') ?? ''}
+                  picked={pricedJobs.map((p) => p.service)}
+                  onPick={pickPrice}
+                />
               </div>
             </div>
 

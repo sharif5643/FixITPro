@@ -28,6 +28,10 @@ import {
 import api from '@/lib/api'
 import { offlineQueue } from '@/lib/offline-queue'
 import { useNetworkStatus } from '@/hooks/use-network-status'
+import { loadDraft, clearDraft, useDraftAutosave } from '@/lib/form-draft'
+import { DraftRestoredBanner } from '@/components/repairs/draft-restored-banner'
+import { RepairPriceChips } from '@/components/repair-prices/repair-price-chips'
+import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
 import type { Customer, ShopSettings, User as UserType, Repair } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { localDay } from '@/lib/repair-batch'
@@ -428,7 +432,10 @@ function StepDevice({
 
 // ── Step 2: Issue + Device Condition ─────────────────────────────────────────
 
-function StepIssue({ register, errors, watch, setValue }: { register: any; errors: any; watch: any; setValue: any }) {
+function StepIssue({ register, errors, watch, setValue, pricedJobs, onPickPrice }: {
+  register: any; errors: any; watch: any; setValue: any
+  pricedJobs: RepairPrice[]; onPickPrice: (p: RepairPrice) => void
+}) {
   const conditionIssues: string[] = watch('conditionIssues') ?? []
 
   function toggle(item: string) {
@@ -441,6 +448,12 @@ function StepIssue({ register, errors, watch, setValue }: { register: any; error
 
   return (
     <div className="space-y-5">
+      <RepairPriceChips
+        brand={watch('deviceBrand') ?? ''}
+        model={watch('deviceModel') ?? ''}
+        picked={pricedJobs.map((p) => p.service)}
+        onPick={onPickPrice}
+      />
       <SectionTitle>ขั้นตอนที่ 3 — อาการเสีย</SectionTitle>
 
       {/* Job type tags — the web's, also used for technician commission */}
@@ -869,10 +882,54 @@ export default function RepairIntakePage() {
     setStep(1)
   }
 
+  // What was typed stays on this device until the job is saved (leaving the page loses nothing)
+  const draftKey = user?.id ? `repair-intake-sunmi-${user.id}` : null
+  const [restored, setRestored]   = useState(false)
+  const [draftSeq, setDraftSeq]   = useState(0)
+  const [draftReady, setDraftReady] = useState(false)
+  const formValues = watch()
+  const hasContent = !!(
+    formValues.customerName || formValues.customerPhone || formValues.deviceBrand || formValues.deviceModel ||
+    formValues.deviceImei || formValues.issue || formValues.note || formValues.estimateCost || formValues.issueTags?.length
+  )
+
+  // Jobs picked from the shop's price list: the job goes into the issue, its price into the estimate
+  const [pricedJobs, setPricedJobs] = useState<RepairPrice[]>([])
+  function pickPrice(p: RepairPrice) {
+    const next = togglePricedJob(pricedJobs, p, watch('issue') ?? '', Number(watch('estimateCost')) || 0)
+    setPricedJobs(next.picked)
+    setValue('issue', next.issue, { shouldValidate: true })
+    setValue('estimateCost', next.estimate)
+  }
+
+  function discardDraft() {
+    setPricedJobs([])
+    if (draftKey) clearDraft(draftKey)
+    reset({
+      customerId: '', customerName: '', customerPhone: '', deviceBrand: '', deviceModel: '', deviceColor: '',
+      deviceImei: '', issue: '', note: '', estimateCost: undefined, deposit: defaultDeposit,
+      conditionIssues: [], accessories: [], issueTags: [],
+    } as any)
+    setStep(0)
+    setRestored(false)
+    setDraftSeq((n) => n + 1)
+  }
+
   // "รับเครื่องถัดไป (ลูกค้าเดิม)" from the print flow reopens this page with ?customerId=
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('customerId')
-    if (!id) return
+    if (!id) {
+      const d = draftKey ? loadDraft<{ form: Partial<FormData>; step: number }>(draftKey) : null
+      if (d) {
+        reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [], issueTags: [], ...d.form } as any)
+        setStep(Math.min(Math.max(0, d.step ?? 0), TOTAL_STEPS - 1))
+        setRestored(true)
+        setDraftSeq((n) => n + 1)
+      }
+      setDraftReady(true)
+      return
+    }
+    setDraftReady(true)
     api.get(`/customers/${id}`)
       .then((r) => { if (r.data?.id) startWithCustomer(r.data) })
       .catch(() => { /* pick the customer by hand */ })
@@ -927,6 +984,8 @@ export default function RepairIntakePage() {
     onSuccess: async (res: any, variables) => {
       if (res?._queued) {
         toast.success('บันทึกในเครื่องแล้ว จะซิงค์อัตโนมัติเมื่อเชื่อมต่ออินเทอร์เน็ต')
+        if (draftKey) clearDraft(draftKey)
+        setRestored(false)
         setPhotos([])
         reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [], issueTags: [] } as any)
         setStep(0)
@@ -979,6 +1038,9 @@ export default function RepairIntakePage() {
       }
 
       toast.success(`รับงาน ${repair.ticketNumber} สำเร็จ`)
+      if (draftKey) clearDraft(draftKey)
+      setPricedJobs([])
+      setRestored(false)
       setPhotos([])
       reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [], issueTags: [] } as any)
       setStep(0)
@@ -994,6 +1056,8 @@ export default function RepairIntakePage() {
       toast.error(Array.isArray(msg) ? msg[0] : (msg ?? err.message ?? 'เกิดข้อผิดพลาด'))
     },
   })
+
+  useDraftAutosave(draftKey, { form: formValues, step }, draftReady && !mutation.isPending, hasContent)
 
   const isLastStep = step === TOTAL_STEPS - 1
 
@@ -1040,6 +1104,7 @@ export default function RepairIntakePage() {
         }
       >
         <div className="p-4 space-y-4 pb-4">
+          {restored && <DraftRestoredBanner onClear={discardDraft} />}
           {step === 0 && lastCustomer && !watch('customerId') && (
             <div className="space-y-2 rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-3">
               <p className="text-xs font-semibold text-emerald-800">งานก่อนหน้า: {lastCustomer.name}{lastCustomer.phone ? ` · ${lastCustomer.phone}` : ''}</p>
@@ -1051,7 +1116,7 @@ export default function RepairIntakePage() {
             </div>
           )}
           {step === 0 && (
-            <StepCustomer register={register} errors={errors} setValue={setValue} watch={watch} />
+            <StepCustomer key={draftSeq} register={register} errors={errors} setValue={setValue} watch={watch} />
           )}
           {step === 1 && (
             <StepDevice
@@ -1060,7 +1125,8 @@ export default function RepairIntakePage() {
             />
           )}
           {step === 2 && (
-            <StepIssue register={register} errors={errors} watch={watch} setValue={setValue} />
+            <StepIssue register={register} errors={errors} watch={watch} setValue={setValue}
+              pricedJobs={pricedJobs} onPickPrice={pickPrice} />
           )}
           {step === 3 && (
             <StepDetails

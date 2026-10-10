@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import {
   Wrench, Loader2, AlertCircle, CheckCircle2, Clock, Package,
-  ArrowLeft, Phone, Shield, CreditCard, User,
+  ArrowLeft, Phone, Shield, CreditCard, User, MessageCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,6 +57,7 @@ interface RepairDetail {
   warrantyNote?: string | null
   qcPassed?: boolean | null
   qcNote?: string | null
+  lineFollowUrl?: string | null
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -251,6 +252,22 @@ export default function RepairDetailPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* One tap: LINE opens FixITPro's chat with the follow message ready to send */}
+            {data.lineFollowUrl && (
+              <a
+                href={data.lineFollowUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-xl bg-[#06C755] px-4 py-3 text-white shadow-md active:scale-[0.99] transition-transform"
+              >
+                <MessageCircle className="h-6 w-6 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold">รับแจ้งเตือนทาง LINE</p>
+                  <p className="text-xs text-white/90">กดแล้วกด &quot;ส่ง&quot; ในแชท — เครื่องเสร็จเมื่อไรจะแจ้งทันที</p>
+                </div>
+              </a>
+            )}
 
             {/* Wrong-phone banner (but we still have public data) */}
             {phoneNeeded && (

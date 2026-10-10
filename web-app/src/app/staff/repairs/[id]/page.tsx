@@ -4,6 +4,7 @@ import { TechnicianPicker } from '@/components/repairs/repair-work-tools'
 import { TechOwnershipBar, useTechOwnership } from '@/components/repairs/tech-ownership'
 import { QcDialog } from '@/components/repairs/qc-dialog'
 import { statusChoices } from '@/lib/repair-status-flow'
+import { RepairNextStep } from '@/components/repairs/repair-next-step'
 import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -342,6 +343,17 @@ export default function RepairDetailPage() {
 
   // ── Handlers
 
+  const [stepping, setStepping] = useState(false)
+  async function runSteps(steps: string[], doneLabel: string) {
+    setStepping(true)
+    try {
+      for (const status of steps) await updateMutation.mutateAsync({ status })
+      toast.success(`${doneLabel} แล้ว`)
+    } catch { /* the mutation already showed why */ } finally {
+      setStepping(false)
+    }
+  }
+
   function handleStatusChange() {
     if (!selectedStatus || selectedStatus === repair?.status) return
     updateMutation.mutate(
@@ -504,6 +516,20 @@ export default function RepairDetailPage() {
               {STATUS_LABEL[repair.status] ?? repair.status}
             </span>
           </div>
+
+          {/* Next step: one tap (before: pick from the list at the bottom, then save) */}
+          {!own.viewOnly && (
+            <div className="mt-3">
+              <RepairNextStep
+                status={repair.status}
+                paymentPending={repair.paymentStatus === 'PENDING'}
+                canPay={hasShift}
+                busy={stepping || updateMutation.isPending}
+                onSteps={runSteps}
+                onPay={() => { setActiveTab('payment'); setPayOpen(true) }}
+              />
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="mt-3 grid grid-cols-3 gap-1 rounded-2xl bg-[#F8F9FB] p-1">

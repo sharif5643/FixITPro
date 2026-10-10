@@ -18,7 +18,8 @@ export async function createTestApp(): Promise<INestApplication> {
     imports: [AppModule],
   }).compile();
 
-  const app = moduleFixture.createNestApplication();
+  // Same as main.ts: the LINE webhook checks its signature against the raw body
+  const app = moduleFixture.createNestApplication({ rawBody: true });
   app.use(cookieParser());
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(

@@ -45,6 +45,7 @@ import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
 import { TechOwnershipBar } from '@/components/repairs/tech-ownership'
 import { localDay } from '@/lib/repair-batch'
+import { STATUS_MOVES, NEXT_ACTION as SHARED_NEXT_ACTION, PATH_TO_DONE as SHARED_PATH_TO_DONE } from '@/lib/repair-status-flow'
 
 const STATUS_LABEL: Record<RepairStatus, string> = {
   RECEIVED:         'รับงาน',
@@ -81,34 +82,11 @@ const CHANGEABLE_STATUSES: RepairStatus[] = [
   'WAITING_PARTS', 'IN_PROGRESS', 'COMPLETED', 'READY_PICKUP', 'CANCELLED',
 ]
 
-// Where a job can go next — the same rules as the server (repairs.service ALLOWED), so the list
-// never offers a step that would be refused
-const NEXT_STATUSES: Partial<Record<RepairStatus, RepairStatus[]>> = {
-  RECEIVED:         ['DIAGNOSING'],
-  DIAGNOSING:       ['WAITING_APPROVAL', 'APPROVED', 'IN_PROGRESS'],
-  WAITING_APPROVAL: ['APPROVED'],
-  APPROVED:         ['WAITING_PARTS', 'IN_PROGRESS'],
-  WAITING_PARTS:    ['IN_PROGRESS'],
-  IN_PROGRESS:      ['WAITING_APPROVAL', 'WAITING_PARTS', 'COMPLETED'],
-  COMPLETED:        ['READY_PICKUP'],
-  READY_PICKUP:     [],
-}
-
-// The usual next step as one button, and a shortcut to "done" that walks the required steps
-const NEXT_ACTION: Partial<Record<RepairStatus, { to: RepairStatus; label: string }>> = {
-  RECEIVED:      { to: 'DIAGNOSING',   label: 'เริ่มตรวจเช็ค' },
-  DIAGNOSING:    { to: 'IN_PROGRESS',  label: 'เริ่มซ่อม' },
-  APPROVED:      { to: 'IN_PROGRESS',  label: 'เริ่มซ่อม' },
-  WAITING_PARTS: { to: 'IN_PROGRESS',  label: 'อะไหล่มาแล้ว — เริ่มซ่อม' },
-  IN_PROGRESS:   { to: 'COMPLETED',    label: 'ซ่อมเสร็จ' },
-  COMPLETED:     { to: 'READY_PICKUP', label: 'แจ้งลูกค้ามารับเครื่อง' },
-}
-const PATH_TO_DONE: Partial<Record<RepairStatus, RepairStatus[]>> = {
-  RECEIVED:      ['DIAGNOSING', 'IN_PROGRESS', 'COMPLETED'],
-  DIAGNOSING:    ['IN_PROGRESS', 'COMPLETED'],
-  APPROVED:      ['IN_PROGRESS', 'COMPLETED'],
-  WAITING_PARTS: ['IN_PROGRESS', 'COMPLETED'],
-}
+// Where a job can go next, its one-tap next step and the "done now" path: shared with the staff
+// app and SUNMI (lib/repair-status-flow — the same rules as the server)
+const NEXT_STATUSES = STATUS_MOVES as Partial<Record<RepairStatus, RepairStatus[]>>
+const NEXT_ACTION = SHARED_NEXT_ACTION as Partial<Record<RepairStatus, { to: RepairStatus; label: string }>>
+const PATH_TO_DONE = SHARED_PATH_TO_DONE as Partial<Record<RepairStatus, RepairStatus[]>>
 
 const PAYMENT_OPTIONS = [
   { value: 'CASH',     label: 'เงินสด',    Icon: Banknote },

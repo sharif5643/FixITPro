@@ -284,18 +284,20 @@ model StockTransfer {
 }
 
 model Tenant {
-  id         String       @id @default(cuid())
-  shopName   String
-  ownerName  String
-  phone      String?
-  email      String       @unique
-  status     TenantStatus @default(PENDING)
-  plan       TenantPlan   @default(TRIAL)
-  startDate  DateTime?
-  expiryDate DateTime?
-  notes      String?
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  id          String       @id @default(cuid())
+  shopName    String
+  ownerName   String
+  phone       String?
+  email       String       @unique
+  status      TenantStatus @default(PENDING)
+  plan        TenantPlan   @default(TRIAL)
+  startDate   DateTime?
+  expiryDate  DateTime?
+  notes       String?
+  /// Six-character code another shop types to connect as a repair partner (made on first use)
+  partnerCode String?      @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   users                  User[]
   renewals               TenantRenewal[]
@@ -935,6 +937,8 @@ model Repair {
   messages           RepairMessage[]
   review             RepairReview?
   partnerTransfers   PartnerRepairTransfer[]
+
+  lineFollows RepairLineFollow[]
 
   @@index([status, receivedAt])
   @@index([customerId])
@@ -2227,4 +2231,36 @@ model ShiftCashMovement {
   @@index([shiftId])
   @@index([referenceType, referenceId])
   @@index([tenantId, createdAt])
+}
+
+/// A shop's price list for repair work: brand + model + job → price shown at the counter and
+/// filled in when a job is taken in. brand "" = any brand, model "" = every model of the brand.
+model RepairPrice {
+  id           String   @id @default(cuid())
+  tenantId     String
+  brand        String
+  model        String
+  service      String
+  price        Decimal  @db.Decimal(10, 2)
+  costPrice    Decimal? @db.Decimal(10, 2)
+  warrantyDays Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, brand, model, service])
+  @@index([tenantId, brand, model])
+}
+
+/// A customer following one repair on FixITPro's LINE account: they get its status changes there.
+/// Ends when the device is handed back or the job is cancelled.
+model RepairLineFollow {
+  id         String   @id @default(cuid())
+  repairId   String
+  repair     Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  lineUserId String
+  tenantId   String?
+  createdAt  DateTime @default(now())
+
+  @@unique([repairId, lineUserId])
+  @@index([lineUserId])
 }

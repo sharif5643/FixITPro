@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
+import { PartnerCodeCard } from '@/components/partner-repair/partner-code-card'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -298,6 +299,8 @@ export default function PartnersSettingsPage() {
           ) : undefined
         }
       />
+
+      {isOwner && <PartnerCodeCard />}
 
       {/* Incoming pending requests (Shop B) */}
       {incomingPending.length > 0 && (

@@ -68,6 +68,11 @@ services:
       UPLOADS_BASE_DIR:     /app/uploads
       REPAIR_UPLOADS_DIR:   /app/uploads/repairs
       LOGS_DIR:             /app/logs
+      # FixITPro's own LINE Official Account: customers follow their repair there with one tap
+      # (tracking page button). Leave empty to hide the button. Set in Coolify → Environment Variables.
+      LINE_OA_ID:                "${LINE_OA_ID:-}"
+      LINE_CHANNEL_SECRET:       "${LINE_CHANNEL_SECRET:-}"
+      LINE_CHANNEL_ACCESS_TOKEN: "${LINE_CHANNEL_ACCESS_TOKEN:-}"
       # RC2-003 Part C: Offsite backup (S3-compatible). Set BACKUP_S3_ENABLED=true
       # and configure the variables below in Coolify UI → Environment Variables.
       # Supported: AWS S3, Cloudflare R2, Backblaze B2, MinIO-compatible.

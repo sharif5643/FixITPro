@@ -22,6 +22,7 @@ import { TodaysPriorities }       from './todays-priorities'
 import { FinancialHealth }         from './financial-health'
 import { TechnicianPerformance }   from './technician-performance'
 import { InventoryIntelligence }   from './inventory-intelligence'
+import { AgingPhonesCard }         from './aging-phones-card'
 import { CustomerFollowup }        from './customer-followup'
 
 import type { DashboardOverview, OwnerSummaryData } from './types'
@@ -136,6 +137,7 @@ export function OwnerCommandCenter() {
         <div className="space-y-4">
           <CustomerFollowup />
           <LowStockPanel stock={overview?.stock} loading={loading} />
+          <AgingPhonesCard branchId={contextBranchId} />
           <AIInsightCard overview={overview} summary={summary} loading={loading} />
         </div>
       </div>

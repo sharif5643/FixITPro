@@ -11,6 +11,7 @@ import {
 import { Request } from 'express';
 import * as crypto from 'crypto';
 import { LineMessagingService } from './line-messaging.service';
+import { ticketFromMessage } from './line-central';
 
 interface LineEvent {
   type: string;
@@ -67,9 +68,19 @@ export class LineWebhookController {
         await this.handleFollow(userId);
       }
 
+      if (event.type === 'unfollow') {
+        await this.lineMessaging.unfollowAll(userId).catch(() => {});
+      }
+
       if (event.type === 'message' && event.message?.type === 'text') {
         const text = event.message.text?.trim() ?? '';
-        if (/^0[689]\d{8}$/.test(text.replace(/[\s\-]/g, ''))) {
+        const ticket = ticketFromMessage(text);
+        if (ticket) {
+          // From the tracking page button: follow this one repair
+          await this.lineMessaging.followRepair(userId, ticket, event.replyToken).catch((e) =>
+            this.logger.warn(`LINE follow ${ticket} failed: ${(e as Error).message}`));
+        } else if (process.env.SINGLE_TENANT_ID && /^0[689]\d{8}$/.test(text.replace(/[\s\-]/g, ''))) {
+          // Single-shop installs only: with many shops a phone number cannot say whose customer this is
           await this.handlePhoneLink(userId, text.replace(/[\s\-]/g, ''));
         }
       }

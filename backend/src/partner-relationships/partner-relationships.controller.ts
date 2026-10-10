@@ -55,6 +55,34 @@ export class PartnerRelationshipsController {
     return this.svc.getAcceptedPartners(user.tenantId);
   }
 
+  /** This shop's partner code (owner only: sharing it lets another shop connect). */
+  @Get('my-code')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('partner_relationship.manage')
+  myCode(@CurrentUser() user: AuthUser) {
+    assertTenantUser(user);
+    assertOwner(user);
+    return this.svc.myCode(user.tenantId);
+  }
+
+  @Post('my-code/reset')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('partner_relationship.manage')
+  resetCode(@CurrentUser() user: AuthUser) {
+    assertTenantUser(user);
+    assertOwner(user);
+    return this.svc.setNewCode(user.tenantId);
+  }
+
+  @Post('by-code')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('partner_relationship.manage')
+  connectByCode(@CurrentUser() user: AuthUser, @Body() body: { code: string }) {
+    assertTenantUser(user);
+    assertOwner(user);
+    return this.svc.connectByCode(user.tenantId, String(body?.code ?? ''), user.id, user.name);
+  }
+
   @Get('has-partner')
   async hasPartner(@CurrentUser() user: AuthUser) {
     assertTenantUser(user);

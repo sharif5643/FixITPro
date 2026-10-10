@@ -384,6 +384,16 @@ export class TenantBackupService {
     counts.shifts = await write('shifts.json', shifts);
     const shiftIds = shifts.map((s) => s.id);
 
+    // Cash put in / taken out of a shift by hand, and repair money given back later
+    const shiftCashMovements = shiftIds.length
+      ? await this.prisma.shiftCashMovement.findMany({ where: { shiftId: { in: shiftIds } } })
+      : [];
+    counts.shiftCashMovements = await write('shift_cash_movements.json', shiftCashMovements);
+
+    // The shop's repair price list
+    const repairPrices = await this.prisma.repairPrice.findMany({ where: { tenantId } });
+    counts.repairPrices = await write('repair_prices.json', repairPrices);
+
     // Sales — via branchId
     const sales = await this.prisma.sale.findMany({
       where: { branchId: { in: branchIds } },

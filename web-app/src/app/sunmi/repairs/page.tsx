@@ -7,7 +7,7 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { Search, X, ChevronRight, Printer, Banknote, Smartphone, CreditCard, Info, RefreshCw, Wrench, Package, Plus, Minus, Trash2, Camera, ChevronLeft, ShieldCheck } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
-import { canMoveRepair } from '@/lib/repair-status-flow'
+import { canMoveRepair, NEXT_ACTION } from '@/lib/repair-status-flow'
 import { QcDialog } from '@/components/repairs/qc-dialog'
 import { RepairWorkTools } from '@/components/repairs/repair-work-tools'
 import { TechOwnershipBar, useTechOwnership } from '@/components/repairs/tech-ownership'
@@ -23,6 +23,7 @@ import type { Repair, RepairStatus, ShopSettings, PaymentMethod } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
 import { localDay } from '@/lib/repair-batch'
+import { RepairNextStep } from '@/components/repairs/repair-next-step'
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
@@ -229,6 +230,23 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
     },
   })
 
+  // Several steps one after another ("ซ่อมเสร็จเลย"), then close like a single change
+  const [stepping, setStepping] = useState(false)
+  async function runSteps(steps: string[], doneLabel: string) {
+    setStepping(true)
+    try {
+      for (const status of steps) await api.patch(`/repairs/${repair.id}`, { status })
+      toast.success(`${doneLabel} แล้ว`)
+      onMutated(); onClose()
+    } catch (err: any) {
+      const msg = err.response?.data?.message
+      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+      onMutated()
+    } finally {
+      setStepping(false)
+    }
+  }
+
   const deliverMutation = useMutation({
     mutationFn: () =>
       api.post(`/repairs/${repair.id}/payment`, {
@@ -433,19 +451,19 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                 {/* Technician, quote, approval and IMEI — the web's steps (shared component) */}
                 <RepairWorkTools repair={(repairDetail ?? repair) as any}
                   onChanged={() => { qc.invalidateQueries({ queryKey: ['repair-detail', repair.id] }); onMutated() }} />
-                {nextStatus && !isReady ? (
-                  <button
-                    onClick={() => statusMutation.mutate(nextStatus)}
-                    disabled={isPending}
-                    className="w-full h-14 rounded-2xl bg-slate-800 text-white font-bold text-base active:bg-slate-700 disabled:opacity-60 flex items-center justify-center gap-2"
-                  >
-                    {statusMutation.isPending
-                      ? <span className="h-5 w-5 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
-                      : <><Wrench className="h-5 w-5" />เปลี่ยนเป็น: {STATUS_LABEL[nextStatus]}</>}
-                  </button>
+                {NEXT_ACTION[repair.status] || (isReady && repair.paymentStatus === 'PENDING') ? (
+                  // Next step in one tap, "ซ่อมเสร็จเลย" for quick jobs, and payment once done
+                  <RepairNextStep
+                    status={repair.status}
+                    paymentPending={repair.paymentStatus === 'PENDING'}
+                    canPay={currentShift !== null}
+                    busy={isPending || stepping}
+                    onSteps={runSteps}
+                    onPay={() => setPanelTab('deliver')}
+                  />
                 ) : (
                   <p className="text-sm text-slate-400 text-center py-4">
-                    {isReady ? 'ซ่อมเสร็จแล้ว — ไปที่แท็บ "ส่งมอบ"' : repair.status === 'QC_PENDING' ? 'รอตรวจ QC — กดปุ่ม "ตรวจ QC" ด้านบน' : 'ไม่มีสถานะถัดไป'}
+                    {repair.status === 'QC_PENDING' ? 'รอตรวจ QC — กดปุ่ม "ตรวจ QC" ด้านบน' : 'ไม่มีสถานะถัดไป'}
                   </p>
                 )}
 

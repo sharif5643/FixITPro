@@ -33,6 +33,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PushModule } from './push/push.module';
 import { BackupModule } from './backup/backup.module';
 import { WarrantiesModule } from './warranties/warranties.module';
+import { RepairPricesModule } from './repair-prices/repair-prices.module';
 import { TechniciansModule } from './technicians/technicians.module';
 import { CommissionModule } from './commission/commission.module';
 import { DataModule } from './data/data.module';
@@ -116,6 +117,7 @@ import { TenantBackupModule }             from './tenant-backup/tenant-backup.mo
     NotificationsModule,
     BackupModule,
     WarrantiesModule,
+    RepairPricesModule,
     TechniciansModule,
     CommissionModule,
     DataModule,

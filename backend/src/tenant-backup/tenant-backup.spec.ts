@@ -138,6 +138,8 @@ const createMockPrisma = () => ({
   product: { findMany: jest.fn().mockResolvedValue([]) },
   branchStock: { findMany: jest.fn().mockResolvedValue([]) },
   shift: { findMany: jest.fn().mockResolvedValue([]) },
+  shiftCashMovement: { findMany: jest.fn().mockResolvedValue([]) },
+  repairPrice: { findMany: jest.fn().mockResolvedValue([]) },
   sale: { findMany: jest.fn().mockResolvedValue([]) },
   repair: { findMany: jest.fn().mockResolvedValue([]) },
   expense: { findMany: jest.fn().mockResolvedValue([]) },

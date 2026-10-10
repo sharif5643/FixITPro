@@ -8,7 +8,7 @@ import {
   Users, Clock, Smartphone, Tag, Barcode, Settings, CreditCard, Building2,
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
-  BadgeCheck, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Wifi,
+  BadgeCheck, Calculator, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Wifi,
   ListChecks, Handshake, Wallet, Scale, BookMarked, ArrowUpDown, LineChart, Landmark,
   HardHat, History, ListOrdered, HandCoins, Coins, Star, PanelLeftClose, PanelLeftOpen, Hammer,
 } from 'lucide-react'
@@ -42,6 +42,7 @@ const SHOP_SECTIONS: NavSection[] = [
   { key: 'repair', label: 'งานซ่อม', open: true, items: [
     { href: '/repairs',         icon: Wrench,       label: 'งานซ่อม',        permission: 'repair.create',       module: 'repair' },
     { href: '/reminders',       icon: CalendarDays, label: 'นัดหมาย',        permission: 'repair.create',       module: 'repair' },
+    { href: '/repair-prices',   icon: Calculator,   label: 'ตารางราคาซ่อม',  permission: 'repair.create',       module: 'repair' },
     { href: '/partner-repairs', icon: Handshake,    label: 'งานพาร์ทเนอร์',  permission: 'partner_repair.work', module: 'repair' },
     { href: '/warranties',      icon: BadgeCheck,   label: 'การรับประกัน',   permission: 'warranty.view',       module: 'repair' },
     { href: '/claims',          icon: FileWarning,  label: 'จัดการเคลม',     permission: 'claims.manage',       module: 'repair' },
@@ -125,6 +126,7 @@ const TECHNICIAN_SECTIONS: NavSection[] = [
   { key: 'home', label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'งานของฉัน' }] },
   { key: 'repair', label: 'งานซ่อม', open: true, items: [
     { href: '/repairs',                      icon: Wrench,     label: 'งานซ่อมทั้งหมด', module: 'repair' },
+    { href: '/repair-prices',                icon: Calculator, label: 'เช็คราคาซ่อม',   module: 'repair' },
     { href: '/repairs?status=WAITING_PARTS', icon: Package,    label: 'งานรออะไหล่',    module: 'repair', statusParam: 'WAITING_PARTS' },
     { href: '/repairs?status=QC_PENDING',    icon: BadgeCheck, label: 'งานรอ QC',       module: 'repair', statusParam: 'QC_PENDING' },
   ]},

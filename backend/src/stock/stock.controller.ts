@@ -18,6 +18,7 @@ import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { canViewCost } from '../common/interceptors/hide-cost.interceptor';
 
 @RequireModule('stock')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, ModuleGuard)
@@ -87,5 +88,22 @@ export class StockController {
       ? (queryBranchId || undefined)
       : (jwtBranchId ?? undefined);
     return this.stockService.getLowStockProducts(effectiveBranchId, tenantId);
+  }
+  /** Phones that have not sold for a while (default 60 days) — money sitting on the shelf. */
+  @Get('aging-phones')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('products.view')
+  getAgingPhones(
+    @CurrentUser()           user: { role?: string; permissions?: string[] },
+    @CurrentUser('role')     role: string,
+    @CurrentUser('branchId') jwtBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string,
+    @Query('branchId')       queryBranchId?: string,
+    @Query('days')           days?: string,
+  ) {
+    const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
+    const effectiveBranchId = isElevated ? (queryBranchId || undefined) : (jwtBranchId ?? undefined);
+    const n = Math.min(365, Math.max(7, Math.floor(Number(days) || 60)));
+    return this.stockService.getAgingPhones(tenantId, effectiveBranchId, n, canViewCost(user));
   }
 }

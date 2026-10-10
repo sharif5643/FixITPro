@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as https from 'https';
+import { centralLine, END_STATUSES, PUSH_STATUSES, siteOrigin } from './line-central';
 
 export interface LineRepairNotifyPayload {
   lineUserId: string;
@@ -37,15 +38,23 @@ export class LineMessagingService {
   ) {}
 
   private pushMessage(accessToken: string, userId: string, text: string): Promise<boolean> {
+    return this.callLine(accessToken, '/v2/bot/message/push', { to: userId, messages: [{ type: 'text', text }] });
+  }
+
+  /** Answer a message the customer just sent (replies do not count against the push quota). */
+  replyMessage(replyToken: string, text: string): Promise<boolean> {
+    const { token } = centralLine();
+    if (!token || !replyToken) return Promise.resolve(false);
+    return this.callLine(token, '/v2/bot/message/reply', { replyToken, messages: [{ type: 'text', text }] });
+  }
+
+  private callLine(accessToken: string, path: string, payload: unknown): Promise<boolean> {
     return new Promise((resolve) => {
-      const body = JSON.stringify({
-        to: userId,
-        messages: [{ type: 'text', text }],
-      });
+      const body = JSON.stringify(payload);
       const req = https.request(
         {
           hostname: 'api.line.me',
-          path: '/v2/bot/message/push',
+          path,
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -58,13 +67,13 @@ export class LineMessagingService {
           res.on('data', (chunk: Buffer) => { resBody += chunk.toString(); });
           res.on('end', () => {
             const ok = res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 300;
-            if (!ok) this.logger.warn(`LINE push HTTP ${res.statusCode}: ${resBody.slice(0, 200)}`);
+            if (!ok) this.logger.warn(`LINE ${path} HTTP ${res.statusCode}: ${resBody.slice(0, 200)}`);
             resolve(ok);
           });
         },
       );
       req.on('error', (e) => {
-        this.logger.warn(`LINE push failed: ${e.message}`);
+        this.logger.warn(`LINE ${path} failed: ${e.message}`);
         resolve(false);
       });
       req.write(body);
@@ -78,6 +87,9 @@ export class LineMessagingService {
     tenantId: string | null,
   ): Promise<void> {
     try {
+      // Customers following this job on FixITPro's LINE account
+      await this.notifyFollowers(repairId, newStatus);
+
       // Only the repair's own shop: without a tenant this used to pick any shop's LINE settings.
       if (!tenantId) return;
       const settings = await this.prisma.shopSettings.findFirst({
@@ -146,5 +158,73 @@ export class LineMessagingService {
       data: { lineUserId },
     });
     return true;
+  }
+  // ── FixITPro's LINE account: customers follow one repair ───────────────────
+
+  private statusText(shopName: string | null | undefined, r: { ticketNumber: string; deviceBrand: string; deviceModel: string }, status: string) {
+    return (
+      `[${shopName ?? 'ร้านซ่อม'}]\n` +
+      `หมายเลขงาน: ${r.ticketNumber}\n` +
+      `เครื่อง: ${r.deviceBrand} ${r.deviceModel}\n` +
+      `สถานะ: ${STATUS_LABEL[status] ?? status}\n` +
+      `ดูรายละเอียด: ${siteOrigin()}/track/${encodeURIComponent(r.ticketNumber)}`
+    );
+  }
+
+  /**
+   * "ติดตามงาน REP-…" from the tracking page button: this LINE account now gets the job's status
+   * changes. Answered right away with where the job is now.
+   */
+  async followRepair(lineUserId: string, ticketNumber: string, replyToken?: string): Promise<boolean> {
+    const repair = await this.prisma.repair.findUnique({
+      where: { ticketNumber },
+      select: { id: true, ticketNumber: true, deviceBrand: true, deviceModel: true, status: true, branch: { select: { tenantId: true } } },
+    });
+    if (!repair) {
+      if (replyToken) await this.replyMessage(replyToken, `ไม่พบงานซ่อม ${ticketNumber} กรุณาตรวจเลขงานบนใบรับเครื่อง`);
+      return false;
+    }
+    const tenantId = repair.branch?.tenantId ?? null;
+    const shop = tenantId
+      ? await this.prisma.shopSettings.findFirst({ where: { tenantId }, select: { shopName: true } })
+      : null;
+    if (END_STATUSES.has(repair.status)) {
+      if (replyToken) await this.replyMessage(replyToken, this.statusText(shop?.shopName, repair, repair.status) + '\n(งานนี้ปิดแล้ว)');
+      return false;
+    }
+    await this.prisma.repairLineFollow.upsert({
+      where: { repairId_lineUserId: { repairId: repair.id, lineUserId } },
+      create: { repairId: repair.id, lineUserId, tenantId },
+      update: {},
+    });
+    if (replyToken) {
+      await this.replyMessage(replyToken, this.statusText(shop?.shopName, repair, repair.status) + '\n\nจะแจ้งที่นี่เมื่อสถานะเปลี่ยน ✅');
+    }
+    return true;
+  }
+
+  /** The customer blocked or left FixITPro's LINE account: stop sending them anything. */
+  async unfollowAll(lineUserId: string): Promise<void> {
+    await this.prisma.repairLineFollow.deleteMany({ where: { lineUserId } });
+  }
+
+  private async notifyFollowers(repairId: string, status: string): Promise<void> {
+    const { token } = centralLine();
+    if (!token || !PUSH_STATUSES.has(status)) return;
+    const followers = await this.prisma.repairLineFollow.findMany({ where: { repairId }, select: { lineUserId: true, tenantId: true } });
+    if (!followers.length) return;
+    const repair = await this.prisma.repair.findUnique({
+      where: { id: repairId },
+      select: { ticketNumber: true, deviceBrand: true, deviceModel: true },
+    });
+    if (!repair) return;
+    const tenantId = followers[0].tenantId;
+    const shop = tenantId
+      ? await this.prisma.shopSettings.findFirst({ where: { tenantId }, select: { shopName: true } })
+      : null;
+    const text = this.statusText(shop?.shopName, repair, status);
+    for (const f of followers) await this.pushMessage(token, f.lineUserId, text);
+    // Handed back or cancelled: nothing more to tell
+    if (END_STATUSES.has(status)) await this.prisma.repairLineFollow.deleteMany({ where: { repairId } });
   }
 }
