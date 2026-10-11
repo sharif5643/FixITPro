@@ -91,7 +91,7 @@ export class SalesService {
     return created.id;
   }
 
-  async create(dto: CreateSaleDto, userId: string, branchId?: string, tenantId?: string | null) {
+  async create(dto: CreateSaleDto, userId: string, branchId?: string, tenantId?: string | null, role?: string) {
     // Reject malformed payment input before any lookups.
     const hasSplit = !!dto.payments && dto.payments.length > 0;
     if (!hasSplit && (!dto.paymentMethod || dto.amountPaid === undefined)) {
@@ -192,6 +192,28 @@ export class SalesService {
       throw new BadRequestException('Discount cannot exceed the order subtotal');
     }
     const total = subtotal - discount;
+
+    // Staff may take off at most the shop's limit, counted against the shop's own prices so a
+    // lowered line price counts the same as a discount. Owners have no limit.
+    if (role && role !== 'OWNER' && role !== 'SUPER_ADMIN' && tenantId) {
+      const settings = await this.prisma.shopSettings.findFirst({
+        where: { tenantId },
+        select: { staffDiscountLimitPercent: true },
+      });
+      const limit = settings?.staffDiscountLimitPercent;
+      if (limit != null) {
+        const listTotal = dto.items.reduce((sum, item) => {
+          const listPrice = Number(products.find((p) => p.id === item.productId)?.price ?? 0);
+          return sum + (listPrice > 0 ? listPrice : item.price) * item.quantity;
+        }, 0);
+        const off = listTotal - total;
+        if (listTotal > 0 && off > 0.005 && (off / listTotal) * 100 > limit + 1e-9) {
+          throw new BadRequestException(
+            `พนักงานลดได้ไม่เกิน ${limit}% (สูงสุด ${Math.floor((listTotal * limit) / 100).toLocaleString('th-TH')} บาท) — ให้เจ้าของร้านเป็นคนลด`,
+          );
+        }
+      }
+    }
 
     // Normalize payment input: split array OR legacy single method
     const paymentLegs = hasSplit

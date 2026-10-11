@@ -46,7 +46,7 @@ export class SalesController {
     const branchId = isElevated
       ? (dto.branchId ?? jwtBranchId ?? undefined)
       : (jwtBranchId ?? undefined)
-    return this.salesService.create(dto, userId, branchId, tenantId);
+    return this.salesService.create(dto, userId, branchId, tenantId, role);
   }
 
   @Get()

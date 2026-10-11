@@ -38,7 +38,10 @@ export class StockController {
     @CurrentUser('role')     actorRole: string,
     @CurrentUser('branchId') actorBranchId: string,
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser()           user: { role?: string; permissions?: string[] },
   ) {
+    // Only people allowed to see cost may change it through a stock-in price
+    if (!canViewCost(user)) delete dto.unitCost;
     const isOwner = actorRole === 'OWNER' || actorRole === 'SUPER_ADMIN';
     if (!isOwner) {
       if (!actorBranchId) {

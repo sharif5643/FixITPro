@@ -18,6 +18,14 @@ export class AdjustStockDto {
   @IsString()
   note?: string;
 
+  /** Price paid per unit for stock coming in (IN only); averaged into the product's cost */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000_000)
+  unitCost?: number;
+
   @IsOptional()
   @IsString()
   branchId?: string;

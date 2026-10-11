@@ -26,6 +26,7 @@ import {
   type PrintReceiptOptions,
 } from '@/lib/printer'
 import { pushBackHandler } from '@/lib/back-stack'
+import { billLoss, lineLoss } from '@/lib/below-cost'
 import { nativeScan } from '@/lib/native-barcode-scanner'
 import { Platform } from '@/lib/platform'
 import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
@@ -102,6 +103,10 @@ function CartRow({
   }
 
   const lineTotal = Number(product.price) * quantity - itemDiscount
+  // Cost is only on the product for people allowed to see it
+  const loss = quantity > 0
+    ? lineLoss({ unitNet: lineTotal / quantity, quantity, costPrice: product.costPrice })
+    : 0
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -145,6 +150,12 @@ function CartRow({
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
+
+      {loss > 0 && (
+        <p className="px-3 pb-1 text-xs font-semibold text-red-600">
+          ต่ำกว่าทุน (ทุน {formatThaiMoney(Number(product.costPrice))})
+        </p>
+      )}
 
       {/* Per-item discount row */}
       <div className="flex items-center gap-2 px-3 pb-2.5">
@@ -528,6 +539,11 @@ export default function SunmiSalesPage() {
   )
   const totalDiscount = itemDiscountsTotal + discount
   const total = Math.max(0, subtotal - totalDiscount)
+  const loss = useMemo(() => billLoss(items.map((i) => ({
+    unitNet: i.quantity > 0 ? Number(i.product.price) - (itemDiscounts.get(i.product.id) ?? 0) / i.quantity : 0,
+    quantity: i.quantity,
+    costPrice: i.product.costPrice,
+  })), discount), [items, itemDiscounts, discount])
   const totalQty = items.reduce((s, i) => s + i.quantity, 0)
 
   const { data: currentShift } = useQuery<{ id: string } | null>({
@@ -829,6 +845,12 @@ export default function SunmiSalesPage() {
                 />
                 <span className="text-sm text-slate-400 shrink-0">บาท</span>
               </div>
+
+              {loss > 0 && (
+                <p className="rounded-xl bg-red-50 border border-red-200 px-3 py-1.5 text-sm font-semibold text-red-700">
+                  บิลนี้ขายต่ำกว่าทุน ขาดทุน {formatThaiMoney(loss)}
+                </p>
+              )}
 
               {/* Total row */}
               <div className="flex items-end justify-between">

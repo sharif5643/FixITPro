@@ -8,6 +8,7 @@ import { activeShiftWhere } from '../shifts/active-shift';
 import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { applyAverageCost, CostChange } from '../common/money/average-cost';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { CreatePurchaseOrderDto } from './dto/create-po.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-po.dto';
@@ -233,6 +234,7 @@ export class PurchaseOrdersService {
     const effectiveBranchId = dto.branchId ?? po.branchId ?? undefined;
     // Stock that came in, for the journal posted after the receipt commits
     const received: { movementId: string; amount: number; name: string; type?: string | null }[] = [];
+    const costChanges: (CostChange & { name: string })[] = [];
 
     await this.prisma.$transaction(async (tx) => {
       for (const recv of itemsToReceive) {
@@ -258,6 +260,12 @@ export class PurchaseOrdersService {
           where: { id: recv.purchaseOrderItemId },
           data: { receivedQty: { increment: recv.quantity } },
         });
+
+        // Cost per unit after the line discount; averaged into the product's cost before the
+        // stock goes up, so sales and repair parts use what the shop now pays.
+        const unitCost = poItem.quantity > 0 ? Number(poItem.total) / poItem.quantity : Number(poItem.unitCost);
+        const costChange = await applyAverageCost(tx, poItem.productId, recv.quantity, unitCost);
+        if (costChange) costChanges.push({ ...costChange, name: poItem.product.name });
 
         // Upsert BranchStock for the receiving branch, then sync Product.stock
         // from SUM(BranchStock) so the two sources never drift.
@@ -300,6 +308,7 @@ export class PurchaseOrdersService {
             note: dto.note ?? `รับสินค้าจาก PO: ${po.poNumber}`,
             referenceType: 'PURCHASE_ORDER',
             referenceId: poId,
+            unitCost: Math.round(unitCost * 100) / 100,
           },
         });
         received.push({
@@ -337,7 +346,7 @@ export class PurchaseOrdersService {
       action: 'PO_GOODS_RECEIVED',
       entityType: 'PurchaseOrder',
       entityId: poId,
-      afterData: { itemsReceived: dto.items.filter((i) => i.quantity > 0).length, note: dto.note },
+      afterData: { itemsReceived: dto.items.filter((i) => i.quantity > 0).length, note: dto.note, costChanges },
     });
     return result;
   }
