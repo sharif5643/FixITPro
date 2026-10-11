@@ -24,6 +24,7 @@ import {
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
+import { averageCost } from '@/lib/below-cost'
 import type { Product } from '@/types'
 
 interface Props {
@@ -53,6 +54,7 @@ export function AddStockDialog({
   const [selectedBranchId, setSelectedBranchId] = useState('')
   const [qty, setQty]   = useState('')
   const [note, setNote] = useState('')
+  const [unitCost, setUnitCost] = useState('')
   // 'add' = receive N more; 'count' = set the branch quantity to what was physically counted
   const [mode, setMode] = useState<'add' | 'count'>('add')
 
@@ -62,6 +64,7 @@ export function AddStockDialog({
     setSelectedBranchId('')
     setQty('')
     setNote('')
+    setUnitCost('')
     setMode('add')
   }
 
@@ -150,6 +153,7 @@ export function AddStockDialog({
         quantity:  Number(qty),
         branchId:  effectiveBranchId,
         note:      note.trim() || undefined,
+        ...(Number(unitCost) > 0 ? { unitCost: Number(unitCost) } : {}),
       })
     },
     onSuccess: async () => {
@@ -359,6 +363,34 @@ export function AddStockDialog({
                 className="mt-1"
                 autoFocus={!!propProduct}
               />
+            </div>
+          )}
+
+          {/* ── Price paid: only for people who can see cost; averaged into the product's cost ── */}
+          {activeProduct && mode === 'add' && activeProduct.costPrice != null && (
+            <div>
+              <Label htmlFor="add-unit-cost">
+                ราคาที่ซื้อมา / ชิ้น{' '}
+                <span className="text-muted-foreground font-normal text-xs">(ไม่บังคับ)</span>
+              </Label>
+              <Input
+                id="add-unit-cost"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder={`ทุนตอนนี้ ${Number(activeProduct.costPrice).toLocaleString('th-TH')} บาท`}
+                value={unitCost}
+                onChange={(e) => setUnitCost(e.target.value)}
+                className="mt-1"
+              />
+              {Number(unitCost) > 0 && qtyNum > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  ทุนเฉลี่ยใหม่: <span className="font-semibold text-foreground">
+                    {averageCost(Number(activeProduct.stock ?? 0), Number(activeProduct.costPrice), qtyNum, Number(unitCost)).toLocaleString('th-TH')} บาท
+                  </span>{' '}
+                  (เดิม {Number(activeProduct.costPrice).toLocaleString('th-TH')} บาท · มีของอยู่ {Number(activeProduct.stock ?? 0)} ชิ้น)
+                </p>
+              )}
             </div>
           )}
 

@@ -649,6 +649,8 @@ model StockMovement {
   type          StockMovementType
   quantity      Int
   note          String?
+  /// Price paid per unit for stock that came in (PO receipt / stock IN with a price)
+  unitCost      Decimal?          @db.Decimal(10, 2)
   referenceType String?
   referenceId   String?
   createdAt     DateTime          @default(now())

@@ -8,6 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { applyAverageCost, CostChange } from '../common/money/average-cost';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 
@@ -107,7 +108,12 @@ export class StockService {
 
     const quantityChange = isDeduction ? -dto.quantity : dto.quantity;
 
+    let costChange: CostChange | null = null;
     await this.prisma.$transaction(async (tx) => {
+      // Stock bought in at a price: average it into the product's cost before the stock goes up
+      const unitCost = dto.type === 'IN' && dto.unitCost != null ? dto.unitCost : null;
+      if (unitCost != null) costChange = await applyAverageCost(tx, dto.productId, dto.quantity, unitCost);
+
       await tx.stockMovement.create({
         data: {
           productId: dto.productId,
@@ -115,6 +121,7 @@ export class StockService {
           quantity:  dto.quantity,
           branchId:  dto.branchId,
           note:      dto.note,
+          ...(unitCost != null ? { unitCost } : {}),
         },
       });
 
@@ -170,6 +177,8 @@ export class StockService {
       afterData: {
         type: dto.type, quantity: dto.quantity,
         branchId: dto.branchId ?? null, note: dto.note,
+        ...(dto.unitCost != null ? { unitCost: dto.unitCost } : {}),
+        ...(costChange ? { costBefore: (costChange as CostChange).before, costAfter: (costChange as CostChange).after } : {}),
       },
     }).catch((err) => this.logger.error('[adjustStock] audit log failed', err));
 

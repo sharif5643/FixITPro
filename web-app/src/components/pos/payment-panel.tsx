@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatThaiMoney, cn } from '@/lib/utils'
 import { useCartStore } from '@/store/cart.store'
+import { billLoss } from '@/lib/below-cost'
 import { openCashDrawer } from '@/lib/cash-drawer'
 import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
@@ -38,6 +39,11 @@ const QUICK_AMOUNTS = [100, 500, 1000, 2000]
 export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
   ({ onCheckout, onQuickCheckout }, ref) => {
     const { items, discount, setDiscount } = useCartStore()
+    const loss = useMemo(() => billLoss(items.map((i) => ({
+      unitNet: Number(i.product.price) - (i.itemDiscount ?? 0),
+      quantity: i.quantity,
+      costPrice: i.product.costPrice,
+    })), discount), [items, discount])
 
     const [method,    setMethod]    = useState<PaymentMethod>('CASH')
     const [cashInput, setCashInput] = useState('')
@@ -112,6 +118,11 @@ export const PaymentPanel = forwardRef<PaymentPanelHandle, PaymentPanelProps>(
               <span className="text-slate-700 dark:text-slate-200">ยอดสุทธิ</span>
               <span className="text-blue-700 dark:text-blue-400 tabular-nums">{formatThaiMoney(total)}</span>
             </div>
+            {loss > 0 && (
+              <p className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-2.5 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300">
+                บิลนี้ขายต่ำกว่าทุน ขาดทุน {formatThaiMoney(loss)}
+              </p>
+            )}
           </div>
 
           {/* Discount input */}

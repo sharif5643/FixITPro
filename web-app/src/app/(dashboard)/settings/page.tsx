@@ -720,12 +720,12 @@ export default function SettingsPage() {
                   </div>
                 </SectionCard>
 
-                <SectionCard title="ส่วนลดตอนรับเครื่อง" description="พนักงานลดราคางานซ่อมได้ไม่เกินเท่าไร (เจ้าของร้านลดได้ไม่จำกัด)" icon={Bell}>
+                <SectionCard title="ส่วนลดของพนักงาน" description="พนักงานลดราคาได้ไม่เกินเท่าไร ทั้งหน้าขาย (POS) และตอนลูกค้ารับเครื่อง (เจ้าของร้านลดได้ไม่จำกัด)" icon={Bell}>
                   <div className="space-y-1.5 max-w-xs">
-                    <Label>ลดได้ไม่เกิน (% ของราคาซ่อม)</Label>
+                    <Label>ลดได้ไม่เกิน (% ของราคา)</Label>
                     <Input type="number" min={0} max={100} step={1} placeholder="ว่าง = ไม่จำกัด" {...register('staffDiscountLimitPercent')} />
                     <p className="text-xs text-slate-400">
-                      เช่น 10 = งาน 1,200 บาท พนักงานลดได้ไม่เกิน 120 บาท · ทุกครั้งที่ลด ระบบจดว่าใครลด
+                      เช่น 10 = บิลหรืองานซ่อม 1,200 บาท พนักงานลดได้ไม่เกิน 120 บาท · ทุกครั้งที่ลด ระบบจดว่าใครลด
                     </p>
                   </div>
                 </SectionCard>

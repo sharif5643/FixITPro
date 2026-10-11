@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCartStore } from '@/store/cart.store'
 import { formatThaiMoney, cn } from '@/lib/utils'
+import { billLoss, lineLoss } from '@/lib/below-cost'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,12 @@ export function CartPanel({
   const canCheckout      = items.length > 0 && !hasZeroPriceItem
 
   const stockOf = (i: typeof items[0]) => i.product.branchQuantity ?? 0
+  const costLine = (i: typeof items[0]) => ({
+    unitNet: Number(i.product.price) - (i.itemDiscount ?? 0),
+    quantity: i.quantity,
+    costPrice: i.product.costPrice,
+  })
+  const loss = billLoss(items.map(costLine), discount)
 
   return (
     <div className="flex flex-col h-full">
@@ -166,6 +173,13 @@ export function CartPanel({
                         </span>
                       )}
                     </div>
+                  )}
+
+                  {!isZeroPrice && lineLoss(costLine(item)) > 0 && (
+                    <span className="flex items-center gap-0.5 mt-1 text-[10px] text-red-600 dark:text-red-400 font-semibold">
+                      <AlertTriangle className="h-2.5 w-2.5" />
+                      ต่ำกว่าทุน (ทุน {formatThaiMoney(Number(item.product.costPrice))})
+                    </span>
                   )}
 
                   {isLowStock && (
@@ -316,6 +330,13 @@ export function CartPanel({
           />
           <span className="text-sm text-slate-500 dark:text-slate-400 shrink-0">บาท</span>
         </div>
+
+        {loss > 0 && (
+          <div className="flex items-center gap-2 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm font-semibold text-red-700 dark:text-red-300">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            บิลนี้ขายต่ำกว่าทุน ขาดทุน {formatThaiMoney(loss)}
+          </div>
+        )}
 
         {/* Total — V3: very prominent */}
         <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100/60 dark:from-blue-900/30 dark:to-blue-900/10 border border-blue-200/80 dark:border-blue-800/60 px-4 py-4">
