@@ -146,6 +146,19 @@ describe('Price list, partner code, aging phones, LINE follow (e2e)', () => {
     await authPost(app, '/api/v1/partner-relationships/by-code', ownerB, { code: before }).expect(404);
   });
 
+  it('PC-03: a suspended partnership is not lifted by typing the code', async () => {
+    await prisma.partnerRelationship.deleteMany({
+      where: { OR: [{ initiatorTenantId: IDS.tenantA, partnerTenantId: IDS.tenantB }, { initiatorTenantId: IDS.tenantB, partnerTenantId: IDS.tenantA }] },
+    });
+    await prisma.partnerRelationship.create({ data: {
+      initiatorTenantId: IDS.tenantA, partnerTenantId: IDS.tenantB, requestedById: IDS.userOwnerA, status: 'SUSPENDED',
+    } });
+    const { code } = (await authGet(app, '/api/v1/partner-relationships/my-code', ownerA).expect(200)).body;
+    await authPost(app, '/api/v1/partner-relationships/by-code', ownerB, { code }).expect(403);
+    const rows = await prisma.partnerRelationship.findMany({ where: { OR: [{ initiatorTenantId: IDS.tenantB }, { partnerTenantId: IDS.tenantB }] } });
+    expect(rows.map((r) => r.status)).toEqual(['SUSPENDED']);
+  });
+
   // ── Phones that have not sold ───────────────────────────────────────────────
 
   it('AP-01: a phone in stock with no sale for 70 days shows with its days; money tied up only for cost viewers', async () => {
@@ -169,6 +182,18 @@ describe('Price list, partner code, aging phones, LINE follow (e2e)', () => {
     const asCashier = (await authGet(app, '/api/v1/stock/aging-phones', cashierA).expect(200)).body;
     expect(asCashier.tiedUp).toBeNull();
     expect((await authGet(app, '/api/v1/stock/aging-phones', ownerB).expect(200)).body.items.some((i: any) => i.productId === p.id)).toBe(false);
+  });
+
+  it('AP-02: a phone that last sold long ago but just got new stock is not old stock', async () => {
+    const long = new Date(Date.now() - 120 * 86_400_000);
+    const p = await prisma.product.create({ data: {
+      name: `Restocked ${run}`, sku: `RS-${run}`, type: 'PHONE', price: 5000, costPrice: 4000, tenantId: IDS.tenantA, createdAt: long,
+    } as any });
+    await prisma.branchStock.create({ data: { productId: p.id, branchId: IDS.branchA1, quantity: 5 } });
+    await prisma.stockMovement.create({ data: { productId: p.id, branchId: IDS.branchA1, type: 'SALE', quantity: -1, createdAt: long } });
+    await prisma.stockMovement.create({ data: { productId: p.id, branchId: IDS.branchA1, type: 'IN', quantity: 5 } });
+    const res = (await authGet(app, '/api/v1/stock/aging-phones', ownerA).expect(200)).body;
+    expect(res.items.some((i: any) => i.productId === p.id)).toBe(false);
   });
 
   // ── LINE follow ─────────────────────────────────────────────────────────────

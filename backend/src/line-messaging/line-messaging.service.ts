@@ -87,8 +87,10 @@ export class LineMessagingService {
     tenantId: string | null,
   ): Promise<void> {
     try {
-      // Customers following this job on FixITPro's LINE account
-      await this.notifyFollowers(repairId, newStatus);
+      // Customers following this job on FixITPro's LINE account. Kept apart: a problem there must
+      // not stop the shop's own LINE notice below.
+      this.notifyFollowers(repairId, newStatus).catch((e) =>
+        this.logger.warn(`LINE followers of repair ${repairId}: ${(e as Error).message}`));
 
       // Only the repair's own shop: without a tenant this used to pick any shop's LINE settings.
       if (!tenantId) return;

@@ -261,8 +261,8 @@ export class StockService {
     }));
   }
   /**
-   * Phones still in stock that have not sold for `days` days: counted from the last sale at that
-   * branch, or from the first time stock arrived there when none has ever sold. Money tied up =
+   * Phones still in stock that have not sold for `days` days: counted from the last sale or the
+   * last stock that arrived at that branch, whichever is later (new stock is not old stock). Money tied up =
    * cost price × quantity on hand, only for people allowed to see cost prices.
    */
   async getAgingPhones(tenantId: string, branchId?: string, days = 60, withCost = false) {
@@ -278,8 +278,13 @@ export class StockService {
           bs."branchId",
           b.name                            AS "branchName",
           COALESCE(
-            (SELECT MAX(m."createdAt") FROM "StockMovement" m
-              WHERE m."productId" = p.id AND m."branchId" = bs."branchId" AND m.type = 'SALE'),
+            -- the later of the last sale and the last stock that came in (GREATEST skips nulls)
+            GREATEST(
+              (SELECT MAX(m."createdAt") FROM "StockMovement" m
+                WHERE m."productId" = p.id AND m."branchId" = bs."branchId" AND m.type = 'SALE'),
+              (SELECT MAX(m."createdAt") FROM "StockMovement" m
+                WHERE m."productId" = p.id AND m."branchId" = bs."branchId" AND m.type IN ('IN', 'TRANSFER_IN'))
+            ),
             (SELECT MIN(m."createdAt") FROM "StockMovement" m
               WHERE m."productId" = p.id AND m."branchId" = bs."branchId"),
             p."createdAt"

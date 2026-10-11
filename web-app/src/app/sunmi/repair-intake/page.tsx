@@ -451,7 +451,7 @@ function StepIssue({ register, errors, watch, setValue, pricedJobs, onPickPrice 
       <RepairPriceChips
         brand={watch('deviceBrand') ?? ''}
         model={watch('deviceModel') ?? ''}
-        picked={pricedJobs.map((p) => p.service)}
+        picked={pricedJobs}
         onPick={onPickPrice}
       />
       <SectionTitle>ขั้นตอนที่ 3 — อาการเสีย</SectionTitle>
@@ -919,17 +919,19 @@ export default function RepairIntakePage() {
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('customerId')
     if (!id) {
-      const d = draftKey ? loadDraft<{ form: Partial<FormData>; step: number }>(draftKey) : null
+      const d = draftKey ? loadDraft<{ form: Partial<FormData>; step: number; pricedJobs?: RepairPrice[] }>(draftKey) : null
       if (d) {
         reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [], issueTags: [], ...d.form } as any)
         setStep(Math.min(Math.max(0, d.step ?? 0), TOTAL_STEPS - 1))
+        setPricedJobs(d.pricedJobs ?? [])
         setRestored(true)
         setDraftSeq((n) => n + 1)
       }
       setDraftReady(true)
       return
     }
-    setDraftReady(true)
+    // Next device for the same customer: a half-filled intake saved earlier is not overwritten
+    setDraftReady(!(draftKey && loadDraft(draftKey)))
     api.get(`/customers/${id}`)
       .then((r) => { if (r.data?.id) startWithCustomer(r.data) })
       .catch(() => { /* pick the customer by hand */ })
@@ -1057,7 +1059,7 @@ export default function RepairIntakePage() {
     },
   })
 
-  useDraftAutosave(draftKey, { form: formValues, step }, draftReady && !mutation.isPending, hasContent)
+  useDraftAutosave(draftKey, { form: formValues, step, pricedJobs }, draftReady && !mutation.isPending, hasContent)
 
   const isLastStep = step === TOTAL_STEPS - 1
 

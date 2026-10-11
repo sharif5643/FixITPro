@@ -1638,6 +1638,9 @@ export class RepairsService {
       return updatedRepair;
     });
 
+    // The customer following this job on LINE hears it was cancelled (and stops following)
+    this.lineMsg.notifyRepairStatus(repairId, 'CANCELLED', repairTenantId ?? null).catch(() => {});
+
     // Post-commit accounting journals (all no-throw — business TX already committed)
     if (repairTenantId) {
       // 7. Reverse final payment JEs: REPAIR_PAYMENT_REVERSAL + REPAIR_DEPOSIT_SETTLE_REVERSAL

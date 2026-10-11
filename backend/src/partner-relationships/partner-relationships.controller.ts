@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
@@ -75,6 +76,8 @@ export class PartnerRelationshipsController {
   }
 
   @Post('by-code')
+  // Codes are short: few tries per IP so nobody can walk through them
+  @Throttle({ default: { limit: 10, ttl: 10 * 60 * 1000 } })
   @UseGuards(PermissionGuard)
   @RequirePermission('partner_relationship.manage')
   connectByCode(@CurrentUser() user: AuthUser, @Body() body: { code: string }) {

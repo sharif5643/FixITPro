@@ -79,9 +79,15 @@ export class LineWebhookController {
           // From the tracking page button: follow this one repair
           await this.lineMessaging.followRepair(userId, ticket, event.replyToken).catch((e) =>
             this.logger.warn(`LINE follow ${ticket} failed: ${(e as Error).message}`));
-        } else if (process.env.SINGLE_TENANT_ID && /^0[689]\d{8}$/.test(text.replace(/[\s\-]/g, ''))) {
-          // Single-shop installs only: with many shops a phone number cannot say whose customer this is
-          await this.handlePhoneLink(userId, text.replace(/[\s\-]/g, ''));
+        } else if (/^0[689]\d{8}$/.test(text.replace(/[\s\-]/g, ''))) {
+          if (process.env.SINGLE_TENANT_ID) {
+            // Single-shop installs only: with many shops a phone number cannot say whose customer
+            // this is, and anyone could type someone else's number
+            await this.handlePhoneLink(userId, text.replace(/[\s\-]/g, ''));
+          } else if (event.replyToken) {
+            await this.lineMessaging.replyMessage(event.replyToken,
+              'รับแจ้งเตือนงานซ่อม: ส่งเลขงาน (REP-…) จากใบรับเครื่อง หรือกดปุ่ม "รับแจ้งเตือนทาง LINE" ในหน้าติดตามงาน').catch(() => false);
+          }
         }
       }
     }

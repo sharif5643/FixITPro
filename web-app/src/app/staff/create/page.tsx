@@ -112,6 +112,7 @@ type StaffDraft = {
   issueTags: string[]; issueDesc: string; conditions: string[]; accessories: string[]
   laborCost: string; partsCost: string; deposit: string; depositPM: string; discount: string
   dueDate: string; note: string; techId: string; status: string
+  pricedJobs?: RepairPrice[]
 }
 
 export default function CreateRepairPage() {
@@ -190,7 +191,7 @@ export default function CreateRepairPage() {
   const draft: StaffDraft = {
     selectedCust, newCustName, newCustPhone, deviceType, brand, model, imei, serial, colorLabel,
     issueTags, issueDesc, conditions, accessories, laborCost, partsCost, deposit, depositPM, discount,
-    dueDate, note, techId, status,
+    dueDate, note, techId, status, pricedJobs,
   }
   const hasContent = !!(
     selectedCust || newCustName || newCustPhone || brand || model || imei || serial || issueTags.length ||
@@ -207,6 +208,7 @@ export default function CreateRepairPage() {
     setLaborCost(d.laborCost ?? ''); setPartsCost(d.partsCost ?? ''); setDeposit(d.deposit ?? '')
     setDepositPM(d.depositPM ?? 'CASH'); setDiscount(d.discount ?? '')
     setDueDate(d.dueDate ?? ''); setNote(d.note ?? ''); setTechId(d.techId ?? ''); setStatus(d.status ?? 'RECEIVED')
+    setPricedJobs(d.pricedJobs ?? [])
   }
 
   function discardDraft() {
@@ -225,7 +227,8 @@ export default function CreateRepairPage() {
       setDraftReady(true)
       return
     }
-    setDraftReady(true)
+    // Next device for the same customer: a half-filled intake saved earlier is not overwritten
+    setDraftReady(!(draftKey && loadDraft(draftKey)))
     api.get(`/customers/${id}`)
       .then((r) => {
         const c = r.data
@@ -476,7 +479,7 @@ export default function CreateRepairPage() {
               )}
             </div>
           </div>
-          <RepairPriceChips brand={brand} model={model} picked={pricedJobs.map((p) => p.service)} onPick={pickPrice} className="mb-3" />
+          <RepairPriceChips brand={brand} model={model} picked={pricedJobs} onPick={pickPrice} className="mb-3" />
 
           {/* IMEI + Serial */}
           <div className="relative mb-3">
