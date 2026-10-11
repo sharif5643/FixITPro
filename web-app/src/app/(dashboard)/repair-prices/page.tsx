@@ -58,22 +58,30 @@ export default function RepairPricesPage() {
 
   // ── Editor ──
   const [rows, setRows] = useState<Draft[]>([emptyRow()])
+  // Editing one existing price: saved by its id, so renaming the job does not make a second row
+  const [editingId, setEditingId] = useState<string | null>(null)
   const setRow = (i: number, patch: Partial<Draft>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   const filled = rows.filter((r) => r.service.trim() && r.price !== '')
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['repair-prices'] })
+  const toBody = (r: Draft) => ({
+    brand: r.brand, model: r.model, service: r.service, price: Number(r.price),
+    warrantyDays: r.warrantyDays === '' ? null : Number(r.warrantyDays),
+    ...(seesCost ? { costPrice: r.costPrice === '' ? null : Number(r.costPrice) } : {}),
+  })
   const save = useMutation({
-    mutationFn: () => api.post('/repair-prices', {
-      rows: filled.map((r) => ({
-        brand: r.brand, model: r.model, service: r.service, price: Number(r.price),
-        warrantyDays: r.warrantyDays === '' ? null : Number(r.warrantyDays),
-        ...(seesCost && r.costPrice !== '' ? { costPrice: Number(r.costPrice) } : {}),
-      })),
-    }).then((r) => r.data as { created: number; updated: number }),
+    mutationFn: async () => {
+      if (editingId) {
+        await api.patch(`/repair-prices/${editingId}`, toBody(filled[0]))
+        return { created: 0, updated: 1 }
+      }
+      return api.post('/repair-prices', { rows: filled.map(toBody) }).then((r) => r.data as { created: number; updated: number })
+    },
     onSuccess: ({ created, updated }) => {
-      toast.success(`บันทึกแล้ว: เพิ่ม ${created} · แก้ ${updated}`)
+      toast.success(editingId ? 'แก้ราคาแล้ว' : `บันทึกแล้ว: เพิ่ม ${created} · แก้ ${updated}`)
       const last = rows[rows.length - 1]
       setRows([emptyRow(last?.brand, last?.model)])
+      setEditingId(null)
       refresh()
     },
     onError: (e: unknown) => toast.error(apiErrorMessage(e)),
@@ -85,6 +93,7 @@ export default function RepairPricesPage() {
   })
 
   const editRow = (r: RepairPrice) => {
+    setEditingId(r.id)
     setRows([{
       brand: r.brand, model: r.model, service: r.service, price: String(r.price),
       warrantyDays: r.warrantyDays == null ? '' : String(r.warrantyDays),
@@ -152,7 +161,7 @@ export default function RepairPricesPage() {
 
       {canManage && (
         <div id="price-editor">
-          <SectionCard title="เพิ่ม / แก้ราคา" description="ใส่หลายแถวแล้วบันทึกทีเดียว · ไม่ใส่รุ่น = ใช้กับทุกรุ่นของยี่ห้อนั้น · ไม่ใส่ยี่ห้อ = ทุกเครื่อง (เช่น ค่าตรวจเช็ค) · ยี่ห้อ+รุ่น+งานเดิม = แก้ราคา">
+          <SectionCard title={editingId ? 'แก้ราคา' : 'เพิ่ม / แก้ราคา'} description="ใส่หลายแถวแล้วบันทึกทีเดียว · ไม่ใส่รุ่น = ใช้กับทุกรุ่นของยี่ห้อนั้น · ไม่ใส่ยี่ห้อ = ทุกเครื่อง (เช่น ค่าตรวจเช็ค) · ยี่ห้อ+รุ่น+งานเดิม = แก้ราคา">
             <div className="space-y-2">
               {rows.map((r, i) => (
                 <div key={i} className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 p-2 dark:border-slate-700 sm:grid-cols-[1fr_1fr_1.4fr_0.8fr_0.7fr_0.8fr_auto]">
@@ -164,17 +173,23 @@ export default function RepairPricesPage() {
                   {seesCost
                     ? <Input placeholder="ทุน" inputMode="decimal" type="number" min={0} value={r.costPrice} onChange={(e) => setRow(i, { costPrice: e.target.value })} />
                     : <span className="hidden sm:block" />}
-                  <button type="button" aria-label="ลบแถว" onClick={() => setRows((rs) => rs.length > 1 ? rs.filter((_, j) => j !== i) : [emptyRow()])}
+                  <button type="button" aria-label="ลบแถว" onClick={() => { setEditingId(null); setRows((rs) => rs.length > 1 ? rs.filter((_, j) => j !== i) : [emptyRow()]) }}
                     className="flex h-10 w-10 items-center justify-center justify-self-end rounded-lg text-slate-400 hover:bg-slate-100 hover:text-red-600">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               ))}
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" className="gap-1.5"
-                  onClick={() => setRows((rs) => [...rs, emptyRow(rs[rs.length - 1]?.brand, rs[rs.length - 1]?.model)])}>
-                  <Plus className="h-4 w-4" /> เพิ่มแถว (ยี่ห้อ/รุ่นเดิม)
-                </Button>
+                {editingId ? (
+                  <Button type="button" variant="outline" onClick={() => { setEditingId(null); setRows([emptyRow()]) }}>
+                    ยกเลิกแก้ไข
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" className="gap-1.5"
+                    onClick={() => setRows((rs) => [...rs, emptyRow(rs[rs.length - 1]?.brand, rs[rs.length - 1]?.model)])}>
+                    <Plus className="h-4 w-4" /> เพิ่มแถว (ยี่ห้อ/รุ่นเดิม)
+                  </Button>
+                )}
                 <Button type="button" className="gap-1.5" disabled={!filled.length || save.isPending} onClick={() => save.mutate()}>
                   {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                   บันทึก {filled.length ? `${filled.length} รายการ` : ''}

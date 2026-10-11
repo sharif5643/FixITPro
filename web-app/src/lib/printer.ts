@@ -1339,8 +1339,11 @@ export function buildRepairDeliveryReceiptThermalHtml(
       quantity: number
       sellPrice?: number | null
       chargeToCustomer: boolean
+      isFreebie?: boolean
+      freebieValue?: number | null
       isVoided?: boolean
     }> | null
+    paidDiscount?: number | null
   },
   settings: {
     shopName?: string | null
@@ -1382,6 +1385,19 @@ export function buildRepairDeliveryReceiptThermalHtml(
 
   const dateStr = (iso: string | null | undefined) => (iso ? webReceiptDate(iso) : '')
   const paidDateStr = e(dateStr(repair.paidAt ?? repair.deliveredAt ?? new Date().toISOString()))
+
+  // A discount given at pickup: finalCost is already after it
+  const discount = Number(repair.paidDiscount ?? 0)
+  const freeParts = (repair.parts ?? []).filter(p => !p.isVoided && p.isFreebie)
+  const freeBlock = freeParts.length > 0
+    ? `<div class="hr"></div>
+<p class="xs b">ของแถม</p>
+${freeParts.map(p => {
+  const name  = e(p.product?.name ?? p.productName ?? 'ของแถม')
+  const worth = Number(p.freebieValue ?? 0) * p.quantity
+  return `<div class="row"><span class="xs">${name} ×${p.quantity}</span><span class="v xs">แถมฟรี${worth > 0 ? ` (มูลค่า ฿${fmtI(worth)})` : ''}</span></div>`
+}).join('\n')}`
+    : ''
 
   const chargedParts = (repair.parts ?? []).filter(p => !p.isVoided && p.chargeToCustomer)
   const partsBlock = chargedParts.length > 0
@@ -1430,8 +1446,11 @@ ${shopPhone ? `<p class="c xs">โทร: ${shopPhone}</p>` : ''}
 ${customerPhone ? `<div class="row"><span>โทร</span><span class="v">${customerPhone}</span></div>` : ''}
 <div class="row"><span>อุปกรณ์</span><span class="v">${deviceInfo}</span></div>
 ${partsBlock}
+${freeBlock}
 <div class="hr"></div>
-<div class="row"><span>ค่าซ่อมรวม</span><span class="v">฿${fmtI(finalCost)}</span></div>
+${discount > 0 ? `<div class="row"><span>ค่าซ่อม</span><span class="v">฿${fmtI(finalCost + discount)}</span></div>
+<div class="row"><span>ส่วนลด</span><span class="v">-฿${fmtI(discount)}</span></div>` : ''}
+<div class="row"><span>${discount > 0 ? 'ค่าซ่อมสุทธิ' : 'ค่าซ่อมรวม'}</span><span class="v">฿${fmtI(finalCost)}</span></div>
 ${deposit > 0 ? `<div class="row"><span>มัดจำชำระแล้ว</span><span class="v">-฿${fmtI(deposit)}</span></div>` : ''}
 <div class="row b"><span>ยอดทั้งหมด</span><span class="v">฿${fmtI(remaining)}</span></div>
 <div class="hr"></div>

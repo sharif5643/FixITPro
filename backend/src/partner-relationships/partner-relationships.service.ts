@@ -339,19 +339,29 @@ export class PartnerRelationshipsService {
     if (pair.some((r) => r.status === 'ACCEPTED')) {
       throw new ConflictException(`เป็นพาร์ทเนอร์กับ ${target.shopName} อยู่แล้ว`);
     }
-    const pending = pair.find((r) => r.status === 'PENDING');
+    // A suspension is the system admin's decision: a code does not lift it
+    if (pair.some((r) => r.status === 'SUSPENDED')) {
+      throw new ForbiddenException(`การเป็นพาร์ทเนอร์กับ ${target.shopName} ถูกระงับ — ติดต่อผู้ดูแลระบบ`);
+    }
+    // A pending request either way is completed; an old rejected / cancelled one is brought back
+    // (kept, not deleted: earlier transfers point at it). This shop's own row first.
+    const existing =
+      pair.find((r) => r.status === 'PENDING') ??
+      pair.find((r) => r.initiatorTenantId === tenantId) ??
+      pair[0];
 
     const now = new Date();
     let rel;
-    if (pending) {
+    if (existing) {
       rel = await this.prisma.partnerRelationship.update({
-        where: { id: pending.id },
-        data: { status: 'ACCEPTED', respondedAt: now, ...(pending.partnerTenantId === tenantId ? { respondedById: actorId } : {}) },
+        where: { id: existing.id },
+        data: {
+          status: 'ACCEPTED',
+          respondedAt: now,
+          ...(existing.partnerTenantId === tenantId ? { respondedById: actorId } : {}),
+        },
       });
     } else {
-      // An old rejected / cancelled request from this shop would block the pair: replace it
-      const old = pair.find((r) => r.initiatorTenantId === tenantId);
-      if (old) await this.prisma.partnerRelationship.delete({ where: { id: old.id } });
       rel = await this.prisma.partnerRelationship.create({
         data: {
           initiatorTenantId: tenantId,

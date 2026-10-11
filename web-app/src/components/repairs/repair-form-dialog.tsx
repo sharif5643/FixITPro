@@ -128,6 +128,7 @@ type IntakeDraft = {
   issueTags: string[]
   techId: string | null
   showExtra: boolean
+  pricedJobs?: RepairPrice[]
 }
 
 interface RepairFormDialogProps {
@@ -254,6 +255,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
       setIssueTags(d.issueTags)
       setSelectedTechId(d.techId)
       setShowExtra(d.showExtra)
+      setPricedJobs(d.pricedJobs ?? [])
       setRestored(true)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -262,7 +264,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
   const formValues = watch()
   const draft: IntakeDraft = {
     form: formValues, customer: selectedCustomer, deviceType, accessories, deviceConditions, issueTags,
-    techId: selectedTechId, showExtra,
+    techId: selectedTechId, showExtra, pricedJobs,
   }
   const hasContent = !!(
     formValues.customerName || formValues.customerPhone || formValues.deviceBrand || formValues.deviceModel ||
@@ -659,7 +661,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                 <RepairPriceChips
                   brand={watch('deviceBrand') ?? ''}
                   model={watch('deviceModel') ?? ''}
-                  picked={pricedJobs.map((p) => p.service)}
+                  picked={pricedJobs}
                   onPick={pickPrice}
                 />
               </div>

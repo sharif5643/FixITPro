@@ -22,6 +22,17 @@ export class RepairPaymentDto {
   @IsString()
   note?: string;
 
+  /**
+   * Taken off at pickup (a deal agreed with the customer). The bill is finalCost (or the job's
+   * price) minus this; the receipt shows the price, the discount and what was paid.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000_000)
+  discount?: number;
+
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

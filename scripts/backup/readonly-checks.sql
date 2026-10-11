@@ -368,4 +368,15 @@ FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = 'cmsc0
   AND EXISTS (SELECT 1 FROM "SalePayment" sp WHERE sp."saleId" = s.id)
   AND abs((SELECT sum(sp.amount) FROM "SalePayment" sp WHERE sp."saleId" = s.id) - s.total) > 0.01;
 
+\echo '--- 23. Repair discount typed at intake: was it taken off when the customer paid? ---'
+SELECT b."tenantId",
+  count(*) FILTER (WHERE r.discount > 0) AS with_intake_discount,
+  count(*) FILTER (WHERE r.discount > 0 AND r."paymentStatus" = 'PAID') AS paid,
+  count(*) FILTER (WHERE r.discount > 0 AND r."paymentStatus" = 'PAID'
+                   AND r."finalCost" >= coalesce(r."estimatedTotal", r."estimateCost")) AS paid_full_price,
+  sum(r.discount) FILTER (WHERE r.discount > 0 AND r."paymentStatus" = 'PAID'
+                   AND r."finalCost" >= coalesce(r."estimatedTotal", r."estimateCost")) AS discount_not_given
+FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId"
+GROUP BY 1 HAVING count(*) FILTER (WHERE r.discount > 0) > 0 ORDER BY 1;
+
 ROLLBACK;

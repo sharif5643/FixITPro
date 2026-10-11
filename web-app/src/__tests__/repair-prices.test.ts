@@ -19,4 +19,12 @@ describe('togglePricedJob', () => {
     const s = togglePricedJob([screen], screen, 'เปลี่ยนจอ', 1000)
     expect(s).toMatchObject({ issue: '', estimate: 0 })
   })
+
+  it('a job picked at the brand-wide price is taken back by name after the model price shows up', () => {
+    const brandWide: RepairPrice = { id: 'w', brand: 'Apple', model: '', service: 'เปลี่ยนแบต', price: 800, warrantyDays: null }
+    const modelPrice: RepairPrice = { id: 'm', brand: 'Apple', model: 'iPhone 13', service: 'เปลี่ยนแบต', price: 1200, warrantyDays: null }
+    let s = togglePricedJob([], brandWide, '', 0)
+    s = togglePricedJob(s.picked, modelPrice, s.issue, s.estimate)
+    expect(s).toMatchObject({ issue: '', estimate: 0, picked: [] })
+  })
 })

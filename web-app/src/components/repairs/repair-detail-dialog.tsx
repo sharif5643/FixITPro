@@ -39,6 +39,8 @@ import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branc
 import { SerialPrintButton } from '@/components/printer/serial-print-button'
 import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 import api from '@/lib/api'
+import { PickupDiscount } from '@/components/repairs/pickup-discount'
+import { PartModePicker, partModeBody, partModeLabel, type PartMode } from '@/components/repairs/part-mode-picker'
 import { useAuthStore } from '@/store/auth.store'
 import type { Repair, RepairStatus, Product, ShopSettings } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
@@ -165,11 +167,14 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   })
 
   // Parts search
+  const modelHint = (repair?.deviceModel ?? '').trim()
   const [partSearch, setPartSearch] = useState('')
   const [addingPart, setAddingPart] = useState<Product | null>(null)
   const [partQty, setPartQty] = useState(1)
   const [partPrice, setPartPrice] = useState('')
-  const [chargeCustomer, setChargeCustomer] = useState(false)
+  const [partMode, setPartMode] = useState<PartMode>('use')
+  const chargeCustomer = partMode === 'charge'
+  const setChargeCustomer = (on: boolean) => setPartMode(on ? 'charge' : 'use')
   const searchRef = useRef<HTMLDivElement>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const debouncedSearch = useDebounce(partSearch, 300)
@@ -186,6 +191,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [payAmount, setPayAmount] = useState('')
   const [payWarrantyDays, setPayWarrantyDays] = useState('30')
   const [payFinalCost, setPayFinalCost] = useState('')
+  const [payDiscount, setPayDiscount] = useState('')
   // Reverse payment dialog
   const [reverseOpen, setReverseOpen] = useState(false)
   const [reverseReason, setReverseReason] = useState('')
@@ -227,9 +233,12 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
     if (payOpen && repair) {
       const total = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
       const deposit = Number(repair.deposit ?? 0)
-      const balance = Math.max(0, total - deposit)
+      // A discount promised when the job was taken in is offered here (it used to be dropped)
+      const promised = Math.min(Number(repair.discount ?? 0), total)
+      const balance = Math.max(0, total - promised - deposit)
       setPayMethod('CASH')
       setPayFinalCost(total > 0 ? String(total) : '')
+      setPayDiscount(promised > 0 ? String(promised) : '')
       setPayAmount(String(balance))
       setPayWarrantyDays('30')
     }
@@ -246,11 +255,12 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   }, [])
 
   const { data: partProducts = [] } = useQuery<Product[]>({
-    queryKey: ['products', 'repair-stock', debouncedSearch, repairBranchId],
+    queryKey: ['products', 'repair-stock', debouncedSearch || modelHint, repairBranchId],
     queryFn: async () => {
       const products = (await api.get('/products', {
         params: {
-          search: debouncedSearch || undefined,
+          // Nothing typed yet: parts named after this device's model first (จอ / ฟิล์ม iPhone 11)
+          search: debouncedSearch || modelHint || undefined,
           ...(repairBranchId ? { branchId: repairBranchId } : {}),
         },
       })).data
@@ -275,9 +285,9 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const canEstimate = !isLocked && repair?.status !== 'CANCELLED'
 
   const addPartMutation = useMutation({
-    mutationFn: ({ productId, quantity, price, chargeToCustomer }: {
-      productId: string; quantity: number; price?: number; chargeToCustomer?: boolean
-    }) => api.post(`/repairs/${repairId}/parts`, { productId, quantity, price, chargeToCustomer }),
+    mutationFn: ({ productId, quantity, price, mode }: {
+      productId: string; quantity: number; price?: number; mode: PartMode
+    }) => api.post(`/repairs/${repairId}/parts`, { productId, quantity, ...partModeBody(mode, price) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
       queryClient.invalidateQueries({ queryKey: ['repairs'] })
@@ -285,8 +295,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       setPartSearch('')
       setPartQty(1)
       setPartPrice('')
-      setChargeCustomer(false)
-      toast.success('เพิ่มอะไหล่แล้ว')
+      setPartMode('use')
+      toast.success('เบิกอะไหล่แล้ว')
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message ?? err.message
@@ -321,7 +331,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   })
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays?: number; allowPartial?: boolean; finalCost?: number }) =>
+    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays?: number; allowPartial?: boolean; finalCost?: number; discount?: number }) =>
       api.post(`/repairs/${repairId}/payment`, data),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
@@ -447,10 +457,10 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const handleAddPart = () => {
     if (!addingPart) return
     addPartMutation.mutate({
-      productId:        addingPart.id,
-      quantity:         partQty,
-      chargeToCustomer: chargeCustomer || undefined,
-      price:            partPrice ? Number(partPrice) : undefined,
+      productId: addingPart.id,
+      quantity:  partQty,
+      mode:      partMode,
+      price:     partPrice ? Number(partPrice) : undefined,
     })
   }
 
@@ -459,7 +469,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   // Payment calculation — payFinalCost overrides estimatedTotal when set
   const repairEstimate = repair ? Number(repair.estimatedTotal ?? repair.estimateCost ?? 0) : 0
   const payFinalCostNum = Number(payFinalCost) || repairEstimate
-  const repairTotal = payFinalCostNum
+  const payDiscountNum = Math.max(0, Number(payDiscount) || 0)
+  const repairTotal = Math.max(0, payFinalCostNum - payDiscountNum)
   const repairDeposit = repair ? Number(repair.deposit ?? 0) : 0
   const repairBalance = Math.max(0, repairTotal - repairDeposit)
   const payAmountNum = Number(payAmount) || 0
@@ -478,6 +489,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       warrantyDays: wDays > 0 ? wDays : 0,
       allowPartial,
       ...(payFinalCostNum !== repairEstimate ? { finalCost: payFinalCostNum } : {}),
+      ...(payDiscountNum > 0 ? { discount: payDiscountNum } : {}),
     })
   }
 
@@ -783,7 +795,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                               {canViewCost && <span>· ต้นทุน {formatThaiMoney(Number(part.price))}/ชิ้น</span>}
                               {part.chargeToCustomer
                                 ? <span className="text-blue-600 font-medium">· คิดลูกค้า {formatThaiMoney(Number(part.sellPrice ?? 0))}/ชิ้น</span>
-                                : <span className="text-slate-400">· ไม่คิดลูกค้า</span>
+                                : <span className={partModeLabel(part).cls}>· {partModeLabel(part).text}{part.isFreebie && part.freebieValue ? ` (มูลค่า ${formatThaiMoney(Number(part.freebieValue))})` : ''}</span>
                               }
                               {deducted && <span className="text-green-600 font-medium">· ตัดสต็อกแล้ว</span>}
                             </p>
@@ -833,7 +845,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-slate-900 dark:text-white truncate flex-1">{addingPart.name}</p>
                         <button
-                          onClick={() => { setAddingPart(null); setChargeCustomer(false); setPartPrice('') }}
+                          onClick={() => { setAddingPart(null); setPartMode('use'); setPartPrice('') }}
                           className="text-muted-foreground hover:text-foreground ml-2"
                         >
                           <X className="h-4 w-4" />
@@ -844,23 +856,11 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         {canViewCost && ` · ราคาทุน: ${formatThaiMoney(Number(addingPart.costPrice))}`}
                       </p>
 
-                      {/* คิดเงินลูกค้า toggle */}
-                      <div className="flex items-center justify-between py-0.5">
-                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                          คิดเงินลูกค้าเพิ่ม
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = !chargeCustomer
-                            setChargeCustomer(next)
-                            setPartPrice(next ? String(addingPart.price) : '')
-                          }}
-                          className={`relative w-10 h-5 rounded-full transition-colors ${chargeCustomer ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'}`}
-                        >
-                          <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${chargeCustomer ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                        </button>
-                      </div>
+                      {/* What the customer sees: part of the job, a freebie, or an extra charge */}
+                      <PartModePicker
+                        value={partMode}
+                        onChange={(m) => { setPartMode(m); setPartPrice(m === 'charge' ? String(addingPart.price) : '') }}
+                      />
 
                       <div className="flex gap-2">
                         <div className="space-y-1 flex-1">
@@ -874,23 +874,23 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                             className="h-8 text-sm"
                           />
                         </div>
-                        <div className="space-y-1 flex-1">
-                          <label className="text-xs text-muted-foreground">
-                            {chargeCustomer
-                              ? 'ราคาคิดลูกค้า/ชิ้น'
-                              : `ราคา/ชิ้น${canViewCost ? ' (ปล่อยว่าง=ราคาทุน)' : ''}`}
-                          </label>
-                          <Input
-                            type="number"
-                            min={0}
-                            placeholder={chargeCustomer
-                              ? String(addingPart.price)
-                              : (canViewCost ? String(addingPart.costPrice) : '0')}
-                            value={partPrice}
-                            onChange={(e) => setPartPrice(e.target.value)}
-                            className={`h-8 text-sm ${chargeCustomer ? 'border-blue-400 focus-visible:ring-blue-500' : ''}`}
-                          />
-                        </div>
+                        {chargeCustomer && (
+                          <div className="space-y-1 flex-1">
+                            <label className="text-xs text-muted-foreground">
+                              ราคาคิดลูกค้า/ชิ้น
+                            </label>
+                            <Input
+                              type="number"
+                              min={0}
+                              placeholder={chargeCustomer
+                                ? String(addingPart.price)
+                                : (canViewCost ? String(addingPart.costPrice) : '0')}
+                              value={partPrice}
+                              onChange={(e) => setPartPrice(e.target.value)}
+                              className={`h-8 text-sm ${chargeCustomer ? 'border-blue-400 focus-visible:ring-blue-500' : ''}`}
+                            />
+                          </div>
+                        )}
                       </div>
 
                       {chargeCustomer && (
@@ -907,13 +907,13 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         disabled={partQty < 1 || partQty > (addingPart.branchQuantity ?? addingPart.stock) || addPartMutation.isPending}
                       >
                         {addPartMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                        เพิ่มอะไหล่{chargeCustomer ? ' (คิดลูกค้า)' : ''}
+                        เบิกอะไหล่{partMode === 'charge' ? ' (คิดลูกค้า)' : partMode === 'free' ? ' (แถมลูกค้า)' : ''}
                       </Button>
                     </div>
                   ) : (
                     <div ref={searchRef} className="relative">
                       <Input
-                        placeholder="ค้นหาสินค้า/อะไหล่..."
+                        placeholder={modelHint ? `ค้นหาอะไหล่ (แตะเพื่อดูของ ${modelHint})` : 'ค้นหาสินค้า/อะไหล่...'}
                         value={partSearch}
                         onChange={(e) => { setPartSearch(e.target.value); setSearchOpen(true) }}
                         onFocus={() => setSearchOpen(true)}
@@ -1423,7 +1423,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 value={payFinalCost}
                 onChange={(e) => {
                   setPayFinalCost(e.target.value)
-                  const newTotal = Number(e.target.value) || repairEstimate
+                  const newTotal = Math.max(0, (Number(e.target.value) || repairEstimate) - payDiscountNum)
                   const newBalance = Math.max(0, newTotal - repairDeposit)
                   setPayAmount(String(newBalance))
                 }}
@@ -1437,12 +1437,27 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               )}
             </div>
 
+            <PickupDiscount
+              value={payDiscount}
+              price={payFinalCostNum}
+              onChange={(v) => {
+                setPayDiscount(v)
+                setPayAmount(String(Math.max(0, payFinalCostNum - (Number(v) || 0) - repairDeposit)))
+              }}
+            />
+
             {/* Cost breakdown */}
             <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 p-4 space-y-2 text-sm">
               <div className="flex justify-between text-muted-foreground">
                 <span>ค่าซ่อมจริง</span>
-                <span className="tabular-nums">{formatThaiMoney(repairTotal)}</span>
+                <span className="tabular-nums">{formatThaiMoney(payFinalCostNum)}</span>
               </div>
+              {payDiscountNum > 0 && (
+                <div className="flex justify-between text-rose-600">
+                  <span>ส่วนลด</span>
+                  <span className="tabular-nums">- {formatThaiMoney(payDiscountNum)}</span>
+                </div>
+              )}
               {repairDeposit > 0 && (
                 <div className="flex justify-between text-green-700">
                   <span>ค่ามัดจำชำระแล้ว</span>

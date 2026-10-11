@@ -21,6 +21,8 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { toast } from 'sonner'
 import api from '@/lib/api'
+import { PartModePicker, partModeBody, partModeLabel, type PartMode } from '@/components/repairs/part-mode-picker'
+import { PickupDiscount } from '@/components/repairs/pickup-discount'
 import { printRepairReceipt } from '@/lib/print'
 import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 import { Platform } from '@/lib/platform'
@@ -150,8 +152,8 @@ export default function RepairDetailPage() {
   const [addingPart, setAddingPart]                 = useState<Product | null>(null)
   const [partQty, setPartQty]                       = useState(1)
   const [partPrice, setPartPrice]                   = useState('')
-  const [chargeCustomer, setChargeCustomer]         = useState(false)
-  const [showAdvancedPartOpts, setShowAdvancedPartOpts] = useState(false)
+  const [partMode, setPartMode]                     = useState<PartMode>('use')
+  const chargeCustomer                              = partMode === 'charge'
   const [transferPart, setTransferPart]             = useState<Product | null>(null)
 
   // Estimate
@@ -167,6 +169,7 @@ export default function RepairDetailPage() {
   const [qcOpen, setQcOpen]                         = useState(false)
   // Final price at handover ('' = the quoted total), as the web's payment dialog allows
   const [payFinal, setPayFinal]                     = useState('')
+  const [payDiscount, setPayDiscount]               = useState('')
   const canQc = hasPermission('repairs.qc.perform')
   const [reverseOpen, setReverseOpen]               = useState(false)
   const [reverseReason, setReverseReason]           = useState('')
@@ -203,12 +206,14 @@ export default function RepairDetailPage() {
 
   const repairBranchId = (repair?.branchId as string | null | undefined) ?? undefined
 
+  const modelHint = (repair?.deviceModel ?? '').trim()
   const { data: partProducts = [] } = useQuery<Product[]>({
-    queryKey: ['products', 'repair-stock', debouncedSearch, repairBranchId],
+    queryKey: ['products', 'repair-stock', debouncedSearch || modelHint, repairBranchId],
     queryFn:  async () =>
       (await api.get('/products', {
         params: {
-          search: debouncedSearch || undefined,
+          // Nothing typed yet: parts named after this device's model first (จอ / ฟิล์ม iPhone 11)
+          search: debouncedSearch || modelHint || undefined,
           ...(repairBranchId ? { branchId: repairBranchId } : {}),
         },
       })).data,
@@ -248,8 +253,12 @@ export default function RepairDetailPage() {
   // Pre-fill payment amount when form opens
   useEffect(() => {
     if (payOpen && repair) {
-      const bal = Math.max(0, Number(repair.estimatedTotal ?? repair.estimateCost ?? 0) - Number(repair.deposit ?? 0))
+      const quoted = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
+      // A discount promised when the job was taken in is offered here (it used to be dropped)
+      const promised = Math.min(Number(repair.discount ?? 0), quoted)
+      const bal = Math.max(0, quoted - promised - Number(repair.deposit ?? 0))
       setPayMethod('CASH')
+      setPayDiscount(promised > 0 ? String(promised) : '')
       setPayAmount(String(bal))
     }
   }, [payOpen, repair])
@@ -266,17 +275,16 @@ export default function RepairDetailPage() {
   })
 
   const addPartMutation = useMutation({
-    mutationFn: (data: { productId: string; quantity: number; price?: number; chargeToCustomer?: boolean }) =>
-      api.post(`/repairs/${id}/parts`, data),
+    mutationFn: ({ mode, price, ...data }: { productId: string; quantity: number; price?: number; mode: PartMode }) =>
+      api.post(`/repairs/${id}/parts`, { ...data, ...partModeBody(mode, price) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })
-      toast.success('เพิ่มอะไหล่แล้ว')
+      toast.success('เบิกอะไหล่แล้ว')
       setAddingPart(null)
       setPartSearch('')
       setPartQty(1)
       setPartPrice('')
-      setChargeCustomer(false)
-      setShowAdvancedPartOpts(false)
+      setPartMode('use')
     },
     onError: (err: unknown) => toast.error(errMsg(err)),
   })
@@ -291,7 +299,7 @@ export default function RepairDetailPage() {
   })
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays: number; allowPartial?: boolean; finalCost?: number }) =>
+    mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays: number; allowPartial?: boolean; finalCost?: number; discount?: number }) =>
       api.post(`/repairs/${id}/payment`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })
@@ -404,16 +412,19 @@ export default function RepairDetailPage() {
   function handleAddPart() {
     if (!addingPart) return
     addPartMutation.mutate({
-      productId:        addingPart.id,
-      quantity:         partQty,
-      chargeToCustomer: chargeCustomer || undefined,
-      price:            partPrice ? Number(partPrice) : undefined,
+      productId: addingPart.id,
+      quantity:  partQty,
+      mode:      partMode,
+      price:     partPrice ? Number(partPrice) : undefined,
     })
   }
 
   function handlePayment() {
     // Send the price only when it was changed here (otherwise the API uses the quoted total)
-    const finalCostField = payFinal !== '' && Number(payFinal) !== quotedTotal ? { finalCost: Number(payFinal) || 0 } : {}
+    const finalCostField = {
+      ...(payFinal !== '' && Number(payFinal) !== quotedTotal ? { finalCost: Number(payFinal) || 0 } : {}),
+      ...(payDiscountNum > 0 ? { discount: payDiscountNum } : {}),
+    }
     const amount = Number(payAmount)
     if (payLater) {
       // Pay later: today's amount may be 0; the rest is owed (same as the web's ค้างชำระ)
@@ -447,7 +458,9 @@ export default function RepairDetailPage() {
   const hasShift  = !!currentShift
 
   const quotedTotal   = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
-  const repairTotal   = payFinal !== '' ? Number(payFinal) || 0 : quotedTotal
+  const payPrice      = payFinal !== '' ? Number(payFinal) || 0 : quotedTotal
+  const payDiscountNum = Math.max(0, Number(payDiscount) || 0)
+  const repairTotal   = Math.max(0, payPrice - payDiscountNum)
   const repairDeposit = Number(repair.deposit ?? 0)
   const repairBalance = Math.max(0, repairTotal - repairDeposit)
   const payAmountNum  = Number(payAmount) || 0
@@ -828,7 +841,7 @@ export default function RepairDetailPage() {
                             {canViewCost && <span>· ต้นทุน {fmtMoney(Number(part.price))}/ชิ้น</span>}
                             {part.chargeToCustomer
                               ? <span className="text-blue-600 font-medium">· คิดลูกค้า {fmtMoney(Number(part.sellPrice ?? 0))}/ชิ้น</span>
-                              : <span className="text-slate-400">· ไม่คิดลูกค้า</span>}
+                              : <span className={partModeLabel(part).cls}>· {partModeLabel(part).text}{part.isFreebie && part.freebieValue ? ` (มูลค่า ${fmtMoney(Number(part.freebieValue))})` : ''}</span>}
                             {deducted && <span className="text-green-600 font-medium">· ตัดสต็อกแล้ว</span>}
                           </p>
                         </div>
@@ -867,7 +880,7 @@ export default function RepairDetailPage() {
                     <input value={partSearch}
                       onChange={(e) => { setPartSearch(e.target.value); setSearchOpen(true) }}
                       onFocus={() => setSearchOpen(true)}
-                      placeholder="ค้นหาสินค้า/อะไหล่..."
+                      placeholder={modelHint ? `ค้นหาอะไหล่ (แตะเพื่อดูของ ${modelHint})` : 'ค้นหาสินค้า/อะไหล่...'}
                       className="w-full h-10 rounded-xl bg-[#F8F9FB] pl-9 pr-3 text-sm outline-none" />
                   </div>
                   {searchOpen && partProducts.length > 0 && (
@@ -888,7 +901,7 @@ export default function RepairDetailPage() {
                                 setSearchOpen(false)
                                 setPartQty(1)
                                 setPartPrice('')
-                                setChargeCustomer(false)
+                                setPartMode('use')
                               }}
                             >
                               <p className="text-sm font-semibold text-[#111] flex items-center gap-1.5 flex-wrap">
@@ -926,13 +939,20 @@ export default function RepairDetailPage() {
                 <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-semibold text-[#111] truncate flex-1">{addingPart.name}</p>
-                    <button onClick={() => { setAddingPart(null); setChargeCustomer(false); setPartPrice(''); setShowAdvancedPartOpts(false) }}
+                    <button onClick={() => { setAddingPart(null); setPartMode('use'); setPartPrice('') }}
                       className="text-slate-400 ml-2"><X className="h-4 w-4" /></button>
                   </div>
                   <p className="text-xs text-slate-400">
                     SKU: {addingPart.sku} · สต็อก: {addingPart.branchQuantity ?? addingPart.stock} ชิ้น
                     {canViewCost && ` · ราคาทุน: ${fmtMoney(addingPart.costPrice)}`}
                   </p>
+
+                  {/* What the customer sees: part of the job, a freebie, or an extra charge */}
+                  <PartModePicker
+                    value={partMode}
+                    size="lg"
+                    onChange={(m) => { setPartMode(m); setPartPrice(m === 'charge' ? String(addingPart.price) : '') }}
+                  />
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -941,51 +961,21 @@ export default function RepairDetailPage() {
                         value={partQty} onChange={(e) => setPartQty(Number(e.target.value))}
                         className="w-full h-10 rounded-xl bg-white border border-slate-200 px-3 text-sm font-semibold text-center outline-none" />
                     </div>
-                    <div>
-                      <label className="text-xs text-slate-400 mb-1 block">
-                        {chargeCustomer ? 'ราคาคิดลูกค้า/ชิ้น' : `ราคา/ชิ้น${canViewCost ? ' (ว่าง=ราคาทุน)' : ''}`}
-                      </label>
-                      <input type="number" min={0}
-                        placeholder={chargeCustomer ? String(addingPart.price) : (canViewCost ? String(addingPart.costPrice) : '0')}
-                        value={partPrice} onChange={(e) => setPartPrice(e.target.value)}
-                        className={`w-full h-10 rounded-xl bg-white px-3 text-sm outline-none border ${chargeCustomer ? 'border-blue-400' : 'border-slate-200'}`} />
-                    </div>
-                  </div>
-
-                  {/* Advanced options (chargeToCustomer) — collapsed by default */}
-                  <button type="button" onClick={() => setShowAdvancedPartOpts((v) => !v)}
-                    className="flex items-center gap-1 text-xs text-slate-400 font-medium">
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAdvancedPartOpts ? 'rotate-180' : ''}`} />
-                    ตัวเลือกเพิ่มเติม
-                    {chargeCustomer && <span className="ml-1 text-blue-600 font-semibold">(คิดลูกค้า)</span>}
-                  </button>
-
-                  {showAdvancedPartOpts && (
-                    <div className="rounded-xl bg-white border border-slate-200 px-3 py-2.5 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-medium text-slate-700">คิดเงินลูกค้าเพิ่ม</p>
-                          <p className="text-[10px] text-slate-400">เพิ่มค่าอะไหล่นี้ในบิลลูกค้า</p>
-                        </div>
-                        <button type="button" onClick={() => {
-                            const next = !chargeCustomer
-                            setChargeCustomer(next)
-                            setPartPrice(next ? String(addingPart.price) : '')
-                          }}
-                          className={`relative w-10 h-5 rounded-full transition-colors ${chargeCustomer ? 'bg-blue-600' : 'bg-slate-300'}`}>
-                          <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${chargeCustomer ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                        </button>
+                    {chargeCustomer && (
+                      <div>
+                        <label className="text-xs text-slate-400 mb-1 block">ราคาคิดลูกค้า/ชิ้น</label>
+                        <input type="number" min={0}
+                          placeholder={String(addingPart.price)}
+                          value={partPrice} onChange={(e) => setPartPrice(e.target.value)}
+                          className="w-full h-10 rounded-xl bg-white px-3 text-sm outline-none border border-blue-400" />
                       </div>
-                      {chargeCustomer && (
-                        <p className="text-[10px] text-blue-600">ราคา/ชิ้น ด้านบนจะใช้เป็นราคาที่คิดลูกค้า</p>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   <button onClick={handleAddPart}
                     disabled={partQty < 1 || addPartMutation.isPending}
                     className="w-full h-11 rounded-xl bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))] flex items-center justify-center gap-2 disabled:opacity-60">
-                    {addPartMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4" /> เพิ่มอะไหล่{chargeCustomer ? ' (คิดลูกค้า)' : ''}</>}
+                    {addPartMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4" /> เบิกอะไหล่{partMode === 'charge' ? ' (คิดลูกค้า)' : partMode === 'free' ? ' (แถมลูกค้า)' : ''}</>}
                   </button>
                 </div>
               )}
@@ -1156,6 +1146,21 @@ export default function RepairDetailPage() {
                         onChange={(e) => { setPayFinal(e.target.value); setPayAmount('') }}
                         className="w-full h-12 rounded-xl px-3 text-lg font-bold text-center outline-none bg-[#F8F9FB]" />
                     </div>
+
+                    <PickupDiscount
+                      value={payDiscount}
+                      price={payPrice}
+                      size="lg"
+                      onChange={(v) => {
+                        setPayDiscount(v)
+                        setPayAmount(String(Math.max(0, payPrice - (Number(v) || 0) - repairDeposit)))
+                      }}
+                    />
+                    {payDiscountNum > 0 && (
+                      <p className="text-center text-sm font-semibold text-slate-700">
+                        ลูกค้าจ่าย {fmtMoney(repairTotal)}{repairDeposit > 0 ? ` (หักมัดจำแล้วเหลือ ${fmtMoney(repairBalance)})` : ''}
+                      </p>
+                    )}
 
                     {/* Amount */}
                     <div>

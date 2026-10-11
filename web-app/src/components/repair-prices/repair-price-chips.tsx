@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Tag } from 'lucide-react'
 import api from '@/lib/api'
 import { formatThaiMoney, cn } from '@/lib/utils'
-import type { RepairPrice } from '@/lib/repair-prices'
+import { isPicked, type RepairPrice } from '@/lib/repair-prices'
 
 /**
  * The shop's prices for this device while a job is taken in: one tap puts the job and its price
@@ -15,7 +15,7 @@ export function RepairPriceChips({
 }: {
   brand: string
   model: string
-  picked?: string[]
+  picked?: RepairPrice[]
   onPick: (p: RepairPrice) => void
   className?: string
 }) {
@@ -36,7 +36,7 @@ export function RepairPriceChips({
       </p>
       <div className="flex flex-wrap gap-1.5">
         {data.map((p) => {
-          const on = picked.includes(p.service)
+          const on = isPicked(picked, p.service)
           return (
             <button
               key={p.id}

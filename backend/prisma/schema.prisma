@@ -893,6 +893,9 @@ model Repair {
   dueDate            DateTime?
   estimatedLaborCost Decimal?     @db.Decimal(10, 2)
   estimatedPartsCost Decimal?     @db.Decimal(10, 2)
+  /// Discount given when the customer paid (finalCost is already after it); null = none recorded
+  paidDiscount       Decimal?     @db.Decimal(10, 2)
+  paidDiscountById   String?
   estimatedTotal     Decimal?     @db.Decimal(10, 2)
   actualLaborCost    Decimal?     @db.Decimal(10, 2)
   approvedAt         DateTime?
@@ -1007,6 +1010,8 @@ model ShopSettings {
   autoGenerateBarcode     Boolean  @default(false)
   autoPrint               Boolean  @default(false)
   lowStockAlert           Int      @default(5)
+  /// Most a non-owner may take off a repair bill at pickup, % of its price (null = no limit)
+  staffDiscountLimitPercent Int?
   repairWarrantyText      String?
   paymentQrUrl            String?
   showTaxId               Boolean  @default(true)
@@ -1134,6 +1139,10 @@ model RepairPart {
   sellPrice        Decimal?  @db.Decimal(10, 2) // only set when chargeToCustomer=true
   productName      String? // snapshot of product.name at add time
   chargeToCustomer Boolean   @default(false) // true = sellPrice billed on top of repair price
+  /// Given free with the repair (e.g. a screen protector): stock and cost count, the customer pays
+  /// nothing; the receipt shows it as a free item worth freebieValue (its normal price then)
+  isFreebie        Boolean   @default(false)
+  freebieValue     Decimal?  @db.Decimal(10, 2)
   isVoided         Boolean   @default(false) // soft delete
   voidedAt         DateTime?
 
