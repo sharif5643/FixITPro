@@ -881,7 +881,9 @@ export class RepairsService {
 
       // Snapshot prices at add time
       const costPrice        = Number(product.costPrice ?? 0);
-      const chargeToCustomer = dto.chargeToCustomer ?? false;
+      const isFreebie        = dto.freebie === true;
+      // A freebie is never charged, whatever else was sent
+      const chargeToCustomer = !isFreebie && (dto.chargeToCustomer ?? false);
       // sellPrice = 0 by default; only set when chargeToCustomer=true (extra line item on customer bill)
       const sellPrice = chargeToCustomer
         ? (dto.price !== undefined ? dto.price : Number(product.price ?? 0))
@@ -897,6 +899,8 @@ export class RepairsService {
           costPrice,
           sellPrice,
           chargeToCustomer,
+          isFreebie,
+          freebieValue:    isFreebie ? Number(product.price ?? 0) : null,
         },
       });
 
@@ -927,6 +931,7 @@ export class RepairsService {
         productName:      product.name,
         quantity:         dto.quantity,
         chargeToCustomer: dto.chargeToCustomer ?? false,
+        freebie:          dto.freebie === true,
         ticketNumber:     (repair as any).ticketNumber,
       },
     });
@@ -1012,7 +1017,7 @@ export class RepairsService {
     return this.findOne(repairId);
   }
 
-  async processPayment(repairId: string, dto: RepairPaymentDto, userId: string, tenantId?: string | null) {
+  async processPayment(repairId: string, dto: RepairPaymentDto, userId: string, tenantId?: string | null, role?: string) {
     const activeShift = await this.prisma.shift.findFirst({
       where: activeShiftWhere(userId),
       select: { id: true },
@@ -1028,6 +1033,7 @@ export class RepairsService {
       select: {
         id: true, status: true, paymentStatus: true,
         estimatedTotal: true, finalCost: true, estimateCost: true, deposit: true,
+        branch: { select: { tenantId: true } },
       },
     });
 
@@ -1041,9 +1047,24 @@ export class RepairsService {
       throw new BadRequestException('งานซ่อมนี้ชำระเงินแล้ว');
     }
 
-    const total = dto.finalCost != null
+    const price = dto.finalCost != null
       ? Number(dto.finalCost)
       : Number(repair.estimatedTotal ?? repair.finalCost ?? repair.estimateCost ?? 0);
+    // A deal agreed at pickup comes off the price; finalCost (what is owed) is after it
+    const discount = Math.round(Number(dto.discount ?? 0) * 100) / 100;
+    if (discount > 0) {
+      if (discount > price) throw new BadRequestException('ส่วนลดมากกว่าราคาซ่อม');
+      if (role !== 'OWNER' && role !== 'SUPER_ADMIN') {
+        const shopId = repair.branch?.tenantId ?? tenantId ?? null;
+        const limit = shopId
+          ? (await this.prisma.shopSettings.findFirst({ where: { tenantId: shopId }, select: { staffDiscountLimitPercent: true } }))?.staffDiscountLimitPercent
+          : null;
+        if (limit != null && discount > Math.floor(price * limit) / 100) {
+          throw new BadRequestException(`ลดได้ไม่เกิน ${limit}% ของราคา (${Math.floor(price * limit) / 100} บาท) — ให้เจ้าของร้านเป็นคนรับเงิน`);
+        }
+      }
+    }
+    const total = Math.round((price - discount) * 100) / 100;
     const deposit = Number(repair.deposit ?? 0);
     const balance = Math.max(0, total - deposit);
 
@@ -1074,6 +1095,8 @@ export class RepairsService {
           deliveredAt:   new Date(),
           finalCost:     total,
           paymentShiftId: activeShift.id,
+          paidDiscount:  discount > 0 ? discount : null,
+          paidDiscountById: discount > 0 ? userId : null,
         },
       });
 
@@ -1095,7 +1118,7 @@ export class RepairsService {
         action:     'REPAIR_PAYMENT',
         entityType: 'Repair',
         entityId:   repairId,
-        afterData:  { finalCost: total, paymentMethod: dto.paymentMethod, amountPaid: received, tendered: dto.amountPaid },
+        afterData:  { finalCost: total, ...(discount > 0 ? { price, discount } : {}), paymentMethod: dto.paymentMethod, amountPaid: received, tendered: dto.amountPaid },
       });
 
       // Record CASH repair payment in Cash Drawer ledger (IN)
@@ -1189,6 +1212,7 @@ export class RepairsService {
       select: {
         id: true, ticketNumber: true, status: true, paymentStatus: true,
         paymentMethod: true, paidAmount: true, paidAt: true, paymentShiftId: true,
+        finalCost: true, paidDiscount: true,
         branchId: true, branch: { select: { tenantId: true } },
       },
     });
@@ -1234,6 +1258,10 @@ export class RepairsService {
           paymentShiftId: null,
           status: 'COMPLETED',
           deliveredAt: null,
+          // A pickup discount belonged to that payment: the price goes back to before it
+          ...(repair.paidDiscount != null
+            ? { finalCost: Number(repair.finalCost ?? 0) + Number(repair.paidDiscount), paidDiscount: null, paidDiscountById: null }
+            : {}),
         },
         include: REPAIR_INCLUDE,
       });

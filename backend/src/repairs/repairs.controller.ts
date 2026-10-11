@@ -291,8 +291,9 @@ export class RepairsController {
     @Body() dto: RepairPaymentDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string,
   ) {
-    return this.repairsService.processPayment(id, dto, userId, tenantId);
+    return this.repairsService.processPayment(id, dto, userId, tenantId, role);
   }
 
   @Post(':id/reverse-payment')

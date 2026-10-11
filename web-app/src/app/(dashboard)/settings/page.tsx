@@ -45,6 +45,8 @@ const settingsSchema = z.object({
   autoGenerateBarcode: z.boolean(),
   autoPrint:           z.boolean(),
   lowStockAlert:       z.coerce.number().min(0),
+  // '' = no limit; else the most a non-owner may take off a repair at pickup, in %
+  staffDiscountLimitPercent: z.string().optional(),
   repairWarrantyText:  z.string().optional(),
   paymentQrUrl:        z.string().optional(),
   promptpayId:         z.string().optional(),
@@ -137,6 +139,7 @@ export default function SettingsPage() {
       autoGenerateBarcode: false,
       autoPrint:           false,
       lowStockAlert:       5,
+      staffDiscountLimitPercent: '',
       repairWarrantyText:  '',
       paymentQrUrl:        '',
       promptpayId:         '',
@@ -178,6 +181,7 @@ export default function SettingsPage() {
         autoGenerateBarcode: settings.autoGenerateBarcode,
         autoPrint:           settings.autoPrint,
         lowStockAlert:       settings.lowStockAlert,
+        staffDiscountLimitPercent: settings.staffDiscountLimitPercent != null ? String(settings.staffDiscountLimitPercent) : '',
         repairWarrantyText:  settings.repairWarrantyText  ?? '',
         paymentQrUrl:        settings.paymentQrUrl        ?? '',
         promptpayId:         settings.promptpayId         ?? '',
@@ -206,6 +210,9 @@ export default function SettingsPage() {
         repairWarrantyText: data.repairWarrantyText  || null,
         paymentQrUrl:       data.paymentQrUrl        || null,
         promptpayId:        data.promptpayId         || null,
+        staffDiscountLimitPercent: data.staffDiscountLimitPercent?.trim()
+          ? Math.min(100, Math.max(0, Math.round(Number(data.staffDiscountLimitPercent))))
+          : null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
@@ -709,6 +716,16 @@ export default function SettingsPage() {
                     <Input type="number" min={0} step={1} placeholder="5" {...register('lowStockAlert')} />
                     <p className="text-xs text-slate-400">
                       สินค้าที่มีสต็อกต่ำกว่าจำนวนนี้จะแสดงในรายงาน Low Stock
+                    </p>
+                  </div>
+                </SectionCard>
+
+                <SectionCard title="ส่วนลดตอนรับเครื่อง" description="พนักงานลดราคางานซ่อมได้ไม่เกินเท่าไร (เจ้าของร้านลดได้ไม่จำกัด)" icon={Bell}>
+                  <div className="space-y-1.5 max-w-xs">
+                    <Label>ลดได้ไม่เกิน (% ของราคาซ่อม)</Label>
+                    <Input type="number" min={0} max={100} step={1} placeholder="ว่าง = ไม่จำกัด" {...register('staffDiscountLimitPercent')} />
+                    <p className="text-xs text-slate-400">
+                      เช่น 10 = งาน 1,200 บาท พนักงานลดได้ไม่เกิน 120 บาท · ทุกครั้งที่ลด ระบบจดว่าใครลด
                     </p>
                   </div>
                 </SectionCard>

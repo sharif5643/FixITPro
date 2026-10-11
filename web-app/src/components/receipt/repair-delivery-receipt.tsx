@@ -32,9 +32,14 @@ function calcDelivery(repair: Repair) {
   const paidAmount   = Number(repair.paidAmount ?? 0)
   const change       = Math.max(0, paidAmount - remaining)
   const chargedParts = (repair.parts ?? []).filter(p => !p.isVoided && p.chargeToCustomer)
+  // Given free with the repair: shown with what they are worth, never charged
+  const freeParts    = (repair.parts ?? []).filter(p => !p.isVoided && p.isFreebie)
+  // A discount given at pickup: finalCost is already after it
+  const discount     = Number(repair.paidDiscount ?? 0)
+  const price        = finalCost + discount
   const isPartial    = (repair as any).paymentStatus === 'PARTIAL'
   const outstanding  = isPartial ? Math.max(0, remaining - paidAmount) : 0
-  return { finalCost, deposit, remaining, paidAmount, change, chargedParts, isPartial, outstanding }
+  return { finalCost, deposit, remaining, paidAmount, change, chargedParts, freeParts, discount, price, isPartial, outstanding }
 }
 
 // ── Thermal layout (58mm / 80mm) ─────────────────────────────────────────────────
@@ -50,7 +55,7 @@ function ThermalDeliveryReceipt({ repair, paperWidth, settings, copyType }: {
   const shopPhone     = settings?.shopPhone    || ''
   const receiptFooter = settings?.receiptFooter || 'ขอบคุณที่ใช้บริการ'
 
-  const { finalCost, deposit, remaining, paidAmount, change, chargedParts, isPartial, outstanding } = calcDelivery(repair)
+  const { finalCost, deposit, remaining, paidAmount, change, chargedParts, freeParts, discount, price, isPartial, outstanding } = calcDelivery(repair)
   const payLabel = PM[repair.paymentMethod ?? ''] ?? repair.paymentMethod ?? ''
   const dateStr  = fmtDate(repair.paidAt ?? repair.deliveredAt ?? new Date().toISOString())
 
@@ -103,8 +108,27 @@ function ThermalDeliveryReceipt({ repair, paperWidth, settings, copyType }: {
         </>
       )}
 
+      {freeParts.length > 0 && (
+        <>
+          <Divider />
+          <p className="font-bold text-[10px] mb-0.5">ของแถม</p>
+          {freeParts.map((p) => {
+            const name  = p.product?.name ?? p.productName ?? 'ของแถม'
+            const worth = Number(p.freebieValue ?? 0) * p.quantity
+            return (
+              <div key={p.id} className="flex justify-between gap-1 text-[9px]">
+                <span className="truncate">{name} ×{p.quantity}</span>
+                <span className="tabular-nums shrink-0">แถมฟรี{worth > 0 ? ` (มูลค่า ฿${worth.toLocaleString('th-TH')})` : ''}</span>
+              </div>
+            )
+          })}
+        </>
+      )}
+
       <Divider />
-      <Row label="ค่าซ่อมรวม" value={`฿${finalCost.toLocaleString('th-TH')}`} />
+      {discount > 0 && <Row label="ค่าซ่อม" value={`฿${price.toLocaleString('th-TH')}`} />}
+      {discount > 0 && <Row label="ส่วนลด" value={`-฿${discount.toLocaleString('th-TH')}`} />}
+      <Row label={discount > 0 ? 'ค่าซ่อมสุทธิ' : 'ค่าซ่อมรวม'} value={`฿${finalCost.toLocaleString('th-TH')}`} />
       {deposit > 0 && <Row label="มัดจำชำระแล้ว" value={`-฿${deposit.toLocaleString('th-TH')}`} />}
       <div className="flex justify-between gap-1 text-[11px] font-bold mt-0.5">
         <span>ยอดทั้งหมด</span>
@@ -152,7 +176,7 @@ function A4DeliveryReceipt({ repair, settings, copyType }: {
   const shopPhone     = settings?.shopPhone    || ''
   const receiptFooter = settings?.receiptFooter || 'ขอบคุณที่ใช้บริการ'
 
-  const { finalCost, deposit, remaining, paidAmount, change, chargedParts, isPartial, outstanding } = calcDelivery(repair)
+  const { finalCost, deposit, remaining, paidAmount, change, chargedParts, freeParts, discount, price, isPartial, outstanding } = calcDelivery(repair)
   const payLabel = PM[repair.paymentMethod ?? ''] ?? repair.paymentMethod ?? ''
   const dateStr  = fmtDate(repair.paidAt ?? repair.deliveredAt ?? new Date().toISOString())
 
@@ -234,10 +258,39 @@ function A4DeliveryReceipt({ repair, settings, copyType }: {
         </div>
       )}
 
+      {/* Freebies */}
+      {freeParts.length > 0 && (
+        <div className="mb-6">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">ของแถม</p>
+          {freeParts.map((p) => {
+            const name  = p.product?.name ?? p.productName ?? 'ของแถม'
+            const worth = Number(p.freebieValue ?? 0) * p.quantity
+            return (
+              <div key={p.id} className="flex justify-between border-b border-slate-50 py-2 text-sm">
+                <span className="text-slate-800">{name} ×{p.quantity}</span>
+                <span className="font-semibold text-emerald-600">แถมฟรี{worth > 0 ? ` (มูลค่า ${formatThaiMoney(worth)})` : ''}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* Cost summary */}
       <div className="mb-6 border border-slate-100 rounded-xl p-4 space-y-2 text-sm">
+        {discount > 0 && (
+          <>
+            <div className="flex justify-between text-slate-600">
+              <span>ค่าซ่อม</span>
+              <span className="tabular-nums">{formatThaiMoney(price)}</span>
+            </div>
+            <div className="flex justify-between text-rose-600">
+              <span>ส่วนลด</span>
+              <span className="tabular-nums">-{formatThaiMoney(discount)}</span>
+            </div>
+          </>
+        )}
         <div className="flex justify-between text-slate-600">
-          <span>ค่าซ่อมรวม</span>
+          <span>{discount > 0 ? 'ค่าซ่อมสุทธิ' : 'ค่าซ่อมรวม'}</span>
           <span className="tabular-nums">{formatThaiMoney(finalCost)}</span>
         </div>
         {deposit > 0 && (

@@ -21,4 +21,8 @@ export class AddRepairPartDto {
   @Min(0)
   @Max(1_000_000)
   price?: number;   // sellPrice override — only used when chargeToCustomer=true
+
+  @IsOptional()
+  @IsBoolean()
+  freebie?: boolean;   // given free with the repair: shown on the receipt, never charged
 }

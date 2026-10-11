@@ -17,6 +17,7 @@ export interface ShopSettings {
   autoGenerateBarcode: boolean
   autoPrint: boolean
   lowStockAlert: number
+  staffDiscountLimitPercent?: number | null  // most a non-owner may take off a repair at pickup, %
   repairWarrantyText?: string | null
   paymentQrUrl?: string | null
   showTaxId: boolean
@@ -560,6 +561,8 @@ export interface RepairPart {
   sellPrice: number | null      // extra customer charge — only set when chargeToCustomer=true
   productName: string | null    // snapshot of product.name at add time
   chargeToCustomer: boolean     // true = sellPrice is billed on top of repair price
+  isFreebie?: boolean           // given free: the receipt shows it with freebieValue
+  freebieValue?: number | null  // the part's normal price when it was given
   isVoided: boolean
   voidedAt: string | null
   productId: string
@@ -616,6 +619,7 @@ export interface Repair {
     | 'CANCELLED'
   estimateCost?: number
   finalCost?: number
+  paidDiscount?: number | null   // taken off when the customer paid; finalCost is after it
   deposit: number
   note?: string
   estimatedLaborCost?: number

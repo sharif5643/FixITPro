@@ -24,6 +24,8 @@ import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
 import { localDay } from '@/lib/repair-batch'
 import { RepairNextStep } from '@/components/repairs/repair-next-step'
+import { PART_MODES, partModeBody, partModeLabel, type PartMode } from '@/components/repairs/part-mode-picker'
+import { PickupDiscount } from '@/components/repairs/pickup-discount'
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
@@ -96,6 +98,8 @@ interface ProductResult {
   name: string
   sku: string
   stock: number
+  // This branch's stock (sent when the repair's branch is passed); parts come from it
+  branchQuantity?: number | null
   costPrice: number | string
   price: number | string
 }
@@ -117,6 +121,11 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
   // Same starting price as the web and the API: the quoted total, else the final cost, else the estimate
   const [finalCost, setFinalCost]         = useState(String(repair.estimatedTotal ?? repair.finalCost ?? repair.estimateCost ?? 0))
+  // A discount promised when the job was taken in is offered at handover (it used to be dropped)
+  const [discount, setDiscount]           = useState(() => {
+    const d = Math.min(Number(repair.discount ?? 0), Number(repair.estimatedTotal ?? repair.finalCost ?? repair.estimateCost ?? 0))
+    return d > 0 ? String(d) : ''
+  })
   // UX-2: confirm dialog state before irreversible delivery + payment
   const [confirmDeliverOpen, setConfirmDeliverOpen] = useState(false)
   const [amountPaid, setAmountPaid]       = useState('')
@@ -130,12 +139,14 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const [addPayNote, setAddPayNote]       = useState('')
   const [partsSearch, setPartsSearch]     = useState('')
   const [partsQty, setPartsQty]           = useState<Record<string, number>>({})
-  const [partsCharge, setPartsCharge]     = useState<Record<string, boolean>>({})
+  const [partsMode, setPartsMode]         = useState<Record<string, PartMode>>({})
   const [partsPrice, setPartsPrice]       = useState<Record<string, string>>({})
 
   const qc = useQueryClient()
 
-  const finalNum      = Number(finalCost) || 0
+  const priceNum      = Number(finalCost) || 0
+  const discountNum   = Math.max(0, Number(discount) || 0)
+  const finalNum      = Math.max(0, priceNum - discountNum)
   const deposit       = repair.deposit ?? 0
   const remaining     = Math.max(0, finalNum - deposit)
   const paidNum       = Number(amountPaid) || 0
@@ -175,26 +186,29 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   })
   const own = useTechOwnership((repairDetail ?? repair) as any)
 
+  const modelHint = (repair.deviceModel ?? '').trim()
   const { data: productResults = [] } = useQuery<ProductResult[]>({
-    queryKey: ['products-search', partsSearch],
+    queryKey: ['products-search', partsSearch.trim() || modelHint, repair.branchId ?? ''],
     queryFn: async () => {
-      if (!partsSearch.trim()) return []
-      return (await api.get('/products', { params: { search: partsSearch } })).data
+      // Nothing typed yet: parts named after this device's model first (จอ / ฟิล์ม iPhone 11)
+      const q = partsSearch.trim() || modelHint
+      if (!q) return []
+      return (await api.get('/products', { params: { search: q, ...(repair.branchId ? { branchId: repair.branchId } : {}) } })).data
     },
-    enabled: partsSearch.trim().length > 0,
+    enabled: panelTab === 'parts' && (partsSearch.trim().length > 0 || modelHint.length > 0),
     staleTime: 30_000,
   })
 
   const addPartMutation = useMutation({
     // Same options as the web: a part is cost only, unless it is charged to the customer at a price
-    mutationFn: ({ productId, quantity, chargeToCustomer, price }: { productId: string; quantity: number; chargeToCustomer?: boolean; price?: number }) =>
-      api.post(`/repairs/${repair.id}/parts`, { productId, quantity, ...(chargeToCustomer ? { chargeToCustomer: true, ...(price !== undefined ? { price } : {}) } : {}) }),
+    mutationFn: ({ productId, quantity, mode, price }: { productId: string; quantity: number; mode: PartMode; price?: number }) =>
+      api.post(`/repairs/${repair.id}/parts`, { productId, quantity, ...partModeBody(mode, price) }),
     onSuccess: () => {
-      toast.success('เพิ่มอะไหล่สำเร็จ')
+      toast.success('เบิกอะไหล่สำเร็จ')
       qc.invalidateQueries({ queryKey: ['repair-detail', repair.id] })
       setPartsSearch('')
       setPartsQty({})
-      setPartsCharge({})
+      setPartsMode({})
       setPartsPrice({})
     },
     onError: (err: any) => {
@@ -251,7 +265,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
     mutationFn: () =>
       api.post(`/repairs/${repair.id}/payment`, {
         paymentMethod,
-        finalCost: finalNum,
+        finalCost: priceNum,
+        ...(discountNum > 0 ? { discount: discountNum } : {}),
         amountPaid: effectivePaid,
         warrantyDays: warrantyDaysValue(warrantyDays),
         ...(payLater && owed > 0 ? { allowPartial: true } : {}),
@@ -519,10 +534,17 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                   />
                 </div>
 
+                <PickupDiscount value={discount} onChange={setDiscount} price={priceNum} size="lg" />
+
                 <div className="bg-slate-50 rounded-xl p-3 text-sm space-y-1.5">
                   <div className="flex justify-between text-slate-500">
-                    <span>ค่าซ่อม</span><span>{formatThaiMoney(finalNum)}</span>
+                    <span>ค่าซ่อม</span><span>{formatThaiMoney(priceNum)}</span>
                   </div>
+                  {discountNum > 0 && (
+                    <div className="flex justify-between text-rose-600">
+                      <span>ส่วนลด</span><span>-{formatThaiMoney(discountNum)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-slate-500">
                     <span>มัดจำ</span><span>-{formatThaiMoney(deposit)}</span>
                   </div>
@@ -650,6 +672,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                           <p className="text-sm font-semibold text-slate-900 truncate">{part.product.name}</p>
                           <p className="text-xs text-slate-400">
                             {part.quantity} ชิ้น × {formatThaiMoney(Number(part.price))}
+                            {' · '}<span className={partModeLabel(part).cls}>{partModeLabel(part).text}</span>
                           </p>
                         </div>
                         <p className="text-sm font-bold text-slate-700 tabular-nums shrink-0">
@@ -701,7 +724,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                         type="text"
                         value={partsSearch}
                         onChange={(e) => setPartsSearch(e.target.value)}
-                        placeholder="ค้นชื่อ / SKU / บาร์โค้ด"
+                        placeholder={modelHint ? `ค้นชื่อ / SKU (ตอนนี้แสดงของ ${modelHint})` : 'ค้นชื่อ / SKU / บาร์โค้ด'}
                         className="w-full h-11 pl-9 pr-9 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                       {partsSearch && (
@@ -717,26 +740,38 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
 
                     {productResults.slice(0, 8).map((product) => {
                       const qty = partsQty[product.id] ?? 1
+                      const mode = partsMode[product.id] ?? 'use'
+                      const stockQty = product.branchQuantity ?? product.stock
                       return (
                         <div key={product.id} className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 space-y-2">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-slate-900 truncate">{product.name}</p>
                             <p className="text-xs text-slate-400">
-                              {product.sku} · คงเหลือ <span className={product.stock > 0 ? 'text-slate-500' : 'text-red-500'}>{product.stock}</span>
+                              {product.sku} · คงเหลือ <span className={stockQty > 0 ? 'text-slate-500' : 'text-red-500 font-semibold'}>{stockQty > 0 ? stockQty : 'หมด'}</span>
                               {canViewCost && <>{' · '}ทุน {formatThaiMoney(Number(product.costPrice))}</>}
                             </p>
                           </div>
-                          <label className="flex items-center gap-2 text-xs text-slate-600">
-                            <input type="checkbox" checked={!!partsCharge[product.id]}
-                              onChange={(e) => setPartsCharge((m) => ({ ...m, [product.id]: e.target.checked }))} className="h-4 w-4" />
-                            คิดเงินลูกค้า
-                            {partsCharge[product.id] && (
+                          {/* What the customer sees: part of the job, a freebie, or an extra charge */}
+                          <div className="grid grid-cols-3 gap-1">
+                            {PART_MODES.map((m) => (
+                              <button key={m.value} type="button"
+                                onClick={() => setPartsMode((pm) => ({ ...pm, [product.id]: m.value }))}
+                                className={`h-9 rounded-lg text-xs font-semibold border ${mode === m.value
+                                  ? m.value === 'free' ? 'border-emerald-600 bg-emerald-600 text-white' : m.value === 'charge' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-700 bg-slate-700 text-white'
+                                  : 'border-slate-200 text-slate-600'}`}>
+                                {m.label}
+                              </button>
+                            ))}
+                          </div>
+                          {mode === 'charge' && (
+                            <label className="flex items-center gap-2 text-xs text-slate-600">
+                              ราคาคิดลูกค้า
                               <input type="number" inputMode="numeric" min={0}
                                 value={partsPrice[product.id] ?? String(Number(product.price ?? 0))}
                                 onChange={(e) => setPartsPrice((m) => ({ ...m, [product.id]: e.target.value }))}
                                 className="ml-auto h-8 w-24 rounded-lg border border-slate-200 px-2 text-right text-sm" aria-label="ราคาขายให้ลูกค้า" />
-                            )}
-                          </label>
+                            </label>
+                          )}
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => setPartsQty((prev) => ({ ...prev, [product.id]: Math.max(1, (prev[product.id] ?? 1) - 1) }))}
@@ -746,24 +781,23 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                             </button>
                             <span className="w-6 text-center text-sm font-bold tabular-nums">{qty}</span>
                             <button
-                              onClick={() => setPartsQty((prev) => ({ ...prev, [product.id]: Math.min(product.stock, (prev[product.id] ?? 1) + 1) }))}
+                              onClick={() => setPartsQty((prev) => ({ ...prev, [product.id]: Math.min(stockQty, (prev[product.id] ?? 1) + 1) }))}
                               className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-600 active:bg-slate-100"
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => {
-                                const charge = !!partsCharge[product.id]
                                 const p = partsPrice[product.id]
-                                addPartMutation.mutate({ productId: product.id, quantity: qty, chargeToCustomer: charge,
-                                  price: charge && p !== undefined && p !== '' ? Number(p) : undefined })
+                                addPartMutation.mutate({ productId: product.id, quantity: qty, mode,
+                                  price: mode === 'charge' && p !== undefined && p !== '' ? Number(p) : undefined })
                               }}
-                              disabled={product.stock <= 0 || addPartMutation.isPending}
+                              disabled={stockQty <= 0 || addPartMutation.isPending}
                               className="flex-1 h-8 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50 active:bg-blue-700 flex items-center justify-center gap-1"
                             >
                               {addPartMutation.isPending
                                 ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                : <><Plus className="h-3.5 w-3.5" />เพิ่ม</>}
+                                : <><Plus className="h-3.5 w-3.5" />เบิก</>}
                             </button>
                           </div>
                         </div>

@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsNumber,
   IsIn,
+  IsInt,
   Min,
   Max,
   MaxLength,
@@ -98,6 +99,14 @@ export class UpdateSettingsDto {
   @IsNumber()
   @Min(0)
   lowStockAlert?: number;
+
+  /** Most a non-owner may take off a repair bill at pickup, % of its price; null = no limit */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  staffDiscountLimitPercent?: number | null;
 
   @IsOptional()
   @IsString()
