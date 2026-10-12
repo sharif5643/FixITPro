@@ -440,4 +440,28 @@ FROM "SaleItem" si JOIN "Sale" s ON s.id = si."saleId" JOIN "Branch" b ON b.id =
 WHERE s."createdAt" > now() - interval '90 days' AND s.status::text <> 'VOIDED' AND si."costPrice" > 0
   AND si.total < si."costPrice" * si.quantity GROUP BY 1 ORDER BY 1;
 
+\echo '24h. Sale lines sold below cost (last 90 days): what they were'
+SELECT b."tenantId", s."createdAt"::date AS day, s."receiptNumber", left(p.name, 40) AS product, si.quantity, si.price, si.total,
+  si."costPrice" AS cost_each_at_sale, p."costPrice" AS cost_now, p.price AS price_now
+FROM "SaleItem" si JOIN "Sale" s ON s.id = si."saleId" JOIN "Branch" b ON b.id = s."branchId" JOIN "Product" p ON p.id = si."productId"
+WHERE s."createdAt" > now() - interval '90 days' AND s.status::text <> 'VOIDED' AND si."costPrice" > 0
+  AND si.total < si."costPrice" * si.quantity ORDER BY (si."costPrice" * si.quantity - si.total) DESC LIMIT 10;
+\echo '24i. Products with serial / IMEI whose stock and in-stock serials differ'
+SELECT p."tenantId", left(p.name, 40) AS product, coalesce(t.total, 0) AS units, coalesce(sn.n, 0) AS serials_in_stock
+FROM "Product" p
+LEFT JOIN (SELECT "productId", sum(quantity) AS total FROM "BranchStock" GROUP BY 1) t ON t."productId" = p.id
+LEFT JOIN (SELECT "productId", count(*) AS n FROM "SerialNumber" WHERE status::text = 'IN_STOCK' GROUP BY 1) sn ON sn."productId" = p.id
+WHERE p."hasSerial" AND p."isActive" AND coalesce(t.total, 0) <> coalesce(sn.n, 0) ORDER BY 1, 2;
+\echo '24j. Busiest shop: stock rows with no movement at all — when were they created and how much stock'
+SELECT p."createdAt"::date AS product_created, count(*) AS rows, sum(bs.quantity) AS units
+FROM "BranchStock" bs JOIN "Branch" b ON b.id = bs."branchId" JOIN "Product" p ON p.id = bs."productId"
+WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp'
+  AND NOT EXISTS (SELECT 1 FROM "StockMovement" m WHERE m."branchId" = bs."branchId" AND m."productId" = bs."productId")
+GROUP BY 1 ORDER BY 1;
+\echo '24k. Busiest shop: audit trail of stock that came in without a movement (product created / enrolled / set)'
+SELECT al.action, count(*) AS times, min(al."createdAt")::date AS first, max(al."createdAt")::date AS last
+FROM "AuditLog" al WHERE al.action IN ('PRODUCT_CREATED', 'BRANCH_STOCK_ENROLLED', 'STOCK_ADJUSTED', 'DATA_IMPORT', 'PRODUCTS_IMPORTED')
+  AND al."actorId" IN (SELECT id FROM "User" WHERE "tenantId" = 'cmsc05do8001u7i29q3p5x6zp')
+GROUP BY 1 ORDER BY 1;
+
 ROLLBACK;
