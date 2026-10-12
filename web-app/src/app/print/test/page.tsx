@@ -134,7 +134,7 @@ function TestPrintContent() {
       </div>
 
       <div className="flex justify-center p-4 print-mid">
-        <div className="bg-white shadow-md print-wrapper font-mono text-[11px] leading-relaxed" style={{ width: `${lineW}px` }}>
+        <div className="bg-white shadow-md print-wrapper thermal-receipt text-[11px] leading-relaxed" style={{ width: `${lineW}px` }}>
           {/* Shop header — matches real receipt */}
           <div className="text-center space-y-0.5 pb-2">
             {logoUrl && (

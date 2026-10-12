@@ -304,3 +304,17 @@ html[data-theme-set] .app-side :is(.hover\:bg-slate-100, .hover\:bg-slate-50):ho
 html[data-theme-set] .app-side :is(.border-slate-100, .border-slate-200) {
   border-color: rgb(var(--side-fg) / 0.12) !important;
 }
+
+/* ── Thermal receipts (58 / 80 mm) ────────────────────────────────────────────
+   The same type as the slips printed from the phone / SUNMI (lib/thermal-font.ts).
+   A thermal head prints black or nothing: grey text and light dashed lines below
+   the print threshold vanish, so everything on the slip is solid black. */
+.thermal-receipt {
+  font-family: Roboto, 'Helvetica Neue', Arial, 'Noto Sans Thai', 'Leelawadee UI', Tahoma, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.thermal-receipt,
+.thermal-receipt * {
+  color: #000 !important;
+  border-color: #000 !important;
+}

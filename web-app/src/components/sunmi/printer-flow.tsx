@@ -1,5 +1,6 @@
 'use client'
 
+import { THERMAL_FONT_FAMILY } from '@/lib/thermal-font'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -75,7 +76,8 @@ const P = {
 function ThermalReceiptCard({ data }: { data: ThermalPreviewData }) {
   return (
     <div style={{
-      fontFamily: "'Courier New', Courier, monospace",
+      fontFamily: THERMAL_FONT_FAMILY,
+      fontVariantNumeric: 'tabular-nums',
       fontSize:   P.base,
       lineHeight: 1.4,
       color:      '#000',

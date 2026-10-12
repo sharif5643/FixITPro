@@ -1,5 +1,6 @@
 'use client'
 
+import { THERMAL_FONT_FAMILY } from '@/lib/thermal-font'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Printer, CheckCircle2, XCircle, Bluetooth, RefreshCw } from 'lucide-react'
@@ -29,7 +30,7 @@ const TEST_HTML = `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Courier New', Courier, monospace; font-size: 24px; line-height: 1.4;
+  body { font-family: ${THERMAL_FONT_FAMILY}; font-variant-numeric: tabular-nums; font-size: 24px; line-height: 1.4;
          width: 384px; padding: 8px 12px 16px 12px; color: #000; background: #fff; }
   .c  { text-align: center; }
   .b  { font-weight: bold; }
