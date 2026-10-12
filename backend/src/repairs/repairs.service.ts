@@ -23,6 +23,7 @@ import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
 import { RepairAccountingAdapter } from './repair-accounting.adapter';
 import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
+import { QuickRepairDto } from './dto/quick-repair.dto';
 import { bangkokYmd } from '../common/bangkok-date';
 import { repairTechnicianWhere } from '../permissions/repair-technicians';
 
@@ -295,7 +296,7 @@ export class RepairsService {
     throw new BadRequestException('กรุณาเลือกสาขาก่อนสร้างงานซ่อม หรือยังไม่มีสาขาที่ใช้งานได้ในระบบ');
   }
 
-  async create(dto: CreateRepairDto, actorId?: string, actorName?: string, branchId?: string, tenantId?: string | null) {
+  async create(dto: CreateRepairDto, actorId?: string, actorName?: string, branchId?: string, tenantId?: string | null, opts?: { quiet?: boolean }) {
     const effectiveBranchId = await this.resolveEffectiveBranchId(branchId, tenantId);
     await this.assertBranchActive(effectiveBranchId);
     if (dto.technicianId) await this.assertAssignableTechnician(dto.technicianId, tenantId);
@@ -381,6 +382,9 @@ export class RepairsService {
         deviceImei:   dto.deviceImei,
       },
     });
+    // A job recorded after the fact (already repaired and handed back) tells no one it came in
+    if (opts?.quiet) return repair;
+
     if (dto.technicianId) {
       await this.auditLog.log({
         actorId, actorName,
@@ -810,8 +814,14 @@ export class RepairsService {
     // Guard 1: repair exists + tenant-scoped
     const repair = await this.findOne(repairId, tenantId);
     // C-2 FIX: also block on CANCELLED — adding to a dead repair drains stock with no purpose
-    if (['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(repair.status)) {
+    // A quick job (paid in one step) takes its parts afterwards, used or given free only:
+    // the customer has already paid, so nothing more can be charged on it.
+    const lateParts = (repair as any).partsPending === true && repair.status === 'DELIVERED';
+    if (!lateParts && ['COMPLETED', 'DELIVERED', 'CANCELLED'].includes(repair.status)) {
       throw new BadRequestException('ไม่สามารถเพิ่มอะไหล่หลังงานซ่อมเสร็จหรือยกเลิกแล้ว');
+    }
+    if (lateParts && dto.chargeToCustomer && dto.freebie !== true) {
+      throw new BadRequestException('งานนี้รับเงินไปแล้ว — เบิกได้แบบ "ใช้ซ่อม" หรือ "แถมลูกค้า"');
     }
 
     // Guard 2: repair must belong to a specific branch
@@ -936,7 +946,13 @@ export class RepairsService {
       },
     });
 
-    return this.findOne(repairId);
+    const updated = await this.findOne(repairId);
+    // Already paid: the payment's books are done, so this part's cost is booked on its own
+    const shopId = (repair as any).branch?.tenantId ?? tenantId ?? null;
+    if (lateParts && shopId) {
+      await this.repairAccounting.recordLatePartsCogsJournal(updated as any, shopId, actorId);
+    }
+    return updated;
   }
 
   async removePart(repairId: string, partId: string, tenantId?: string | null, actorId?: string, actorName?: string) {
@@ -944,10 +960,11 @@ export class RepairsService {
     if (tenantId) repairWhere.branch = { tenantId };
     const repairRow = await this.prisma.repair.findFirst({
       where: repairWhere,
-      select: { status: true, branchId: true, ticketNumber: true },
+      select: { id: true, status: true, branchId: true, ticketNumber: true, partsPending: true, branch: { select: { tenantId: true } } },
     });
     if (!repairRow) throw new NotFoundException('Repair not found');
-    if (['COMPLETED', 'DELIVERED'].includes(repairRow.status)) {
+    const lateParts = repairRow.partsPending && repairRow.status === 'DELIVERED';
+    if (!lateParts && ['COMPLETED', 'DELIVERED'].includes(repairRow.status)) {
       throw new BadRequestException('ไม่สามารถลบอะไหล่หลังงานซ่อมเสร็จแล้ว');
     }
 
@@ -1014,7 +1031,129 @@ export class RepairsService {
       },
     });
 
+    // A part taken by mistake on a paid quick job: its booked cost goes back too
+    const shopId = repairRow.branch?.tenantId ?? tenantId ?? null;
+    if (lateParts && shopId) {
+      await this.repairAccounting.recordCogsReversalJournal(
+        { id: repairRow.id, ticketNumber: repairRow.ticketNumber, branchId: repairRow.branchId, parts: [part] } as any,
+        shopId, actorId,
+      );
+    }
+
     return this.findOne(repairId);
+  }
+
+  /**
+   * A repair recorded in one step when the customer pays and takes the device back: no intake
+   * ticket was made at the time (busy counter, details on paper). It is created, finished, handed
+   * over and paid in the current shift, like any repair, and flagged "parts pending" so the parts
+   * really used are taken from stock later (usually in the evening).
+   */
+  async quickPaid(
+    dto: QuickRepairDto,
+    actor: { id: string; name?: string; role?: string },
+    branchId?: string,
+    tenantId?: string | null,
+  ) {
+    if (tenantId) {
+      const settings = await this.prisma.shopSettings.findFirst({ where: { tenantId }, select: { quickCashEnabled: true } });
+      if (!settings?.quickCashEnabled) {
+        throw new ForbiddenException('ร้านยังไม่ได้เปิดใช้ "รับ-จ่ายเงินด่วน" — เปิดได้ที่หน้าตั้งค่า');
+      }
+    }
+    const shift = await this.prisma.shift.findFirst({ where: activeShiftWhere(actor.id), select: { id: true } });
+    if (!shift) throw new BadRequestException('กรุณาเปิดกะก่อนรับเงิน');
+
+    // Phone only: use the customer we already know, or one named after the number
+    let customerId: string | undefined;
+    let customerName = dto.customerName || undefined;
+    const phone = dto.customerPhone || undefined;
+    if (phone && !customerName) {
+      const known = await this.prisma.customer.findFirst({
+        where: { phone, ...(tenantId ? { tenantId } : {}) },
+        select: { id: true },
+      });
+      if (known) customerId = known.id;
+      else customerName = `ลูกค้า ${phone}`;
+    }
+
+    const repair = await this.create({
+      customerId, customerName, customerPhone: phone,
+      deviceBrand: dto.deviceBrand || '-',
+      deviceModel: dto.deviceModel,
+      issue:       dto.issue,
+      estimateCost: dto.price,
+      note:        dto.note,
+      branchId:    dto.branchId,
+    } as CreateRepairDto, actor.id, actor.name, branchId, tenantId, { quiet: true });
+
+    const now = new Date();
+    await this.prisma.repair.update({
+      where: { id: repair.id },
+      data: { status: 'COMPLETED', completedAt: now, quickEntry: true, partsPending: true },
+    });
+
+    try {
+      const paid = await this.processPayment(repair.id, {
+        paymentMethod: dto.paymentMethod,
+        amountPaid:    dto.price,
+        finalCost:     dto.price,
+        ...(dto.warrantyDays ? { warrantyDays: dto.warrantyDays } : {}),
+      } as RepairPaymentDto, actor.id, tenantId, actor.role);
+      await this.auditLog.log({
+        actorId: actor.id, actorName: actor.name,
+        action: 'REPAIR_QUICK_PAID',
+        entityType: 'Repair',
+        entityId: repair.id,
+        afterData: { ticketNumber: repair.ticketNumber, price: dto.price, paymentMethod: dto.paymentMethod, deviceModel: dto.deviceModel, issue: dto.issue },
+      });
+      return paid;
+    } catch (err) {
+      // Never leave a finished, unpaid job behind for money that was not recorded
+      await this.prisma.repair.update({
+        where: { id: repair.id },
+        data: { status: 'CANCELLED', partsPending: false, note: `${dto.note ? dto.note + ' · ' : ''}บันทึกรับเงินด่วนไม่สำเร็จ` },
+      }).catch(() => undefined);
+      throw err;
+    }
+  }
+
+  /** Quick jobs whose parts are still to be taken from stock, newest first. */
+  async partsPending(branchId: string | undefined, tenantId?: string | null) {
+    const rows = await this.prisma.repair.findMany({
+      where: {
+        partsPending: true,
+        status: { not: 'CANCELLED' },
+        ...(branchId ? { branchId } : {}),
+        ...(tenantId ? { branch: { tenantId } } : {}),
+      },
+      orderBy: { deliveredAt: 'desc' },
+      take: 200,
+      select: {
+        id: true, ticketNumber: true, deviceBrand: true, deviceModel: true, issue: true,
+        finalCost: true, deliveredAt: true, branchId: true,
+        customer: { select: { name: true, phone: true } },
+        parts: { where: { isVoided: false }, select: { id: true, productName: true, quantity: true, isFreebie: true } },
+      },
+    });
+    return rows.map((r) => ({ ...r, finalCost: r.finalCost != null ? Number(r.finalCost) : null }));
+  }
+
+  /** Parts for a quick job are done (or none were used): it leaves the "ยังไม่เบิกอะไหล่" list. */
+  async markPartsDone(id: string, actor: { id: string; name?: string }, tenantId?: string | null) {
+    const where: any = { id, partsPending: true };
+    if (tenantId) where.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({ where, select: { id: true, ticketNumber: true, parts: { where: { isVoided: false }, select: { id: true } } } });
+    if (!repair) throw new NotFoundException('ไม่พบงานที่รอเบิกอะไหล่');
+    await this.prisma.repair.update({ where: { id }, data: { partsPending: false } });
+    await this.auditLog.log({
+      actorId: actor.id, actorName: actor.name,
+      action: 'REPAIR_PARTS_DONE',
+      entityType: 'Repair',
+      entityId: id,
+      afterData: { ticketNumber: repair.ticketNumber, parts: repair.parts.length },
+    });
+    return { id, partsPending: false };
   }
 
   async processPayment(repairId: string, dto: RepairPaymentDto, userId: string, tenantId?: string | null, role?: string) {

@@ -818,6 +818,8 @@ export class ReportsService {
           deposits: money.repairDeposits, atPickup: money.repairPickup, debtPayments: money.repairDebtPayments,
         },
         packages: { total: packageRevenue, amount: packageAmount, count: packageSales.length },
+        // money taken at the counter without a bill (quick money in for goods / a service)
+        otherIncome: { total: money.otherIncome, count: money.otherIncomeCount },
         refunds: { total: refundTotal, count: refunds.length },
         voided: { total: voidedTotal, count: voidedSales.length },
         deposits: { total: depositTotal },
@@ -1042,7 +1044,8 @@ export class ReportsService {
       .map(([code, v]) => ({ code, name: v.name, total: v.total }))
       .sort((a, b) => b.total - a.total);
 
-    const grossProfit = posProfit + repairProfit + packageProfit;
+    // Money taken at the counter without a bill has no cost on record: all of it is profit
+    const grossProfit = posProfit + repairProfit + packageProfit + money.otherIncome;
     const netProfit   = grossProfit - totalExpenses;
 
     return {
@@ -1091,6 +1094,7 @@ export class ReportsService {
           };
         }),
       },
+      otherIncome: { revenue: money.otherIncome, count: money.otherIncomeCount },
       package: {
         // face value sold; only the profit (commission) counts as shop revenue
         revenue: packageRevenue,

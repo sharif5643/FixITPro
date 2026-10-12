@@ -10,6 +10,7 @@ import {
   AlertTriangle, Clock, Package, Users, ChevronRight,
   Banknote, Smartphone, CreditCard,
   BarChart2, Award, Receipt,
+  Wallet,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
@@ -27,6 +28,7 @@ interface DailyClosingReport {
     pos: { total: number; count: number; breakdown: Record<string, number> }
     repairs: { total: number; count: number; breakdown: Record<string, number> }
     packages: { total: number; amount: number; count: number }
+    otherIncome?: { total: number; count: number }
     refunds: { total: number; count: number }
     voided: { total: number; count: number }
     deposits: { total: number }
@@ -120,6 +122,7 @@ function exportCSV(data: DailyClosingReport, date: string) {
     ['ขายสินค้า (POS)', String(data.revenue.pos.total)],
     ['รายได้ซ่อม', String(data.revenue.repairs.total)],
     ['ขาย SIM/Net', String(data.revenue.packages.total)],
+    ['รายรับไม่มีบิล', String(data.revenue.otherIncome?.total ?? 0)],
     ['รวมรายได้', String(data.revenue.grandTotal)],
     ['เงินสด', String(data.revenue.cash)],
     ['โอน', String(data.revenue.transfer)],
@@ -539,6 +542,15 @@ export default function DailyClosingReportPage() {
                   icon={Wifi}
                   onClick={() => openDrawer('รายการขาย SIM/Net', packageDrawer)}
                 />
+                {(data.revenue.otherIncome?.total ?? 0) > 0 && (
+                  <MetricCard
+                    label="รายรับไม่มีบิล"
+                    value={formatThaiMoney(data.revenue.otherIncome!.total)}
+                    sub={`${data.revenue.otherIncome!.count} รายการ (รับเงินด่วน)`}
+                    color="text-emerald-700"
+                    icon={Wallet}
+                  />
+                )}
                 <MetricCard
                   label="รวมรายได้"
                   value={formatThaiMoney(data.revenue.grandTotal)}

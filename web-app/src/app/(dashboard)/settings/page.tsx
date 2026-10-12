@@ -47,6 +47,7 @@ const settingsSchema = z.object({
   lowStockAlert:       z.coerce.number().min(0),
   // '' = no limit; else the most a non-owner may take off a repair at pickup, in %
   staffDiscountLimitPercent: z.string().optional(),
+  quickCashEnabled:    z.boolean(),
   repairWarrantyText:  z.string().optional(),
   paymentQrUrl:        z.string().optional(),
   promptpayId:         z.string().optional(),
@@ -140,6 +141,7 @@ export default function SettingsPage() {
       autoPrint:           false,
       lowStockAlert:       5,
       staffDiscountLimitPercent: '',
+      quickCashEnabled:    false,
       repairWarrantyText:  '',
       paymentQrUrl:        '',
       promptpayId:         '',
@@ -156,6 +158,7 @@ export default function SettingsPage() {
   const autoGenerateSku    = watch('autoGenerateSku')
   const autoGenerateBarcode = watch('autoGenerateBarcode')
   const autoPrint          = watch('autoPrint')
+  const quickCashEnabled   = watch('quickCashEnabled')
   const showTaxId          = watch('showTaxId')
   const showLogo           = watch('showLogo')
 
@@ -182,6 +185,7 @@ export default function SettingsPage() {
         autoPrint:           settings.autoPrint,
         lowStockAlert:       settings.lowStockAlert,
         staffDiscountLimitPercent: settings.staffDiscountLimitPercent != null ? String(settings.staffDiscountLimitPercent) : '',
+        quickCashEnabled:    settings.quickCashEnabled ?? false,
         repairWarrantyText:  settings.repairWarrantyText  ?? '',
         paymentQrUrl:        settings.paymentQrUrl        ?? '',
         promptpayId:         settings.promptpayId         ?? '',
@@ -728,6 +732,15 @@ export default function SettingsPage() {
                       เช่น 10 = บิลหรืองานซ่อม 1,200 บาท พนักงานลดได้ไม่เกิน 120 บาท · ทุกครั้งที่ลด ระบบจดว่าใครลด
                     </p>
                   </div>
+                </SectionCard>
+
+                <SectionCard title="รับ-จ่ายเงินด่วน (โมดูลเสริม)" description="ปุ่มบนหน้าขายสำหรับร้านที่ยุ่ง: รับเงินเข้า / เอาเงินออก พร้อมบอกว่าค่าอะไร และรับเงินค่าซ่อมที่ยังไม่มีใบรับในขั้นตอนเดียว" icon={Bell}>
+                  <ToggleSwitch
+                    checked={quickCashEnabled}
+                    onChange={(v) => setValue('quickCashEnabled', v, { shouldDirty: true })}
+                    label="เปิดใช้ รับ-จ่ายเงินด่วน"
+                    description="ขายของ/ค่าบริการนับเป็นยอดขาย · ค่าใช้จ่ายร้านลงเป็นค่าใช้จ่าย · งานซ่อมด่วนให้เบิกอะไหล่ทีหลังที่ปุ่ม &quot;รอเบิก&quot;"
+                  />
                 </SectionCard>
 
                 <SectionCard title="การแจ้งเตือนอัจฉริยะ" description="ปรับแต่ง popup เสียง และช่วงเวลาการแจ้งเตือน" icon={BellRing}>

@@ -508,6 +508,14 @@ export default function ProfitReportPage() {
                   color="bg-teal-500"
                   onClick={() => openDrawer('package')}
                 />
+                {(data.otherIncome?.revenue ?? 0) > 0 && (
+                  <ProfitBar
+                    label={`รายรับไม่มีบิล (${data.otherIncome!.count} รายการ)`}
+                    profit={data.otherIncome!.revenue}
+                    revenue={data.otherIncome!.revenue}
+                    color="bg-emerald-500"
+                  />
+                )}
               </div>
             </div>
 

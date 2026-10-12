@@ -68,7 +68,7 @@ function ThermalDeliveryReceipt({ repair, paperWidth, settings, copyType }: {
   )
 
   return (
-    <div className={`${widthClass} font-mono text-[10px] leading-snug text-black bg-white`}>
+    <div className={`${widthClass} thermal-receipt text-[10px] leading-snug text-black bg-white`}>
       <div className="text-center mb-1">
         <p className="font-bold text-sm">{shopName}</p>
         {shopPhone && <p className="text-[9px]">โทร: {shopPhone}</p>}

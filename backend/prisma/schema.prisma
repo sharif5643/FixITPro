@@ -898,6 +898,10 @@ model Repair {
   /// Discount given when the customer paid (finalCost is already after it); null = none recorded
   paidDiscount       Decimal?     @db.Decimal(10, 2)
   paidDiscountById   String?
+  /// Recorded in one step when the customer paid (no intake ticket at the time)
+  quickEntry         Boolean   @default(false)
+  /// Quick job whose parts have not been taken from stock yet (done in the evening)
+  partsPending       Boolean   @default(false)
   estimatedTotal     Decimal?     @db.Decimal(10, 2)
   actualLaborCost    Decimal?     @db.Decimal(10, 2)
   approvedAt         DateTime?
@@ -1014,6 +1018,8 @@ model ShopSettings {
   lowStockAlert           Int      @default(5)
   /// Most a non-owner may take off a repair bill at pickup, % of its price (null = no limit)
   staffDiscountLimitPercent Int?
+  /// Optional module: quick money in/out buttons and one-step paid repairs on the sale screens
+  quickCashEnabled Boolean @default(false)
   repairWarrantyText      String?
   paymentQrUrl            String?
   showTaxId               Boolean  @default(true)
@@ -2228,6 +2234,8 @@ model ShiftCashMovement {
   amount        Decimal       @db.Decimal(10, 2)
   paymentMethod PaymentMethod @default(CASH)
   reason        String?
+  /// What the money was for (quick money in/out), e.g. INCOME_SERVICE, OWNER_DRAW
+  category      String?
   referenceType String?
   referenceId   String?
   createdAt     DateTime      @default(now())

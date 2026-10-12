@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { CashDrawerSessionStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
@@ -13,7 +14,8 @@ import { OpenShiftDto } from './dto/open-shift.dto';
 import { CloseShiftDto } from './dto/close-shift.dto';
 import { CarrierWalletService } from '../carrier-wallet/carrier-wallet.service';
 import { activeShiftWhere } from './active-shift';
-import { SHIFT_CASH_KIND, movementTotals, refundsOfShiftWhere, supplierPaymentsOfShiftWhere } from './shift-cash';
+import { SHIFT_CASH_KIND, CASH_CATEGORY_IN, CASH_CATEGORY_OUT, movementTotals, refundsOfShiftWhere, supplierPaymentsOfShiftWhere } from './shift-cash';
+import { ExpensesService } from '../expenses/expenses.service';
 import { CashMovementDto } from './dto/cash-movement.dto';
 import { buildShiftLedger, staffMoneyOf } from './shift-ledger';
 
@@ -28,6 +30,7 @@ export class ShiftsService {
     private carrierWalletService: CarrierWalletService,
     private auditLog: AuditLogService,
     private notif: NotificationsService,
+    @Optional() private expenses?: ExpensesService,
   ) {}
 
   private async assertBranchActive(branchId: string) {
@@ -770,6 +773,22 @@ export class ShiftsService {
     const tenantId = shift.user?.tenantId ?? user.tenantId ?? null;
     const out = dto.direction === 'OUT';
     const amount = Math.round(Number(dto.amount) * 100) / 100;
+    if (dto.category) {
+      const allowed: readonly string[] = out ? CASH_CATEGORY_OUT : CASH_CATEGORY_IN;
+      if (!allowed.includes(dto.category)) throw new BadRequestException('หมวดไม่ตรงกับเงินเข้า/ออก');
+    }
+
+    // A shop expense paid from the drawer is an expense (profit, books, shift cash), not a bare movement
+    if (out && dto.category === 'SHOP_EXPENSE') {
+      if (!this.expenses) throw new BadRequestException('บันทึกค่าใช้จ่ายไม่ได้');
+      const expense = await this.expenses.createFromDrawer({
+        amount, description: dto.reason, userId: user.id, branchId: shift.branchId, tenantId,
+      });
+      return {
+        id: expense.id, direction: 'OUT', amount, reason: dto.reason, category: dto.category,
+        createdAt: expense.createdAt, expenseId: expense.id,
+      };
+    }
 
     const movement = await this.prisma.shiftCashMovement.create({
       data: {
@@ -779,6 +798,7 @@ export class ShiftsService {
         amount,
         paymentMethod: 'CASH',
         reason: dto.reason,
+        category: dto.category ?? null,
         createdById: user.id,
         tenantId,
         branchId: shift.branchId,
@@ -790,7 +810,7 @@ export class ShiftsService {
       action: out ? 'SHIFT_CASH_OUT' : 'SHIFT_CASH_IN',
       entityType: 'Shift',
       entityId: shift.id,
-      afterData: { movementId: movement.id, amount, reason: dto.reason },
+      afterData: { movementId: movement.id, amount, reason: dto.reason, category: dto.category ?? null },
     });
     if (out) {
       // Owners hear about cash leaving the drawer
@@ -832,7 +852,7 @@ export class ShiftsService {
       : [];
     const nameOf = new Map(users.map((u) => [u.id, u.name]));
     return rows.map((r) => ({
-      id: r.id, direction: r.direction, amount: Number(r.amount), reason: r.reason,
+      id: r.id, direction: r.direction, amount: Number(r.amount), reason: r.reason, category: r.category,
       createdAt: r.createdAt, createdBy: { id: r.createdById, name: nameOf.get(r.createdById) ?? '-' },
     }));
   }

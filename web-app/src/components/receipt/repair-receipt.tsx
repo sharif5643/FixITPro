@@ -52,7 +52,7 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
     : []
 
   return (
-    <div id="repair-receipt" className={`${widthClass} font-mono text-[11px] leading-relaxed mx-auto bg-white text-gray-900`}>
+    <div id="repair-receipt" className={`${widthClass} thermal-receipt text-[11px] leading-relaxed mx-auto bg-white text-gray-900`}>
       {/* Shop header */}
       <div className="text-center space-y-0.5 pb-2">
         {logoUrl && (

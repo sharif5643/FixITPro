@@ -4,9 +4,10 @@ import { ShiftsService } from './shifts.service';
 import { CarrierWalletModule } from '../carrier-wallet/carrier-wallet.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ExpensesModule } from '../expenses/expenses.module';
 
 @Module({
-  imports:     [CarrierWalletModule, AuditLogModule, NotificationsModule],
+  imports:     [CarrierWalletModule, AuditLogModule, NotificationsModule, ExpensesModule],
   controllers: [ShiftsController],
   providers:   [ShiftsService],
   exports:     [ShiftsService],

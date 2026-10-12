@@ -109,6 +109,29 @@ export class ExpensesService implements OnModuleInit {
 
   async create(dto: CreateExpenseDto, userId: string, role: string, branchId?: string) {
     this.requireRole(role);
+    return this.createRecorded(dto, userId, branchId);
+  }
+
+  /**
+   * Cash a staff member took from the drawer for a shop expense (quick money out at the counter).
+   * Same record, drawer ledger and books as an expense entered by the owner, filed under
+   * "ค่าใช้จ่ายอื่นๆ"; only the role check is left out, since it is money already spent.
+   */
+  async createFromDrawer(p: { amount: number; description: string; userId: string; branchId?: string | null; tenantId?: string | null }) {
+    const cat = await this.prisma.expenseCategory.findFirst({
+      where: { code: 'misc', isActive: true, OR: [{ tenantId: null }, ...(p.tenantId ? [{ tenantId: p.tenantId }] : [])] },
+      orderBy: { tenantId: { sort: 'desc', nulls: 'last' } },
+    }) ?? await this.prisma.expenseCategory.findFirst({
+      where: { isActive: true, OR: [{ tenantId: null }, ...(p.tenantId ? [{ tenantId: p.tenantId }] : [])] },
+    });
+    if (!cat) throw new BadRequestException('ยังไม่มีหมวดค่าใช้จ่าย');
+    const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+    return this.createRecorded({
+      expenseDate: today, amount: p.amount, description: p.description, paymentMethod: 'CASH', categoryId: cat.id,
+    } as CreateExpenseDto, p.userId, p.branchId ?? undefined);
+  }
+
+  private async createRecorded(dto: CreateExpenseDto, userId: string, branchId?: string) {
     const cat = await this.prisma.expenseCategory.findUnique({
       where: { id: dto.categoryId },
     });

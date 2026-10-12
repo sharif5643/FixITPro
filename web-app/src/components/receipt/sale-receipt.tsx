@@ -55,7 +55,7 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
   return (
     <div
       id="sale-receipt"
-      className={`${widthClass} font-mono text-[11px] leading-normal mx-auto bg-white text-black`}
+      className={`${widthClass} thermal-receipt text-[11px] leading-normal mx-auto bg-white text-black`}
     >
       {/* ── Shop header ── */}
       <div className="text-center space-y-0.5 pb-2">

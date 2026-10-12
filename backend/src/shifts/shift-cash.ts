@@ -14,6 +14,15 @@ export const SHIFT_CASH_KIND = {
   REPAIR_PAYMENT_KEPT: 'REPAIR_PAYMENT_KEPT',
 } as const;
 
+/**
+ * What quick money in / out at the counter was for. Income counts in the shop's revenue
+ * ("รายรับไม่มีบิล"); SHOP_EXPENSE is booked as an expense instead of a drawer movement; the
+ * rest only move cash in or out of the drawer.
+ */
+export const CASH_CATEGORY_IN = ['INCOME_PRODUCT', 'INCOME_SERVICE', 'FLOAT_IN', 'OTHER_IN'] as const;
+export const CASH_CATEGORY_OUT = ['SHOP_EXPENSE', 'PURCHASE', 'OWNER_DRAW', 'CUSTOMER_REFUND', 'FLOAT_OUT', 'OTHER_OUT'] as const;
+export const INCOME_CATEGORIES: readonly string[] = ['INCOME_PRODUCT', 'INCOME_SERVICE'];
+
 /** What a repair movement refers to (referenceType): the final payment, the deposit, a debt payment */
 export const REPAIR_MONEY = {
   FINAL: 'REPAIR_FINAL',

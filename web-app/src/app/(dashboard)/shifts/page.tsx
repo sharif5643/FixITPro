@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { BranchQuickPick } from '@/components/layout/branch-context-bar'
+import { PartsPendingReminder } from '@/components/quick-cash/quick-cash-bar'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -735,6 +736,7 @@ export default function ShiftsPage() {
             })}
             className="space-y-4"
           >
+            <PartsPendingReminder />
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="closeBalance">เงินสดจริง ณ ปิดกะ (บาท)</Label>

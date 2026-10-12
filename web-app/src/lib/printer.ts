@@ -1,3 +1,4 @@
+import { THERMAL_FONT_FAMILY } from './thermal-font'
 import type { PrintReceiptOptions } from './sunmi-printer'
 import type { ThermalPreviewData, ThermalLine } from '@/components/sunmi/printer-flow'
 import { format } from 'date-fns'
@@ -135,7 +136,8 @@ const THERMAL_CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { height: fit-content; }
   body {
-    font-family: 'Courier New', Courier, monospace;
+    font-family: ${THERMAL_FONT_FAMILY};
+    font-variant-numeric: tabular-nums;
     font-size: 24px;
     line-height: 1.4;
     width: 384px;
@@ -512,7 +514,8 @@ function makeReceiptThermalCss(px: number): string {
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { height: fit-content; }
   body {
-    font-family: 'Courier New', Courier, monospace;
+    font-family: ${THERMAL_FONT_FAMILY};
+    font-variant-numeric: tabular-nums;
     font-size: ${r(11)}px;
     line-height: 1.5;
     width: ${px}px;

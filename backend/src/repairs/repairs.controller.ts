@@ -31,6 +31,7 @@ import { ReversePaymentDto } from './dto/reverse-payment.dto';
 import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
+import { QuickRepairDto } from './dto/quick-repair.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
@@ -114,6 +115,55 @@ export class RepairsController {
       : (userBranchId ?? undefined);
     const activeOnly = query.activeOnly === 'true';
     return this.repairsService.findAll({ ...query, branchId: effectiveBranchId, activeOnly }, tenantId);
+  }
+
+  /** One step at pickup: create, finish, hand over and take the money for a job with no ticket yet */
+  @Post('quick-paid')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.close')
+  quickPaid(
+    @Body() dto: QuickRepairDto,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
+    @CurrentUser('role') role: string,
+    @CurrentUser('branchId') jwtBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    if (role === 'SUPER_ADMIN' && !tenantId) {
+      throw new ForbiddenException('Super Admin ต้องเข้าข้อมูลผ่าน /super-admin/* เท่านั้น');
+    }
+    const isElevated = role === 'OWNER' || role === 'SUPER_ADMIN';
+    const branchId = isElevated ? (dto.branchId ?? jwtBranchId ?? undefined) : (jwtBranchId ?? undefined);
+    if (!isElevated) dto.branchId = undefined;
+    return this.repairsService.quickPaid(dto, { id: actorId, name: actorName, role }, branchId, tenantId);
+  }
+
+  /** Quick jobs whose parts are still to be taken from stock */
+  @Get('parts-pending')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.edit')
+  partsPending(
+    @Query('branchId') queryBranchId: string | undefined,
+    @CurrentUser('role') role: string,
+    @CurrentUser('branchId') userBranchId: string | null,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    const branchId = (role === 'OWNER' || role === 'SUPER_ADMIN')
+      ? (queryBranchId || undefined)
+      : (userBranchId ?? undefined);
+    return this.repairsService.partsPending(branchId, tenantId);
+  }
+
+  @Patch(':id/parts-done')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.edit')
+  markPartsDone(
+    @Param('id') id: string,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.markPartsDone(id, { id: actorId, name: actorName }, tenantId);
   }
 
   @Get('outstanding')

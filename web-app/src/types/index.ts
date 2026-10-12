@@ -18,6 +18,7 @@ export interface ShopSettings {
   autoPrint: boolean
   lowStockAlert: number
   staffDiscountLimitPercent?: number | null  // most a non-owner may take off a repair at pickup, %
+  quickCashEnabled?: boolean                 // optional module: quick money in/out + one-step paid repairs
   repairWarrantyText?: string | null
   paymentQrUrl?: string | null
   showTaxId: boolean
@@ -996,6 +997,8 @@ export interface ProfitReport {
     revenue: number; partsCost: number; laborCost: number; profit: number; count: number; margin: number
     items: ProfitReportRepairItem[]
   }
+  /** money taken at the counter without a bill (quick money in for goods / a service) */
+  otherIncome?: { revenue: number; count: number }
   package: {
     revenue: number; profit: number; count: number
     items: ProfitReportPackageItem[]
