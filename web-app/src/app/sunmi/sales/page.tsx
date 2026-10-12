@@ -15,6 +15,7 @@ import { SunmiShell } from '@/components/sunmi/sunmi-shell'
 import { SerialPicker } from '@/components/pos/checkout-dialog'
 import { useAppBranch } from '@/hooks/useAppBranch'
 import { AppBranchBar } from '@/components/app/app-branch-bar'
+import { QuickCashBar } from '@/components/quick-cash/quick-cash-bar'
 import { useAppShell } from '@/lib/app-shell'
 import { BarcodeScannerDialog } from '@/components/sunmi/barcode-scanner-dialog'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
@@ -713,6 +714,8 @@ export default function SunmiSalesPage() {
         aboveScroll={
           <div className="bg-slate-100 px-3 pt-2.5 pb-2 space-y-2">
             <AppBranchBar className="rounded-xl" />
+
+            <QuickCashBar disabled={currentShift === null} />
 
             {/* Shift warning */}
             {currentShift === null && (

@@ -5,6 +5,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Clock, Globe, Keyboard, PauseCircle, Play } from 'lucide-react'
+import { QuickCashBar } from '@/components/quick-cash/quick-cash-bar'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -404,6 +405,8 @@ export default function SalesPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)]">
+
+      <QuickCashBar className="mb-3 shrink-0" disabled={!currentShift} />
 
       {/* ── Mobile tab bar (hidden on lg) ───────────────────────────────── */}
       <div className="flex lg:hidden mb-3 rounded-2xl border border-slate-100 dark:border-slate-700/60 bg-white dark:bg-[#1E293B] overflow-hidden shrink-0 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">

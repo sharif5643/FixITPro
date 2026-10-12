@@ -302,6 +302,34 @@ export class RepairAccountingAdapter {
     }
 
     // 3. COGS per active RepairPart — sourceId = repairPart.id (one journal per part)
+    await this.postPartsCogs(repair, tenantId, actorId);
+  }
+
+  /**
+   * COGS for parts taken after the job was paid (a quick job whose parts are taken from stock
+   * later). Idempotent per part, so parts already booked at payment are skipped.
+   */
+  async recordLatePartsCogsJournal(
+    repair:   RepairWithPartsForAccounting,
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
+    if (!await this.isEnabledForTenant(tenantId)) return;
+    try {
+      await this.postPartsCogs(repair, tenantId, actorId);
+    } catch (err) {
+      this.logger.error(
+        `RepairAccountingAdapter.recordLatePartsCogsJournal failed: repairId=${repair.id} ticket=${repair.ticketNumber}`,
+        err,
+      );
+    }
+  }
+
+  private async postPartsCogs(
+    repair:   RepairWithPartsForAccounting,
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
     const activeParts = (repair.parts ?? []).filter((p) => !p.isVoided);
     for (const part of activeParts) {
       const costPrice = this.toDecimal(part.costPrice);

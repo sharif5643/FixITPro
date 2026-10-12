@@ -108,6 +108,11 @@ export class UpdateSettingsDto {
   @Max(100)
   staffDiscountLimitPercent?: number | null;
 
+  /** Optional module: quick money in/out and one-step paid repairs on the sale screens */
+  @IsOptional()
+  @IsBoolean()
+  quickCashEnabled?: boolean;
+
   @IsOptional()
   @IsString()
   repairWarrantyText?: string;

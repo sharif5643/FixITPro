@@ -1,4 +1,5 @@
 import { PrismaService } from '../../database/prisma.service';
+import { INCOME_CATEGORIES } from '../../shifts/shift-cash';
 
 /**
  * One definition of "money for a period", shared by the dashboard, the profit report and the
@@ -10,6 +11,8 @@ import { PrismaService } from '../../database/prisma.service';
  *  - Repairs: money actually received in the period — deposits taken at intake (repair not cancelled),
  *    payments at pickup (fully or partly paid) and later debt payments. Repair costs (parts +
  *    labour) count when the device is handed over and paid for.
+ *  - Money taken at the counter without a bill (quick money in for goods or a service): revenue,
+ *    shown on its own as otherIncome.
  *  - SIM / packages: revenue is the shop's profit (commission); the face value is reported
  *    separately as packageAmount.
  *  - byMethod: money received per payment method, net of refunds paid out. Split-payment sales
@@ -34,6 +37,7 @@ export interface PeriodMoneyRows {
   pickups: (MoneyRow & { amount: number; method: string; cost: number })[];
   debtPayments: (MoneyRow & { amount: number; method: string })[];
   packages: (MoneyRow & { profit: number; amount: number })[];
+  otherIncome: (MoneyRow & { amount: number; method: string })[];
 }
 
 export interface MoneyTotals {
@@ -51,6 +55,8 @@ export interface MoneyTotals {
   packageCount: number;
   packageProfit: number;
   packageAmount: number;
+  otherIncome: number;
+  otherIncomeCount: number;
   totalRevenue: number;
   grossProfit: number;
   byMethod: Record<string, number>;
@@ -67,7 +73,7 @@ export async function loadPeriodMoney(
   const { start, end, branchWhere } = params;
   const inRange = { gte: start, lt: end };
 
-  const [sales, refunds, deposits, pickups, debtPayments, packages] = await Promise.all([
+  const [sales, refunds, deposits, pickups, debtPayments, packages, otherIncome] = await Promise.all([
     prisma.sale.findMany({
       where: { createdAt: inRange, status: { not: 'VOIDED' }, ...branchWhere },
       select: {
@@ -105,6 +111,14 @@ export async function loadPeriodMoney(
         ...(params.tenantId ? { createdBy: { tenantId: params.tenantId } } : {}),
       },
       select: { createdAt: true, profit: true, packageAmount: true, shiftId: true },
+    }),
+    prisma.shiftCashMovement.findMany({
+      where: {
+        createdAt: inRange, kind: 'MANUAL_IN', category: { in: [...INCOME_CATEGORIES] },
+        ...(params.tenantId ? { tenantId: params.tenantId } : {}),
+        ...(params.branchId ? { branchId: params.branchId } : {}),
+      },
+      select: { createdAt: true, branchId: true, amount: true, paymentMethod: true },
     }),
   ]);
 
@@ -163,6 +177,12 @@ export async function loadPeriodMoney(
       profit: Number(p.profit),
       amount: Number(p.packageAmount),
     })),
+    otherIncome: otherIncome.map((m) => ({
+      date: m.createdAt,
+      branchId: m.branchId,
+      amount: Number(m.amount),
+      method: m.paymentMethod,
+    })),
   };
 }
 
@@ -176,6 +196,7 @@ export function summarizeMoney(rows: PeriodMoneyRows, keep: (r: MoneyRow) => boo
   const pickups = rows.pickups.filter(keep);
   const debts = rows.debtPayments.filter(keep);
   const packages = rows.packages.filter(keep);
+  const other = (rows.otherIncome ?? []).filter(keep);
   const sum = <T>(xs: T[], f: (x: T) => number) => xs.reduce((s, x) => s + f(x), 0);
 
   const byMethod: Record<string, number> = {};
@@ -185,6 +206,7 @@ export function summarizeMoney(rows: PeriodMoneyRows, keep: (r: MoneyRow) => boo
   deposits.forEach((d) => add(d.method, d.amount));
   pickups.forEach((p) => add(p.method, p.amount));
   debts.forEach((d) => add(d.method, d.amount));
+  other.forEach((o) => add(o.method, o.amount));
 
   const posGross = sum(sales, (s) => s.total);
   const posRefunds = sum(refunds, (r) => r.amount);
@@ -197,6 +219,7 @@ export function summarizeMoney(rows: PeriodMoneyRows, keep: (r: MoneyRow) => boo
   const repairCOGS = sum(pickups, (p) => p.cost);
   const packageProfit = sum(packages, (p) => p.profit);
   const packageAmount = sum(packages, (p) => p.amount);
+  const otherIncome = sum(other, (o) => o.amount);
 
   return {
     salesCount: sales.length,
@@ -213,8 +236,10 @@ export function summarizeMoney(rows: PeriodMoneyRows, keep: (r: MoneyRow) => boo
     packageCount: packages.length,
     packageProfit: round2(packageProfit),
     packageAmount: round2(packageAmount),
-    totalRevenue: round2(posRevenue + repairRevenue + packageProfit),
-    grossProfit: round2(posRevenue - posCOGS + repairRevenue - repairCOGS + packageProfit),
+    otherIncome: round2(otherIncome),
+    otherIncomeCount: other.length,
+    totalRevenue: round2(posRevenue + repairRevenue + packageProfit + otherIncome),
+    grossProfit: round2(posRevenue - posCOGS + repairRevenue - repairCOGS + packageProfit + otherIncome),
     byMethod,
   };
 }

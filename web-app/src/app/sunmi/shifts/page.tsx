@@ -1,5 +1,6 @@
 'use client'
 
+import { PartsPendingReminder } from '@/components/quick-cash/quick-cash-bar'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -727,6 +728,7 @@ export default function SunmiShiftsPage() {
   return (
     <SunmiShell title="เปิด/ปิดกะ" showBack>
       <div className="p-4 space-y-4 pb-8">
+        <PartsPendingReminder />
         {/* Status */}
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3">
           <div className="h-3 w-3 rounded-full bg-green-500 shrink-0 shadow-[0_0_0_4px_rgba(34,197,94,0.15)]" />
