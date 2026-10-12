@@ -379,4 +379,65 @@ SELECT b."tenantId",
 FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId"
 GROUP BY 1 HAVING count(*) FILTER (WHERE r.discount > 0) > 0 ORDER BY 1;
 
+\echo '--- 24. Stock: does each branch balance match its movement history? ---'
+-- Signed movement: in = +, out = -; ADJUST is stored with its sign.
+\echo '24a. Branch stock vs the sum of its movements, per shop (rows that differ / with no movement at all)'
+WITH mv AS (
+  SELECT m."branchId", m."productId",
+    sum(CASE WHEN m.type::text IN ('IN','REFUND','REPAIR_RETURN','TRANSFER_IN') THEN m.quantity
+             WHEN m.type::text IN ('OUT','SALE','REPAIR_USE','TRANSFER_OUT') THEN -m.quantity
+             WHEN m.type::text = 'ADJUST' THEN m.quantity ELSE 0 END) AS net,
+    count(*) AS moves
+  FROM "StockMovement" m WHERE m."branchId" IS NOT NULL GROUP BY 1, 2)
+SELECT b."tenantId", count(*) AS stock_rows,
+  count(*) FILTER (WHERE bs.quantity <> coalesce(mv.net, 0)) AS differ,
+  count(*) FILTER (WHERE bs.quantity <> coalesce(mv.net, 0) AND mv.moves IS NULL) AS differ_no_moves,
+  sum(bs.quantity - coalesce(mv.net, 0)) FILTER (WHERE bs.quantity <> coalesce(mv.net, 0)) AS units_unexplained,
+  count(*) FILTER (WHERE bs.quantity < 0) AS negative
+FROM "BranchStock" bs JOIN "Branch" b ON b.id = bs."branchId"
+LEFT JOIN mv ON mv."branchId" = bs."branchId" AND mv."productId" = bs."productId"
+GROUP BY 1 ORDER BY 1;
+\echo '24b. Biggest differences (shop, product type, stock, movements say)'
+WITH mv AS (
+  SELECT m."branchId", m."productId",
+    sum(CASE WHEN m.type::text IN ('IN','REFUND','REPAIR_RETURN','TRANSFER_IN') THEN m.quantity
+             WHEN m.type::text IN ('OUT','SALE','REPAIR_USE','TRANSFER_OUT') THEN -m.quantity
+             WHEN m.type::text = 'ADJUST' THEN m.quantity ELSE 0 END) AS net,
+    count(*) AS moves, min(m."createdAt")::date AS first_move
+  FROM "StockMovement" m WHERE m."branchId" IS NOT NULL GROUP BY 1, 2)
+SELECT b."tenantId", p.type, p."hasSerial", bs.quantity AS stock, coalesce(mv.net, 0) AS movements_say,
+  coalesce(mv.moves, 0) AS moves, mv.first_move, p."createdAt"::date AS product_created
+FROM "BranchStock" bs JOIN "Branch" b ON b.id = bs."branchId" JOIN "Product" p ON p.id = bs."productId"
+LEFT JOIN mv ON mv."branchId" = bs."branchId" AND mv."productId" = bs."productId"
+WHERE bs.quantity <> coalesce(mv.net, 0)
+ORDER BY abs(bs.quantity - coalesce(mv.net, 0)) DESC LIMIT 25;
+\echo '24c. Product total vs the sum of its branches (should always match)'
+SELECT p."tenantId", count(*) AS products,
+  count(*) FILTER (WHERE p.stock <> coalesce(t.total, 0)) AS total_differs
+FROM "Product" p LEFT JOIN (SELECT "productId", sum(quantity) AS total FROM "BranchStock" GROUP BY 1) t ON t."productId" = p.id
+WHERE p."isActive" GROUP BY 1 ORDER BY 1;
+\echo '24d. Products with serial / IMEI: units in stock vs serials marked in stock'
+SELECT p."tenantId", count(*) AS serial_products,
+  count(*) FILTER (WHERE coalesce(t.total, 0) <> coalesce(sn.n, 0)) AS count_differs,
+  sum(coalesce(t.total, 0)) AS units, sum(coalesce(sn.n, 0)) AS serials_in_stock
+FROM "Product" p
+LEFT JOIN (SELECT "productId", sum(quantity) AS total FROM "BranchStock" GROUP BY 1) t ON t."productId" = p.id
+LEFT JOIN (SELECT "productId", count(*) AS n FROM "SerialNumber" WHERE status::text = 'IN_STOCK' GROUP BY 1) sn ON sn."productId" = p.id
+WHERE p."hasSerial" AND p."isActive" GROUP BY 1 ORDER BY 1;
+\echo '24e. Stock of one shop held on a branch of another shop'
+SELECT count(*) AS cross_shop_rows FROM "BranchStock" bs JOIN "Branch" b ON b.id = bs."branchId" JOIN "Product" p ON p.id = bs."productId"
+WHERE p."tenantId" IS DISTINCT FROM b."tenantId";
+\echo '24f. Movements by type in the last 90 days, per shop'
+SELECT b."tenantId", m.type::text, count(*) AS moves, sum(m.quantity) AS units
+FROM "StockMovement" m JOIN "Branch" b ON b.id = m."branchId"
+WHERE m."createdAt" > now() - interval '90 days' GROUP BY 1, 2 ORDER BY 1, 2;
+\echo '24g. Stock value at cost and products sold below cost (last 90 days), per shop'
+SELECT p."tenantId", sum(greatest(bs.quantity, 0) * p."costPrice") AS stock_value_at_cost,
+  count(DISTINCT p.id) FILTER (WHERE p."costPrice" = 0 AND bs.quantity > 0) AS in_stock_no_cost
+FROM "BranchStock" bs JOIN "Product" p ON p.id = bs."productId" GROUP BY 1 ORDER BY 1;
+SELECT b."tenantId", count(*) AS lines_below_cost, sum((si."costPrice" * si.quantity) - si.total) AS loss
+FROM "SaleItem" si JOIN "Sale" s ON s.id = si."saleId" JOIN "Branch" b ON b.id = s."branchId"
+WHERE s."createdAt" > now() - interval '90 days' AND s.status::text <> 'VOIDED' AND si."costPrice" > 0
+  AND si.total < si."costPrice" * si.quantity GROUP BY 1 ORDER BY 1;
+
 ROLLBACK;
