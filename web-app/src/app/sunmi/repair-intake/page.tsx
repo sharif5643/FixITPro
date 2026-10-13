@@ -35,22 +35,10 @@ import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
 import type { Customer, ShopSettings, User as UserType, Repair } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { localDay } from '@/lib/repair-batch'
+import { DEVICE_BRANDS, QUICK_MODELS } from '@/lib/device-models'
+import { intakeWarnings, confirmIntake } from '@/lib/intake-checks'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const DEVICE_BRANDS = ['Samsung', 'Apple', 'Xiaomi', 'OPPO', 'Vivo', 'Realme', 'Huawei', 'Nokia']
-
-// Quick model templates per brand (tap to fill both brand + model instantly)
-const QUICK_MODELS: Record<string, string[]> = {
-  Apple:   ['iPhone 11', 'iPhone 12', 'iPhone 13', 'iPhone 14', 'iPhone 15', 'iPhone 15 Pro', 'iPhone 16'],
-  Samsung: ['Galaxy A15', 'Galaxy A35', 'Galaxy A55', 'Galaxy S23', 'Galaxy S24', 'Galaxy S24 Ultra'],
-  Xiaomi:  ['Redmi 13', 'Redmi Note 12', 'Redmi Note 13', 'POCO X6', 'Xiaomi 14'],
-  OPPO:    ['OPPO A60', 'OPPO A3', 'Reno11', 'Reno12', 'Find X7'],
-  Vivo:    ['Vivo Y28', 'Vivo Y38', 'Vivo V30', 'Vivo V40'],
-  Realme:  ['Realme C63', 'Realme 12', 'Realme 12 Pro', 'Realme GT6'],
-  Huawei:  ['Nova 12', 'Y90', 'Mate 60'],
-  Nokia:   ['Nokia G42', 'Nokia C32', 'Nokia XR21'],
-}
 
 // The same lists as the web form (lib/repair-tags)
 const CONDITION_ITEMS = CONDITION_OPTIONS_LIST
@@ -1093,7 +1081,12 @@ export default function RepairIntakePage() {
             ) : (
               <button
                 type="button"
-                onClick={handleSubmit((d) => mutation.mutate(d))}
+                onClick={handleSubmit((d) => {
+                  if (!confirmIntake(intakeWarnings({
+                    phone: d.customerId ? null : d.customerPhone, deposit: d.deposit, estimate: d.estimateCost,
+                  }))) return
+                  mutation.mutate(d)
+                })}
                 disabled={mutation.isPending}
                 className="flex-1 h-14 rounded-2xl bg-green-600 text-white font-bold text-lg active:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2"
               >

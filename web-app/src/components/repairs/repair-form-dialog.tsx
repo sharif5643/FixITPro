@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { intakeWarnings, confirmIntake } from '@/lib/intake-checks'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -490,6 +491,9 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
               setError('issue', { message: 'เลือกอาการด้านบน หรือพิมพ์อาการเสีย' })
               return
             }
+            if (!confirmIntake(intakeWarnings({
+              phone: selectedCustomer ? null : data.customerPhone, deposit: data.deposit, estimate: data.estimateCost,
+            }))) return
             return createMutation.mutateAsync(data)
           })} className="space-y-5 pt-1">
             {restored && <DraftRestoredBanner onClear={discardDraft} />}

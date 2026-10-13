@@ -6,7 +6,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft, Search, UserPlus, Smartphone, Tablet, Laptop,
-  Watch, MoreHorizontal, Camera, X, Loader2, Mic, ScanLine,
+  Watch, MoreHorizontal, Camera, X, Loader2, ScanLine,
   ChevronDown, Banknote, CreditCard, CalendarDays, FileText,
   Tag,
 } from 'lucide-react'
@@ -18,6 +18,8 @@ import { loadDraft, clearDraft, useDraftAutosave } from '@/lib/form-draft'
 import { DraftRestoredBanner } from '@/components/repairs/draft-restored-banner'
 import { RepairPriceChips } from '@/components/repair-prices/repair-price-chips'
 import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
+import { DEVICE_BRANDS, QUICK_MODELS } from '@/lib/device-models'
+import { intakeWarnings, confirmIntake } from '@/lib/intake-checks'
 
 /* ─── Constants ────────────────────────────────────────────────────────────── */
 
@@ -27,25 +29,6 @@ const DEVICE_TYPES = [
   { value: 'แล็ปท็อป',   label: 'แล็ปท็อป',   icon: Laptop       },
   { value: 'Smart Watch', label: 'Smart Watch', icon: Watch        },  // same types as the web form
   { value: 'อื่นๆ',       label: 'อื่นๆ',       icon: MoreHorizontal },
-]
-
-const BRANDS = [
-  'Apple', 'Samsung', 'OPPO', 'Xiaomi', 'Vivo', 'Realme',
-  'Huawei', 'Nokia', 'Google', 'OnePlus', 'อื่นๆ',
-]
-
-const APPLE_MODELS = [
-  'iPhone 16 Pro Max', 'iPhone 16 Pro', 'iPhone 16',
-  'iPhone 15 Pro Max', 'iPhone 15 Pro', 'iPhone 15',
-  'iPhone 14 Pro Max', 'iPhone 14 Pro', 'iPhone 14',
-  'iPhone 13 Pro Max', 'iPhone 13', 'iPhone 12', 'iPhone 11',
-  'iPhone SE', 'iPad Pro', 'iPad Air', 'iPad mini', 'อื่นๆ',
-]
-
-const SAMSUNG_MODELS = [
-  'Galaxy S25 Ultra', 'Galaxy S25+', 'Galaxy S24 Ultra', 'Galaxy S24',
-  'Galaxy A55', 'Galaxy A35', 'Galaxy A15',
-  'Galaxy Z Fold 6', 'Galaxy Z Flip 6', 'อื่นๆ',
 ]
 
 // The same lists as the web form (lib/repair-tags)
@@ -64,12 +47,6 @@ const COLORS = [
   { label: 'แดง',   hex: '#EF4444' },
   { label: 'เทา',   hex: '#9CA3AF' },
   { label: 'อื่นๆ',  hex: '#E5E7EB', border: true },
-]
-
-const STATUSES = [
-  { value: 'RECEIVED',   label: 'รับเครื่องแล้ว' },
-  { value: 'DIAGNOSING', label: 'ตรวจวินิจฉัย'  },
-  { value: 'IN_PROGRESS',label: 'กำลังซ่อม'     },
 ]
 
 const PAY_METHODS = [
@@ -111,7 +88,7 @@ type StaffDraft = {
   deviceType: string; brand: string; model: string; imei: string; serial: string; colorLabel: string
   issueTags: string[]; issueDesc: string; conditions: string[]; accessories: string[]
   laborCost: string; partsCost: string; deposit: string; depositPM: string; discount: string
-  dueDate: string; note: string; techId: string; status: string
+  dueDate: string; note: string; techId: string
   pricedJobs?: RepairPrice[]
 }
 
@@ -167,7 +144,6 @@ export default function CreateRepairPage() {
   // ── Assignment ──
   const [technicians, setTechnicians] = useState<Employee[]>([])
   const [techId,      setTechId]      = useState('')
-  const [status,      setStatus]      = useState('RECEIVED')
 
   const [loading, setLoading] = useState(false)
 
@@ -191,7 +167,7 @@ export default function CreateRepairPage() {
   const draft: StaffDraft = {
     selectedCust, newCustName, newCustPhone, deviceType, brand, model, imei, serial, colorLabel,
     issueTags, issueDesc, conditions, accessories, laborCost, partsCost, deposit, depositPM, discount,
-    dueDate, note, techId, status, pricedJobs,
+    dueDate, note, techId, pricedJobs,
   }
   const hasContent = !!(
     selectedCust || newCustName || newCustPhone || brand || model || imei || serial || issueTags.length ||
@@ -207,7 +183,7 @@ export default function CreateRepairPage() {
     setAccessories(d.accessories ?? ['เครื่อง'])
     setLaborCost(d.laborCost ?? ''); setPartsCost(d.partsCost ?? ''); setDeposit(d.deposit ?? '')
     setDepositPM(d.depositPM ?? 'CASH'); setDiscount(d.discount ?? '')
-    setDueDate(d.dueDate ?? ''); setNote(d.note ?? ''); setTechId(d.techId ?? ''); setStatus(d.status ?? 'RECEIVED')
+    setDueDate(d.dueDate ?? ''); setNote(d.note ?? ''); setTechId(d.techId ?? '')
     setPricedJobs(d.pricedJobs ?? [])
   }
 
@@ -271,7 +247,16 @@ export default function CreateRepairPage() {
     } catch { /* silent */ }
   }, [technicians.length])
 
-  const modelOptions = brand === 'Apple' ? APPLE_MODELS : brand === 'Samsung' ? SAMSUNG_MODELS : []
+  const quickModels = QUICK_MODELS[brand] ?? []
+  // Nothing found for what was typed in the search: start a new customer from it
+  const searchDigits = phoneSearch.replace(/\D/g, '')
+  const searchIsPhone = searchDigits.length >= 6 && searchDigits.length >= phoneSearch.replace(/[\s-]/g, '').length
+  const showUseSearch = !selectedCust && !searchLoading && phoneSearch.trim().length >= 2 && customers.length === 0
+  function useSearchAsNew() {
+    if (searchIsPhone) setNewCustPhone(phoneSearch.trim())
+    else setNewCustName(phoneSearch.trim())
+    setPhoneSearch('')
+  }
 
   function toggleChip<T>(arr: T[], set: (v: T[]) => void, val: T) {
     set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val])
@@ -290,9 +275,12 @@ export default function CreateRepairPage() {
     const custPhone = selectedCust?.phone || newCustPhone.trim()
 
     if (!custName || !custPhone) return toast.error('กรุณากรอกข้อมูลลูกค้า')
-    if (!brand)                  return toast.error('กรุณาเลือกยี่ห้ออุปกรณ์')
-    if (!model)                  return toast.error('กรุณาระบุรุ่นอุปกรณ์')
+    if (!brand.trim())           return toast.error('กรุณาเลือกหรือพิมพ์ยี่ห้ออุปกรณ์')
+    if (!model.trim())           return toast.error('กรุณาระบุรุ่นอุปกรณ์')
     if (!issueTags.length && !issueDesc.trim()) return toast.error('กรุณาเลือกอาการเสียหรือกรอกรายละเอียด')
+    if (!confirmIntake(intakeWarnings({
+      phone: custId ? null : custPhone, deposit: parseFloat(deposit), estimate: total,
+    }))) return
 
     setLoading(true)
     try {
@@ -304,8 +292,8 @@ export default function CreateRepairPage() {
       const body: Record<string, unknown> = {
         ...(custId ? { customerId: custId } : { customerName: custName, customerPhone: custPhone }),
         deviceType:   deviceType || undefined,
-        deviceBrand:  brand,
-        deviceModel:  model,
+        deviceBrand:  brand.trim(),
+        deviceModel:  model.trim(),
         issue,
         ...(issueTags.length  && { issueTags }),
         // The web keeps one "IMEI / Serial" field; a second (or too long) number goes into the note
@@ -383,6 +371,14 @@ export default function CreateRepairPage() {
             {searchLoading && <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-slate-400" />}
           </div>
 
+          {showUseSearch && (
+            <button type="button" onClick={useSearchAsNew}
+              className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-[rgb(var(--brand-accent))] bg-[#FFFBEB] px-3 py-2.5 text-[12px] font-bold text-[#B45309]">
+              <UserPlus className="h-4 w-4" />
+              ไม่พบลูกค้า — ใช้{searchIsPhone ? 'เบอร์' : 'ชื่อ'} &quot;{phoneSearch.trim()}&quot; เป็นลูกค้าใหม่
+            </button>
+          )}
+
           {customers.length > 0 && !selectedCust && (
             <div className="mb-3 flex flex-col gap-2">
               {customers.map((c) => (
@@ -453,32 +449,32 @@ export default function CreateRepairPage() {
             ))}
           </div>
 
-          {/* Brand + Model */}
-          <div className="mb-3 grid grid-cols-2 gap-2.5">
-            <div className="relative">
-              <select value={brand} onChange={(e) => { setBrand(e.target.value); setModel('') }}
-                className={`${IC} appearance-none pr-8`}>
-                <option value="">ยี่ห้อ *</option>
-                {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            </div>
-            <div className="relative">
-              {modelOptions.length > 0 ? (
-                <>
-                  <select value={model} onChange={(e) => setModel(e.target.value)}
-                    className={`${IC} appearance-none pr-8`}>
-                    <option value="">รุ่น *</option>
-                    {modelOptions.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                </>
-              ) : (
-                <input value={model} onChange={(e) => setModel(e.target.value)}
-                  placeholder="รุ่น *" className={IC} />
-              )}
-            </div>
+          {/* Brand: tap a chip or type any brand */}
+          <p className="mb-2 text-[11px] font-semibold text-slate-500">ยี่ห้อ *</p>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {DEVICE_BRANDS.map((b) => (
+              <button key={b} type="button" onClick={() => { if (b !== brand) { setBrand(b); setModel('') } }}
+                className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition-all ${brand === b ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))]' : 'bg-[#F8F9FB] text-slate-500 ring-1 ring-[#E5E7EB]'}`}>
+                {b}
+              </button>
+            ))}
           </div>
+          <input value={brand} onChange={(e) => setBrand(e.target.value)}
+            placeholder="หรือพิมพ์ยี่ห้ออื่น" className={`${IC} mb-3`} />
+
+          {/* Model: always typeable; popular models of the brand are one tap */}
+          {quickModels.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {quickModels.map((m) => (
+                <button key={m} type="button" onClick={() => setModel(m)}
+                  className={`rounded-full px-3 py-1.5 text-[12px] font-medium transition-all ${model === m ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))]' : 'bg-[#F8F9FB] text-slate-500 ring-1 ring-[#E5E7EB]'}`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+          <input value={model} onChange={(e) => setModel(e.target.value)}
+            placeholder="รุ่น * เช่น iPhone 15 Pro, Galaxy A55" className={`${IC} mb-3`} />
           <RepairPriceChips brand={brand} model={model} picked={pricedJobs} onPick={pickPrice} className="mb-3" />
 
           {/* IMEI + Serial */}
@@ -684,31 +680,17 @@ export default function CreateRepairPage() {
           </div>
         </Card>
 
-        {/* ⑩ เลือกช่าง + สถานะ */}
+        {/* ⑩ เลือกช่าง — the job starts as "received"; its status moves on from the job page */}
         <Card>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <SectionHead num={10} title="เลือกช่าง" />
-              <div className="relative">
-                <select value={techId} onClick={loadTechs}
-                  onChange={(e) => setTechId(e.target.value)}
-                  className={`${IC} appearance-none pr-8 text-[13px]`}>
-                  <option value="">-- ไม่ระบุ --</option>
-                  {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              </div>
-            </div>
-            <div>
-              <SectionHead num={11} title="สถานะเริ่มต้น" />
-              <div className="relative">
-                <select value={status} onChange={(e) => setStatus(e.target.value)}
-                  className={`${IC} appearance-none pr-8 text-[13px]`}>
-                  {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              </div>
-            </div>
+          <SectionHead num={10} title="เลือกช่าง" />
+          <div className="relative">
+            <select value={techId} onClick={loadTechs} onFocus={loadTechs}
+              onChange={(e) => setTechId(e.target.value)}
+              className={`${IC} appearance-none pr-8 text-[13px]`}>
+              <option value="">-- ไม่ระบุ --</option>
+              {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           </div>
         </Card>
 
@@ -732,9 +714,6 @@ export default function CreateRepairPage() {
         <button onClick={handleSubmit} disabled={loading}
           className="flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-[rgb(var(--brand-accent))] text-[16px] font-bold text-[rgb(var(--brand-accent-fg))] shadow-[0_4px_20px_rgb(var(--brand-accent)/0.45)] disabled:opacity-60 active:scale-[0.98] transition-transform">
           {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'บันทึกงานซ่อม'}
-        </button>
-        <button className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#111] active:scale-95 transition-transform">
-          <Mic className="h-6 w-6 text-white" />
         </button>
       </div>
     </div>
