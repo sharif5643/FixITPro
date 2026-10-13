@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsInt, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsInt, Min, IsArray, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class EnrollBranchDto {
@@ -17,4 +17,11 @@ export class EnrollBranchDto {
   @IsInt()
   @Min(0)
   minStock?: number;
+
+  /** IMEI / serial of each unit, for products sold by serial */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  serials?: string[];
 }

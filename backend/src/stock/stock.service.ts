@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { applyAverageCost, CostChange } from '../common/money/average-cost';
+import { addSerialsInStock, cleanSerials, takeSerialsOutOfStock } from './serial-stock';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 
@@ -108,8 +109,22 @@ export class StockService {
 
     const quantityChange = isDeduction ? -dto.quantity : dto.quantity;
 
+    // Sold by IMEI: units move with their serials, so stock and IMEIs never drift apart
+    const bySerial = product.hasSerial === true;
+    const serialsIn = bySerial && dto.type === 'IN' ? cleanSerials(dto.serials) : [];
+    if (bySerial && isAdjust) {
+      throw new BadRequestException('สินค้านี้ใช้ IMEI — ปรับด้วย "รับเข้า" พร้อม IMEI หรือ "ตัดออก" โดยเลือก IMEI แทนการตั้งยอด');
+    }
+    let serialsOut: string[] = [];
+
     let costChange: CostChange | null = null;
     await this.prisma.$transaction(async (tx) => {
+      if (bySerial && dto.type === 'IN') {
+        await addSerialsInStock(tx, dto.productId, serialsIn, dto.quantity, dto.note);
+      } else if (bySerial && isDeduction) {
+        serialsOut = await takeSerialsOutOfStock(tx, dto.productId, dto.serialIds, dto.quantity, dto.note);
+      }
+
       // Stock bought in at a price: average it into the product's cost before the stock goes up
       const unitCost = dto.type === 'IN' && dto.unitCost != null ? dto.unitCost : null;
       if (unitCost != null) costChange = await applyAverageCost(tx, dto.productId, dto.quantity, unitCost);
@@ -120,7 +135,7 @@ export class StockService {
           type:      dto.type as any,
           quantity:  dto.quantity,
           branchId:  dto.branchId,
-          note:      dto.note,
+          note:      withSerials(dto.note, serialsIn.length ? serialsIn : serialsOut),
           ...(unitCost != null ? { unitCost } : {}),
         },
       });
@@ -333,4 +348,33 @@ export class StockService {
       items,
     };
   }
+
+  /**
+   * Products sold by IMEI where the units in stock (all branches) and the IMEIs marked in stock
+   * differ: a phone with no IMEI cannot be sold, an IMEI with no phone is stock that is not there.
+   */
+  async getSerialMismatch(tenantId?: string | null) {
+    const products = await this.prisma.product.findMany({
+      where: { hasSerial: true, isActive: true, ...(tenantId ? { tenantId } : {}) },
+      select: { id: true, name: true, sku: true, stock: true },
+    });
+    if (!products.length) return [];
+    const counts = await this.prisma.serialNumber.groupBy({
+      by: ['productId'],
+      where: { productId: { in: products.map((p) => p.id) }, status: 'IN_STOCK' },
+      _count: { _all: true },
+    });
+    const inStock = new Map(counts.map((c) => [c.productId, c._count._all]));
+    return products
+      .map((p) => ({ productId: p.id, name: p.name, sku: p.sku, units: p.stock, serialsInStock: inStock.get(p.id) ?? 0 }))
+      .filter((r) => r.units !== r.serialsInStock)
+      .sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  }
+}
+
+/** The movement's note, with the IMEIs that came in or went out */
+function withSerials(note: string | undefined, serials: string[]): string | undefined {
+  if (!serials.length) return note;
+  const list = `IMEI: ${serials.join(', ')}`;
+  return note ? `${note} · ${list}` : list;
 }

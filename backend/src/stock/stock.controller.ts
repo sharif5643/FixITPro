@@ -109,4 +109,12 @@ export class StockController {
     const n = Math.min(365, Math.max(7, Math.floor(Number(days) || 60)));
     return this.stockService.getAgingPhones(tenantId, effectiveBranchId, n, canViewCost(user));
   }
+
+  /** Products sold by IMEI whose stock count and in-stock IMEIs differ (the shop's whole stock). */
+  @Get('serial-mismatch')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('products.view')
+  getSerialMismatch(@CurrentUser('tenantId') tenantId: string) {
+    return this.stockService.getSerialMismatch(tenantId);
+  }
 }

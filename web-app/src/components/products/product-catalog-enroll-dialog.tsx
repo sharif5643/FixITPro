@@ -66,6 +66,11 @@ export function ProductCatalogEnrollDialog({
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  // Sold by IMEI: the units come with their IMEIs (their count is the quantity)
+  const [imeiText, setImeiText] = useState('')
+  const bySerial   = !!selectedProduct?.hasSerial
+  const serialList = imeiText.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean)
+  const dupSerial  = new Set(serialList).size !== serialList.length
 
   const {
     register,
@@ -99,6 +104,7 @@ export function ProductCatalogEnrollDialog({
     mutationFn: (data: EnrollFormData) =>
       api.post(`/products/${selectedProduct!.id}/enroll-branch`, {
         ...data,
+        ...(bySerial ? { quantity: serialList.length, serials: serialList } : {}),
         ...(effectiveBranchId ? { branchId: effectiveBranchId } : {}),
       }),
     onSuccess: () => {
@@ -125,6 +131,7 @@ export function ProductCatalogEnrollDialog({
   const handleSelectProduct = (p: Product) => {
     setSelectedProduct(p)
     setStep('enroll')
+    setImeiText('')
     reset({ quantity: 0, minStock: 0 })
   }
 
@@ -265,7 +272,24 @@ export function ProductCatalogEnrollDialog({
               onSubmit={handleSubmit((d) => enrollMutation.mutate(d))}
               className="grid grid-cols-2 gap-4"
             >
-              <div className="space-y-1.5">
+              {bySerial ? (
+                <div className="col-span-2 space-y-1.5">
+                  <Label htmlFor="enroll-imei">IMEI ของเครื่องที่มีในสาขานี้ (บรรทัดละ 1 เครื่อง)</Label>
+                  <textarea
+                    id="enroll-imei"
+                    rows={3}
+                    value={imeiText}
+                    disabled={enrollMutation.isPending}
+                    onChange={(e) => setImeiText(e.target.value)}
+                    placeholder={'356789012345678\n356789012345679'}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    จำนวนเริ่มต้น <span className="font-semibold text-foreground">{serialList.length}</span> เครื่อง
+                    {dupSerial && <span className="ml-1 font-semibold text-red-600">· มี IMEI ซ้ำ</span>}
+                  </p>
+                </div>
+              ) : <div className="space-y-1.5">
                 <Label>จำนวนเริ่มต้น (ชิ้น)</Label>
                 <Input
                   type="number"
@@ -278,7 +302,7 @@ export function ProductCatalogEnrollDialog({
                 {errors.quantity && (
                   <p className="text-xs text-red-500">{errors.quantity.message}</p>
                 )}
-              </div>
+              </div>}
               <div className="space-y-1.5">
                 <Label>สต็อกขั้นต่ำ</Label>
                 <Input
@@ -327,7 +351,7 @@ export function ProductCatalogEnrollDialog({
             <Button
               type="submit"
               form="enroll-form"
-              disabled={enrollMutation.isPending || isOwnerGlobalMode}
+              disabled={enrollMutation.isPending || isOwnerGlobalMode || (bySerial && dupSerial)}
               className="min-w-[130px]"
             >
               {enrollMutation.isPending ? (

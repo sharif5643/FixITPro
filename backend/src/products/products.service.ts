@@ -10,6 +10,7 @@ import { TenantService } from '../tenant/tenant.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { EnrollBranchDto } from './dto/enroll-branch.dto';
+import { addSerialsInStock, cleanSerials } from '../stock/serial-stock';
 
 const SKU_PREFIX: Record<string, string> = {
   PHONE: 'PHONE',
@@ -117,6 +118,8 @@ export class ProductsService {
     if (isPrivileged && !effectiveBranchId && initialStock > 0) {
       throw new BadRequestException('กรุณาเลือกสาขาก่อนเพิ่มสต็อกสินค้า');
     }
+    // Sold by IMEI: the opening units come with their IMEIs
+    const openingSerials = dto.hasSerial && initialStock > 0 ? cleanSerials(dto.initialSerials) : [];
 
     // Verify branch belongs to this tenant before assigning stock
     if (effectiveBranchId) {
@@ -165,11 +168,25 @@ export class ProductsService {
         });
 
         if (initialStock > 0) {
+          if (dto.hasSerial) {
+            await addSerialsInStock(tx, prod.id, openingSerials, initialStock, 'สต๊อกตั้งต้นตอนสร้างสินค้า');
+          }
           await tx.product.update({
             where: { id: prod.id },
             data:  { stock: initialStock },
           });
           (prod as any).stock = initialStock;
+          // The opening stock is history too: without it the stock card cannot explain the balance
+          await tx.stockMovement.create({
+            data: {
+              productId: prod.id,
+              type:      'IN',
+              quantity:  initialStock,
+              branchId:  effectiveBranchId,
+              note:      'สต๊อกตั้งต้นตอนสร้างสินค้า' + (openingSerials.length ? ` · IMEI: ${openingSerials.join(', ')}` : ''),
+              ...(Number(dto.costPrice) > 0 ? { unitCost: Number(dto.costPrice) } : {}),
+            },
+          });
         }
       } else if (isPrivileged && tenantId) {
         // OWNER in global mode: seed BranchStock=0 for every active branch so the
@@ -495,10 +512,27 @@ export class ProductsService {
       }
     }
 
+    const enrollSerials = product.hasSerial && dto.quantity > 0 ? cleanSerials(dto.serials) : [];
+
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await (tx as any).branchStock.findUnique({
         where: { branchId_productId: { branchId: effectiveBranchId, productId } },
       });
+      if (dto.quantity > 0) {
+        if (product.hasSerial) {
+          await addSerialsInStock(tx, productId, enrollSerials, dto.quantity, 'เพิ่มสินค้าเข้าสาขา');
+        }
+        await tx.stockMovement.create({
+          data: {
+            productId,
+            type:     'IN',
+            quantity: dto.quantity,
+            branchId: effectiveBranchId,
+            note:     'เพิ่มสินค้าเข้าสาขา' + (enrollSerials.length ? ` · IMEI: ${enrollSerials.join(', ')}` : ''),
+            ...(Number(product.costPrice) > 0 ? { unitCost: Number(product.costPrice) } : {}),
+          },
+        });
+      }
 
       if (existing) {
         const updated = await (tx as any).branchStock.update({

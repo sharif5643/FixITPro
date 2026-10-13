@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { PackagePlus, Loader2, Search, AlertCircle, ClipboardCheck } from 'lucide-react'
@@ -55,8 +55,13 @@ export function AddStockDialog({
   const [qty, setQty]   = useState('')
   const [note, setNote] = useState('')
   const [unitCost, setUnitCost] = useState('')
-  // 'add' = receive N more; 'count' = set the branch quantity to what was physically counted
-  const [mode, setMode] = useState<'add' | 'count'>('add')
+  // Sold by IMEI: one IMEI per line, the count is the number of IMEIs
+  const [imeiText, setImeiText] = useState('')
+  // 'add' = receive N more; 'count' = set the branch quantity to what was physically counted;
+  // 'out' = IMEI products only: take out the units picked by IMEI (they cannot be set to a count)
+  const [mode, setMode] = useState<'add' | 'count' | 'out'>('add')
+  const [picked, setPicked] = useState<string[]>([])
+  const [noImei, setNoImei] = useState(0)
 
   const reset = () => {
     setPickedProduct(null)
@@ -65,11 +70,28 @@ export function AddStockDialog({
     setQty('')
     setNote('')
     setUnitCost('')
+    setImeiText('')
+    setPicked([])
+    setNoImei(0)
     setMode('add')
   }
 
   // Active product being added — propProduct takes precedence
   const activeProduct = propProduct ?? pickedProduct
+  const bySerial = !!activeProduct?.hasSerial
+  const serialList = imeiText.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean)
+  useEffect(() => {
+    if (bySerial && mode === 'count') setMode('add')
+    if (!bySerial && mode === 'out') setMode('add')
+  }, [bySerial, mode])
+  const { data: inStock, isFetching: loadingSerials } = useQuery<{ total: number; items: { id: string; serial: string }[] }>({
+    queryKey: ['serials', activeProduct?.id, 'IN_STOCK'],
+    queryFn:  async () => (await api.get('/serials', { params: { productId: activeProduct!.id, status: 'IN_STOCK', limit: 200 } })).data,
+    enabled:  open && bySerial && mode === 'out',
+    staleTime: 0,
+  })
+  // Older data: units counted in stock with no IMEI recorded may go out without one
+  const unitsNoImei = Math.max(0, Number(activeProduct?.stock ?? 0) - (inStock?.total ?? 0))
 
   // Branches for OWNER selector (only needed when OWNER has no pre-filled branch)
   const { data: branches = [] } = useQuery<{ id: string; name: string; isActive: boolean; status: string }[]>({
@@ -136,6 +158,16 @@ export function AddStockDialog({
           note:      note.trim() || `ตั้งยอดตามนับจริง (ระบบ ${currentQty} → นับได้ ${counted})`,
         })
       }
+      if (mode === 'out') {
+        return api.post('/stock/adjust', {
+          productId: activeProduct!.id,
+          type:      'OUT',
+          quantity:  picked.length + noImei,
+          serialIds: picked,
+          branchId:  effectiveBranchId,
+          note:      note.trim() || undefined,
+        })
+      }
       if (process.env.NODE_ENV === 'development') {
         console.log('[AddStockDialog][submit]', {
           productId:        activeProduct!.id,
@@ -150,7 +182,8 @@ export function AddStockDialog({
       return api.post('/stock/adjust', {
         productId: activeProduct!.id,
         type:      'IN',
-        quantity:  Number(qty),
+        quantity:  bySerial ? serialList.length : Number(qty),
+        ...(bySerial ? { serials: serialList } : {}),
         branchId:  effectiveBranchId,
         note:      note.trim() || undefined,
         ...(Number(unitCost) > 0 ? { unitCost: Number(unitCost) } : {}),
@@ -161,8 +194,12 @@ export function AddStockDialog({
         qc.invalidateQueries({ queryKey: ['products'] }),
         qc.invalidateQueries({ queryKey: ['low-stock'] }),
         qc.invalidateQueries({ queryKey: ['dashboard'] }),
+        qc.invalidateQueries({ queryKey: ['serials'] }),
+        qc.invalidateQueries({ queryKey: ['stock', 'serial-mismatch'] }),
       ])
-      toast.success(mode === 'count'
+      toast.success(mode === 'out'
+        ? `ตัด "${activeProduct?.name}" ออก ${picked.length + noImei} เครื่องแล้ว`
+        : mode === 'count'
         ? `ตั้งยอด "${activeProduct?.name}" ที่${effectiveBranchName || 'สาขา'} เป็น ${Number(qty)} ชิ้นแล้ว`
         : `เพิ่มสต็อก "${activeProduct?.name}" เข้า${effectiveBranchName || 'สาขา'} เรียบร้อย`)
       onOpenChange(false)
@@ -174,14 +211,17 @@ export function AddStockDialog({
     },
   })
 
-  const qtyNum  = Number(qty)
+  const qtyNum  = mode === 'out' ? picked.length + noImei : bySerial ? serialList.length : Number(qty)
   // effectiveBranchId being falsy already blocks submit; no separate ownerGlobalModeBlocked needed.
   // The products page prevents OWNER from opening the dialog in global mode entirely.
   const countDelta = qtyNum - currentQty
-  const isValid = mode === 'count'
+  const isValid = mode === 'out'
+    ? !!activeProduct && qtyNum > 0 && !!effectiveBranchId
+    : mode === 'count'
     ? !!activeProduct && qty !== '' && qtyNum >= 0 && Number.isInteger(qtyNum) && !!effectiveBranchId
       && !loadingCurrent && countDelta !== 0
-    : !!activeProduct && !!qty && qtyNum > 0 && Number.isInteger(qtyNum) && !!effectiveBranchId
+    : !!activeProduct && qtyNum > 0 && Number.isInteger(qtyNum) && !!effectiveBranchId
+      && (bySerial ? new Set(serialList).size === serialList.length : !!qty)
   const noBranchWarning = isBranchLocked && !effectiveBranchId
 
   return (
@@ -196,15 +236,18 @@ export function AddStockDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PackagePlus className="h-5 w-5 text-green-600" />
-            {mode === 'count' ? 'ตั้งยอดตามที่นับจริง' : 'เพิ่มสต็อกเข้าสาขา'}{effectiveBranchName ? `: ${effectiveBranchName}` : ''}
+            {mode === 'count' ? 'ตั้งยอดตามที่นับจริง' : mode === 'out' ? 'ตัดเครื่องออกจากสต็อก' : 'เพิ่มสต็อกเข้าสาขา'}{effectiveBranchName ? `: ${effectiveBranchName}` : ''}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-1">
 
-          {/* ── Mode: receive more / set to counted quantity ── */}
+          {/* ── Mode: receive more / set to counted quantity; IMEI products move with their IMEIs instead ── */}
           <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 p-1">
-            {([['add', 'รับเข้าเพิ่ม'], ['count', 'ตั้งยอดตามนับจริง']] as const).map(([m, label]) => (
+            {(bySerial
+              ? [['add', 'รับเข้า (ใส่ IMEI)'], ['out', 'ตัดออก (เลือก IMEI)']] as const
+              : [['add', 'รับเข้าเพิ่ม'], ['count', 'ตั้งยอดตามนับจริง']] as const
+            ).map(([m, label]) => (
               <button
                 key={m}
                 type="button"
@@ -348,8 +391,64 @@ export function AddStockDialog({
             </div>
           )}
 
+          {/* ── IMEIs going out: pick which units ── */}
+          {activeProduct && bySerial && mode === 'out' && (
+            <div>
+              <Label>เลือกเครื่องที่ตัดออก (เสีย / คืนร้านค้า / หาย)</Label>
+              {loadingSerials && !inStock ? (
+                <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              ) : (inStock?.items ?? []).length === 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">ไม่มี IMEI ที่อยู่ในสต็อก</p>
+              ) : (
+                <div className="mt-1 max-h-48 space-y-1 overflow-y-auto">
+                  {(inStock?.items ?? []).map((s) => (
+                    <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 font-mono text-sm">
+                      <input
+                        type="checkbox"
+                        checked={picked.includes(s.id)}
+                        onChange={(e) => setPicked((v) => e.target.checked ? [...v, s.id] : v.filter((x) => x !== s.id))}
+                      />
+                      {s.serial}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {!loadingSerials && unitsNoImei > 0 && (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                  <span>มี {unitsNoImei} เครื่องที่ไม่มี IMEI ในระบบ — ตัดออก</span>
+                  <Input
+                    type="number" min="0" max={unitsNoImei} value={noImei}
+                    onChange={(e) => setNoImei(Math.min(unitsNoImei, Math.max(0, Math.floor(Number(e.target.value) || 0))))}
+                    className="h-7 w-16 text-right"
+                  />
+                </div>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">ตัดออก <span className="font-semibold text-foreground">{qtyNum}</span> เครื่อง</p>
+            </div>
+          )}
+
+          {/* ── IMEIs: one per unit ── */}
+          {activeProduct && bySerial && mode === 'add' && (
+            <div>
+              <Label htmlFor="add-imei">IMEI / Serial ของเครื่องที่รับเข้า (บรรทัดละ 1 เครื่อง)</Label>
+              <textarea
+                id="add-imei"
+                rows={4}
+                value={imeiText}
+                onChange={(e) => setImeiText(e.target.value)}
+                placeholder={'356789012345678\n356789012345679'}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
+                autoFocus={!!propProduct}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                รับเข้า <span className="font-semibold text-foreground">{serialList.length}</span> เครื่อง
+                {new Set(serialList).size !== serialList.length && <span className="ml-1 font-semibold text-red-600">· มี IMEI ซ้ำ</span>}
+              </p>
+            </div>
+          )}
+
           {/* ── Quantity ── */}
-          {activeProduct && mode === 'add' && (
+          {activeProduct && mode === 'add' && !bySerial && (
             <div>
               <Label htmlFor="add-qty">จำนวนที่รับเข้า</Label>
               <Input
@@ -419,14 +518,14 @@ export function AddStockDialog({
           <Button
             onClick={() => mutation.mutate()}
             disabled={!isValid || mutation.isPending}
-            className="gap-2 bg-green-600 hover:bg-green-700 min-w-[100px]"
+            className={`gap-2 min-w-[100px] ${mode === 'out' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
           >
             {mutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <>
                 <PackagePlus className="h-4 w-4" />
-                {mode === 'count' ? 'บันทึกยอด' : 'เพิ่มสต็อก'}
+                {mode === 'count' ? 'บันทึกยอด' : mode === 'out' ? 'ตัดออก' : 'เพิ่มสต็อก'}
               </>
             )}
           </Button>

@@ -1,15 +1,4 @@
-import {
-  IsString,
-  IsNumber,
-  IsEnum,
-  IsOptional,
-  IsBoolean,
-  IsInt,
-  Max,
-  MaxLength,
-  Min,
-  IsIn,
-} from 'class-validator';
+import { IsString, IsNumber, IsEnum, IsOptional, IsBoolean, IsInt, Max, MaxLength, Min, IsIn, IsArray, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateProductDto {
@@ -90,4 +79,11 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   branchId?: string;
+
+  /** IMEI / serial of each unit of the opening stock, for products sold by serial */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  initialSerials?: string[];
 }
