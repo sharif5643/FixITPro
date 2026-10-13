@@ -44,6 +44,8 @@ export const productSchema = z.object({
   warrantyType: z.enum(['NO_WARRANTY', 'SHOP_WARRANTY', 'BRAND_WARRANTY']).default('NO_WARRANTY'),
   warrantyDays: z.coerce.number().int().min(0).optional(),
   hasSerial: z.boolean().default(false),
+  // New product sold by IMEI: the IMEIs of the opening units (their count is the opening stock)
+  initialSerials: z.array(z.string()).optional(),
 })
 
 export type ProductFormData = z.infer<typeof productSchema>
@@ -131,6 +133,29 @@ export function ProductFormDialog({
   const selectedCategory = watch('categoryId')
   const selectedWarranty = watch('warrantyType')
   const hasSerial        = watch('hasSerial')
+  const priceNum         = Number(watch('price')) || 0
+  const costNum          = Number(watch('costPrice')) || 0
+  // Opening IMEIs: only when creating a product with stock in one branch
+  const canOpenStock     = !isEditing && !isOwnerGlobalMode
+  const openBySerial     = canOpenStock && hasSerial
+  const [imeiText, setImeiText] = useState('')
+  const serialList       = imeiText.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean)
+  const dupSerial        = new Set(serialList).size !== serialList.length
+  useEffect(() => {
+    if (openBySerial) setValue('stock', serialList.length)
+  }, [openBySerial, serialList.length, setValue])
+  useEffect(() => { if (open) setImeiText('') }, [open])
+
+  const submit = (data: ProductFormData) => {
+    // A cost above the price usually is a typo (an extra zero) and makes every sale look like a loss
+    if (showCost && data.costPrice > data.price && data.price > 0
+      && !window.confirm(`ต้นทุน ${data.costPrice.toLocaleString('th-TH')} บาท สูงกว่าราคาขาย ${data.price.toLocaleString('th-TH')} บาท — ถูกต้องใช่ไหม?`)) {
+      return
+    }
+    return onSubmit(openBySerial && serialList.length > 0
+      ? { ...data, stock: serialList.length, initialSerials: serialList }
+      : data)
+  }
 
   const [skuLoading,     setSkuLoading]     = useState(false)
   const [barcodeLoading, setBarcodeLoading] = useState(false)
@@ -244,7 +269,7 @@ export function ProductFormDialog({
           )}
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 pt-2">
+        <form onSubmit={handleSubmit(submit)} className="space-y-5 pt-2">
           {/* Name */}
           <div className="space-y-1.5">
             <Label>ชื่อสินค้า <span className="text-red-500">*</span></Label>
@@ -385,6 +410,16 @@ export function ProductFormDialog({
               {errors.costPrice && <p className="text-xs text-red-500">{errors.costPrice.message}</p>}
             </div>}
           </div>
+          {showCost && priceNum > 0 && costNum > priceNum && (
+            <p className="-mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
+              ⚠️ ต้นทุนสูงกว่าราคาขาย — ขายแล้วจะขาดทุน {(costNum - priceNum).toLocaleString('th-TH')} บาท/ชิ้น ตรวจดูว่าพิมพ์เลขเกินหรือไม่
+            </p>
+          )}
+          {showCost && priceNum > 0 && costNum === 0 && (
+            <p className="-mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+              ยังไม่ได้ใส่ต้นทุน — รายงานกำไรจะนับสินค้านี้เป็นกำไรเต็มราคา
+            </p>
+          )}
 
           {/* Stock */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -398,9 +433,12 @@ export function ProductFormDialog({
               </Label>
               <Input
                 type="number" min="0" placeholder="0"
-                disabled={isLoading || isEditing || isOwnerGlobalMode}
+                disabled={isLoading || isEditing || isOwnerGlobalMode || openBySerial}
                 {...register('stock')}
               />
+              {openBySerial && (
+                <p className="text-xs text-muted-foreground">สินค้าใช้ IMEI — จำนวนนับจาก IMEI ที่ใส่ด้านล่าง</p>
+              )}
               {isEditing && (
                 <p className="text-xs text-muted-foreground">
                   แก้จำนวนสต็อกที่ปุ่ม “เพิ่มสต็อก” ในตารางสินค้า (เลือกสาขาก่อน) — มีโหมด “ตั้งยอดตามนับจริง”
@@ -477,13 +515,32 @@ export function ProductFormDialog({
                 ติดตาม Serial / IMEI (ต้องเลือก serial ตอนขาย)
               </Label>
             </div>
+
+            {openBySerial && (
+              <div className="space-y-1.5">
+                <Label htmlFor="initial-imei">IMEI ของเครื่องที่มีอยู่ตอนนี้ (บรรทัดละ 1 เครื่อง — เว้นว่างถ้ายังไม่มีของ)</Label>
+                <textarea
+                  id="initial-imei"
+                  rows={3}
+                  value={imeiText}
+                  disabled={isLoading}
+                  onChange={(e) => setImeiText(e.target.value)}
+                  placeholder={'356789012345678\n356789012345679'}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  สต็อกเริ่มต้น <span className="font-semibold text-foreground">{serialList.length}</span> เครื่อง
+                  {dupSerial && <span className="ml-1 font-semibold text-red-600">· มี IMEI ซ้ำ</span>}
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
               ยกเลิก
             </Button>
-            <Button type="submit" disabled={isLoading} className="min-w-[120px]">
+            <Button type="submit" disabled={isLoading || (openBySerial && dupSerial)} className="min-w-[120px]">
               {isLoading ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" />กำลังบันทึก...</>
               ) : isEditing ? 'บันทึกการแก้ไข' : 'เพิ่มสินค้า'}

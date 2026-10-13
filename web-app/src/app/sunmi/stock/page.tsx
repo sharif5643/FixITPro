@@ -15,6 +15,7 @@ import {
   ShoppingCart, Wrench,
 } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
+import { SerialMismatchCard } from '@/components/products/serial-mismatch-card'
 import { BarcodeScannerDialog } from '@/components/sunmi/barcode-scanner-dialog'
 import { nativeScan } from '@/lib/native-barcode-scanner'
 import { Platform } from '@/lib/platform'
@@ -331,7 +332,21 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
     defaultValues: { qty: 1 },
   })
 
-  const qty        = Number(watch('qty')) || 0
+  // Sold by IMEI: units come in with their IMEIs and go out by picking which ones
+  const bySerial   = !!product.hasSerial
+  const [imeiText, setImeiText] = useState('')
+  const [picked, setPicked]     = useState<string[]>([])
+  const [noImei, setNoImei]     = useState(0)
+  const serialList = imeiText.split(/[\n,]+/).map((x) => x.trim()).filter(Boolean)
+  const dupSerial  = new Set(serialList).size !== serialList.length
+  const { data: inStock, isLoading: loadingSerials } = useQuery<{ total: number; items: { id: string; serial: string }[] }>({
+    queryKey: ['serials', product.id, 'IN_STOCK'],
+    queryFn:  async () => (await api.get('/serials', { params: { productId: product.id, status: 'IN_STOCK', limit: 200 } })).data,
+    enabled:  bySerial && mode === 'OUT',
+  })
+  // Older data: units counted in stock with no IMEI recorded may go out without one
+  const unitsNoImei = Math.max(0, product.stock - (inStock?.total ?? 0))
+  const qty        = bySerial ? (mode === 'IN' ? serialList.length : picked.length + noImei) : (Number(watch('qty')) || 0)
   const currentQty = product.branchQuantity ?? product.stock
   const newStock   = mode === 'IN' ? currentQty + qty : Math.max(0, currentQty - qty)
 
@@ -341,7 +356,9 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
         productId: product.id,
         ...(branch.branchId ? { branchId: branch.branchId } : {}),
         type:      mode,
-        quantity:  data.qty,
+        quantity:  bySerial ? qty : data.qty,
+        ...(bySerial && mode === 'IN'  ? { serials: serialList } : {}),
+        ...(bySerial && mode === 'OUT' ? { serialIds: picked } : {}),
         note:      data.note?.trim() || undefined,
       }),
     onSuccess: async () => {
@@ -349,6 +366,7 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['low-stock'] })
       queryClient.invalidateQueries({ queryKey: ['stock-movements', product.id] })
+      queryClient.invalidateQueries({ queryKey: ['serials'] })
       try {
         const res = await api.get(`/products/${product.id}`)
         onSuccess(res.data as Product)
@@ -380,8 +398,61 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
           </div>
         </div>
 
+        {/* IMEIs: in = type/scan one per line, out = pick which units leave */}
+        {bySerial && mode === 'IN' && (
+          <div className={CLS.card + ' space-y-2'}>
+            <p className="font-semibold text-slate-700">IMEI / Serial ของเครื่องที่รับเข้า</p>
+            <p className="text-xs text-slate-400">บรรทัดละ 1 เครื่อง — จำนวนที่รับเข้าคือจำนวน IMEI</p>
+            <textarea
+              rows={4}
+              value={imeiText}
+              onChange={(e) => setImeiText(e.target.value)}
+              placeholder={'356789012345678\n356789012345679'}
+              className="w-full px-4 py-3 border border-slate-200 rounded-xl text-base font-mono bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              autoFocus
+            />
+            {dupSerial && <p className="text-xs font-semibold text-red-500">มี IMEI ซ้ำในรายการ</p>}
+          </div>
+        )}
+        {bySerial && mode === 'OUT' && (
+          <div className={CLS.card + ' space-y-2'}>
+            <p className="font-semibold text-slate-700">เลือกเครื่องที่ตัดออก</p>
+            {loadingSerials ? <div className="py-4 flex justify-center"><Spin /></div>
+              : (inStock?.items ?? []).length === 0 ? <p className="text-sm text-slate-400">ไม่มี IMEI ที่อยู่ในสต็อก</p>
+              : (
+                <div className="max-h-64 overflow-y-auto space-y-1.5">
+                  {(inStock?.items ?? []).map((s) => {
+                    const on = picked.includes(s.id)
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setPicked((v) => on ? v.filter((x) => x !== s.id) : [...v, s.id])}
+                        className={cn('w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left font-mono text-sm',
+                          on ? 'border-red-400 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-700')}
+                      >
+                        {on ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0 rounded-full border border-slate-300" />}
+                        {s.serial}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            {!loadingSerials && unitsNoImei > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2">
+                <p className="text-xs text-amber-800">มี {unitsNoImei} เครื่องที่ไม่มี IMEI ในระบบ — ตัดออก</p>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setNoImei((n) => Math.max(0, n - 1))} className="h-9 w-9 rounded-lg bg-white flex items-center justify-center"><Minus className="h-4 w-4" /></button>
+                  <span className="w-6 text-center font-bold">{noImei}</span>
+                  <button type="button" onClick={() => setNoImei((n) => Math.min(unitsNoImei, n + 1))} className="h-9 w-9 rounded-lg bg-white flex items-center justify-center"><Plus className="h-4 w-4" /></button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Qty input */}
-        <div className={CLS.card + ' space-y-3'}>
+        {!bySerial && <div className={CLS.card + ' space-y-3'}>
           <p className="font-semibold text-slate-700">
             {mode === 'IN' ? 'จำนวนที่รับเข้า' : 'จำนวนที่ตัดออก'}
           </p>
@@ -411,7 +482,9 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
             </button>
           </div>
           {errors.qty && <p className="text-xs text-red-500">{errors.qty.message}</p>}
+        </div>}
 
+        <div className={cn(CLS.card, qty > 0 ? '' : 'hidden')}>
           {/* Preview */}
           {qty > 0 && (
             <div className={cn(
@@ -444,8 +517,10 @@ function AdjustScreen({ product, mode, onSuccess, onCancel }: AdjustScreenProps)
         <div className="grid grid-cols-2 gap-3">
           <button type="button" onClick={onCancel} className={CLS.btnOutline}>ยกเลิก</button>
           <button
-            onClick={handleSubmit((d) => mutation.mutate(d))}
-            disabled={mutation.isPending || qty < 1}
+            onClick={bySerial
+              ? () => mutation.mutate({ qty, note: watch('note') })
+              : handleSubmit((d) => mutation.mutate(d))}
+            disabled={mutation.isPending || qty < 1 || (bySerial && dupSerial)}
             className={mode === 'IN' ? CLS.btnGreen : CLS.btnRed}
           >
             {mutation.isPending ? <Spin /> : mode === 'IN' ? 'รับเข้า' : 'ตัดออก'}
@@ -495,6 +570,15 @@ function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: Pro
   })
 
   const selectedType = watch('type')
+  const priceNum     = Number(watch('price')) || 0
+  const costNum      = Number(watch('costPrice')) || 0
+  const showCost     = canViewCost || !product
+  const save = (d: ProductFormData) => {
+    // A cost above the price usually is a typo (an extra zero) and makes every sale look like a loss
+    if (showCost && d.price > 0 && d.costPrice > d.price
+      && !window.confirm(`ต้นทุน ${d.costPrice.toLocaleString('th-TH')} บาท สูงกว่าราคาขาย ${d.price.toLocaleString('th-TH')} บาท — ถูกต้องใช่ไหม?`)) return
+    mutation.mutate(d)
+  }
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['categories'],
@@ -628,6 +712,16 @@ function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: Pro
             </div>
           )}
         </div>
+        {showCost && priceNum > 0 && costNum > priceNum && (
+          <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            ⚠️ ต้นทุนสูงกว่าราคาขาย — ขายแล้วขาดทุน {(costNum - priceNum).toLocaleString('th-TH')} บาท/ชิ้น ตรวจดูว่าพิมพ์เลขเกินหรือไม่
+          </p>
+        )}
+        {showCost && priceNum > 0 && costNum === 0 && (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            ยังไม่ได้ใส่ต้นทุน — รายงานกำไรจะนับสินค้านี้เป็นกำไรเต็มราคา
+          </p>
+        )}
 
         {/* Stock + MinStock */}
         <div className="grid grid-cols-2 gap-3">
@@ -653,7 +747,7 @@ function ProductFormScreen({ product, prefillBarcode, onSuccess, onCancel }: Pro
         <div className="grid grid-cols-2 gap-3 pt-1">
           <button type="button" onClick={onCancel} className={CLS.btnOutline}>ยกเลิก</button>
           <button
-            onClick={handleSubmit((d) => mutation.mutate(d))}
+            onClick={handleSubmit(save)}
             disabled={mutation.isPending}
             className={CLS.btnPrimary}
           >
@@ -1080,6 +1174,7 @@ export default function SunmiStockPage() {
         {/* ── Home: low stock list ── */}
         {current.id === 'home' && (
           <div className="p-3 space-y-3 pb-6">
+            <SerialMismatchCard serialsHref={null} />
             <LowStockSection onSelect={(p) => push({ id: 'detail', product: p })} />
           </div>
         )}

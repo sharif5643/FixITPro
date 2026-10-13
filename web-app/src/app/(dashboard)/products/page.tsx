@@ -20,6 +20,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { FilterBar } from '@/components/ui/filter-bar'
 import { SectionCard } from '@/components/ui/section-card'
 import { StatCard } from '@/components/ui/stat-card'
+import { SerialMismatchCard } from '@/components/products/serial-mismatch-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import {
   DataTable, DataTableHead, DataTableHeadCell, DataTableBody,
@@ -341,6 +342,8 @@ export default function ProductsPage() {
       </div>
 
       <TopSellingWidget branchId={effectiveBranch} />
+
+      <SerialMismatchCard />
 
       {/* Global-mode stock warning */}
       {isViewAll && (
