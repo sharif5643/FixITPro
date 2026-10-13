@@ -88,9 +88,10 @@ describe('Stock consistency (e2e)', () => {
   });
 
   it('STK-03: a refunded phone (IMEI) is back IN_STOCK and sellable again', async () => {
-    const id = await createProduct(`STK3-${run}`, { hasSerial: true, stock: 1 });
-    const serial = await authPost(app, '/api/v1/serials', ownerB, { serial: `IMEI${run}`, productId: id });
-    expect(serial.status).toBe(201);
+    // A phone sold by IMEI comes in with its IMEI
+    const id = await createProduct(`STK3-${run}`, { hasSerial: true, stock: 1, initialSerials: [`IMEI${run}`] });
+    const serial = { body: await prisma.serialNumber.findUniqueOrThrow({ where: { serial: `IMEI${run}` } }) };
+    expect(serial.body.status).toBe('IN_STOCK');
 
     const sale = await authPost(app, '/api/v1/sales', ownerB, {
       paymentMethod: 'CASH', amountPaid: 1000, branchId: IDS.branchB1,

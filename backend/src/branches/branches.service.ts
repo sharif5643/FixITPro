@@ -453,19 +453,37 @@ export class BranchesService implements OnModuleInit {
       stockCode = await this.generateStockCode(branchId);
     }
 
-    const stock = await this.prisma.branchStock.upsert({
-      where: { branchId_productId: { branchId, productId: dto.productId } },
-      create: {
-        branchId,
-        productId: dto.productId,
-        quantity:  dto.quantity,
-        minStock:  dto.minStock ?? 0,
-        ...(stockCode ? { stockCode } : {}),
-      },
-      update: {
-        quantity: dto.quantity,
-        ...(dto.minStock !== undefined ? { minStock: dto.minStock } : {}),
-      },
+    const delta = dto.quantity - (existing?.quantity ?? 0);
+    // Sold by IMEI: a count set by hand would leave units without serials (or serials without units)
+    if ((product as { hasSerial?: boolean }).hasSerial && delta !== 0) {
+      throw new BadRequestException('สินค้านี้ใช้ IMEI — เพิ่มหรือตัดสต๊อกพร้อม IMEI ที่หน้าสินค้า');
+    }
+
+    const stock = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.branchStock.upsert({
+        where: { branchId_productId: { branchId, productId: dto.productId } },
+        create: {
+          branchId,
+          productId: dto.productId,
+          quantity:  dto.quantity,
+          minStock:  dto.minStock ?? 0,
+          ...(stockCode ? { stockCode } : {}),
+        },
+        update: {
+          quantity: dto.quantity,
+          ...(dto.minStock !== undefined ? { minStock: dto.minStock } : {}),
+        },
+      });
+      // The change is history too: the stock card has to explain the new count
+      if (delta !== 0) {
+        await tx.stockMovement.create({
+          data: {
+            productId: dto.productId, type: 'ADJUST', quantity: delta, branchId,
+            note: `ตั้งยอดสต๊อกเป็น ${dto.quantity}${actorName ? ` (${actorName})` : ''}`,
+          },
+        });
+      }
+      return row;
     });
 
     this.auditLog.log({

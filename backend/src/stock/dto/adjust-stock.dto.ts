@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsIn, Max, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsIn, Max, Min, IsArray, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AdjustStockDto {
@@ -29,4 +29,18 @@ export class AdjustStockDto {
   @IsOptional()
   @IsString()
   branchId?: string;
+
+  /** IMEI / serial of each unit coming in (IN, products sold by serial) */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  serials?: string[];
+
+  /** Serials (ids) of the units going out (OUT, products sold by serial) */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  serialIds?: string[];
 }
