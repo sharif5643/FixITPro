@@ -1,6 +1,7 @@
 'use client'
 
 import { useAppBranch } from '@/hooks/useAppBranch'
+import { LongShiftBanner } from '@/components/shift/long-shift-banner'
 import { useAppAccess } from '@/hooks/useAppAccess'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -273,7 +274,9 @@ export default function HomePage() {
 
       <div className="flex flex-col gap-5 px-5 pt-5">
 
-        {/* ── Error state ── */}
+        <LongShiftBanner closeHref="/staff/shift" />
+
+      {/* ── Error state ── */}
         {error && (
           <div className="flex flex-col items-center gap-3 rounded-2xl bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
             <AlertTriangle className="h-8 w-8 text-red-400"/>

@@ -16,6 +16,8 @@ import { SerialPicker } from '@/components/pos/checkout-dialog'
 import { useAppBranch } from '@/hooks/useAppBranch'
 import { AppBranchBar } from '@/components/app/app-branch-bar'
 import { QuickCashBar } from '@/components/quick-cash/quick-cash-bar'
+import { LongShiftBanner } from '@/components/shift/long-shift-banner'
+import { WriteOffDialog, toLocalInput } from '@/components/pos/write-off-dialog'
 import { useAppShell } from '@/lib/app-shell'
 import { BarcodeScannerDialog } from '@/components/sunmi/barcode-scanner-dialog'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
@@ -205,11 +207,20 @@ interface CheckoutSheetProps {
   shiftId?:      string
   onClose:       () => void
   onSuccess:     (sale: Sale) => void
+  /** Goods taken out of stock as a gift / claim instead of sold: the cart is done */
+  onWrittenOff?: () => void
 }
 
 function CheckoutSheet({
-  subtotal, totalDiscount, total, itemDiscounts, shiftId, onClose, onSuccess,
+  subtotal, totalDiscount, total, itemDiscounts, shiftId, onClose, onSuccess, onWrittenOff,
 }: CheckoutSheetProps) {
+  // Late entry (owner / manager): goods sold earlier, keyed in now at their real price
+  const role = useAuthStore((s) => s.user?.role)
+  const canLate = role === 'OWNER' || role === 'MANAGER'
+  const [lateOn, setLateOn] = useState(false)
+  const [lateAt, setLateAt] = useState(() => toLocalInput(new Date(Date.now() - 3600_000)))
+  const [zeroOk, setZeroOk] = useState(false)
+  const [writeOffOpen, setWriteOffOpen] = useState(false)
   const items                       = useCartStore((s) => s.items)
   const discount                    = useCartStore((s) => s.discount)
   const [method, setMethod]         = useState<PaymentMethod>('CASH')
@@ -230,7 +241,10 @@ function CheckoutSheet({
   const paidNum   = Number(amountPaid) || 0
   const change    = method === 'CASH' ? Math.max(0, paidNum - total) : 0
   const branch    = useAppBranch()
-  const canSubmit = !!shiftId && serialsDone && !branch.needsPick && (method !== 'CASH' ? true : paidNum >= total)
+  // A bill that comes to 0: usually a gift / claim (take it out of stock instead) or an old sale
+  const zeroBill  = total <= 0 && items.length > 0
+  const canSubmit = (!!shiftId || lateOn) && serialsDone && !branch.needsPick && (method !== 'CASH' ? true : paidNum >= total)
+    && (!zeroBill || zeroOk) && (!lateOn || !!lateAt)
 
   useEffect(() => pushBackHandler(onClose), [onClose])
   useEffect(() => { if (method !== 'CASH') setAmountPaid('') }, [method])
@@ -267,6 +281,7 @@ function CheckoutSheet({
       api.post('/sales', {
         shiftId,
         branchId:      branch.branchId,
+        ...(lateOn && lateAt ? { soldAt: new Date(lateAt).toISOString() } : {}),
         paymentMethod: method,
         amountPaid:    method === 'CASH' ? paidNum : total,
         discount,
@@ -331,6 +346,38 @@ function CheckoutSheet({
                 <SerialPicker key={item.product.id} item={item} selected={serialIds[item.product.id] ?? []}
                   onSelect={(ids) => setSerialIds((m) => ({ ...m, [item.product.id]: ids }))} />
               ))}
+            </div>
+          )}
+
+          {/* A 0-baht bill: a gift / claim belongs in stock write-off, an old sale at its real price */}
+          {zeroBill && (
+            <div className="space-y-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-bold">บิลนี้ยอด 0 บาท</p>
+              <p className="text-xs">ถ้าเป็นของแถม / เคลม / เปลี่ยนให้ลูกค้า ให้ตัดสต๊อกพร้อมเหตุผลแทน — ยอดขายและกำไรจะไม่เพี้ยน
+                {canLate ? ' · ถ้าเป็นของที่ขายไปแล้วแต่ลืมคีย์ ให้ลบส่วนลดออก แล้วใช้ "บันทึกยอดขายย้อนหลัง" ด้วยราคาจริง' : ''}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => setWriteOffOpen(true)} className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white active:bg-amber-700">ตัดสต๊อก (แถม/เคลม)</button>
+                <label className="flex items-center gap-1.5 text-xs">
+                  <input type="checkbox" checked={zeroOk} onChange={(e) => setZeroOk(e.target.checked)} /> ขาย 0 บาทจริง
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Late entry: sold earlier, keyed in now — filed in the shift of that time */}
+          {canLate && (
+            <div className="rounded-2xl border border-slate-200 p-3 text-sm">
+              <label className="flex items-center gap-2 font-semibold text-slate-700">
+                <input type="checkbox" checked={lateOn} onChange={(e) => setLateOn(e.target.checked)} />
+                บันทึกยอดขายย้อนหลัง (ขายไปแล้ว ลืมคีย์)
+              </label>
+              {lateOn && (
+                <div className="mt-2 space-y-1">
+                  <input type="datetime-local" value={lateAt} max={toLocalInput(new Date())} onChange={(e) => setLateAt(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 px-3 text-base" />
+                  <p className="text-xs text-slate-500">บิลจะลงวันเวลาที่ขายจริง ในกะที่เปิดอยู่ตอนนั้น — เงินที่นับไปแล้วในกะนั้นจะไม่ถูกนับซ้ำในกะนี้</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -481,6 +528,16 @@ function CheckoutSheet({
           </button>
         </div>
       </div>
+      <WriteOffDialog
+        open={writeOffOpen}
+        onOpenChange={setWriteOffOpen}
+        branchId={branch.branchId}
+        items={items.map((i) => ({
+          productId: i.product.id, name: i.product.name, quantity: i.quantity,
+          serialIds: i.product.hasSerial ? (serialIds[i.product.id] ?? []) : undefined,
+        }))}
+        onDone={() => { onClose(); onWrittenOff?.() }}
+      />
     </div>
   )
 }
@@ -716,6 +773,7 @@ export default function SunmiSalesPage() {
             <AppBranchBar className="rounded-xl" />
 
             <QuickCashBar disabled={currentShift === null} />
+            <LongShiftBanner closeHref={shell.to('/sunmi/shifts')} />
 
             {/* Shift warning */}
             {currentShift === null && (
@@ -991,6 +1049,7 @@ export default function SunmiSalesPage() {
           shiftId={currentShift?.id}
           onClose={() => setCheckoutOpen(false)}
           onSuccess={handleSuccess}
+          onWrittenOff={() => { clearCart(); queryClient.invalidateQueries({ queryKey: ['products'] }) }}
         />
       )}
 

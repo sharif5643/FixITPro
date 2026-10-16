@@ -114,6 +114,30 @@ export class SalesAccountingAdapter {
   }
 
   /**
+   * The bill was paid another way than first keyed: reverse the old payment journals and book
+   * the new payment legs (revenue and cost of the goods are unchanged).
+   */
+  async rebookPayments(
+    sale:      SaleForAccounting,
+    oldLegIds: string[],
+    tenantId:  string,
+    actorId?:  string | null,
+  ): Promise<void> {
+    if (!await this.isEnabledForTenant(tenantId)) return;
+    try {
+      for (const legId of oldLegIds) {
+        const existing = await this.journal.findBySource('SALE_PAYMENT', legId, tenantId);
+        if (existing && !existing.isVoided) {
+          await this.journal.reverse(existing.id, tenantId, `Payment method changed — sale ${sale.receiptNumber}`, actorId);
+        }
+      }
+      await this._recordPaymentJournals(sale, tenantId, actorId);
+    } catch (err) {
+      this.logger.error(`SalesAccountingAdapter.rebookPayments failed: saleId=${sale.id}`, err);
+    }
+  }
+
+  /**
    * Create journal entries for a sale refund (revenue reversal + COGS restore).
    * Called AFTER the POS $transaction for refund commits.
    */
@@ -138,6 +162,16 @@ export class SalesAccountingAdapter {
   // ── Internal implementations (exposed as _method for unit testing) ─────────
 
   async _recordSaleJournal(
+    sale:     SaleForAccounting,
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
+    await this._recordPaymentJournals(sale, tenantId, actorId);
+    await this._recordCogsJournals(sale, tenantId, actorId);
+  }
+
+  /** One revenue journal per payment leg (cash net of change; transfer / card as paid) */
+  async _recordPaymentJournals(
     sale:     SaleForAccounting,
     tenantId: string,
     actorId?: string | null,
@@ -208,7 +242,14 @@ export class SalesAccountingAdapter {
       });
     }
 
-    // COGS journal per SaleItem — only when costPrice > 0
+  }
+
+  /** COGS journal per SaleItem — only when costPrice > 0 */
+  async _recordCogsJournals(
+    sale:     SaleForAccounting,
+    tenantId: string,
+    actorId?: string | null,
+  ): Promise<void> {
     for (const item of sale.items) {
       const costPrice = new Prisma.Decimal(String(item.costPrice));
       if (!costPrice.gt(0)) {

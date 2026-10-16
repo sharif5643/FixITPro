@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { BranchQuickPick } from '@/components/layout/branch-context-bar'
+import { CashBillReview } from '@/components/shift/cash-bill-review'
 import { PartsPendingReminder } from '@/components/quick-cash/quick-cash-bar'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -737,6 +738,7 @@ export default function ShiftsPage() {
             className="space-y-4"
           >
             <PartsPendingReminder />
+            {currentShift?.id && <CashBillReview shiftId={currentShift.id} />}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="closeBalance">เงินสดจริง ณ ปิดกะ (บาท)</Label>

@@ -1,6 +1,7 @@
 'use client'
 
 import { PartsPendingReminder } from '@/components/quick-cash/quick-cash-bar'
+import { CashBillReview } from '@/components/shift/cash-bill-review'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -783,6 +784,9 @@ export default function SunmiShiftsPage() {
 
         {/* Carrier wallet balances */}
         <WalletBalances shiftId={shift.id} />
+
+        {/* Big cash bills: fix a transfer keyed as cash before counting */}
+        <CashBillReview shiftId={shift.id} className="rounded-2xl" />
 
         {/* Close form */}
         <div className="space-y-1.5">
