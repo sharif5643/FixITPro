@@ -464,4 +464,74 @@ FROM "AuditLog" al WHERE al.action IN ('PRODUCT_CREATED', 'BRANCH_STOCK_ENROLLED
   AND al."actorId" IN (SELECT id FROM "User" WHERE "tenantId" = 'cmsc05do8001u7i29q3p5x6zp')
 GROUP BY 1 ORDER BY 1;
 
+
+\echo '--- 25. Why closed shifts of the busiest shop do not balance (amounts and times only) ---'
+\echo '25a. Per closed shift (45 days): what was counted vs what came in by every method, and the day/night split'
+WITH shop AS (SELECT 'cmsc05do8001u7i29q3p5x6zp'::text AS id)
+SELECT to_char(sh."openedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS opened,
+  to_char(sh."closedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS closed,
+  round(extract(epoch FROM sh."closedAt" - sh."openedAt") / 3600) AS hours,
+  sh."closeBalance" - sh."openBalance" AS counted_takings,
+  (a."afterData"->>'expectedBalance')::numeric - sh."openBalance" AS expected_takings,
+  (SELECT coalesce(sum(sp.amount), 0) FROM "SalePayment" sp JOIN "Sale" s ON s.id = sp."saleId" WHERE s."shiftId" = sh.id AND s.status::text <> 'VOIDED' AND sp."paymentMethod"::text = 'CASH') AS sale_cash,
+  (SELECT coalesce(sum(sp.amount), 0) FROM "SalePayment" sp JOIN "Sale" s ON s.id = sp."saleId" WHERE s."shiftId" = sh.id AND s.status::text <> 'VOIDED' AND sp."paymentMethod"::text = 'TRANSFER') AS sale_transfer,
+  (SELECT coalesce(sum(sp.amount), 0) FROM "SalePayment" sp JOIN "Sale" s ON s.id = sp."saleId" WHERE s."shiftId" = sh.id AND s.status::text <> 'VOIDED' AND sp."paymentMethod"::text NOT IN ('CASH', 'TRANSFER')) AS sale_other,
+  (SELECT count(*) FROM "Sale" s WHERE s."shiftId" = sh.id AND s.status::text <> 'VOIDED'
+     AND extract(hour FROM s."createdAt" AT TIME ZONE 'Asia/Bangkok') BETWEEN 8 AND 17) AS sales_daytime,
+  (SELECT count(*) FROM "Sale" s WHERE s."shiftId" = sh.id AND s.status::text <> 'VOIDED'
+     AND NOT extract(hour FROM s."createdAt" AT TIME ZONE 'Asia/Bangkok') BETWEEN 8 AND 17) AS sales_night,
+  (SELECT count(*) FROM "Repair" r WHERE r."paymentShiftId" = sh.id) AS repairs_paid,
+  (SELECT count(*) FROM "ShiftCashMovement" m WHERE m."shiftId" = sh.id) AS cash_moves,
+  (SELECT count(*) FROM "Expense" e WHERE e."shiftId" = sh.id) AS expenses,
+  length(coalesce(sh.note, '')) AS note_len
+FROM "Shift" sh CROSS JOIN shop JOIN "Branch" b ON b.id = sh."branchId" AND b."tenantId" = shop.id
+LEFT JOIN LATERAL (SELECT al."afterData" FROM "AuditLog" al WHERE al.action = 'SHIFT_CLOSED' AND al."entityId" = sh.id ORDER BY al."createdAt" DESC LIMIT 1) a ON true
+WHERE sh."closedAt" > now() - interval '45 days' ORDER BY sh."openedAt";
+
+\echo '25b. Same shop, last 45 days: sales by hour of day (Bangkok) — when does the shop record sales?'
+SELECT extract(hour FROM s."createdAt" AT TIME ZONE 'Asia/Bangkok')::int AS hour, count(*) AS sales, sum(s.total) AS amount
+FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId"
+WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND s.status::text <> 'VOIDED' AND s."createdAt" > now() - interval '45 days'
+GROUP BY 1 ORDER BY 1;
+
+\echo '25c. Same shop: the 8 shifts with the biggest difference — each sale in them (time, total, how paid, items)'
+WITH big AS (
+  SELECT sh.id FROM "Shift" sh JOIN "Branch" b ON b.id = sh."branchId"
+  LEFT JOIN LATERAL (SELECT al."afterData" FROM "AuditLog" al WHERE al.action = 'SHIFT_CLOSED' AND al."entityId" = sh.id ORDER BY al."createdAt" DESC LIMIT 1) a ON true
+  WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND sh."closedAt" > now() - interval '45 days'
+  ORDER BY abs(coalesce((a."afterData"->>'difference')::numeric, 0)) DESC LIMIT 8)
+SELECT to_char(sh."closedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD') AS shift_closed,
+  to_char(s."createdAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS sold, s.total, s."paymentMethod" AS method,
+  (SELECT string_agg(sp."paymentMethod"::text || ' ' || sp.amount, ' + ') FROM "SalePayment" sp WHERE sp."saleId" = s.id) AS legs,
+  (SELECT count(*) FROM "SaleItem" si WHERE si."saleId" = s.id) AS lines,
+  (SELECT left(string_agg(DISTINCT p.type::text, ','), 30) FROM "SaleItem" si JOIN "Product" p ON p.id = si."productId" WHERE si."saleId" = s.id) AS types
+FROM big JOIN "Shift" sh ON sh.id = big.id JOIN "Sale" s ON s."shiftId" = sh.id AND s.status::text <> 'VOIDED'
+ORDER BY sh."closedAt", s."createdAt";
+
+\echo '25d. Same shop: what the close records say for those shifts (stored breakdown)'
+WITH big AS (
+  SELECT sh.id, sh."closedAt" FROM "Shift" sh JOIN "Branch" b ON b.id = sh."branchId"
+  LEFT JOIN LATERAL (SELECT al."afterData" FROM "AuditLog" al WHERE al.action = 'SHIFT_CLOSED' AND al."entityId" = sh.id ORDER BY al."createdAt" DESC LIMIT 1) a ON true
+  WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND sh."closedAt" > now() - interval '45 days'
+  ORDER BY abs(coalesce((a."afterData"->>'difference')::numeric, 0)) DESC LIMIT 8)
+SELECT to_char(big."closedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD') AS shift_closed,
+  (SELECT string_agg(k, ',' ORDER BY k) FROM jsonb_object_keys(a."afterData"::jsonb) k) AS keys_saved,
+  a."afterData"->>'expectedBalance' AS expected, a."afterData"->>'difference' AS diff
+FROM big LEFT JOIN LATERAL (SELECT al."afterData" FROM "AuditLog" al WHERE al.action = 'SHIFT_CLOSED' AND al."entityId" = big.id ORDER BY al."createdAt" DESC LIMIT 1) a ON true
+ORDER BY big."closedAt";
+
+\echo '25e. Shifts open for more than 24 hours: per shop, when opened, sales since, last sale, by whom (role)'
+SELECT b."tenantId", to_char(sh."openedAt" AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD') AS opened, u.role,
+  (SELECT count(*) FROM "Sale" s WHERE s."shiftId" = sh.id) AS sales_in_shift,
+  (SELECT to_char(max(s."createdAt") AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD') FROM "Sale" s WHERE s."shiftId" = sh.id) AS last_sale,
+  (SELECT count(*) FROM "Tenant" t WHERE t.id = b."tenantId" AND t.status::text = 'ACTIVE') AS shop_active
+FROM "Shift" sh JOIN "User" u ON u.id = sh."userId" LEFT JOIN "Branch" b ON b.id = sh."branchId"
+WHERE sh."isActive" AND sh."openedAt" < now() - interval '24 hours' ORDER BY sh."openedAt";
+
+\echo '25f. Sales with no payment rows: when, how paid, voided or not (per shop)'
+SELECT b."tenantId", min(s."createdAt")::date AS first, max(s."createdAt")::date AS last, s."paymentMethod", s.status, count(*) AS sales, sum(s.total) AS amount
+FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId"
+WHERE NOT EXISTS (SELECT 1 FROM "SalePayment" sp WHERE sp."saleId" = s.id)
+GROUP BY 1, 4, 5 ORDER BY 1, 4, 5;
+
 ROLLBACK;
