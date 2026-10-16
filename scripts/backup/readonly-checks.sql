@@ -564,4 +564,12 @@ LEFT JOIN LATERAL (SELECT al."afterData" FROM "AuditLog" al WHERE al.action = 'S
 WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND s.status::text <> 'VOIDED' AND s.total >= 5000 AND s."createdAt" > now() - interval '45 days'
 ORDER BY s."createdAt";
 
+
+\echo '25j. Busiest shop: what the notes on 0-baht sales say (grouped, first 40 characters)'
+SELECT left(regexp_replace(coalesce(s.note, '(none)'), '[0-9]{6,}', '#', 'g'), 40) AS note, count(*) AS sales,
+  sum(s.subtotal) AS subtotal, min(s."createdAt")::date AS first, max(s."createdAt")::date AS last
+FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId"
+WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND s.status::text <> 'VOIDED' AND s.total = 0
+GROUP BY 1 ORDER BY 2 DESC LIMIT 25;
+
 ROLLBACK;
