@@ -534,4 +534,34 @@ FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId"
 WHERE NOT EXISTS (SELECT 1 FROM "SalePayment" sp WHERE sp."saleId" = s.id)
 GROUP BY 1, 4, 5 ORDER BY 1, 4, 5;
 
+
+\echo '25g. Busiest shop: sales recorded at 0 baht — how many, items, what the goods list at, and how the 0 came about'
+SELECT to_char(date_trunc('week', s."createdAt" AT TIME ZONE 'Asia/Bangkok'), 'YYYY-MM-DD') AS week,
+  count(DISTINCT s.id) AS zero_sales, sum(si.quantity) AS units,
+  sum(p.price * si.quantity) AS list_value, sum(si."costPrice" * si.quantity) AS cost_value,
+  count(*) FILTER (WHERE si.price = 0) AS lines_priced_0,
+  count(*) FILTER (WHERE si.price > 0 AND si.discount >= si.price * si.quantity) AS lines_discounted_to_0,
+  count(DISTINCT s.id) FILTER (WHERE s.discount > 0) AS bill_discount,
+  count(DISTINCT s.id) FILTER (WHERE s.note IS NOT NULL AND s.note <> '') AS with_note,
+  count(DISTINCT s."userId") AS by_users
+FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" JOIN "SaleItem" si ON si."saleId" = s.id JOIN "Product" p ON p.id = si."productId"
+WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND s.status::text <> 'VOIDED' AND s.total = 0
+GROUP BY 1 ORDER BY 1;
+\echo '25h. Busiest shop: shifts with 0-baht sales — list value of those goods vs the extra cash counted'
+SELECT to_char(sh."closedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD') AS shift_closed,
+  (a."afterData"->>'difference')::numeric AS extra_cash_counted,
+  sum(p.price * si.quantity) AS zero_sales_list_value, count(DISTINCT s.id) AS zero_sales
+FROM "Sale" s JOIN "Shift" sh ON sh.id = s."shiftId" JOIN "Branch" b ON b.id = s."branchId"
+JOIN "SaleItem" si ON si."saleId" = s.id JOIN "Product" p ON p.id = si."productId"
+LEFT JOIN LATERAL (SELECT al."afterData" FROM "AuditLog" al WHERE al.action = 'SHIFT_CLOSED' AND al."entityId" = sh.id ORDER BY al."createdAt" DESC LIMIT 1) a ON true
+WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND s.status::text <> 'VOIDED' AND s.total = 0 AND sh."closedAt" IS NOT NULL
+GROUP BY sh.id, sh."closedAt", a."afterData" ORDER BY sh."closedAt";
+\echo '25i. Busiest shop: big phone sales recorded as cash (could they have been transfers?) — per sale, last 45 days'
+SELECT to_char(s."createdAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS sold, s.total, s."paymentMethod",
+  to_char(sh."closedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD') AS shift_closed, (a."afterData"->>'difference')::numeric AS shift_diff
+FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" LEFT JOIN "Shift" sh ON sh.id = s."shiftId"
+LEFT JOIN LATERAL (SELECT al."afterData" FROM "AuditLog" al WHERE al.action = 'SHIFT_CLOSED' AND al."entityId" = sh.id ORDER BY al."createdAt" DESC LIMIT 1) a ON true
+WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND s.status::text <> 'VOIDED' AND s.total >= 5000 AND s."createdAt" > now() - interval '45 days'
+ORDER BY s."createdAt";
+
 ROLLBACK;
