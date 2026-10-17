@@ -596,4 +596,52 @@ FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId"
 WHERE b."tenantId" = 'cmsc05do8001u7i29q3p5x6zp' AND s.status::text <> 'VOIDED' AND s.total = 0
 GROUP BY 1 ORDER BY 2 DESC LIMIT 25;
 
+\echo '--- 26. Who opens, joins and closes shifts (roles and times only) ---'
+\echo '26a. Open shifts right now: per shop and branch, opened by (role), people still joined, how many open in that branch'
+SELECT b."tenantId", sh."branchId", to_char(sh."openedAt" AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD HH24:MI') AS opened, u.role AS opener_role,
+  (SELECT count(*) FROM "ShiftMember" m WHERE m."shiftId" = sh.id AND m."leftAt" IS NULL) AS joined_now,
+  count(*) OVER (PARTITION BY sh."branchId") AS open_in_branch,
+  (SELECT count(*) FROM "Sale" s WHERE s."shiftId" = sh.id) AS sales
+FROM "Shift" sh JOIN "User" u ON u.id = sh."userId" LEFT JOIN "Branch" b ON b.id = sh."branchId"
+WHERE sh."isActive" ORDER BY 1, 2, 3;
+\echo '26b. Joined members still marked in a shift that is already closed (should be 0)'
+SELECT count(*) AS members_left_open_on_closed_shifts
+FROM "ShiftMember" m JOIN "Shift" sh ON sh.id = m."shiftId" WHERE m."leftAt" IS NULL AND NOT sh."isActive";
+\echo '26c. Last 60 days: shifts of the same branch that were open at the same time (two drawers instead of one)'
+SELECT b."tenantId", count(*) AS overlapping_pairs,
+  min(a."openedAt")::date AS first, max(a."openedAt")::date AS last
+FROM "Shift" a JOIN "Shift" c ON c."branchId" = a."branchId" AND c.id > a.id
+  AND c."openedAt" < coalesce(a."closedAt", now()) AND a."openedAt" < coalesce(c."closedAt", now())
+JOIN "Branch" b ON b.id = a."branchId"
+WHERE a."openedAt" > now() - INTERVAL '60 days'
+GROUP BY 1 ORDER BY 1;
+\echo '26d. Join / leave / handover / close-by-someone-else, per shop, last 60 days'
+SELECT u."tenantId", al.action, count(*) AS times, max(al."createdAt")::date AS last
+FROM "AuditLog" al JOIN "User" u ON u.id = al."actorId"
+WHERE al.action IN ('SHIFT_JOINED','SHIFT_LEFT','SHIFT_HANDOVER') AND al."createdAt" > now() - INTERVAL '60 days'
+GROUP BY 1, 2
+UNION ALL
+SELECT u."tenantId", 'CLOSED_BY_NOT_OPENER', count(*), max(al."createdAt")::date
+FROM "AuditLog" al JOIN "Shift" sh ON sh.id = al."entityId" JOIN "User" u ON u.id = sh."userId"
+WHERE al.action = 'SHIFT_CLOSED' AND al."actorId" <> sh."userId" AND al."createdAt" > now() - INTERVAL '60 days'
+GROUP BY 1 ORDER BY 1, 2;
+\echo '26e. Shops with a joined shift in the last 30 days: each such shift (roles, times, who closed, sales per person)'
+SELECT b."tenantId", to_char(sh."openedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS opened,
+  to_char(sh."closedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS closed, ou.role AS opener,
+  (SELECT string_agg(mu.role || ' ' || to_char(m."joinedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') || '→' ||
+     coalesce(to_char(m."leftAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI'), 'still'), ', ')
+   FROM "ShiftMember" m JOIN "User" mu ON mu.id = m."userId" WHERE m."shiftId" = sh.id) AS members,
+  (SELECT CASE WHEN al."actorId" = sh."userId" THEN 'opener' ELSE cu.role::text END
+   FROM "AuditLog" al JOIN "User" cu ON cu.id = al."actorId"
+   WHERE al.action = 'SHIFT_CLOSED' AND al."entityId" = sh.id LIMIT 1) AS closed_by,
+  (SELECT string_agg(x.role || ':' || x.n, ' ') FROM (SELECT su.role::text AS role, count(*) AS n FROM "Sale" s JOIN "User" su ON su.id = s."userId"
+     WHERE s."shiftId" = sh.id GROUP BY 1) x) AS sales_by_role
+FROM "Shift" sh JOIN "User" ou ON ou.id = sh."userId" LEFT JOIN "Branch" b ON b.id = sh."branchId"
+WHERE EXISTS (SELECT 1 FROM "ShiftMember" m WHERE m."shiftId" = sh.id) AND sh."openedAt" > now() - INTERVAL '30 days'
+ORDER BY 1, sh."openedAt" DESC LIMIT 40;
+\echo '26f. Cash drawer sessions (the second, older drawer record) still OPEN, per branch, and whether a shift is open there'
+SELECT cs."tenantId", cs."branchId", to_char(cs."openedAt" AT TIME ZONE 'Asia/Bangkok', 'YYYY-MM-DD') AS opened,
+  EXISTS (SELECT 1 FROM "Shift" sh WHERE sh."branchId" = cs."branchId" AND sh."isActive") AS shift_open_now
+FROM "CashDrawerSession" cs WHERE cs.status::text = 'OPEN' ORDER BY 1, 3;
+
 ROLLBACK;
