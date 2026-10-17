@@ -11,6 +11,7 @@ import { PrismaClient } from '@prisma/client';
 import { createTestApp } from './helpers/app.helper';
 import { loginAs, authGet, authPost } from './helpers/auth.helper';
 import { CREDS, IDS, seedTestData, testPrisma } from './helpers/seed.helper';
+import { ensureInShift } from './helpers/shift.helper';
 
 describe('Shift integrity: write-off, late entry, payment method (e2e)', () => {
   let app: INestApplication;
@@ -28,11 +29,7 @@ describe('Shift integrity: write-off, late entry, payment method (e2e)', () => {
     (await prisma.branchStock.findUniqueOrThrow({ where: { branchId_productId: { branchId: IDS.branchA1, productId } } })).quantity;
   const expected = async (cookie: string) =>
     Number((await authGet(app, '/api/v1/shifts/current', cookie).expect(200)).body.expectedCashBalance);
-  const ensureShift = async (cookie: string) => {
-    const cur = (await authGet(app, '/api/v1/shifts/current', cookie).expect(200)).body;
-    if (cur?.id) return cur.id as string;
-    return (await authPost(app, '/api/v1/shifts/open', cookie, { openBalance: 0 }).expect(201)).body.id as string;
-  };
+  const ensureShift = (cookie: string) => ensureInShift(app, cookie);
   const sell = (cookie: string, body: object) => authPost(app, '/api/v1/sales', cookie, {
     branchId: IDS.branchA1, items: [{ productId, quantity: 1, price: 1000 }], ...body,
   });

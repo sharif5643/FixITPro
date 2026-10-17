@@ -54,9 +54,11 @@ describe('Team safety (e2e)', () => {
 
   it('TEAM-03: staff with history are disabled, not deleted; a new unused account can be deleted', async () => {
     const worked = await newStaff('worked');
-    const cookie = (await loginAs(app, `worked-${run}@e2e.test`, pw)).cookies;
-    const shift = (await authPost(app, '/api/v1/shifts/open', cookie, { openBalance: 0 }).expect(201)).body;
-    await authPost(app, `/api/v1/shifts/${shift.id}/close`, cookie, { closeBalance: 0 }).expect(201);
+    // A shift they worked earlier (the branch's drawer may be open by someone else right now)
+    await prisma.shift.create({ data: {
+      userId: worked, branchId: IDS.branchA1, openBalance: 0, closeBalance: 0, isActive: false,
+      openedAt: new Date(Date.now() - 3 * 3600_000), closedAt: new Date(Date.now() - 3600_000),
+    } });
     const res = await del(`/api/v1/users/${worked}`).expect(400);
     expect(res.body.message).toContain('ปิดใช้งาน');
     await patch(`/api/v1/users/${worked}/toggle`).expect(200);

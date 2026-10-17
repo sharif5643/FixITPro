@@ -7,6 +7,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { createTestApp } from './helpers/app.helper';
 import { loginAs, authGet, authPost, authPatch } from './helpers/auth.helper';
+import { ensureInShift } from './helpers/shift.helper';
 import { CREDS, IDS, seedTestData, testPrisma } from './helpers/seed.helper';
 
 describe('Accounting for purchases, SIM/package sales and the cash drawer (e2e)', () => {
@@ -38,8 +39,7 @@ describe('Accounting for purchases, SIM/package sales and the cash drawer (e2e)'
     owner   = (await loginAs(app, CREDS.ownerA.email, CREDS.ownerA.password)).cookies;
     manager = (await loginAs(app, CREDS.managerA1.email, CREDS.managerA1.password)).cookies;
     await authPost(app, '/api/v1/accounting/accounts/initialize', owner, {}).expect(201);
-    const current = await authGet(app, '/api/v1/shifts/current', manager);
-    shiftId = current.body?.id ?? (await authPost(app, '/api/v1/shifts/open', manager, { openBalance: 0 }).expect(201)).body.id;
+    shiftId = await ensureInShift(app, manager);
   });
 
   afterAll(async () => {

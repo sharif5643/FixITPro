@@ -50,7 +50,9 @@ import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
-import { JoinShifts, LeaveShiftButton } from '@/components/shifts/join-shifts'
+import { JoinShifts, LeaveShiftButton, isBranchShiftOpenError, useMyBranchHasOpenShift } from '@/components/shifts/join-shifts'
+import { OpenShiftsAdmin } from '@/components/shifts/open-shifts-admin'
+import { ClosedByOtherNotice } from '@/components/shift/long-shift-banner'
 import { ShiftLedgerSheet } from '@/components/shifts/shift-ledger'
 import { HandoverCard, HandoverPicker, usePendingHandover, WALLET_FIELD, type PendingHandover } from '@/components/shifts/handover'
 import { ShiftCashMovements } from '@/components/shifts/cash-movements'
@@ -207,6 +209,7 @@ export default function ShiftsPage() {
     })
 
   const { data: handover } = usePendingHandover(!loadingCurrent && !currentShift)
+  const branchShiftOpen = useMyBranchHasOpenShift(!loadingCurrent && !currentShift)
 
   // ── Forms ──
   const openForm = useForm<OpenForm>({
@@ -237,6 +240,8 @@ export default function ShiftsPage() {
     onError: (err: any) => {
       const msg = err.response?.data?.message
       toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เกิดข้อผิดพลาด'))
+      // Someone opened this branch's shift a moment ago: show it to join
+      if (isBranchShiftOpenError(err)) queryClient.invalidateQueries({ queryKey: ['shifts', 'joinable'] })
     },
   })
 
@@ -326,6 +331,8 @@ export default function ShiftsPage() {
       />
 
       {/* ── Current Shift Block ── */}
+      {!loadingCurrent && <OpenShiftsAdmin excludeId={currentShift?.id} />}
+
       {loadingCurrent ? (
         <SectionCard>
           <div className="flex items-center justify-center h-44 gap-2 text-slate-400">
@@ -451,7 +458,13 @@ export default function ShiftsPage() {
             รับกะต่อจาก {handover?.fromName} — ใส่เงินสดที่นับได้จริงแล้วกด “ยืนยันรับกะ” (ยอดที่ไม่ตรงจะแจ้งเจ้าของร้าน)
           </p>
         )}
+        <ClosedByOtherNotice />
         {!handoverFrom && <JoinShifts onJoined={refresh} />}
+        {branchShiftOpen && !handoverFrom ? (
+          <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            หนึ่งสาขาเปิดได้หนึ่งกะ (ลิ้นชักเดียว) — กด “เข้าร่วมกะ” ด้านบนเพื่อเริ่มขาย
+          </p>
+        ) : (
         <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/40 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-6 sm:p-8">
           <div className="flex flex-col items-center text-center gap-4 mb-6">
             <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_8px_24px_rgba(16,185,129,0.35)]">
@@ -509,6 +522,7 @@ export default function ShiftsPage() {
             </Button>
           </form>
         </div>
+        )}
         </div>
       )}
 

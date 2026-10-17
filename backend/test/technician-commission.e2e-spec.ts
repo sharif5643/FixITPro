@@ -6,6 +6,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { createTestApp } from './helpers/app.helper';
 import { loginAs, authGet, authPost, authPatch } from './helpers/auth.helper';
+import { ensureInShift } from './helpers/shift.helper';
 import { CREDS, IDS, seedTestData, testPrisma } from './helpers/seed.helper';
 
 describe('Technician commission (e2e)', () => {
@@ -26,7 +27,7 @@ describe('Technician commission (e2e)', () => {
     owner   = (await loginAs(app, CREDS.ownerA.email, CREDS.ownerA.password)).cookies;
     manager = (await loginAs(app, CREDS.managerA1.email, CREDS.managerA1.password)).cookies;
     tech    = (await loginAs(app, CREDS.techA1.email, CREDS.techA1.password)).cookies;
-    await authPost(app, '/api/v1/shifts/open', manager, { openBalance: 0 }); // may already be open
+    await ensureInShift(app, manager);
   });
 
   afterAll(async () => {

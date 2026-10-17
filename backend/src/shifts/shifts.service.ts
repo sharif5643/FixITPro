@@ -1,12 +1,14 @@
 import {
   Injectable,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
   Logger,
   Optional,
 } from '@nestjs/common';
 import { CashDrawerSessionStatus } from '@prisma/client';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService, SHIFT_MISMATCH_THRESHOLD } from '../notifications/notifications.service';
@@ -21,6 +23,10 @@ import { buildShiftLedger, staffMoneyOf } from './shift-ledger';
 
 /** A hand-over waits a day for the person taking over */
 const HANDOVER_VALID_MS = 24 * 60 * 60 * 1000;
+/** A shift open this long is most likely forgotten: the owner is told (again a day later) */
+export const LONG_OPEN_SHIFT_MS = 24 * 60 * 60 * 1000;
+/** How long someone whose shift was closed by another person is shown who closed it */
+const CLOSED_BY_OTHER_SHOWN_MS = 12 * 60 * 60 * 1000;
 
 @Injectable()
 export class ShiftsService {
@@ -60,7 +66,24 @@ export class ShiftsService {
       throw new BadRequestException('You already have an open shift');
     }
 
-    const shift = await this.prisma.shift.create({
+    // One branch, one cash drawer, one open shift: whoever comes next joins it. The lock makes two
+    // people pressing "open" at the same moment get one shift, not two.
+    const shift = await this.prisma.$transaction(async (tx) => {
+      if (branchId) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'shift-open:' + branchId}))`;
+        const other = await tx.shift.findFirst({
+          where: { branchId, isActive: true },
+          select: { id: true, openedAt: true, user: { select: { name: true } } },
+        });
+        if (other) {
+          throw new ConflictException({
+            code: 'BRANCH_SHIFT_OPEN',
+            message: `สาขานี้มีกะของ ${other.user.name} เปิดอยู่แล้ว — กด "เข้าร่วมกะ" เพื่อใช้ลิ้นชักเดียวกัน`,
+            data: { shiftId: other.id, openedAt: other.openedAt, openedBy: other.user.name },
+          });
+        }
+      }
+      return tx.shift.create({
       data: {
         userId,
         branchId:           branchId ?? null,
@@ -73,6 +96,7 @@ export class ShiftsService {
         ntOpeningBalance:   dto.ntOpeningBalance   ?? null,
       },
       include: { user: { select: { id: true, name: true } } },
+      });
     });
 
     // Record carrier wallet opening balances when provided
@@ -235,10 +259,13 @@ export class ShiftsService {
     });
     // Everyone who joined the shift leaves it with the close
     await this.prisma.shiftMember.updateMany({ where: { shiftId, leftAt: null }, data: { leftAt: new Date() } });
+    const closer = userId === shift.userId
+      ? updatedShift.user
+      : await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true } });
 
     await this.auditLog.log({
       actorId: userId,
-      actorName: updatedShift.user.name,
+      actorName: closer?.name ?? '',
       action: 'SHIFT_CLOSED',
       entityType: 'Shift',
       entityId: shiftId,
@@ -267,6 +294,22 @@ export class ShiftsService {
 
     if (handoverTo) {
       await this.recordHandover(shift, handoverTo, dto.closeBalance, userId);
+    }
+
+    // The others working in it learn on their own phone that the drawer was counted and closed
+    const others = [shift.userId, ...(shift.members ?? []).map((m) => m.userId)]
+      .filter((id, i, all) => id !== userId && id !== handoverTo?.id && all.indexOf(id) === i);
+    for (const otherId of others) {
+      await this.notif.notify({
+        type:       'SHIFT_CLOSED_BY_OTHER',
+        title:      `กะถูกปิดแล้วโดย ${closer?.name ?? ''}`,
+        message:    `กะของ ${updatedShift.user.name} ปิดแล้ว — ถ้าจะขายต่อให้เปิดกะใหม่หรือเข้าร่วมกะที่เปิดอยู่`,
+        severity:   'INFO',
+        entityType: 'Shift',
+        entityId:   shiftId,
+        tenantId:   shift.user?.tenantId ?? null,
+        userId:     otherId,
+      });
     }
 
     return {
@@ -925,6 +968,97 @@ export class ShiftsService {
       entityType: 'Shift', entityId: membership.shiftId, afterData: {},
     });
     return { left: true, shiftId: membership.shiftId };
+  }
+
+  /**
+   * Every shift open right now that this owner (whole shop) or manager (their branch) may count and
+   * close without joining it: one forgotten at closing time, or left open by someone who went home.
+   */
+  async listOpenNow(actor: { role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] }) {
+    const isOwner = actor.role === 'OWNER' || actor.role === 'SUPER_ADMIN';
+    if ((!isOwner && actor.role !== 'MANAGER') || !actor.tenantId) return [];
+    const shifts = await this.prisma.shift.findMany({
+      where: {
+        isActive: true,
+        OR: [{ branch: { tenantId: actor.tenantId } }, { branchId: null, user: { tenantId: actor.tenantId } }],
+        ...(!isOwner && actor.branchId ? { branchId: actor.branchId } : {}),
+      },
+      include: {
+        user:    { select: { id: true, name: true, tenantId: true } },
+        branch:  { select: { id: true, name: true } },
+        members: { where: { leftAt: null }, select: { user: { select: { name: true } } } },
+      },
+      orderBy: { openedAt: 'asc' },
+    });
+    const seesCash = isOwner || (actor.permissions ?? []).includes('cash_drawer.view_balance');
+    return Promise.all(shifts.map(async (x) => {
+      const t = seesCash ? await this.computeShiftTotals(x) : null;
+      return {
+        id: x.id,
+        openedAt: x.openedAt,
+        openBalance: Number(x.openBalance),
+        user: { id: x.user.id, name: x.user.name },
+        branch: x.branch,
+        members: x.members.map((m) => m.user.name),
+        salesCount: t?.salesCount ?? null,
+        expectedCashBalance: t?.expectedBalance ?? null,
+      };
+    }));
+  }
+
+  /** The shift I was working in that someone else counted and closed in the last hours. */
+  async closedByOther(userId: string) {
+    if (await this.prisma.shift.findFirst({ where: activeShiftWhere(userId), select: { id: true } })) return null;
+    const since = new Date(Date.now() - CLOSED_BY_OTHER_SHOWN_MS);
+    const shift = await this.prisma.shift.findFirst({
+      where: {
+        isActive: false,
+        closedAt: { gte: since },
+        OR: [{ userId }, { members: { some: { userId } } }],
+      },
+      orderBy: { closedAt: 'desc' },
+      select: { id: true, closedAt: true, user: { select: { name: true } } },
+    });
+    if (!shift) return null;
+    const log = await this.prisma.auditLog.findFirst({
+      where: { action: 'SHIFT_CLOSED', entityId: shift.id },
+      select: { actorId: true },
+    });
+    if (!log || log.actorId === userId) return null;
+    const closer = await this.prisma.user.findUnique({ where: { id: log.actorId }, select: { name: true } });
+    return { shiftId: shift.id, openedBy: shift.user.name, closedAt: shift.closedAt, closedBy: closer?.name ?? '' };
+  }
+
+  /** Every hour: tell the shop about a shift left open for a day or more, at most once a day each. */
+  @Cron('0 7 * * * *')
+  async notifyLongOpenShifts() {
+    const shifts = await this.prisma.shift.findMany({
+      where: { isActive: true, openedAt: { lt: new Date(Date.now() - LONG_OPEN_SHIFT_MS) } },
+      select: {
+        id: true, openedAt: true, branchId: true,
+        user: { select: { name: true, tenantId: true, tenant: { select: { status: true } } } },
+      },
+    });
+    for (const x of shifts) {
+      const tenantId = x.user?.tenantId;
+      if (!tenantId || x.user?.tenant?.status !== 'ACTIVE') continue;
+      const told = await this.prisma.notification.findFirst({
+        where: { type: 'SHIFT_LONG_OPEN', entityId: x.id, createdAt: { gte: new Date(Date.now() - LONG_OPEN_SHIFT_MS) } },
+        select: { id: true },
+      });
+      if (told) continue;
+      const hours = Math.floor((Date.now() - x.openedAt.getTime()) / 3_600_000);
+      await this.notif.notify({
+        type:       'SHIFT_LONG_OPEN',
+        title:      `กะของ ${x.user.name} เปิดค้างมา ${hours} ชั่วโมง`,
+        message:    'ถ้าจบวันแล้วให้นับเงินและปิดกะ (เจ้าของ/ผู้จัดการปิดแทนได้ที่หน้ากะ) ยอดเงินสดจะได้ไม่ปนข้ามวัน',
+        severity:   'WARNING',
+        entityType: 'Shift',
+        entityId:   x.id,
+        tenantId,
+        ...(x.branchId ? { branchId: x.branchId } : {}),
+      });
+    }
   }
 
   async findAll(query: { date?: string; userId?: string; branchId?: string; tenantId?: string }) {

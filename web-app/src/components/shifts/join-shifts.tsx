@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { Loader2, LogOut, Users } from 'lucide-react'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/auth.store'
 
 export type JoinableShift = {
   id: string
@@ -15,13 +16,33 @@ export type JoinableShift = {
   members: string[]
 }
 
-/** Open shifts of my branch I can join instead of opening my own (one drawer, several people). */
-export function JoinShifts({ onJoined }: { onJoined: () => void }) {
-  const { data: shifts = [] } = useQuery<JoinableShift[]>({
+export function useJoinableShifts(enabled = true) {
+  return useQuery<JoinableShift[]>({
     queryKey: ['shifts', 'joinable'],
     queryFn:  async () => (await api.get('/shifts/joinable')).data,
     staleTime: 10_000,
+    enabled,
   })
+}
+
+/**
+ * One branch has one cash drawer, so one open shift: when my branch already has one, I join it
+ * and the "open shift" form is not offered (the server refuses a second one anyway).
+ */
+export function useMyBranchHasOpenShift(enabled = true) {
+  const branchId = useAuthStore((st) => st.user?.branchId)
+  const { data: shifts = [] } = useJoinableShifts(enabled)
+  return !!branchId && shifts.some((x) => x.branch?.id === branchId)
+}
+
+/** The server said this branch already has an open shift (someone opened it a moment ago). */
+export function isBranchShiftOpenError(err: any) {
+  return err?.response?.data?.code === 'BRANCH_SHIFT_OPEN'
+}
+
+/** Open shifts of my branch I can join instead of opening my own (one drawer, several people). */
+export function JoinShifts({ onJoined }: { onJoined: () => void }) {
+  const { data: shifts = [] } = useJoinableShifts()
   const join = useMutation({
     mutationFn: (id: string) => api.post(`/shifts/${id}/join`),
     onSuccess: () => { toast.success('เข้าร่วมกะแล้ว — ขายและรับเงินได้เลย'); onJoined() },
@@ -31,8 +52,8 @@ export function JoinShifts({ onJoined }: { onJoined: () => void }) {
   return (
     <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 space-y-3">
       <div>
-        <p className="font-bold text-blue-900">ใช้ลิ้นชักเดียวกับเพื่อน?</p>
-        <p className="text-xs text-blue-700 mt-0.5">มีกะเปิดอยู่แล้ว กด “เข้าร่วมกะ” ไม่ต้องใส่เงินเปิดกะ — ปิดกะและนับเงินครั้งเดียวตอนจบ</p>
+        <p className="font-bold text-blue-900">มีกะเปิดอยู่แล้ว — เข้าร่วมกะ</p>
+        <p className="text-xs text-blue-700 mt-0.5">หนึ่งสาขาใช้ลิ้นชักเดียว กด “เข้าร่วมกะ” ไม่ต้องใส่เงินเปิดกะ — ปิดกะและนับเงินครั้งเดียวตอนจบ</p>
       </div>
       {shifts.map((x) => (
         <div key={x.id} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2.5">

@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { createTestApp } from './helpers/app.helper';
 import { loginAs, authGet, authPost } from './helpers/auth.helper';
 import { CREDS, IDS, seedTestData, testPrisma } from './helpers/seed.helper';
+import { ensureInShift } from './helpers/shift.helper';
 
 describe('SIM / package sales on credit (e2e)', () => {
   let app: INestApplication;
@@ -44,8 +45,7 @@ describe('SIM / package sales on credit (e2e)', () => {
     const owner = (await loginAs(app, CREDS.ownerA.email, CREDS.ownerA.password)).cookies;
     cashier = (await loginAs(app, CREDS.cashierA1.email, CREDS.cashierA1.password)).cookies;
     await authPost(app, '/api/v1/accounting/accounts/initialize', owner, {});
-    const current = await authGet(app, '/api/v1/shifts/current', cashier);
-    shiftId = current.body?.id ?? (await authPost(app, '/api/v1/shifts/open', cashier, { openBalance: 0 }).expect(201)).body.id;
+    shiftId = await ensureInShift(app, cashier);
     await authPost(app, '/api/v1/carrier-wallet/topup', cashier, { carrier: 'AIS', amount: 5000, shiftId }).expect(201);
   });
 

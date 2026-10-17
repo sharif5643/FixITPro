@@ -28,12 +28,14 @@ function make(shift: any, current: any = null) {
     expense: { aggregate: jest.fn(async () => ({ _sum: { amount: 0 } })) },
     saleRefund: { aggregate: jest.fn(async () => ({ _sum: { totalRefund: 0 } })), findMany: jest.fn(async () => []) },
     shiftCashMovement: { findMany: jest.fn(async () => []) },
+    user: { findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, name: where.id.toUpperCase() })) },
   };
-  const svc = new (ShiftsService as any)(prisma, { getShiftCarrierSummary: jest.fn(async () => []) }, { log: jest.fn() }, { notify: jest.fn() });
+  const notify = jest.fn(async () => undefined);
+  const svc = new (ShiftsService as any)(prisma, { getShiftCarrierSummary: jest.fn(async () => []) }, { log: jest.fn() }, { notify });
   svc.getCashRepairInflows = jest.fn(async () => ({ cashDeposits: 0, cashDebtPayments: 0 }));
   svc.getCashPackageDebtPayments = jest.fn(async () => 0);
   svc.getCurrentShift = jest.fn(async () => ({ id: 's1', joined: true }));
-  return { svc: svc as ShiftsService, prisma };
+  return { svc: svc as ShiftsService, prisma, notify };
 }
 
 const OPEN = { id: 's1', userId: 'a', branchId: 'b1', isActive: true, openBalance: 500, openedAt: new Date(), closedAt: null, user: { tenantId: 't1', name: 'A' }, members: [{ userId: 'b' }] };
@@ -66,6 +68,18 @@ describe('one cash drawer, several people (shared shift)', () => {
     expect(prisma.shiftMember.updateMany).toHaveBeenCalledWith({ where: { shiftId: 's1', leftAt: null }, data: expect.any(Object) });
     await expect(make(OPEN).svc.closeShift('s1', { closeBalance: 0 } as any, 'o', { role: 'OWNER', tenantId: 't1' })).resolves.toBeDefined();
     await expect(make(OPEN).svc.closeShift('s1', { closeBalance: 0 } as any, 'm', { role: 'MANAGER', tenantId: 't1', branchId: 'b1' })).resolves.toBeDefined();
+  });
+
+  it('closed by someone else: everyone else in the shift is told on their own phone who closed it', async () => {
+    const { svc, notify } = make(OPEN);
+    await svc.closeShift('s1', { closeBalance: 0 } as any, 'o', { role: 'OWNER', tenantId: 't1' });
+    const told = (notify.mock.calls as any[]).map(([n]) => n).filter((n) => n.type === 'SHIFT_CLOSED_BY_OTHER');
+    expect(told.map((n) => n.userId).sort()).toEqual(['a', 'b']);
+    expect(told[0].title).toContain('O');
+    // The member closing it: only the opener is told, not the member themself
+    const own = make(OPEN);
+    await own.svc.closeShift('s1', { closeBalance: 0 } as any, 'b', { role: 'CASHIER', tenantId: 't1', branchId: 'b1' });
+    expect((own.notify.mock.calls as any[]).map(([n]) => n).filter((n) => n.type === 'SHIFT_CLOSED_BY_OTHER').map((n) => n.userId)).toEqual(['a']);
   });
 
   it('someone outside the shift cannot close it', async () => {

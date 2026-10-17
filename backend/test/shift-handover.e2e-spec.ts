@@ -8,6 +8,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { createTestApp } from './helpers/app.helper';
 import { loginAs, authGet, authPost } from './helpers/auth.helper';
+import { closeOpenShiftsOfBranch } from './helpers/shift.helper';
 import { CREDS, IDS, seedTestData, testPrisma } from './helpers/seed.helper';
 
 describe('Shift hand-over (e2e)', () => {
@@ -44,6 +45,7 @@ describe('Shift hand-over (e2e)', () => {
   it('HO-01: close and hand over to someone in the shift; they take it over with the counted amounts', async () => {
     await clear(manager);
     await clear(tech);
+    await closeOpenShiftsOfBranch(app, owner, IDS.branchA1);
     const opened = (await authPost(app, '/api/v1/shifts/open', manager, { openBalance: 1000 }).expect(201)).body;
     await authPost(app, `/api/v1/shifts/${opened.id}/join`, tech, {}).expect(201);
     const techId = (await authGet(app, '/api/v1/shifts/current', manager).expect(200)).body.members[0].userId;
@@ -69,6 +71,7 @@ describe('Shift hand-over (e2e)', () => {
 
   it('HO-02: SIM / package profit is hidden from the cashier, shown to the owner', async () => {
     await clear(cashier);
+    await closeOpenShiftsOfBranch(app, owner, IDS.branchA1);
     await authPost(app, '/api/v1/shifts/open', cashier, { openBalance: 0 }).expect(201);
     await authPost(app, '/api/v1/carrier-wallet/topup', cashier, { carrier: 'AIS', amount: 500 }).expect(201);
     const sale = (await authPost(app, '/api/v1/carrier-wallet/package-sale', cashier, {
