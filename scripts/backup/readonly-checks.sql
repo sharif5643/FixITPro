@@ -463,6 +463,30 @@ SELECT al.action, count(*) AS times, min(al."createdAt")::date AS first, max(al.
 FROM "AuditLog" al WHERE al.action IN ('PRODUCT_CREATED', 'BRANCH_STOCK_ENROLLED', 'STOCK_ADJUSTED', 'DATA_IMPORT', 'PRODUCTS_IMPORTED')
   AND al."actorId" IN (SELECT id FROM "User" WHERE "tenantId" = 'cmsc05do8001u7i29q3p5x6zp')
 GROUP BY 1 ORDER BY 1;
+\echo '24l. Opening balances backfilled by migration 20261017000001 (history only; 24a should now show 0 differ)'
+SELECT b."tenantId", count(*) AS rows,
+  count(*) FILTER (WHERE m.quantity > 0) AS opening_rows, sum(m.quantity) FILTER (WHERE m.quantity > 0) AS opening_units,
+  count(*) FILTER (WHERE m.quantity < 0) AS out_rows, sum(m.quantity) FILTER (WHERE m.quantity < 0) AS out_units
+FROM "StockMovement" m JOIN "Branch" b ON b.id = m."branchId"
+WHERE m."referenceType" = 'OPENING_BALANCE'
+GROUP BY 1 ORDER BY 1;
+\echo '24m. Gaps still left for that backfill to fill (before it runs: what it will add; after: 0 rows)'
+WITH mv AS (
+  SELECT m."branchId", m."productId",
+    sum(CASE WHEN m.type::text IN ('IN','REFUND','REPAIR_RETURN','TRANSFER_IN') THEN m.quantity
+             WHEN m.type::text IN ('OUT','SALE','REPAIR_USE','TRANSFER_OUT') THEN -m.quantity
+             WHEN m.type::text = 'ADJUST' THEN m.quantity ELSE 0 END) AS net
+  FROM "StockMovement" m WHERE m."branchId" IS NOT NULL GROUP BY 1, 2)
+SELECT b."tenantId",
+  count(*) FILTER (WHERE bs.quantity > coalesce(mv.net, 0)) AS opening_rows,
+  sum(bs.quantity - coalesce(mv.net, 0)) FILTER (WHERE bs.quantity > coalesce(mv.net, 0)) AS opening_units,
+  count(*) FILTER (WHERE bs.quantity < coalesce(mv.net, 0)) AS out_rows,
+  sum(bs.quantity - coalesce(mv.net, 0)) FILTER (WHERE bs.quantity < coalesce(mv.net, 0)) AS out_units
+FROM "BranchStock" bs JOIN "Branch" b ON b.id = bs."branchId"
+LEFT JOIN mv ON mv."branchId" = bs."branchId" AND mv."productId" = bs."productId"
+WHERE bs.quantity <> coalesce(mv.net, 0)
+  AND NOT EXISTS (SELECT 1 FROM "StockMovement" x WHERE x."branchId" = bs."branchId" AND x."productId" = bs."productId" AND x."referenceType" = 'OPENING_BALANCE')
+GROUP BY 1 ORDER BY 1;
 
 
 \echo '--- 25. Why closed shifts of the busiest shop do not balance (amounts and times only) ---'

@@ -167,7 +167,8 @@ function MovementHistory({ productId }: { productId: string }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={cn('text-sm font-bold', cfg.color)}>
-                    {cfg.sign}{m.quantity} ชิ้น
+                    {/* ADJUST is stored with its own sign */}
+                    {m.type === 'ADJUST' ? (m.quantity > 0 ? '+' : '') : cfg.sign}{m.quantity} ชิ้น
                     <span className="ml-1.5 text-xs font-normal text-slate-400">{cfg.label}</span>
                   </p>
                   {m.note && <p className="text-xs text-slate-400 truncate">{m.note}</p>}
