@@ -25,6 +25,8 @@ describe('SalesService.create — P0-5', () => {
 
   beforeEach(() => {
     prisma = mockPrisma();
+    // the IMEIs sold, read back for the receipt after the sale
+    (prisma as any).serialNumber = { ...(prisma as any).serialNumber, findMany: jest.fn().mockResolvedValue([]) };
     auditLog = { log: jest.fn(), logWithTx: jest.fn() };
     const notif = { notifyLowStock: jest.fn().mockResolvedValue(undefined) };
     const accounting = { record: jest.fn().mockResolvedValue({ id: 'acctx-1' }) };
