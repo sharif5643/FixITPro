@@ -1,7 +1,7 @@
 # FixITPro — Project Map
 
 > Orientation for new contributors / AI sessions. Updated 2026-10-01.
-> For older detail see `CURRENT_SYSTEM_SUMMARY.md` (2026-05) and `docs/ai-handoff/latest.md` (2026-06).
+> For older detail see `docs/archive/CURRENT_SYSTEM_SUMMARY.md` (2026-05) and `docs/ai-handoff/latest.md` (2026-06).
 
 ## What it is
 
@@ -12,7 +12,7 @@ SIM/package sales with carrier wallets, shifts and cash drawer, double-entry acc
 Clients
  ├─ Web (Next.js 14, app router)      https://fixitpro.in.th   web-app/src/app/(dashboard)
  ├─ SUNMI V2 Pro POS (Capacitor APK)  /sunmi/*                 web-app/android
- ├─ Staff app (Capacitor APK)         /staff/*                 FixITPro-Staff-v2.0.apk
+ ├─ Staff app (Capacitor APK)         /staff/*                 web-app/android (/downloads)
  └─ Public pages                      /(public), /track/*
         │ HttpOnly cookie JWT (Bearer fallback for old APKs)
 Backend  NestJS 10 + Prisma 5       /api/v1   backend/src
@@ -22,7 +22,8 @@ PostgreSQL                           backend/prisma (schema.prisma, migrations/)
 FixITPro Agent (.exe, Windows)       https://localhost:7777  fixitpro-agent/  — opens cash drawer via ESC/POS
 ```
 
-Unused / legacy: `server/` (old express), `mobile-app/` (Expo prototype).
+Old notes, UAT plans and checklists from 2026-05..08: `docs/archive/`. The unused `server/` (old
+express) and `mobile-app/` (Expo prototype) were removed in 2026-10; they remain in git history.
 
 ## Deploy
 
