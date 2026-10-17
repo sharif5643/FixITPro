@@ -15,6 +15,10 @@ export interface BatchRepair {
   deviceBrand?: string | null
   deviceModel?: string | null
   deviceImei?: string | null
+  deviceColor?: string | null
+  /** scratches, cracks… noted when the device came in */
+  deviceConditions?: string[] | null
+  accessories?: string | null
   issue?: string | null
   receivedAt: string
   deliveredAt?: string | null

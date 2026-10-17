@@ -8,6 +8,7 @@ import {
   Share2, Settings, RotateCcw, Home, ArrowLeft, Wifi,
 } from 'lucide-react'
 import { Platform } from '@/lib/platform'
+import { fitHtmlToAppPrinter } from '@/lib/thermal-fit'
 import { pushBackHandler } from '@/lib/back-stack'
 import type { RepairCopyType } from '@/lib/printer'
 
@@ -779,7 +780,7 @@ function HtmlPreview({ html, url, iframeRef }: {
       <iframe
         ref={iframeRef}
         title="receipt preview"
-        srcDoc={url ? undefined : (html ?? '')}
+        srcDoc={url ? undefined : fitHtmlToAppPrinter(html ?? '')}
         src={url}
         style={{ width: '100%', minHeight: '520px', border: 'none', display: 'block' }}
       />
