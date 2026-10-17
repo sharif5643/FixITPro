@@ -22,7 +22,9 @@ import { ShiftCashMovements } from '@/components/shifts/cash-movements'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
 import { useAuthStore } from '@/store/auth.store'
-import { JoinShifts, LeaveShiftButton } from '@/components/shifts/join-shifts'
+import { JoinShifts, LeaveShiftButton, isBranchShiftOpenError, useMyBranchHasOpenShift } from '@/components/shifts/join-shifts'
+import { OpenShiftsAdmin } from '@/components/shifts/open-shifts-admin'
+import { ClosedByOtherNotice } from '@/components/shift/long-shift-banner'
 import { ShiftLedgerSheet, StaffMoneyTable, type StaffMoney } from '@/components/shifts/shift-ledger'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -413,6 +415,7 @@ export default function SunmiShiftsPage() {
   })
 
   const { data: handover } = usePendingHandover(!isLoading && !shift)
+  const branchShiftOpen = useMyBranchHasOpenShift(!isLoading && !shift)
 
   // "ยอดไม่ตรง": put the handed-over amounts in the opening form to change them
   const editHandover = () => {
@@ -461,6 +464,8 @@ export default function SunmiShiftsPage() {
     onError: (err: any) => {
       const msg = err.response?.data?.message
       toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เปิดกะไม่สำเร็จ'))
+      // Someone opened this branch's shift a moment ago: show it to join
+      if (isBranchShiftOpenError(err)) queryClient.invalidateQueries({ queryKey: ['shifts', 'joinable'] })
     },
   })
 
@@ -628,8 +633,15 @@ export default function SunmiShiftsPage() {
             </p>
           )}
 
+          <ClosedByOtherNotice />
           {!handoverFrom && <JoinShifts onJoined={() => queryClient.invalidateQueries({ queryKey: ['shifts'] })} />}
+          <OpenShiftsAdmin />
 
+          {branchShiftOpen && !handoverFrom ? (
+            <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              หนึ่งสาขาเปิดได้หนึ่งกะ (ลิ้นชักเดียว) — กด “เข้าร่วมกะ” ด้านบนเพื่อเริ่มขาย
+            </p>
+          ) : (<>
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-600">ยอดเปิดกะ (บาท)</label>
             <input
@@ -705,6 +717,7 @@ export default function SunmiShiftsPage() {
               ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
               : handoverFrom ? 'ยืนยันรับกะ' : 'เปิดกะ'}
           </button>
+          </>)}
         <PastShifts settings={settings} onPrint={setReprintOpts} onView={setLedgerShiftId} />
         {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
         {reprintOpts && (
@@ -730,6 +743,7 @@ export default function SunmiShiftsPage() {
     <SunmiShell title="เปิด/ปิดกะ" showBack>
       <div className="p-4 space-y-4 pb-8">
         <PartsPendingReminder />
+        <OpenShiftsAdmin excludeId={shift.id} />
         {/* Status */}
         <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3">
           <div className="h-3 w-3 rounded-full bg-green-500 shrink-0 shadow-[0_0_0_4px_rgba(34,197,94,0.15)]" />

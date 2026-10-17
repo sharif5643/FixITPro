@@ -83,6 +83,18 @@ export class ShiftsController {
     return this.shiftsService.leaveShift(user);
   }
 
+  /** Every open shift an owner (whole shop) or manager (own branch) may count and close for someone. */
+  @Get('open-now')
+  listOpenNow(@CurrentUser() user: { role: string; branchId?: string | null; tenantId?: string | null; permissions?: string[] }) {
+    return this.shiftsService.listOpenNow(user);
+  }
+
+  /** The shift I was working in that someone else closed in the last hours (who, when). */
+  @Get('closed-by-other')
+  closedByOther(@CurrentUser('id') userId: string) {
+    return this.shiftsService.closedByOther(userId);
+  }
+
   /** A shift someone handed to me when they left early, waiting for me to take it over. */
   @Get('handover')
   pendingHandover(@CurrentUser('id') userId: string) {

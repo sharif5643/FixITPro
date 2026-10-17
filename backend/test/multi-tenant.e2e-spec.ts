@@ -7,6 +7,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { createTestApp } from './helpers/app.helper';
 import { loginAs, authGet, authPost } from './helpers/auth.helper';
+import { ensureInShift } from './helpers/shift.helper';
 import { CREDS, IDS, seedTestData, testPrisma } from './helpers/seed.helper';
 
 describe('Multi-Tenant Isolation (e2e)', () => {
@@ -154,8 +155,7 @@ describe('Multi-Tenant Isolation (e2e)', () => {
 
   it('MT-10: Tenant A package sale is listed for A only (date range filter works)', async () => {
     // a package sale needs an open shift (the cash goes into its drawer)
-    const current = await authGet(app, '/api/v1/shifts/current', cookiesA).expect(200);
-    if (!current.body?.id) await authPost(app, '/api/v1/shifts/open', cookiesA, { openBalance: 0 }).expect(201);
+    await ensureInShift(app, cookiesA);
     const sale = await authPost(app, '/api/v1/carrier-wallet/package-sale', cookiesA, {
       carrier: 'AIS', saleType: 'PROMO', packageAmount: 100, dealerCost: 96,
       paymentMethod: 'CASH', amountPaid: 100, cashierName: 'e2e',

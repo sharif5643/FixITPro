@@ -9,6 +9,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { createTestApp } from '../helpers/app.helper';
 import { loginAs, authGet, authPost, authPatch } from '../helpers/auth.helper';
+import { ensureInShift } from '../helpers/shift.helper';
 import { CREDS, IDS, seedTestData, testPrisma } from '../helpers/seed.helper';
 
 describe('Repair Workflow (e2e)', () => {
@@ -26,7 +27,7 @@ describe('Repair Workflow (e2e)', () => {
     techCookies  = (await loginAs(app, CREDS.techA1.email,   CREDS.techA1.password)).cookies;
 
     // processPayment requires an active shift — open one for ownerA
-    await authPost(app, '/api/v1/shifts/open', ownerCookies, { openBalance: 0 });
+    await ensureInShift(app, ownerCookies);
   });
 
   afterAll(async () => {
