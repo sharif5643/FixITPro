@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { LongShiftBanner } from '@/components/shift/long-shift-banner'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Wrench, Clock, ShoppingCart, Package, LogOut, Printer, Timer, Wifi, BarChart2, BookOpen, Receipt, AlertCircle, LayoutDashboard, Hammer } from 'lucide-react'
@@ -133,6 +134,7 @@ export default function SunmiHomePage() {
 
       {/* Menu cards */}
       <div className="flex-1 bg-slate-100 rounded-t-3xl px-4 pt-6 pb-6">
+        <LongShiftBanner closeHref="/sunmi/shifts" className="mb-4" />
         <div className="grid grid-cols-2 gap-3 mb-3">
           {MENUS.filter((m) => access[m.needs]).map((m) => {
             const Icon = m.icon

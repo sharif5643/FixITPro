@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { applyAverageCost, CostChange } from '../common/money/average-cost';
+import { WriteOffDto, WRITE_OFF_REASONS } from './dto/write-off.dto';
 import { addSerialsInStock, cleanSerials, takeSerialsOutOfStock } from './serial-stock';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
@@ -207,6 +208,44 @@ export class StockService {
     }
 
     return { success: true, productId: dto.productId, branchId: dto.branchId ?? null };
+  }
+
+  /**
+   * Goods that leave stock without a sale — given free, a claim, swapped for a customer, used in
+   * the shop, damaged. Recorded as stock going out with the reason, never as a 0-baht sale, so
+   * sales and profit stay true. Everything is checked first, then each line goes out.
+   */
+  async writeOff(dto: WriteOffDto, actorId?: string, actorName?: string, tenantId?: string) {
+    if (!dto.branchId) throw new BadRequestException('กรุณาเลือกสาขาก่อนตัดสต๊อก');
+    const label = WRITE_OFF_REASONS[dto.reason];
+    const need = new Map<string, number>();
+    for (const it of dto.items) need.set(it.productId, (need.get(it.productId) ?? 0) + it.quantity);
+    const [products, rows] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { id: { in: [...need.keys()] }, ...(tenantId ? { tenantId } : {}) },
+        select: { id: true, name: true },
+      }),
+      this.prisma.branchStock.findMany({
+        where: { branchId: dto.branchId, productId: { in: [...need.keys()] } },
+        select: { productId: true, quantity: true },
+      }),
+    ]);
+    if (products.length !== need.size) throw new NotFoundException('ไม่พบสินค้าบางรายการ');
+    for (const [productId, qty] of need) {
+      const have = rows.find((r) => r.productId === productId)?.quantity ?? 0;
+      if (have < qty) {
+        const name = products.find((p) => p.id === productId)?.name ?? '';
+        throw new BadRequestException(`สต็อกสาขาไม่พอสำหรับ "${name}" คงเหลือ: ${have} ชิ้น`);
+      }
+    }
+    const note = `${label}${dto.note?.trim() ? `: ${dto.note.trim()}` : ''}`;
+    for (const it of dto.items) {
+      await this.adjustStock(
+        { productId: it.productId, type: 'OUT', quantity: it.quantity, branchId: dto.branchId, note, serialIds: it.serialIds },
+        actorId, actorName, tenantId,
+      );
+    }
+    return { success: true, reason: dto.reason, items: dto.items.length };
   }
 
   async getMovements(productId: string, tenantId?: string, branchId?: string) {

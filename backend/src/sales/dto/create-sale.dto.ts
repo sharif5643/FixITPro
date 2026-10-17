@@ -8,6 +8,7 @@ import {
   MaxLength,
   Min,
   IsIn,
+  IsISO8601,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -113,6 +114,14 @@ export class CreateSaleDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /**
+   * Late entry: goods sold (and paid) earlier but keyed in now. The sale is filed at that time,
+   * in the shift that was open then, so its money is not counted again in today's shift.
+   */
+  @IsOptional()
+  @IsISO8601()
+  soldAt?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

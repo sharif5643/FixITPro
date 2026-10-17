@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { Clock, Globe, Keyboard, PauseCircle, Play } from 'lucide-react'
 import { QuickCashBar } from '@/components/quick-cash/quick-cash-bar'
+import { LongShiftBanner } from '@/components/shift/long-shift-banner'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -406,6 +407,7 @@ export default function SalesPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)]">
 
+      <LongShiftBanner closeHref="/shifts" className="mb-3 shrink-0" />
       <QuickCashBar className="mb-3 shrink-0" disabled={!currentShift} />
 
       {/* ── Mobile tab bar (hidden on lg) ───────────────────────────────── */}
@@ -612,6 +614,7 @@ export default function SalesPage() {
         shiftId={currentShift?.id}
         branchId={effectiveBranch}
         onSuccess={handleSuccess}
+        onWrittenOff={() => { clearCart(); queryClient.invalidateQueries({ queryKey: ['products'] }) }}
         initialPaymentMethod={preSelectedPayment?.paymentMethod}
         initialAmountPaid={preSelectedPayment?.amountPaid}
         initialCustomerName={selectedCustomer?.name}

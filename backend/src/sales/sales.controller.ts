@@ -8,6 +8,7 @@ import { UseInterceptors,
   UseGuards,
 } from '@nestjs/common';
 import { HideCostInterceptor } from '../common/interceptors/hide-cost.interceptor';
+import { ChangePaymentMethodDto } from './dto/change-payment-method.dto';
 import { SalesService } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { VoidSaleDto } from './dto/void-sale.dto';
@@ -73,6 +74,20 @@ export class SalesController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.salesService.findOne(id, tenantId);
+  }
+
+  /** Fix how a bill was paid (cash ↔ transfer / card) while its shift is still open */
+  @Post(':id/payment-method')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('sales.create')
+  changePaymentMethod(
+    @Param('id') id: string,
+    @Body() dto: ChangePaymentMethodDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.salesService.changePaymentMethod(id, dto.paymentMethod, userId, tenantId, role);
   }
 
   @Post(':id/void')

@@ -25,6 +25,7 @@ import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
 import type { Sale, SerialNumber, PaymentMethod, ShopSettings } from '@/types'
 import type { CartItem } from '@/store/cart.store'
+import { WriteOffDialog, toLocalInput } from '@/components/pos/write-off-dialog'
 
 const checkoutSchema = z.object({
   customerName:  z.string().optional(),
@@ -58,6 +59,8 @@ interface CheckoutDialogProps {
   initialAmountPaid?: number
   initialCustomerName?: string
   initialCustomerPhone?: string
+  /** Goods taken out of stock as a gift / claim instead of sold: the cart is done */
+  onWrittenOff?: () => void
 }
 
 // ─── Serial Selection Step ────────────────────────────────────────────────────
@@ -251,8 +254,19 @@ export function CheckoutDialog({
   initialAmountPaid,
   initialCustomerName,
   initialCustomerPhone,
+  onWrittenOff,
 }: CheckoutDialogProps) {
   const queryClient = useQueryClient()
+
+  // Late entry (owner / manager): goods sold earlier, keyed in now at their real price
+  const role = useAuthStore((s) => s.user?.role)
+  const canLate = role === 'OWNER' || role === 'MANAGER'
+  const [lateOn, setLateOn] = useState(false)
+  const [lateAt, setLateAt] = useState('')
+  // A bill that comes to 0: usually a gift / claim (take it out of stock instead) or an old sale
+  const zeroBill = total <= 0 && cartItems.length > 0
+  const [zeroOk, setZeroOk] = useState(false)
+  const [writeOffOpen, setWriteOffOpen] = useState(false)
 
   const serialItems    = cartItems.filter((i) => i.product.hasSerial)
   const hasSerialItems = serialItems.length > 0
@@ -332,6 +346,9 @@ export function CheckoutDialog({
         note:          '',
       })
       setSellerId('')
+      setLateOn(false)
+      setLateAt(toLocalInput(new Date(Date.now() - 3600_000)))
+      setZeroOk(false)
 
       // Reset split-mode state
       setSplitMode(false)
@@ -363,6 +380,7 @@ export function CheckoutDialog({
         sellerId:      showSeller && sellerId ? sellerId : undefined,
         shiftId:       shiftId ?? undefined,
         branchId:      branchId ?? undefined,
+        ...(lateOn && lateAt ? { soldAt: new Date(lateAt).toISOString() } : {}),
         items: cartItems.map((i) => ({
           productId: i.product.id,
           quantity:  i.quantity,
@@ -413,7 +431,7 @@ export function CheckoutDialog({
   const isCash    = !splitMode && paymentMethod === 'CASH'
   const canSubmit = !createSaleMutation.isPending && (
     splitMode ? leg1Amount > 0 : (!isCash || change >= 0)
-  )
+  ) && (!zeroBill || zeroOk) && (!lateOn || !!lateAt)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -453,6 +471,38 @@ export function CheckoutDialog({
                 <span className="text-blue-700 dark:text-blue-400 tabular-nums">{formatThaiMoney(total)}</span>
               </div>
             </div>
+
+            {/* A 0-baht bill: a gift / claim belongs in stock write-off, an old sale at its real price */}
+            {zeroBill && (
+              <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+                <p className="font-semibold">บิลนี้ยอด 0 บาท</p>
+                <p className="text-xs">ถ้าเป็นของแถม / เคลม / เปลี่ยนให้ลูกค้า ให้ตัดสต๊อกพร้อมเหตุผลแทน — ยอดขายและกำไรจะไม่เพี้ยน
+                  {canLate ? ' · ถ้าเป็นของที่ขายไปแล้วแต่ลืมคีย์ ให้ลบส่วนลดออก แล้วใช้ "บันทึกยอดขายย้อนหลัง" ด้วยราคาจริง' : ''}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" onClick={() => setWriteOffOpen(true)}>ตัดสต๊อก (แถม/เคลม)</Button>
+                  <label className="flex items-center gap-1.5 text-xs">
+                    <input type="checkbox" checked={zeroOk} onChange={(e) => setZeroOk(e.target.checked)} />
+                    ขาย 0 บาทจริง
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Late entry: sold earlier, keyed in now — filed in the shift of that time */}
+            {canLate && (
+              <div className="rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700/60">
+                <label className="flex items-center gap-2 font-medium">
+                  <input type="checkbox" checked={lateOn} onChange={(e) => setLateOn(e.target.checked)} />
+                  บันทึกยอดขายย้อนหลัง (ขายไปแล้ว ลืมคีย์)
+                </label>
+                {lateOn && (
+                  <div className="mt-2 space-y-1">
+                    <Input type="datetime-local" value={lateAt} max={toLocalInput(new Date())} onChange={(e) => setLateAt(e.target.value)} />
+                    <p className="text-xs text-muted-foreground">บิลจะลงวันเวลาที่ขายจริง ในกะที่เปิดอยู่ตอนนั้น — เงินที่นับไปแล้วในกะนั้นจะไม่ถูกนับซ้ำในกะนี้</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Split / Single mode toggle */}
             <div className="flex items-center justify-between">
@@ -691,6 +741,16 @@ export function CheckoutDialog({
           </form>
         )}
       </DialogContent>
+      <WriteOffDialog
+        open={writeOffOpen}
+        onOpenChange={setWriteOffOpen}
+        branchId={branchId}
+        items={cartItems.map((i) => ({
+          productId: i.product.id, name: i.product.name, quantity: i.quantity,
+          serialIds: i.product.hasSerial ? (serialAssignments[i.product.id] ?? i.serialIds ?? []) : undefined,
+        }))}
+        onDone={() => { onOpenChange(false); onWrittenOff?.() }}
+      />
     </Dialog>
   )
 }

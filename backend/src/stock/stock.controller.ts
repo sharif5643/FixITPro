@@ -10,6 +10,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { StockService } from './stock.service';
+import { WriteOffDto } from './dto/write-off.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
@@ -60,6 +61,26 @@ export class StockController {
     }
 
     return this.stockService.adjustStock(dto, actorId, actorName, tenantId);
+  }
+
+  /** Goods out without a sale (free gift, claim, swap, used in the shop, damaged) */
+  @Post('write-off')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('stock.adjust')
+  writeOff(
+    @Body() dto: WriteOffDto,
+    @CurrentUser('id')       actorId: string,
+    @CurrentUser('name')     actorName: string,
+    @CurrentUser('role')     actorRole: string,
+    @CurrentUser('branchId') actorBranchId: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    const isOwner = actorRole === 'OWNER' || actorRole === 'SUPER_ADMIN';
+    if (!isOwner) {
+      if (!actorBranchId) throw new BadRequestException('ไม่พบข้อมูลสาขาของพนักงาน กรุณาติดต่อผู้ดูแลระบบ');
+      dto.branchId = actorBranchId;
+    }
+    return this.stockService.writeOff(dto, actorId, actorName, tenantId);
   }
 
   @Get('movements/:productId')

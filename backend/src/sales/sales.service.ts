@@ -91,6 +91,36 @@ export class SalesService {
     return created.id;
   }
 
+  /**
+   * The shift of this branch that was open at a past moment (for a late entry). Only an owner or
+   * manager may file a sale into the past, and not further back than 60 days.
+   */
+  private async findShiftAt(at: Date, branchId: string | undefined, role?: string) {
+    if (role !== 'OWNER' && role !== 'MANAGER' && role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('บันทึกยอดขายย้อนหลังได้เฉพาะเจ้าของร้านหรือผู้จัดการ');
+    }
+    if (!branchId) throw new BadRequestException('กรุณาเลือกสาขาก่อนบันทึกยอดขายย้อนหลัง');
+    if (Number.isNaN(at.getTime()) || at.getTime() > Date.now() + 5 * 60_000) {
+      throw new BadRequestException('เวลาที่ขายต้องไม่เกินเวลาปัจจุบัน');
+    }
+    if (at.getTime() < Date.now() - 60 * 24 * 3600_000) {
+      throw new BadRequestException('บันทึกย้อนหลังได้ไม่เกิน 60 วัน');
+    }
+    const shift = await this.prisma.shift.findFirst({
+      where: {
+        branchId,
+        openedAt: { lte: at },
+        OR: [{ closedAt: null }, { closedAt: { gte: at } }],
+      },
+      orderBy: { openedAt: 'desc' },
+      select: { id: true, isActive: true },
+    });
+    if (!shift) {
+      throw new BadRequestException('ไม่มีกะที่เปิดอยู่ในเวลานั้น — เลือกเวลาที่อยู่ในกะที่ขายของจริง');
+    }
+    return shift;
+  }
+
   async create(dto: CreateSaleDto, userId: string, branchId?: string, tenantId?: string | null, role?: string) {
     // Reject malformed payment input before any lookups.
     const hasSplit = !!dto.payments && dto.payments.length > 0;
@@ -100,13 +130,23 @@ export class SalesService {
 
     if (branchId) await this.assertBranchActive(branchId, tenantId);
 
-    const activeShift = await this.prisma.shift.findFirst({
-      where: activeShiftWhere(userId),
-      select: { id: true },
-    });
-    if (!activeShift) {
-      throw new BadRequestException('กรุณาเปิดกะก่อนทำรายการขาย');
+    // Late entry: the sale goes to the shift that was open when it really happened
+    const lateAt = dto.soldAt ? new Date(dto.soldAt) : null;
+    let saleShift: { id: string; isActive: boolean };
+    if (lateAt) {
+      saleShift = await this.findShiftAt(lateAt, branchId, role);
+    } else {
+      const activeShift = await this.prisma.shift.findFirst({
+        where: activeShiftWhere(userId),
+        select: { id: true },
+      });
+      if (!activeShift) {
+        throw new BadRequestException('กรุณาเปิดกะก่อนทำรายการขาย');
+      }
+      saleShift = { id: activeShift.id, isActive: true };
     }
+    // Money of a late entry into a closed shift was already counted when that shift closed
+    const cashAlreadyCounted = !!lateAt && !saleShift.isActive;
 
     // The seller must be an active member of this shop
     let sellerId: string | null = null;
@@ -246,15 +286,16 @@ export class SalesService {
           userId,
           sellerId,
           customerId,
-          shiftId: activeShift.id,
+          shiftId: saleShift.id,
           branchId: branchId ?? null,
+          ...(lateAt ? { createdAt: lateAt } : {}),
           paymentMethod: primaryMethod as any,
           subtotal,
           discount,
           total,
           amountPaid: totalPaid,
           change,
-          note: dto.note,
+          note: lateAt ? `[บันทึกย้อนหลัง]${dto.note?.trim() ? ` ${dto.note.trim()}` : ''}` : dto.note,
           status: 'COMPLETED',
           items: {
             create: dto.items.map((item) => ({
@@ -356,7 +397,7 @@ export class SalesService {
             }
           }
 
-          const soldAt = new Date();
+          const soldAt = lateAt ?? new Date();
           const warrantyExpiresAt = product.warrantyDays
             ? new Date(soldAt.getTime() + product.warrantyDays * 24 * 60 * 60 * 1000)
             : null;
@@ -373,8 +414,9 @@ export class SalesService {
         }
       }
 
-      // Record each payment leg in accounting ledger (CASH → cash drawer; others → audit-only)
-      if (branchId) {
+      // Record each payment leg in accounting ledger (CASH → cash drawer; others → audit-only).
+      // A late entry into a closed shift skips it: that cash was counted when the shift closed.
+      if (branchId && !cashAlreadyCounted) {
         for (const payment of sale.payments) {
           await this.accounting.record({
             sourceType:    ACCOUNTING_SOURCE.SALE_PAYMENT,
@@ -402,6 +444,7 @@ export class SalesService {
           paymentMethod: sale.paymentMethod,
           payments:      sale.payments.map((p) => ({ method: p.paymentMethod, amount: Number(p.amount) })),
           itemCount:     sale.items.length,
+          ...(lateAt ? { lateEntry: true, soldAt: lateAt.toISOString(), shiftId: saleShift.id } : {}),
         },
       });
 
@@ -765,6 +808,81 @@ export class SalesService {
     );
 
     return refundResult;
+  }
+
+  /**
+   * A bill paid by transfer but keyed as cash (or the other way round) throws the shift's cash
+   * count off. While the shift is still open, the cashier who made the bill — or an owner /
+   * manager — can put it right: the old payment is reversed in the drawer ledger and the books,
+   * and the new one recorded. Bills paid several ways, refunded or voided are left as they are.
+   */
+  async changePaymentMethod(
+    id: string, method: 'CASH' | 'TRANSFER' | 'CARD', userId: string, tenantId?: string | null, role?: string,
+  ) {
+    const sale = await this.findOne(id, tenantId);
+    if (sale.status !== 'COMPLETED') throw new BadRequestException('แก้ได้เฉพาะบิลที่ขายสำเร็จ ไม่มีการคืนหรือยกเลิก');
+    if (!sale.shift?.isActive) throw new BadRequestException('กะของบิลนี้ปิดไปแล้ว — แก้ช่องทางรับเงินไม่ได้');
+    const elevated = role === 'OWNER' || role === 'MANAGER' || role === 'SUPER_ADMIN';
+    if (!elevated && sale.userId !== userId) throw new ForbiddenException('แก้ได้เฉพาะบิลที่ตัวเองขาย');
+    const legs = sale.payments ?? [];
+    if (legs.length !== 1) throw new BadRequestException('บิลนี้จ่ายหลายช่องทาง — แก้ช่องทางรับเงินไม่ได้');
+    const old = legs[0];
+    if (old.paymentMethod === method) return sale;
+    const total = Number(sale.total);
+
+    const newLeg = await this.prisma.$transaction(async (tx) => {
+      if (sale.branchId) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.SALE_REFUND,
+          sourceId:      old.id,
+          direction:     'OUT',
+          amount:        Number(old.amount),
+          paymentMethod: old.paymentMethod as any,
+          branchId:      sale.branchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   userId,
+          note:          `แก้ช่องทางรับเงิน ${sale.receiptNumber}`,
+        }, tx);
+      }
+      await tx.salePayment.delete({ where: { id: old.id } });
+      const leg = await tx.salePayment.create({
+        data: { saleId: sale.id, paymentMethod: method as any, amount: total, sortOrder: 0 },
+      });
+      await tx.sale.update({
+        where: { id: sale.id },
+        data:  { paymentMethod: method as any, amountPaid: total, change: 0 },
+      });
+      if (sale.branchId) {
+        await this.accounting.record({
+          sourceType:    ACCOUNTING_SOURCE.SALE_PAYMENT,
+          sourceId:      leg.id,
+          paymentMethod: method as any,
+          amount:        total,
+          direction:     'IN',
+          branchId:      sale.branchId,
+          tenantId:      tenantId ?? null,
+          actorUserId:   userId,
+          note:          sale.receiptNumber,
+        }, tx);
+      }
+      await this.auditLog.logWithTx(tx, {
+        actorId:    userId,
+        action:     'SALE_PAYMENT_METHOD_CHANGED',
+        entityType: 'Sale',
+        entityId:   sale.id,
+        beforeData: { paymentMethod: old.paymentMethod, amount: Number(old.amount) },
+        afterData:  { paymentMethod: method, amount: total, receiptNumber: sale.receiptNumber },
+      });
+      return leg;
+    });
+
+    await this.salesAccounting?.rebookPayments(
+      { ...(sale as any), payments: [newLeg] },
+      [old.id],
+      tenantId ?? '',
+      userId,
+    );
+    return this.findOne(id, tenantId);
   }
 
   async voidSale(id: string, reason: string, userId: string, tenantId?: string | null) {
