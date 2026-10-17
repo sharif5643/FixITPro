@@ -463,6 +463,13 @@ SELECT al.action, count(*) AS times, min(al."createdAt")::date AS first, max(al.
 FROM "AuditLog" al WHERE al.action IN ('PRODUCT_CREATED', 'BRANCH_STOCK_ENROLLED', 'STOCK_ADJUSTED', 'DATA_IMPORT', 'PRODUCTS_IMPORTED')
   AND al."actorId" IN (SELECT id FROM "User" WHERE "tenantId" = 'cmsc05do8001u7i29q3p5x6zp')
 GROUP BY 1 ORDER BY 1;
+\echo '24l. Opening balances backfilled by migration 20261017000001 (history only; 24a should now show 0 differ)'
+SELECT b."tenantId", count(*) AS rows,
+  count(*) FILTER (WHERE m.quantity > 0) AS opening_rows, sum(m.quantity) FILTER (WHERE m.quantity > 0) AS opening_units,
+  count(*) FILTER (WHERE m.quantity < 0) AS out_rows, sum(m.quantity) FILTER (WHERE m.quantity < 0) AS out_units
+FROM "StockMovement" m JOIN "Branch" b ON b.id = m."branchId"
+WHERE m."referenceType" = 'OPENING_BALANCE'
+GROUP BY 1 ORDER BY 1;
 
 
 \echo '--- 25. Why closed shifts of the busiest shop do not balance (amounts and times only) ---'
