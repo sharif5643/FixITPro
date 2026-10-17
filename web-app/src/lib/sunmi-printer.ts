@@ -1,4 +1,5 @@
 import { registerPlugin } from '@capacitor/core'
+import { fitHtmlToAppPrinter } from './thermal-fit'
 
 // ── Shared receipt item type ──────────────────────────────────────────────────
 
@@ -126,7 +127,7 @@ export interface SunmiPrinterPlugin {
 
 // ── Register with Capacitor ───────────────────────────────────────────────────
 
-export const SunmiPrinter = registerPlugin<SunmiPrinterPlugin>('SunmiPrinter', {
+const plugin = registerPlugin<SunmiPrinterPlugin>('SunmiPrinter', {
   web: {
     getAvailablePrinters: async () => ({ printers: [] }),
     getDefaultPrinter:    async () => ({ printerId: '', printerName: '' }),
@@ -144,3 +145,14 @@ export const SunmiPrinter = registerPlugin<SunmiPrinterPlugin>('SunmiPrinter', {
     openCashDrawer: async () => ({ success: false }),
   },
 })
+
+/** Every receipt printed from the apps goes through here: fitted to the printer's 384 dots first. */
+export const SunmiPrinter = new Proxy(plugin, {
+  get(target, key) {
+    if (key === 'printHtml') {
+      return (o: Parameters<SunmiPrinterPlugin['printHtml']>[0]) => target.printHtml({ ...o, html: fitHtmlToAppPrinter(o.html) })
+    }
+    const v = Reflect.get(target, key)
+    return typeof v === 'function' ? v.bind(target) : v
+  },
+}) as SunmiPrinterPlugin

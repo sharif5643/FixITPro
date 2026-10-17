@@ -18,6 +18,11 @@ function fmtDate(iso: string) {
   catch { return iso }
 }
 
+function fmtDay(iso: string) {
+  try { return format(new Date(iso), 'dd MMM yyyy', { locale: th }) }
+  catch { return iso }
+}
+
 function buildTrackingUrl(baseUrl: string | undefined, ticketNumber: string, phone: string | undefined) {
   if (!baseUrl) return null
   const url = `${baseUrl}/track/${encodeURIComponent(ticketNumber)}`
@@ -50,6 +55,8 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
   const accessoryList = repair.accessories
     ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean)
     : []
+  // Scratches, cracks… noted when the device came in: on the slip both sides signed
+  const conditions = (repair.deviceConditions ?? []).filter(Boolean)
 
   return (
     <div id="repair-receipt" className={`${widthClass} thermal-receipt text-[11px] leading-relaxed mx-auto bg-white text-gray-900`}>
@@ -87,6 +94,7 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
       <div className="space-y-0.5 pb-1">
         <p className="font-bold">อุปกรณ์</p>
         <p>{repair.deviceBrand} {repair.deviceModel}</p>
+        {repair.deviceColor && <p>สี: {repair.deviceColor}</p>}
         {repair.deviceImei ? (
           <p>IMEI: {repair.deviceImei}</p>
         ) : (
@@ -109,10 +117,20 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
           </div>
         </>
       )}
+      {conditions.length > 0 && (
+        <>
+          <Divider />
+          <div className="space-y-0.5 pb-1">
+            <p className="font-bold">สภาพเครื่องตอนรับ</p>
+            <p>{conditions.join(', ')}</p>
+          </div>
+        </>
+      )}
       <Divider />
 
       {/* Cost */}
       <div className="space-y-0.5 pb-1">
+        {repair.dueDate && <Row label="นัดรับ" value={fmtDay(repair.dueDate)} />}
         <Row label="ราคาประเมิน" value={estimateCost > 0 ? formatThaiMoney(estimateCost) : '-'} />
         <Row label="ค่ามัดจำ"    value={deposit > 0 ? formatThaiMoney(deposit) : '-'} bold />
       </div>
@@ -177,6 +195,8 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
   const accessoryList = repair.accessories
     ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean)
     : []
+  // Scratches, cracks… noted when the device came in: on the slip both sides signed
+  const conditions = (repair.deviceConditions ?? []).filter(Boolean)
 
   const trackingUrl = buildTrackingUrl(trackingBaseUrl, repair.ticketNumber, repair.customer?.phone)
 
@@ -227,6 +247,7 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
         <div className="rounded-lg border border-gray-200 p-4">
           <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">ข้อมูลอุปกรณ์</p>
           <Field label="ยี่ห้อ / รุ่น"   value={`${repair.deviceBrand} ${repair.deviceModel}`} />
+          {repair.deviceColor && <Field label="สี" value={repair.deviceColor} />}
           <div className="mb-3">
             <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-0.5">
               IMEI / Serial
@@ -251,6 +272,13 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
             <p className="text-sm">{accessoryList.join(', ')}</p>
           </>
         )}
+        {conditions.length > 0 && (
+          <>
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mt-3 mb-1">สภาพเครื่องตอนรับ</p>
+            <p className="text-sm">{conditions.join(', ')}</p>
+          </>
+        )}
+        {repair.dueDate && <p className="text-sm mt-3"><span className="font-semibold">นัดรับ:</span> {fmtDay(repair.dueDate)}</p>}
       </div>
 
       {/* Cost */}
