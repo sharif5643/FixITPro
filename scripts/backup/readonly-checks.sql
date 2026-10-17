@@ -644,4 +644,11 @@ SELECT cs."tenantId", cs."branchId", to_char(cs."openedAt" AT TIME ZONE 'Asia/Ba
   EXISTS (SELECT 1 FROM "Shift" sh WHERE sh."branchId" = cs."branchId" AND sh."isActive") AS shift_open_now
 FROM "CashDrawerSession" cs WHERE cs.status::text = 'OPEN' ORDER BY 1, 3;
 
+\echo '--- 27. Printing: paper width each shop has set (the apps print 58mm / 384 dots) ---'
+SELECT ss."tenantId", ss."paperWidth", t.status AS shop_status,
+  (SELECT count(*) FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = ss."tenantId" AND s."createdAt" > now() - INTERVAL '30 days') AS sales_30d,
+  (SELECT count(*) FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId" WHERE b."tenantId" = ss."tenantId" AND r."receivedAt" > now() - INTERVAL '30 days') AS repairs_30d
+FROM "ShopSettings" ss LEFT JOIN "Tenant" t ON t.id = ss."tenantId"
+ORDER BY 4 DESC NULLS LAST, 1;
+
 ROLLBACK;

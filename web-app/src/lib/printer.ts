@@ -11,6 +11,11 @@ function webReceiptDate(iso: string): string {
   catch { return iso }
 }
 
+function webReceiptDay(iso: string): string {
+  try { return format(new Date(iso), 'dd MMM yyyy', { locale: th }) }
+  catch { return iso }
+}
+
 export type { PrintReceiptOptions }
 
 // ── Repair print option types ─────────────────────────────────────────────────
@@ -171,6 +176,10 @@ const THERMAL_CSS = `
   .iname { word-break: break-word; margin-bottom: 2px; }
   .isub  { display: flex; justify-content: space-between; font-size: 20px; margin-bottom: 8px; }
   .isub .v { white-space: nowrap; text-align: right; }
+  .row .v.wrap { white-space: normal; word-break: break-word; min-width: 0; flex: 1 1 auto; padding-left: 8px; }
+  /* Printed from a browser (not the app's printer): a dot is 96/203 of a CSS pixel, so the
+     384/576-dot layout fills the 48/72 mm the roll prints instead of running off the right edge */
+  @media print { html { zoom: 0.4729; } }
 `
 
 
@@ -507,6 +516,8 @@ export async function printReceipt(opts: PrintReceiptOptions): Promise<void> {
 function makeReceiptThermalCss(px: number): string {
   // r(n): scale web component's CSS pixel value to thermal pixel width
   const r = (webPx: number) => Math.round(webPx * px / 200)
+  // s(n): a THERMAL_CSS size (drawn for 384 dots) on this paper
+  const s = (dots: number) => Math.round(dots * px / 384)
   // Thermal luminance threshold: lum < 128 = black dot. Keep all colors below lum 80 for strong print.
   // lum(#222)=34  lum(#333)=51  lum(#444)=68  lum(#555)=85  lum(#777)=119 (too light)
   return `
@@ -541,6 +552,21 @@ function makeReceiptThermalCss(px: number): string {
   .qr-url { word-break: break-all; font-size: ${r(8)}px; color: #333; line-height: 1.3; margin-top: ${r(2)}px; }
   .qr-svg svg { width: ${r(90)}px !important; height: ${r(90)}px !important; }
   p + p { margin-top: ${r(2)}px; }
+  .row .v.wrap { white-space: normal; word-break: break-word; min-width: 0; flex: 1 1 auto; padding-left: 8px; }
+  /* The text sizes and tables of the older builders (THERMAL_CSS), scaled to this paper */
+  .xl { font-size: ${s(34)}px; font-weight: 700; }
+  .lg { font-size: ${s(28)}px; font-weight: 700; }
+  .sm { font-size: ${s(20)}px; }
+  .xs { font-size: ${s(18)}px; }
+  .r  { text-align: right; }
+  .t  { width: 100%; border-collapse: collapse; }
+  .t td { vertical-align: top; padding-bottom: ${s(4)}px; }
+  .t .l { white-space: nowrap; padding-right: ${s(16)}px; }
+  .total { display: flex; justify-content: space-between; align-items: baseline; font-size: ${s(30)}px; font-weight: 700; margin: ${s(4)}px 0; }
+  .total .v { white-space: nowrap; text-align: right; }
+  /* Printed from a browser (not the app's printer): a dot is 96/203 of a CSS pixel, so the
+     384/576-dot layout fills the 48/72 mm the roll prints instead of running off the right edge */
+  @media print { html { zoom: 0.4729; } }
 `
 }
 
@@ -552,6 +578,9 @@ export function buildRepairReceiptThermalHtml(
     deviceBrand: string
     deviceModel: string
     deviceImei?: string | null
+    deviceColor?: string | null
+    deviceConditions?: string[] | null
+    dueDate?: string | null
     issue: string
     accessories?: string | null
     estimateCost?: number | null
@@ -597,6 +626,9 @@ export function buildRepairReceiptThermalHtml(
     : []
   const estimateCost  = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
   const deposit       = Number(repair.deposit ?? 0)
+  const deviceColor   = repair.deviceColor ? e(repair.deviceColor) : ''
+  const conditions    = (repair.deviceConditions ?? []).filter(Boolean).map((c) => e(c))
+  const dueDay        = repair.dueDate ? e(webReceiptDay(repair.dueDate)) : ''
 
   const receivedDateStr = webReceiptDate(repair.receivedAt)
 
@@ -652,6 +684,7 @@ ${logoBlock}
 <div class="sec">
   <p class="b">อุปกรณ์</p>
   <p>${deviceBrand} ${deviceModel}</p>
+  ${deviceColor ? `<p>สี: ${deviceColor}</p>` : ''}
   ${deviceImei ? `<p>IMEI: ${deviceImei}</p>` : '<p>IMEI: _______________</p>'}
 </div>
 <div class="hr"></div>
@@ -660,8 +693,14 @@ ${logoBlock}
   <p style="white-space:pre-wrap">${issue}</p>
 </div>
 ${accessoriesBlock}
+${conditions.length > 0 ? `<div class="hr"></div>
+<div class="sec">
+<p class="b">สภาพเครื่องตอนรับ</p>
+<p>${conditions.join(', ')}</p>
+</div>` : ''}
 <div class="hr"></div>
 <div class="sec">
+  ${dueDay ? `<div class="row"><span>นัดรับ</span><span class="v">${dueDay}</span></div>` : ''}
   <div class="row"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
   <div class="row b"><span>ค่ามัดจำ</span><span class="v">${deposit > 0 ? `฿${fmtI(deposit)}` : '-'}</span></div>
 </div>
@@ -1445,9 +1484,9 @@ ${shopPhone ? `<p class="c xs">โทร: ${shopPhone}</p>` : ''}
 <div class="row"><span>เลขที่</span><span class="v">#${ticketNum}</span></div>
 <div class="row"><span>วันที่</span><span class="v">${paidDateStr}</span></div>
 <div class="hr"></div>
-<div class="row b"><span>ลูกค้า</span><span class="v">${customerName}</span></div>
+<div class="row b"><span>ลูกค้า</span><span class="v wrap">${customerName}</span></div>
 ${customerPhone ? `<div class="row"><span>โทร</span><span class="v">${customerPhone}</span></div>` : ''}
-<div class="row"><span>อุปกรณ์</span><span class="v">${deviceInfo}</span></div>
+<div class="row"><span>อุปกรณ์</span><span class="v wrap">${deviceInfo}</span></div>
 ${partsBlock}
 ${freeBlock}
 <div class="hr"></div>
