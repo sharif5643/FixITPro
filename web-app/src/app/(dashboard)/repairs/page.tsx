@@ -25,6 +25,7 @@ import { ModuleGate } from '@/components/auth/module-gate'
 import api from '@/lib/api'
 import { RepairPrintDialog } from '@/components/repairs/repair-print-dialog'
 import type { RepairStatus, Repair } from '@/types'
+import { repairPrice } from '@/lib/repair-price'
 
 const RepairDetailDialog = dynamic(
   () => import('@/components/repairs/repair-detail-dialog').then((m) => ({ default: m.RepairDetailDialog })),
@@ -394,7 +395,7 @@ function RepairsContent() {
         ) : (
           filtered.map((repair) => {
             const isNew = (Date.now() - new Date(repair.receivedAt).getTime()) < 24 * 60 * 60 * 1000
-            const price = Number(repair.finalCost ?? repair.estimateCost ?? 0)
+            const price = repairPrice(repair)
             // Handed over but not fully paid: the shop is owed money
             const owes  = repair.status === 'DELIVERED' && repair.paymentStatus !== 'PAID'
             return (

@@ -24,6 +24,7 @@ import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { TechnicianAvatar } from '@/components/ui/technician-avatar'
 import type { Repair, RepairStatus } from '@/types'
+import { repairPrice } from '@/lib/repair-price'
 
 // ── Column definitions (maps to DB status values) ────────────────────────────
 
@@ -226,7 +227,7 @@ function RepairCard({
 
   const balance = useMemo(() => {
     if (!hasBalance) return 0
-    const cost = repair.finalCost ?? repair.estimateCost ?? 0
+    const cost = repairPrice(repair)
     const paid = repair.paidAmount ?? repair.deposit ?? 0
     return Math.max(0, Number(cost) - Number(paid))
   }, [repair, hasBalance])

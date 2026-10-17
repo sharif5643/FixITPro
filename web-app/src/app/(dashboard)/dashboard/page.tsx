@@ -33,6 +33,7 @@ import { OwnerCommandCenter } from '@/components/dashboard/owner-command-center/
 import type { OperationalAlert } from '@/components/alerts/operational-alert-center'
 import type { Repair } from '@/types'
 import { SetupBanner } from '@/components/dashboard/setup-banner'
+import { repairQuote } from '@/lib/repair-price'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -391,8 +392,8 @@ function RecentRepairsWidget({ repairs, isLoading }: { repairs: Repair[]; isLoad
             <div className="text-right shrink-0">
               {repair.finalCost != null ? (
                 <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{formatThaiMoney(repair.finalCost)}</p>
-              ) : repair.estimateCost != null ? (
-                <p className="text-xs text-slate-400 dark:text-slate-500">{formatThaiMoney(repair.estimateCost)}</p>
+              ) : repairQuote(repair) > 0 ? (
+                <p className="text-xs text-slate-400 dark:text-slate-500">{formatThaiMoney(repairQuote(repair))}</p>
               ) : (
                 <p className="text-xs text-slate-300 dark:text-slate-600">—</p>
               )}
