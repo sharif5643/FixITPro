@@ -841,7 +841,18 @@ function batchDateLine(scope: BatchScope): string {
 }
 
 function batchDevice(r: BatchRow['repair']): string {
-  return [r.deviceBrand, r.deviceModel].filter(Boolean).join(' ') || 'อุปกรณ์'
+  const name = [r.deviceBrand, r.deviceModel].filter(Boolean).join(' ') || 'อุปกรณ์'
+  return r.deviceColor ? `${name} (${r.deviceColor})` : name
+}
+
+/** What came in with each device and the state it was in — the part both sides sign for */
+function batchIntakeNotes(r: BatchRow['repair']): { label: string; text: string }[] {
+  const conditions = (r.deviceConditions ?? []).filter(Boolean)
+  const accessories = (r.accessories ?? '').split(',').map((a) => a.trim()).filter(Boolean)
+  return [
+    ...(conditions.length ? [{ label: 'สภาพ', text: conditions.join(', ') }] : []),
+    ...(accessories.length ? [{ label: 'อุปกรณ์ที่รับมา', text: accessories.join(', ') }] : []),
+  ]
 }
 
 /**
@@ -876,6 +887,7 @@ export function buildRepairBatchThermalHtml(
 <p style="padding-left:${r(8)}px">${e(batchDevice(rep))}</p>
 ${rep.deviceImei ? `<p class="gray" style="padding-left:${r(8)}px">IMEI: ${e(rep.deviceImei)}</p>` : ''}
 ${rep.issue ? `<p class="gray" style="padding-left:${r(8)}px">อาการ: ${e(rep.issue)}</p>` : ''}
+${batchIntakeNotes(rep).map((n) => `<p class="gray" style="padding-left:${r(8)}px">${n.label}: ${e(n.text)}</p>`).join('\n')}
 <div class="row" style="padding-left:${r(8)}px"><span>สถานะ: ${e(x.statusLabel)}</span><span class="v">${x.cancelled ? '—' : x.price == null ? 'รอประเมิน' : money(x.price)}</span></div>
 ${!x.cancelled && (x.paid > 0 || x.owed > 0) ? `<div class="row" style="padding-left:${r(8)}px"><span>จ่ายแล้ว ${money(x.paid)}</span><span class="v">${x.owed > 0 ? `${rep.status === 'DELIVERED' ? 'ค้าง' : 'คงเหลือ'} ${money(x.owed)}` : 'ครบ'}</span></div>` : ''}
 </div>`
@@ -939,7 +951,8 @@ export function buildRepairBatchPreviewData(
     { type: 'separator' },
   ]
   summary.rows.forEach((x, i) => {
-    const detail = x.statusLabel
+    const notes = batchIntakeNotes(x.repair).map((n) => `${n.label}: ${n.text}`).join(' · ')
+    const detail = notes ? `${x.statusLabel} · ${notes}` : x.statusLabel
     lines.push({
       type: 'item',
       name: `${i + 1}. ${x.repair.ticketNumber} ${batchDevice(x.repair)}`,

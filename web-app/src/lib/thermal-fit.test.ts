@@ -53,3 +53,26 @@ describe('repair slips', () => {
     expect(html).toContain('<span class="v wrap">Apple iPhone 15 Pro Max')
   })
 })
+
+describe('combined slip (ใบรับเครื่องรวม)', () => {
+  it('lists, per device, the colour, the condition it came in with and what came with it', async () => {
+    const { buildRepairBatchThermalHtml } = await import('./printer')
+    const { summarizeBatch } = await import('./repair-batch')
+    const dev = (over: object) => ({
+      id: 'r', ticketNumber: 'REP-1', status: 'RECEIVED', deviceBrand: 'Apple', deviceModel: 'iPhone 13', issue: 'จอแตก',
+      receivedAt: '2026-10-17T04:00:00Z', estimateCost: 1000, deposit: 0, paymentStatus: 'PENDING', ...over,
+    })
+    const html = buildRepairBatchThermalHtml(
+      summarizeBatch([
+        dev({ deviceColor: 'ดำ', deviceConditions: ['ฝาหลังร้าว'], accessories: 'ซิม, เคส' }),
+        dev({ ticketNumber: 'REP-2' }),
+      ] as any),
+      { kind: 'date', date: '2026-10-17' }, { name: 'ร้านส่ง' }, { shopName: 'Shop' },
+    )
+    expect(html).toContain('Apple iPhone 13 (ดำ)')
+    expect(html).toContain('สภาพ: ฝาหลังร้าว')
+    expect(html).toContain('อุปกรณ์ที่รับมา: ซิม, เคส')
+    // A device with none of them gets no empty lines
+    expect(html.match(/สภาพ:/g)).toHaveLength(1)
+  })
+})
