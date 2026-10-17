@@ -26,6 +26,7 @@ import { localDay } from '@/lib/repair-batch'
 import { RepairNextStep } from '@/components/repairs/repair-next-step'
 import { PART_MODES, partModeBody, partModeLabel, type PartMode } from '@/components/repairs/part-mode-picker'
 import { PickupDiscount } from '@/components/repairs/pickup-discount'
+import { intakeEstimateIfChanged, repairPrice, repairQuote } from '@/lib/repair-price'
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
@@ -231,7 +232,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
 
   const currentParts = repairDetail?.parts ?? repair.parts ?? []
   const partsTotal   = currentParts.reduce((sum, p) => sum + p.quantity * Number(p.price), 0)
-  const finalCostNum = Number(repair.finalCost ?? repair.estimateCost ?? 0)
+  // Profit against what the customer is charged: the final price, else the latest quote (not the intake estimate)
+  const finalCostNum = repairPrice(repairDetail ?? repair)
   // A technician works only on their own job; a colleague's is view only (payment / handover allowed)
   const canModifyParts = !['COMPLETED', 'DELIVERED'].includes(repair.status) && !own.viewOnly
 
@@ -376,7 +378,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                     ['อาการ', repair.issue],
                     ['มัดจำ', `${formatThaiMoney(repair.deposit ?? 0)}${(repair as any).depositReceivedBy ? ` · รับโดย ${(repair as any).depositReceivedBy}` : ''}`],
                     ...((repair as any).paymentReceivedBy ? [['รับเงินโดย', (repair as any).paymentReceivedBy as string]] : []),
-                    ...(repair.estimateCost ? [['ประมาณการ', formatThaiMoney(Number(repair.estimateCost))]] : []),
+                    ...(repairQuote(repairDetail ?? repair) > 0 ? [['ราคาประเมิน', `${formatThaiMoney(repairQuote(repairDetail ?? repair))}${intakeEstimateIfChanged(repairDetail ?? repair) != null ? ` (ตอนรับเครื่อง ${formatThaiMoney(intakeEstimateIfChanged(repairDetail ?? repair)!)})` : ''}`]] : []),
                     ...(repair.note ? [['หมายเหตุ', repair.note]] : []),
                   ].map(([k, v]) => (
                     <div key={k} className="flex gap-3">
@@ -1098,8 +1100,8 @@ export default function SunmiRepairsPage() {
                     <span className="text-xs text-slate-400">
                       {format(new Date(r.receivedAt), 'dd/MM', { locale: th })}
                     </span>
-                    {r.estimateCost && (
-                      <span className="text-sm font-bold text-slate-600">{formatThaiMoney(Number(r.estimateCost))}</span>
+                    {repairPrice(r) > 0 && (
+                      <span className="text-sm font-bold text-slate-600">{formatThaiMoney(repairPrice(r))}</span>
                     )}
                   </div>
                 </div>

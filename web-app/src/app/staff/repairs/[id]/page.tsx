@@ -36,6 +36,7 @@ import type { Repair, Product, ShopSettings } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
 import { localDay } from '@/lib/repair-batch'
+import { quoteSplit, repairQuote } from '@/lib/repair-price'
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -457,8 +458,9 @@ export default function RepairDetailPage() {
   const isFullyPaid = repair.paymentStatus === 'PAID'
   const hasShift  = !!currentShift
 
-  const quotedTotal   = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
+  const quotedTotal   = repairQuote(repair)
   const payPrice      = payFinal !== '' ? Number(payFinal) || 0 : quotedTotal
+  const split         = quoteSplit(repair, payPrice)
   const payDiscountNum = Math.max(0, Number(payDiscount) || 0)
   const repairTotal   = Math.max(0, payPrice - payDiscountNum)
   const repairDeposit = Number(repair.deposit ?? 0)
@@ -498,7 +500,7 @@ export default function RepairDetailPage() {
           ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean)
           : [],
         deposit:        Number(repair.deposit ?? 0),
-        estimateCost:   repair.estimateCost ? Number(repair.estimateCost) : undefined,
+        estimateCost:   repairQuote(repair) || undefined,
         technicianName: repair.technician?.name ?? undefined,
         footer:         settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
       }
@@ -1073,16 +1075,17 @@ export default function RepairDetailPage() {
                   <p className="text-sm font-bold text-[#111]">ค่าบริการ</p>
                 </div>
                 <div className="space-y-2 text-sm">
-                  {Number(repair.estimatedLaborCost) > 0 && (
+                  {/* The intake labour / parts split, only while it still adds up to the price (a re-quote replaces it) */}
+                  {split && split.labor > 0 && (
                     <div className="flex justify-between">
                       <span className="text-slate-500">ค่าแรง</span>
-                      <span className="font-semibold tabular-nums">{fmtMoney(Number(repair.estimatedLaborCost))}</span>
+                      <span className="font-semibold tabular-nums">{fmtMoney(split.labor)}</span>
                     </div>
                   )}
-                  {Number(repair.estimatedPartsCost) > 0 && (
+                  {split && split.parts > 0 && (
                     <div className="flex justify-between">
                       <span className="text-slate-500">ค่าอะไหล่</span>
-                      <span className="font-semibold tabular-nums">{fmtMoney(Number(repair.estimatedPartsCost))}</span>
+                      <span className="font-semibold tabular-nums">{fmtMoney(split.parts)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-base border-t border-[#F8F9FB] pt-2 mt-1">

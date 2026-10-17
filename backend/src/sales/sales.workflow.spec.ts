@@ -97,6 +97,7 @@ describe('SalesService — Workflow tests (RC1)', () => {
       branchStock:  { findMany: jest.fn().mockResolvedValue([{ productId: 'prod-1', quantity: 10 }]) },
       sale:         { findFirst: jest.fn().mockResolvedValue(CREATED_CASH_SALE) },
       customer:     { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      serialNumber: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn(),
     };
 

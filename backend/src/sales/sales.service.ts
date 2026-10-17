@@ -463,7 +463,20 @@ export class SalesService {
     // Post-transaction: accounting journal (ACCOUNTING_CORE_ENABLED gates this; never throws)
     await this.salesAccounting?.recordSaleJournal(sale as any, tenantId ?? '', userId);
 
-    return sale;
+    // The receipt printed right after the sale shows the IMEIs sold on each line and their warranty
+    const sold = sale.items.length
+      ? await this.prisma.serialNumber.findMany({
+          where: { saleItemId: { in: sale.items.map((i) => i.id) } },
+          select: { saleItemId: true, serial: true, warrantyExpiresAt: true },
+        })
+      : [];
+    return {
+      ...sale,
+      items: sale.items.map((i) => ({
+        ...i,
+        serialNumbers: sold.filter((x) => x.saleItemId === i.id).map(({ serial, warrantyExpiresAt }) => ({ serial, warrantyExpiresAt })),
+      })),
+    };
   }
 
   async findAll(query: {
@@ -525,7 +538,8 @@ export class SalesService {
     const sale = await this.prisma.sale.findFirst({
       where,
       include: {
-        items: { include: { product: true } },
+        // The IMEIs sold on each line and their warranty: printed on the receipt
+        items: { include: { product: true, serialNumbers: { select: { serial: true, warrantyExpiresAt: true } } } },
         customer: true,
         user: { select: { id: true, name: true } },
         shift: true,

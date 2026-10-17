@@ -1,6 +1,7 @@
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { formatThaiMoney } from '@/lib/utils'
+import { receiptPaymentLegs, saleAfterSale, soldSerials } from '@/lib/sale-receipt-data'
 import type { Sale, ShopSettings } from '@/types'
 
 const PAYMENT_LABEL: Record<string, string> = {
@@ -25,13 +26,12 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
   const logoUrl       = settings?.logoUrl       || ''
   const receiptFooter = settings?.receiptFooter || ''
 
-  const saleDate = (() => {
-    try {
-      return format(new Date(sale.createdAt), 'dd MMM yyyy HH:mm', { locale: th })
-    } catch {
-      return sale.createdAt
-    }
-  })()
+  const fmt = (iso: string, pattern = 'dd MMM yyyy HH:mm') => {
+    try { return format(new Date(iso), pattern, { locale: th }) } catch { return iso }
+  }
+  const saleDate = fmt(sale.createdAt)
+  const after = saleAfterSale(sale)
+  const paid = receiptPaymentLegs(sale)
 
   const Divider = () => (
     <div className="border-b border-dashed border-gray-400 my-2" />
@@ -75,6 +75,13 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
       {/* ── Document info ── */}
       <div className="text-center space-y-0.5 pb-1">
         <p className="font-bold">ใบเสร็จรับเงิน</p>
+        {after.voided && (
+          <div className="my-1 border-2 border-black py-0.5">
+            <p className="font-bold">*** บิลนี้ยกเลิกแล้ว ***</p>
+            {after.voidReason && <p>เหตุผล: {after.voidReason}</p>}
+            {after.voidedAt && <p className="text-gray-600">ยกเลิกเมื่อ {fmt(after.voidedAt)}</p>}
+          </div>
+        )}
         <p>เลขที่: {sale.receiptNumber}</p>
         <p className="text-gray-600">{saleDate}</p>
         <p className="text-gray-600">พนักงาน: {sale.user?.name ?? '—'}</p>
@@ -104,6 +111,11 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
               </span>
               <span className="tabular-nums">{formatThaiMoney(Number(item.total))}</span>
             </div>
+            {soldSerials(item).map((x) => (
+              <p key={x.serial} className="pl-2 text-gray-700">
+                IMEI: {x.serial}{x.warrantyUntil ? ` · ประกันถึง ${fmt(x.warrantyUntil, 'dd MMM yyyy')}` : ''}
+              </p>
+            ))}
           </div>
         ))}
       </div>
@@ -124,11 +136,11 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
 
       {/* ── Payment ── */}
       <div className="space-y-0.5 pb-1">
-        {sale.payments && sale.payments.length > 1 ? (
+        {paid.length > 1 ? (
           <>
-            {sale.payments.map((leg, i) => (
+            {paid.map((leg, i) => (
               <Row
-                key={leg.id}
+                key={i}
                 label={`ช่องทาง ${i + 1} (${PAYMENT_LABEL[leg.paymentMethod] ?? leg.paymentMethod})`}
                 value={formatThaiMoney(Number(leg.amount))}
               />
@@ -145,6 +157,29 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
           <Row label="เงินทอน" value={formatThaiMoney(Number(sale.change))} bold />
         )}
       </div>
+
+      {/* ── Goods taken back ── */}
+      {after.refunds.length > 0 && (
+        <>
+          <Divider />
+          <div className="space-y-0.5 pb-1">
+            <p className="text-center font-bold">*** มีการคืนสินค้า ***</p>
+            {after.refunds.map((rf) => (
+              <div key={rf.number}>
+                <p className="text-gray-600">{rf.number} · {fmt(rf.at)}</p>
+                {rf.items.map((i, k) => (
+                  <div key={k} className="flex justify-between pl-2">
+                    <span>{i.name} ×{i.quantity}</span>
+                    <span className="tabular-nums shrink-0">-{formatThaiMoney(i.total)}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            <Row label="คืนเงินรวม" value={`-${formatThaiMoney(after.refunded)}`} />
+            <Row label="ยอดหลังคืนสินค้า" value={formatThaiMoney(after.netAfterRefunds)} bold />
+          </div>
+        </>
+      )}
 
       {/* ── Note ── */}
       {sale.note && (

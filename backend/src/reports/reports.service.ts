@@ -673,8 +673,9 @@ export class ReportsService {
     const packageAmount = packageSales.reduce((sum, p) => sum + Number(p.packageAmount), 0);
     const refundTotal = refunds.reduce((sum, r) => sum + Number(r.totalRefund), 0);
     const voidedTotal = voidedSales.reduce((sum, s) => sum + Number(s.total), 0);
+    // Owed on finished jobs: the final price, else the latest quote sent (a re-quote updates only estimatedTotal)
     const unpaidTotal = unpaidRepairs.reduce((sum, r) => {
-      return sum + Math.max(0, Number(r.finalCost ?? r.estimateCost ?? 0) - Number(r.deposit ?? 0));
+      return sum + Math.max(0, Number(r.finalCost ?? r.estimatedTotal ?? r.estimateCost ?? 0) - Number(r.deposit ?? 0));
     }, 0);
     const depositTotal = newRepairs.reduce((sum, r) => sum + Number(r.deposit ?? 0), 0);
     // Totals and the cash/transfer split use the shared money rules (common/money/period-money.ts):
