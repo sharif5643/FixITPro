@@ -651,4 +651,22 @@ SELECT ss."tenantId", ss."paperWidth", t.status AS shop_status,
 FROM "ShopSettings" ss LEFT JOIN "Tenant" t ON t.id = ss."tenantId"
 ORDER BY 4 DESC NULLS LAST, 1;
 
+\echo '--- 28. Repair quotes: intake estimate (estimateCost) vs the latest quote sent (estimatedTotal) ---'
+\echo '28a. Per shop, last 90 days: jobs re-quoted to a different price, of them still open, and the largest change'
+SELECT b."tenantId", count(*) AS jobs_90d,
+  count(*) FILTER (WHERE r."estimatedTotal" IS NOT NULL AND r."estimateCost" IS NOT NULL AND r."estimatedTotal" <> r."estimateCost") AS requoted,
+  count(*) FILTER (WHERE r."estimatedTotal" IS NOT NULL AND r."estimateCost" IS NOT NULL AND r."estimatedTotal" <> r."estimateCost"
+    AND r.status::text NOT IN ('DELIVERED','CANCELLED')) AS requoted_open,
+  count(*) FILTER (WHERE r."estimatedTotal" IS NOT NULL AND r."estimateCost" IS NULL) AS quote_only,
+  max(abs(r."estimatedTotal" - r."estimateCost")) AS max_change
+FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId"
+WHERE r."receivedAt" > now() - INTERVAL '90 days'
+GROUP BY 1 ORDER BY 3 DESC, 1;
+\echo '28b. Jobs whose labour + parts split no longer adds up to the latest quote (split shown in the staff app)'
+SELECT b."tenantId", count(*) AS jobs
+FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId"
+WHERE r."estimatedLaborCost" IS NOT NULL AND r."estimatedPartsCost" IS NOT NULL AND r."estimatedTotal" IS NOT NULL
+  AND r."estimatedLaborCost" + r."estimatedPartsCost" <> r."estimatedTotal"
+GROUP BY 1 ORDER BY 2 DESC;
+
 ROLLBACK;

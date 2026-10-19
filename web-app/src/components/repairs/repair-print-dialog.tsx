@@ -13,6 +13,7 @@ import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
 import type { Repair, ShopSettings } from '@/types'
+import { repairQuote } from '@/lib/repair-price'
 
 interface RepairPrintDialogProps {
   repairId: string | null
@@ -69,7 +70,7 @@ export function RepairPrintDialog({ repairId, onClose }: RepairPrintDialogProps)
                 conditionIssues: repair.deviceConditions ?? [],
                 accessories:     repair.accessories ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean) : [],
                 deposit:         Number(repair.deposit),
-                estimateCost:    repair.estimateCost ? Number(repair.estimateCost) : undefined,
+                estimateCost:    repairQuote(repair) || undefined,
                 dueDate:         repair.dueDate ? format(new Date(repair.dueDate), 'dd MMM yyyy', { locale: th }) : undefined,
                 technicianName:  repair.technician?.name ?? undefined,
                 footer:          settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
@@ -129,7 +130,7 @@ export function RepairPrintDialog({ repairId, onClose }: RepairPrintDialogProps)
                     conditionIssues: repair.deviceConditions ?? [],
                     accessories:     repair.accessories ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean) : [],
                     deposit:         Number(repair.deposit),
-                    estimateCost:    repair.estimateCost ? Number(repair.estimateCost) : undefined,
+                    estimateCost:    repairQuote(repair) || undefined,
                     dueDate:         repair.dueDate ? format(new Date(repair.dueDate), 'dd MMM yyyy', { locale: th }) : undefined,
                     technicianName:  repair.technician?.name ?? undefined,
                     footer:          settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',

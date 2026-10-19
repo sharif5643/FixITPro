@@ -1,3 +1,4 @@
+import { receiptPaymentLegs, saleAfterSale, soldSerials } from './sale-receipt-data'
 import { THERMAL_FONT_FAMILY } from './thermal-font'
 import type { PrintReceiptOptions } from './sunmi-printer'
 import type { ThermalPreviewData, ThermalLine } from '@/components/sunmi/printer-flow'
@@ -741,7 +742,11 @@ export function buildSaleReceiptThermalHtml(
     createdAt: string
     user?: { name?: string | null } | null
     customer?: { name?: string | null; phone?: string | null } | null
-    items: Array<{ quantity: number; price: number | string; total: number | string; discount?: number | string | null; product?: { name?: string | null } | null }>
+    items: Array<{
+      quantity: number; price: number | string; total: number | string; discount?: number | string | null
+      product?: { name?: string | null } | null
+      serialNumbers?: Array<{ serial: string; warrantyExpiresAt?: string | null }> | null
+    }>
     subtotal: number | string
     discount: number | string
     total: number | string
@@ -750,6 +755,10 @@ export function buildSaleReceiptThermalHtml(
     change: number | string
     note?: string | null
     payments?: Array<{ paymentMethod: string; amount: number | string }> | null
+    status?: string | null
+    voidReason?: string | null
+    voidedAt?: string | null
+    refunds?: Parameters<typeof saleAfterSale>[0]['refunds']
   },
   settings: {
     shopName?: string | null
@@ -767,6 +776,7 @@ export function buildSaleReceiptThermalHtml(
   const r   = (webPx: number) => Math.round(webPx * px / 200)
   const money = (n: number | string) => `฿${fmtI(Number(n))}`
   const PM_S: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
+  const after = saleAfterSale(sale)
 
   const logoUrl = settings?.logoUrl ?? ''
   const header = [
@@ -779,12 +789,14 @@ export function buildSaleReceiptThermalHtml(
 
   const items = sale.items.map((it) => {
     const disc = Number(it.discount ?? 0)
+    const serials = soldSerials(it).map((x) => `<p class="gray" style="padding-left:${r(8)}px">IMEI: ${e(x.serial)}${x.warrantyUntil ? ` · ประกันถึง ${e(webReceiptDay(x.warrantyUntil))}` : ''}</p>`).join('\n')
     return `<p>${e(it.product?.name ?? 'สินค้า')}</p>
-<div class="row" style="padding-left:${r(8)}px"><span>${money(it.price)} × ${it.quantity}${disc > 0 ? ` (ลด ${money(disc)})` : ''}</span><span class="v">${money(it.total)}</span></div>`
+<div class="row" style="padding-left:${r(8)}px"><span>${money(it.price)} × ${it.quantity}${disc > 0 ? ` (ลด ${money(disc)})` : ''}</span><span class="v">${money(it.total)}</span></div>${serials ? `\n${serials}` : ''}`
   }).join('\n')
 
-  const legs = sale.payments && sale.payments.length > 1
-    ? sale.payments.map((l, i) => `<div class="row"><span>ช่องทาง ${i + 1} (${PM_S[l.paymentMethod] ?? e(l.paymentMethod)})</span><span class="v">${money(l.amount)}</span></div>`).join('\n')
+  const paid = receiptPaymentLegs(sale)
+  const legs = paid.length > 1
+    ? paid.map((l, i) => `<div class="row"><span>ช่องทาง ${i + 1} (${PM_S[l.paymentMethod] ?? e(l.paymentMethod)})</span><span class="v">${money(l.amount)}</span></div>`).join('\n')
       + `\n<div class="row"><span>รับเงินรวม</span><span class="v">${money(sale.amountPaid)}</span></div>`
     : `<div class="row"><span>ช่องทาง</span><span class="v">${PM_S[sale.paymentMethod] ?? e(sale.paymentMethod)}</span></div>
 <div class="row"><span>รับเงิน</span><span class="v">${money(sale.amountPaid)}</span></div>`
@@ -797,6 +809,7 @@ export function buildSaleReceiptThermalHtml(
 <div class="hr"></div>
 <div class="c sec">
 <p class="b">ใบเสร็จรับเงิน</p>
+${after.voided ? `<p class="b" style="border:2px solid #000;margin:${r(3)}px 0;padding:${r(2)}px">*** บิลนี้ยกเลิกแล้ว ***</p>${after.voidReason ? `<p>เหตุผล: ${e(after.voidReason)}</p>` : ''}${after.voidedAt ? `<p class="gray">ยกเลิกเมื่อ ${e(webReceiptDate(after.voidedAt))}</p>` : ''}` : ''}
 <p>เลขที่: ${e(sale.receiptNumber)}</p>
 <p class="gray">${e(webReceiptDate(sale.createdAt))}</p>
 <p class="gray">พนักงาน: ${e(sale.user?.name ?? opts.cashierName ?? '—')}</p>
@@ -815,6 +828,12 @@ ${Number(sale.discount) > 0 ? `<div class="row"><span>ส่วนลด</span><
 <div class="hr"></div>
 ${legs}
 ${Number(sale.change) > 0 ? `<div class="row b"><span>เงินทอน</span><span class="v">${money(sale.change)}</span></div>` : ''}
+${after.refunds.length ? `<div class="hr"></div>
+<p class="c b">*** มีการคืนสินค้า ***</p>
+${after.refunds.map((rf) => `<p class="gray">${e(rf.number)} · ${e(webReceiptDate(rf.at))}</p>
+${rf.items.map((i) => `<div class="row" style="padding-left:${r(8)}px"><span>${e(i.name)} ×${i.quantity}</span><span class="v">-${money(i.total)}</span></div>`).join('\n')}`).join('\n')}
+<div class="row"><span>คืนเงินรวม</span><span class="v">-${money(after.refunded)}</span></div>
+<div class="row b"><span>ยอดหลังคืนสินค้า</span><span class="v">${money(after.netAfterRefunds)}</span></div>` : ''}
 ${sale.note ? `<div class="hr"></div><p class="gray">หมายเหตุ: ${e(sale.note)}</p>` : ''}
 <div class="hr"></div>
 ${footer}`

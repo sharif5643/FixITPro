@@ -19,6 +19,7 @@ import { ModuleGate } from '@/components/auth/module-gate'
 import { PageHeader } from '@/components/ui/page-header'
 import api from '@/lib/api'
 import { DrillDrawer, MetricCard } from '@/components/reports/drill-drawer'
+import { repairPrice } from '@/lib/repair-price'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -342,7 +343,7 @@ export default function DailyClosingReportPage() {
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs font-bold text-amber-700">{r.ticketNumber}</span>
               <span className="font-bold text-sm tabular-nums">
-                {formatThaiMoney(Math.max(0, Number(r.finalCost ?? r.estimateCost ?? 0) - Number(r.deposit ?? 0)))}
+                {formatThaiMoney(Math.max(0, repairPrice(r) - Number(r.deposit ?? 0)))}
               </span>
             </div>
             <p className="text-sm font-medium">{r.deviceBrand} {r.deviceModel}</p>

@@ -48,6 +48,7 @@ import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
 import { TechOwnershipBar } from '@/components/repairs/tech-ownership'
 import { localDay } from '@/lib/repair-batch'
 import { STATUS_MOVES, NEXT_ACTION as SHARED_NEXT_ACTION, PATH_TO_DONE as SHARED_PATH_TO_DONE } from '@/lib/repair-status-flow'
+import { repairQuote } from '@/lib/repair-price'
 
 const STATUS_LABEL: Record<RepairStatus, string> = {
   RECEIVED:         'รับงาน',
@@ -1697,7 +1698,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     conditionIssues: repair.deviceConditions ?? [],
                     accessories:    repair.accessories ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean) : [],
                     deposit:        Number(repair.deposit),
-                    estimateCost:   repair.estimateCost ? Number(repair.estimateCost) : undefined,
+                    estimateCost:   repairQuote(repair) || undefined,
                     dueDate:        repair.dueDate ? format(new Date(repair.dueDate), 'dd MMM yyyy', { locale: th }) : undefined,
                     technicianName: repair.technician?.name ?? undefined,
                     footer:         settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',
@@ -1765,7 +1766,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         conditionIssues: repair.deviceConditions ?? [],
                         accessories:   repair.accessories ? repair.accessories.split(',').map((s) => s.trim()).filter(Boolean) : [],
                         deposit:       Number(repair.deposit),
-                        estimateCost:  repair.estimateCost ? Number(repair.estimateCost) : undefined,
+                        estimateCost:  repairQuote(repair) || undefined,
                         dueDate:       repair.dueDate ? format(new Date(repair.dueDate), 'dd MMM yyyy', { locale: th }) : undefined,
                         technicianName: repair.technician?.name ?? undefined,
                         footer:        settings?.receiptFooter ?? 'ขอบคุณที่ใช้บริการ',

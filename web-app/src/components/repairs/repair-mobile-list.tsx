@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { cn, formatThaiMoney } from '@/lib/utils'
 import type { Repair, RepairStatus } from '@/types'
+import { repairPrice } from '@/lib/repair-price'
 
 // ── Status config ──────────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ function RepairCard({ repair, onClick }: { repair: Repair; onClick: () => void }
   const badge   = STATUS_BADGE[repair.status] ?? STATUS_BADGE['RECEIVED']
   const BadgeIcon = badge.icon
   const imgUrl  = repair.images?.[0]?.url
-  const price   = repair.finalCost ?? repair.estimateCost ?? repair.estimatedTotal
+  const price   = repairPrice(repair) || null
   const days    = (repair.status === 'READY_PICKUP' || repair.status === 'COMPLETED') ? waitDays(repair.receivedAt) : 0
 
   return (
