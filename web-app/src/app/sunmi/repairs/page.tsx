@@ -815,9 +815,19 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
               <div className="space-y-4">
                 <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
                   <p className="font-semibold">รับชำระเงินเพิ่มเติม</p>
-                  <p className="text-xs text-blue-600 mt-0.5">
-                    ค่าซ่อมรวม: {formatThaiMoney(Number(repair.finalCost ?? 0))} · รับแล้ว: {formatThaiMoney(Number(repair.paidAmount ?? 0))}
-                  </p>
+                  {(() => {
+                    // Received so far = deposit + the handover payment + earlier extra payments
+                    const src = (repairDetail ?? repair) as any
+                    const got = Number(src.deposit ?? 0) + Number(src.paidAmount ?? 0)
+                      + (src.additionalPayments ?? []).reduce((s: number, x: any) => s + Number(x.amount), 0)
+                    const owed = src.paymentStatus === 'PARTIAL' ? Math.max(0, Number(src.finalCost ?? 0) - got) : 0
+                    return (
+                      <p className="text-xs text-blue-600 mt-0.5">
+                        ค่าซ่อมรวม: {formatThaiMoney(Number(src.finalCost ?? 0))} · รับแล้ว: {formatThaiMoney(got)}
+                        {owed > 0 && <span className="font-bold text-amber-700"> · ค้าง {formatThaiMoney(owed)}</span>}
+                      </p>
+                    )
+                  })()}
                 </div>
 
                 <div className="space-y-1">

@@ -26,3 +26,8 @@ export function confirmIntake(warnings: string[]): boolean {
   if (!warnings.length) return true
   return window.confirm(`ตรวจสอบก่อนบันทึก:\n\n• ${warnings.join('\n• ')}\n\nถูกต้องแล้ว บันทึกเลยไหม?`)
 }
+
+/** The issue saved on the job: what was typed, or else the problem chips picked (not ด่วน / เคลม). */
+export function issueTextOf(typed: string | undefined, tags: string[]): string {
+  return typed?.trim() || tags.filter((t) => t !== 'ด่วน' && t !== 'เคลม').join(', ')
+}

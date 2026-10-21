@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { intakeWarnings, confirmIntake } from '@/lib/intake-checks'
+import { intakeWarnings, confirmIntake, issueTextOf } from '@/lib/intake-checks'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -95,11 +95,6 @@ const SPECIAL_TAGS = [
 
 
 // ── Schema ────────────────────────────────────────────────────────────────────
-
-/** The issue saved on the job: what was typed, or else the problem chips picked (not ด่วน / เคลม). */
-function issueTextOf(typed: string | undefined, tags: string[]): string {
-  return typed?.trim() || tags.filter((t) => t !== 'ด่วน' && t !== 'เคลม').join(', ')
-}
 
 const repairSchema = z.object({
   customerName:  z.string().optional(),

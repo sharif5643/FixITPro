@@ -10,6 +10,8 @@ import { useAuthStore } from '@/store/auth.store'
 export default function StaffChangePasswordPage() {
   const router     = useRouter()
   const updateUser = useAuthStore((s) => s.updateUser)
+  // Forced after a reset / first login, or opened from the menu (then it can be left)
+  const forced     = useAuthStore((s) => !!s.user?.forcePasswordChange)
 
   const [current,  setCurrent]  = useState('')
   const [next,     setNext]     = useState('')
@@ -44,7 +46,7 @@ export default function StaffChangePasswordPage() {
           </div>
           <div>
             <h1 className="text-center text-xl font-bold text-brand-black">ตั้งรหัสผ่านใหม่</h1>
-            <p className="mt-1 text-center text-sm text-slate-400">กรุณาเปลี่ยนรหัสผ่านก่อนใช้งาน</p>
+            <p className="mt-1 text-center text-sm text-slate-400">{forced ? 'กรุณาเปลี่ยนรหัสผ่านก่อนใช้งาน' : 'เปลี่ยนรหัสผ่านที่ใช้เข้าระบบ'}</p>
           </div>
         </div>
 
@@ -111,6 +113,12 @@ export default function StaffChangePasswordPage() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin"/> : 'บันทึกรหัสผ่านใหม่'}
           </button>
         </form>
+        {!forced && (
+          <button type="button" onClick={() => router.back()}
+            className="mt-4 h-11 w-full rounded-xl text-sm font-semibold text-slate-500">
+            ยกเลิก
+          </button>
+        )}
       </div>
     </div>
   )

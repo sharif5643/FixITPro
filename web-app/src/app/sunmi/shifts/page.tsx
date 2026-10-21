@@ -208,12 +208,15 @@ function TopupSheet({
 
 function WalletBalances({ shiftId }: { shiftId: string }) {
   const qc = useQueryClient()
+  const canSeeWallets = useAuthStore((st) => st.hasPermission('sales.create') || st.hasPermission('reports.view'))
   const [showTopup, setShowTopup] = useState(false)
 
   const { data: wallets = [] } = useQuery<WalletBalance[]>({
     queryKey:  ['carrier-wallet', 'balances'],
     queryFn:   async () => (await api.get('/carrier-wallet/balances')).data,
     staleTime: 15_000,
+    // Same rule as the API: people who cannot sell (a technician) have no wallets to count
+    enabled:   canSeeWallets,
   })
 
   return (
@@ -395,10 +398,13 @@ export default function SunmiShiftsPage() {
   // Leaving early: who takes the drawer over; taking over: the shift handed to me
   const [handoverTo,   setHandoverTo]   = useState('')
   const [handoverFrom, setHandoverFrom] = useState<string | null>(null)
+  const canSeeWallets = useAuthStore((st) => st.hasPermission('sales.create') || st.hasPermission('reports.view'))
   const { data: walletBal = [] } = useQuery<WalletBalance[]>({
     queryKey:  ['carrier-wallet', 'balances'],
     queryFn:   async () => (await api.get('/carrier-wallet/balances')).data,
     staleTime: 15_000,
+    // Same rule as the API: people who cannot sell (a technician) have no wallets to count
+    enabled:   canSeeWallets,
   })
   const systemOf = (c: string) => Number(walletBal.find((w) => w.carrier === c)?.balance ?? 0)
 

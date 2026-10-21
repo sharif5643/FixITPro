@@ -7,21 +7,18 @@ import api from '@/lib/api'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { toast } from 'sonner'
+import { RepairStatusBadge } from '@/components/ui/status-badge'
 
 interface Customer {
   id:string; name:string; phone:string; lineId?:string; email?:string; address?:string
-  totalSpending?:number; repairCount?:number; purchaseCount?:number
-  repairs?:{ id:string; ticketNumber:string; status:string; deviceBrand:string; deviceModel:string; createdAt:string }[]
+  totalSpending?:number; unpaidBalance?:number
+  _count?:{ sales:number; repairs:number }
+  repairs?:{ id:string; ticketNumber:string; status:string; deviceBrand:string; deviceModel:string; receivedAt:string }[]
+  sales?:{ id:string; receiptNumber:string; total:number|string; status:string; createdAt:string }[]
 }
 
-const S_BADGE: Record<string,string> = {
-  PENDING:'bg-blue-50 text-blue-600', IN_PROGRESS:'bg-amber-50 text-amber-600',
-  WAIT_PARTS:'bg-orange-50 text-orange-600', WAIT_PICKUP:'bg-green-50 text-green-600',
-  COMPLETED:'bg-emerald-50 text-emerald-600', CANCELLED:'bg-red-50 text-red-500',
-}
-const S_LABEL: Record<string,string> = {
-  PENDING:'รอตรวจสอบ', IN_PROGRESS:'กำลังซ่อม', WAIT_PARTS:'รออะไหล่',
-  WAIT_PICKUP:'รอรับเครื่อง', COMPLETED:'เสร็จสิ้น', CANCELLED:'ยกเลิก',
+const SALE_STATUS: Record<string,string> = {
+  PARTIAL_REFUND:'คืนบางส่วน', REFUNDED:'คืนเงินแล้ว', VOIDED:'ยกเลิก',
 }
 
 export default function CustomerDetailPage() {
@@ -105,7 +102,7 @@ export default function CustomerDetailPage() {
                 <p className="text-xs text-slate-400">ยอดรวม</p>
               </div>
               <div className="rounded-xl bg-[#F8F9FB] p-3 text-center">
-                <p className="text-lg font-extrabold text-brand-black">{customer.repairCount??0}</p>
+                <p className="text-lg font-extrabold text-brand-black">{(customer._count?.repairs ?? 0) + (customer._count?.sales ?? 0)}</p>
                 <p className="text-xs text-slate-400">ครั้งที่มา</p>
               </div>
             </div>
@@ -142,12 +139,10 @@ export default function CustomerDetailPage() {
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-center gap-2">
                       <p className="text-xs font-bold text-slate-400">{r.ticketNumber}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${S_BADGE[r.status]??''}`}>
-                        {S_LABEL[r.status]??r.status}
-                      </span>
+                      <RepairStatusBadge status={r.status} size="xs" />
                     </div>
                     <p className="text-sm font-semibold text-brand-black">{r.deviceBrand} {r.deviceModel}</p>
-                    <p className="text-[11px] text-slate-400">{format(new Date(r.createdAt),'d MMM yyyy',{locale:th})}</p>
+                    <p className="text-[11px] text-slate-400">{format(new Date(r.receivedAt),'d MMM yyyy',{locale:th})}</p>
                   </div>
                 </button>
               ))}
@@ -155,10 +150,30 @@ export default function CustomerDetailPage() {
           )}
 
           {tab === 'purchase' && (
-            <div className="flex flex-col items-center gap-3 rounded-2xl bg-white py-10 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-              <ShoppingBag className="h-8 w-8 text-slate-200"/>
-              <p className="text-sm text-slate-400">ยังไม่มีประวัติซื้อ</p>
-            </div>
+            (customer.sales ?? []).length === 0 ? (
+              <div className="flex flex-col items-center gap-3 rounded-2xl bg-white py-10 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+                <ShoppingBag className="h-8 w-8 text-slate-200"/>
+                <p className="text-sm text-slate-400">ยังไม่มีประวัติซื้อ</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {(customer.sales ?? []).map(s => (
+                  <div key={s.id} className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-yellow/10">
+                      <ShoppingBag className="h-5 w-5 text-brand-yellow" strokeWidth={2}/>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-400 truncate">{s.receiptNumber}</p>
+                      <p className="text-[11px] text-slate-400">{format(new Date(s.createdAt),'d MMM yyyy HH:mm',{locale:th})}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-brand-black">฿{Number(s.total).toLocaleString('th-TH')}</p>
+                      {SALE_STATUS[s.status] && <p className="text-[10px] font-semibold text-red-500">{SALE_STATUS[s.status]}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
 
           <button onClick={()=>router.push('/staff/create')}

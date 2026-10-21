@@ -77,7 +77,8 @@ function SuccessContent() {
     )
   }
 
-  const fmt = (n?: number) => n ? n.toLocaleString('th-TH') + ' บาท' : undefined
+  // Amounts come back from the API as strings ("2500.00"): format the number, not the text
+  const fmt = (n?: number | string) => Number(n) ? Number(n).toLocaleString('th-TH') + ' บาท' : undefined
   const fmtDate = (s?: string) => {
     if (!s) return ''
     const d = new Date(s)
@@ -85,10 +86,10 @@ function SuccessContent() {
            d.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' }) + ' น.'
   }
 
-  const labor   = repair?.estimatedLaborCost ?? 0
-  const parts   = repair?.estimatedPartsCost ?? 0
-  const total   = repair?.estimateCost ?? (labor + parts)
-  const deposit = repair?.deposit ?? 0
+  const labor   = Number(repair?.estimatedLaborCost ?? 0)
+  const parts   = Number(repair?.estimatedPartsCost ?? 0)
+  const total   = Number(repair?.estimateCost ?? (labor + parts))
+  const deposit = Number(repair?.deposit ?? 0)
   const remain  = total - deposit
 
   const accessories = repair?.accessories

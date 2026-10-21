@@ -53,6 +53,9 @@ const KIND: Record<string, string> = {
 const METHOD: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอน', CARD: 'บัตร', QR: 'QR' }
 
 /** Per person: cash they took in, other money, cash paid out, and their net cash in the drawer. */
+/** -฿1,200 rather than ฿-1,200 */
+const signedMoney = (n: number) => (n < 0 ? `-${formatThaiMoney(-n)}` : formatThaiMoney(n))
+
 export function StaffMoneyTable({ staff, openBalance, openedBy }: {
   staff: StaffMoney[]
   openBalance?: number
@@ -82,10 +85,11 @@ export function StaffMoneyTable({ staff, openBalance, openedBy }: {
           {staff.map((x) => (
             <tr key={x.userId ?? '-'}>
               <td className="px-3 py-2 font-semibold text-slate-800">{x.name}<span className="ml-1 text-xs font-normal text-slate-400">{x.count} รายการ</span></td>
-              <td className="px-2 py-2 text-right text-emerald-700">{formatThaiMoney(x.cashIn)}</td>
-              <td className="px-2 py-2 text-right text-blue-700">{formatThaiMoney(x.otherIn - x.otherOut)}</td>
-              <td className="px-2 py-2 text-right text-red-600">{x.cashOut ? `-${formatThaiMoney(x.cashOut)}` : '—'}</td>
-              <td className="px-3 py-2 text-right font-bold text-slate-900">{formatThaiMoney(x.netCash)}</td>
+              <td className="whitespace-nowrap px-2 py-2 text-right text-emerald-700">{formatThaiMoney(x.cashIn)}</td>
+              {/* Net of transfers in and out (a supplier paid by transfer shows as minus) */}
+              <td className="whitespace-nowrap px-2 py-2 text-right text-blue-700">{signedMoney(x.otherIn - x.otherOut)}</td>
+              <td className="whitespace-nowrap px-2 py-2 text-right text-red-600">{x.cashOut ? `-${formatThaiMoney(x.cashOut)}` : '—'}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-right font-bold text-slate-900">{signedMoney(x.netCash)}</td>
             </tr>
           ))}
           {openBalance != null && (

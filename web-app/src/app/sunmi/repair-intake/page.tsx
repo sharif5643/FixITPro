@@ -36,7 +36,7 @@ import type { Customer, ShopSettings, User as UserType, Repair } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { localDay } from '@/lib/repair-batch'
 import { DEVICE_BRANDS, QUICK_MODELS } from '@/lib/device-models'
-import { intakeWarnings, confirmIntake } from '@/lib/intake-checks'
+import { intakeWarnings, confirmIntake, issueTextOf } from '@/lib/intake-checks'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -62,7 +62,8 @@ const schema = z.object({
   technicianId:  z.string().optional(),
 
   // Step 2 — Issue + Condition
-  issue:          z.string().min(1, 'กรุณากรอกอาการเสีย'),
+  // A picked problem chip is enough, as on the web (checked in goNext)
+  issue:          z.string().optional(),
   conditionIssues: z.array(z.string()).default([]),
   issueTags:     z.array(z.string()).default([]),
 
@@ -464,7 +465,7 @@ function StepIssue({ register, errors, watch, setValue, pricedJobs, onPickPrice 
         </div>
       </Field>
 
-      <Field label="อาการเสียที่ลูกค้าแจ้ง *" error={errors.issue?.message}>
+      <Field label="อาการเสียที่ลูกค้าแจ้ง (หรือเลือกด้านบน)" error={errors.issue?.message}>
         <textarea
           {...register('issue')}
           rows={4}
@@ -764,7 +765,7 @@ function StepConfirm({ watch, technicians, photoCount }: { watch: any; technicia
       {/* Issue + Condition */}
       <Section>
         {(data.issueTags ?? []).length > 0 && <Row label="หมวด" value={data.issueTags.join(', ')} />}
-        <Row label="อาการ" value={data.issue} />
+        <Row label="อาการ" value={issueTextOf(data.issue, data.issueTags ?? [])} />
         {data.conditionIssues.length > 0 && (
           <Row label="สภาพ" value={data.conditionIssues.join(', ')} />
         )}
@@ -777,7 +778,7 @@ function StepConfirm({ watch, technicians, photoCount }: { watch: any; technicia
         )}
         <Row label="มัดจำ"     value={`฿${(data.deposit || 0).toLocaleString('th-TH')}`} bold />
         {data.estimateCost ? (
-          <Row label="ประมาณการ" value={`฿${Number(data.estimateCost).toLocaleString('th-TH')}`} />
+          <Row label="ราคาประเมิน" value={`฿${Number(data.estimateCost).toLocaleString('th-TH')}`} />
         ) : null}
         <Row label="กำหนดเสร็จ" value={dueDateFormatted} />
         <Row label="หมายเหตุ"   value={data.note} />
@@ -848,7 +849,7 @@ export default function RepairIntakePage() {
 
   const { online } = useNetworkStatus()
 
-  const { register, handleSubmit, watch, setValue, trigger, reset, formState: { errors } } =
+  const { register, handleSubmit, watch, setValue, setError, trigger, reset, formState: { errors } } =
     useForm<FormData>({
       resolver:      zodResolver(schema),
       defaultValues: {
@@ -930,7 +931,10 @@ export default function RepairIntakePage() {
     let fields: (keyof FormData)[] = []
     if (step === 0) fields = ['customerName']
     if (step === 1) fields = ['deviceBrand', 'deviceModel']
-    if (step === 2) fields = ['issue']
+    if (step === 2 && !issueTextOf(watch('issue'), watch('issueTags') ?? [])) {
+      setError('issue', { message: 'เลือกอาการด้านบน หรือพิมพ์อาการเสีย' })
+      return
+    }
     const ok = await trigger(fields)
     if (ok) setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1))
   }
@@ -950,7 +954,7 @@ export default function RepairIntakePage() {
         deviceModel:   data.deviceModel.trim(),
         deviceColor:   data.deviceColor?.trim() || undefined,
         deviceImei:    data.deviceImei?.trim() || undefined,
-        issue:         data.issue.trim(),
+        issue:         issueTextOf(data.issue, data.issueTags ?? []),
         accessories:   data.accessories.length > 0 ? data.accessories.join(', ') : undefined,
         deviceConditions: data.conditionIssues.length > 0 ? data.conditionIssues : undefined,
         deviceType:    data.deviceType || undefined,
