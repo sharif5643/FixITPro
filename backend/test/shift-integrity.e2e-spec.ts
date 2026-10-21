@@ -118,6 +118,27 @@ describe('Shift integrity: write-off, late entry, payment method (e2e)', () => {
     expect(await stockOf()).toBe(17);
   });
 
+  it('SI-03b: a 0-baht bill needs a reason; an old sale keyed late needs its real price', async () => {
+    await ensureShift(owner);
+    const before = await stockOf();
+    // "ยอดเก่า" as a 100% discount is refused, now or keyed late
+    const zero = await sell(owner, { paymentMethod: 'CASH', amountPaid: 0, discount: 1000, note: 'ยอดเก่า' });
+    expect(zero.status).toBe(400);
+    expect(zero.body.message).toContain('ต้องระบุเหตุผล');
+    const lateZero = await sell(manager, {
+      paymentMethod: 'CASH', amountPaid: 0, discount: 1000, zeroReason: 'GIFT',
+      soldAt: new Date(Date.now() - 5 * 3600_000).toISOString(),   // the shift SI-02 filed into
+    });
+    expect(lateZero.status).toBe(400);
+    expect(lateZero.body.message).toContain('ราคาที่ขายจริง');
+    expect(await stockOf()).toBe(before);
+    // A gift with its reason goes through and says so
+    const gift = await sell(owner, { paymentMethod: 'CASH', amountPaid: 0, discount: 1000, zeroReason: 'GIFT', note: 'ลูกค้าประจำ' });
+    expect(gift.status).toBe(201);
+    expect(gift.body.note).toBe('[0 บาท: แถม] ลูกค้าประจำ');
+    expect(await stockOf()).toBe(before - 1);
+  });
+
   it('SI-04: a transfer keyed as cash is put right in the open shift — drawer and books follow', async () => {
     const before = await expected(manager);
     const sale = (await sell(manager, { paymentMethod: 'CASH', amountPaid: 1200 }).expect(201)).body;

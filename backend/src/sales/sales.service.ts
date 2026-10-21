@@ -233,6 +233,21 @@ export class SalesService {
     }
     const total = subtotal - discount;
 
+    // A bill of goods that comes to 0: a late entry is an old sale and needs its real price; any
+    // other must say it is a gift or a claim (audit 2026-10: "ยอดเก่า" keyed at 0 baht)
+    const listValue = dto.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    if (total <= 0 && listValue > 0) {
+      if (lateAt) {
+        throw new BadRequestException('บันทึกยอดขายย้อนหลังต้องใช้ราคาที่ขายจริง — ลบส่วนลดออกแล้วใส่ยอดที่ลูกค้าจ่าย');
+      }
+      if (!dto.zeroReason) {
+        throw new BadRequestException('บิล 0 บาทต้องระบุเหตุผล (แถมให้ลูกค้า / เคลม) — ยอดขายเก่าให้บันทึกย้อนหลังด้วยราคาจริง');
+      }
+    }
+    const zeroTag = total <= 0 && listValue > 0 && dto.zeroReason
+      ? `[0 บาท: ${dto.zeroReason === 'GIFT' ? 'แถม' : 'เคลม'}]`
+      : null;
+
     // Staff may take off at most the shop's limit, counted against the shop's own prices so a
     // lowered line price counts the same as a discount. Owners have no limit.
     if (role && role !== 'OWNER' && role !== 'SUPER_ADMIN' && tenantId) {
@@ -295,7 +310,9 @@ export class SalesService {
           total,
           amountPaid: totalPaid,
           change,
-          note: lateAt ? `[บันทึกย้อนหลัง]${dto.note?.trim() ? ` ${dto.note.trim()}` : ''}` : dto.note,
+          note: lateAt
+            ? `[บันทึกย้อนหลัง]${dto.note?.trim() ? ` ${dto.note.trim()}` : ''}`
+            : zeroTag ? `${zeroTag}${dto.note?.trim() ? ` ${dto.note.trim()}` : ''}` : dto.note,
           status: 'COMPLETED',
           items: {
             create: dto.items.map((item) => ({

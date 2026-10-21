@@ -533,6 +533,8 @@ model Shift {
   closedAt     DateTime?
   openBalance  Decimal   @db.Decimal(10, 2)
   closeBalance Decimal?  @db.Decimal(10, 2)
+  /// Of the counted cash, what stays in the drawer for the next shift (its opening float)
+  floatLeft    Decimal?  @db.Decimal(10, 2)
   note         String?
   isActive     Boolean   @default(true)
 

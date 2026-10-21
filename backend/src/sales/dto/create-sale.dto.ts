@@ -116,6 +116,14 @@ export class CreateSaleDto {
   note?: string;
 
   /**
+   * Why a bill comes to 0 baht: a gift or a claim. Required for such a bill — old sales keyed at
+   * 0 (a 100% discount) took goods out of stock with no income and showed as a loss.
+   */
+  @IsOptional()
+  @IsIn(['GIFT', 'CLAIM'])
+  zeroReason?: 'GIFT' | 'CLAIM';
+
+  /**
    * Late entry: goods sold (and paid) earlier but keyed in now. The sale is filed at that time,
    * in the shift that was open then, so its money is not counted again in today's shift.
    */

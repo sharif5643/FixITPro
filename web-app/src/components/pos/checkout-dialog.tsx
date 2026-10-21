@@ -23,6 +23,7 @@ import generatePayload from 'promptpay-qr'
 import { formatThaiMoney, cn, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
+import { ZeroBillPanel, type ZeroReason } from '@/components/pos/zero-bill-panel'
 import type { Sale, SerialNumber, PaymentMethod, ShopSettings } from '@/types'
 import type { CartItem } from '@/store/cart.store'
 import { WriteOffDialog, toLocalInput } from '@/components/pos/write-off-dialog'
@@ -265,7 +266,7 @@ export function CheckoutDialog({
   const [lateAt, setLateAt] = useState('')
   // A bill that comes to 0: usually a gift / claim (take it out of stock instead) or an old sale
   const zeroBill = total <= 0 && cartItems.length > 0
-  const [zeroOk, setZeroOk] = useState(false)
+  const [zeroReason, setZeroReason] = useState<ZeroReason | null>(null)
   const [writeOffOpen, setWriteOffOpen] = useState(false)
 
   const serialItems    = cartItems.filter((i) => i.product.hasSerial)
@@ -348,7 +349,7 @@ export function CheckoutDialog({
       setSellerId('')
       setLateOn(false)
       setLateAt(toLocalInput(new Date(Date.now() - 3600_000)))
-      setZeroOk(false)
+      setZeroReason(null)
 
       // Reset split-mode state
       setSplitMode(false)
@@ -381,6 +382,7 @@ export function CheckoutDialog({
         shiftId:       shiftId ?? undefined,
         branchId:      branchId ?? undefined,
         ...(lateOn && lateAt ? { soldAt: new Date(lateAt).toISOString() } : {}),
+        ...(zeroBill && zeroReason ? { zeroReason } : {}),
         items: cartItems.map((i) => ({
           productId: i.product.id,
           quantity:  i.quantity,
@@ -431,7 +433,7 @@ export function CheckoutDialog({
   const isCash    = !splitMode && paymentMethod === 'CASH'
   const canSubmit = !createSaleMutation.isPending && (
     splitMode ? leg1Amount > 0 : (!isCash || change >= 0)
-  ) && (!zeroBill || zeroOk) && (!lateOn || !!lateAt)
+  ) && (!zeroBill || (!lateOn && !!zeroReason)) && (!lateOn || !!lateAt)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -474,18 +476,7 @@ export function CheckoutDialog({
 
             {/* A 0-baht bill: a gift / claim belongs in stock write-off, an old sale at its real price */}
             {zeroBill && (
-              <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
-                <p className="font-semibold">บิลนี้ยอด 0 บาท</p>
-                <p className="text-xs">ถ้าเป็นของแถม / เคลม / เปลี่ยนให้ลูกค้า ให้ตัดสต๊อกพร้อมเหตุผลแทน — ยอดขายและกำไรจะไม่เพี้ยน
-                  {canLate ? ' · ถ้าเป็นของที่ขายไปแล้วแต่ลืมคีย์ ให้ลบส่วนลดออก แล้วใช้ "บันทึกยอดขายย้อนหลัง" ด้วยราคาจริง' : ''}</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" onClick={() => setWriteOffOpen(true)}>ตัดสต๊อก (แถม/เคลม)</Button>
-                  <label className="flex items-center gap-1.5 text-xs">
-                    <input type="checkbox" checked={zeroOk} onChange={(e) => setZeroOk(e.target.checked)} />
-                    ขาย 0 บาทจริง
-                  </label>
-                </div>
-              </div>
+              <ZeroBillPanel lateOn={lateOn} reason={zeroReason} onReason={setZeroReason} onWriteOff={() => setWriteOffOpen(true)} />
             )}
 
             {/* Late entry: sold earlier, keyed in now — filed in the shift of that time */}

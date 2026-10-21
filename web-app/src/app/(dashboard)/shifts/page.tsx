@@ -3,9 +3,10 @@
 import { BranchQuickPick } from '@/components/layout/branch-context-bar'
 import { CashBillReview } from '@/components/shift/cash-bill-review'
 import { PartsPendingReminder } from '@/components/quick-cash/quick-cash-bar'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
+import { FloatLeftField, LastCloseHint, openingFloatOf, useLastClose } from '@/components/shifts/shift-float'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { format } from 'date-fns'
@@ -221,6 +222,15 @@ export default function ShiftsPage() {
     resolver: zodResolver(closeSchema),
     defaultValues: { closeBalance: 0, note: '' },
   })
+  const [floatLeft, setFloatLeft] = useState('')
+
+  // Open with the float the last close left in the drawer (still editable)
+  const { data: lastClose } = useLastClose(!loadingCurrent && !currentShift)
+  useEffect(() => {
+    const float = openingFloatOf(lastClose)
+    if (float != null && !openForm.formState.dirtyFields.openBalance) openForm.setValue('openBalance', float)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastClose])
 
   // ── Mutations ──
   const openMutation = useMutation({
@@ -265,7 +275,11 @@ export default function ShiftsPage() {
         }
       }
 
-      return (await api.post(`/shifts/${shiftId}/close`, { ...data, handoverToUserId: handoverTo || undefined })).data
+      return (await api.post(`/shifts/${shiftId}/close`, {
+        ...data,
+        handoverToUserId: handoverTo || undefined,
+        ...(!handoverTo && floatLeft !== '' ? { floatLeft: Number(floatLeft) || 0 } : {}),
+      })).data
     },
     onSuccess: (result: CloseShiftResult) => {
       queryClient.invalidateQueries({ queryKey: ['shifts'] })
@@ -482,6 +496,8 @@ export default function ShiftsPage() {
           >
             <div className="space-y-1.5">
               <Label htmlFor="openBalance" className="text-sm font-semibold">เงินสดเริ่มต้น (บาท)</Label>
+              <LastCloseHint last={lastClose} current={Number(openForm.watch('openBalance')) || 0}
+                onUse={(n) => openForm.setValue('openBalance', n, { shouldDirty: true })} />
               <Input
                 id="openBalance"
                 type="number"
@@ -788,6 +804,8 @@ export default function ShiftsPage() {
                 </p>
               )}
             </div>
+
+            {!handoverTo && <FloatLeftField counted={closeBalanceNum} value={floatLeft} onChange={setFloatLeft} />}
 
             <div className="space-y-1.5">
               <Label htmlFor="closeNote">

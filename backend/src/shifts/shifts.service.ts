@@ -240,6 +240,10 @@ export class ShiftsService {
       if (!handoverTo) throw new BadRequestException('ส่งต่อกะได้เฉพาะคนที่อยู่ในกะนี้');
     }
 
+    if (dto.floatLeft != null && dto.floatLeft > dto.closeBalance) {
+      throw new BadRequestException('เงินทอนที่เหลือไว้ต้องไม่มากกว่าเงินที่นับได้');
+    }
+
     const t = await this.computeShiftTotals(shift);
     const { salesCount, totalSales, cashSales, cashRepairs, cashSupplierPayments, cashExpensesTotal, cashRefundsTotal, expectedBalance } = t;
 
@@ -252,6 +256,7 @@ export class ShiftsService {
       data: {
         closedAt: new Date(),
         closeBalance: dto.closeBalance,
+        floatLeft: dto.floatLeft ?? null,
         isActive: false,
         note: dto.note,
       },
@@ -271,6 +276,7 @@ export class ShiftsService {
       entityId: shiftId,
       afterData: {
         closeBalance: dto.closeBalance,
+        ...(dto.floatLeft != null ? { floatLeft: dto.floatLeft } : {}),
         totalSales,
         salesCount,
         expectedBalance,
@@ -901,6 +907,30 @@ export class ShiftsService {
   }
 
   /** Open shifts this person could join: same shop, and their own branch when they have one. */
+  /**
+   * The last closed shift of my branch (or mine, without a branch): what was counted and what was
+   * left in the drawer — the next shift opens with that float instead of 0.
+   */
+  async lastClose(user: { id: string; branchId?: string | null; tenantId?: string | null }) {
+    const last = await this.prisma.shift.findFirst({
+      where: {
+        isActive: false,
+        closedAt: { not: null },
+        ...(user.branchId ? { branchId: user.branchId, user: { tenantId: user.tenantId ?? undefined } } : { userId: user.id }),
+      },
+      orderBy: { closedAt: 'desc' },
+      select: { id: true, closedAt: true, closeBalance: true, floatLeft: true, user: { select: { name: true } } },
+    });
+    if (!last) return {};
+    return {
+      shiftId:      last.id,
+      closedAt:     last.closedAt,
+      closeBalance: Number(last.closeBalance ?? 0),
+      floatLeft:    last.floatLeft != null ? Number(last.floatLeft) : null,
+      openedBy:     last.user.name,
+    };
+  }
+
   async listJoinable(user: { id: string; branchId?: string | null; tenantId?: string | null }) {
     if (!user.tenantId) return [];
     const shifts = await this.prisma.shift.findMany({
