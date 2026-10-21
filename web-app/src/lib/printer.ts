@@ -272,7 +272,7 @@ ${opts.conditionIssues?.length ? `<div class="hr"></div><p class="xs b">สภ�
 ${opts.accessories?.length ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${opts.accessories.map(e).join(', ')}</p>` : ''}
 <div class="hr"></div>
 ${opts.dueDate ? `<div class="row"><span class="xs">กำหนดเสร็จ</span><span class="v xs">${opts.dueDate}</span></div>` : ''}
-${opts.estimateCost ? `<div class="row"><span>ประมาณการ</span><span class="v">฿${fmtI(opts.estimateCost)}</span></div>` : ''}
+${opts.estimateCost ? `<div class="row"><span>ราคาประเมิน</span><span class="v">฿${fmtI(opts.estimateCost)}</span></div>` : ''}
 <div class="total"><span>มัดจำ</span><span class="v">฿${fmtI(opts.deposit)}</span></div>
 <div class="hr"></div>
 ${opts.technicianName ? `<p class="xs">ช่าง: ${opts.technicianName}</p>` : ''}
@@ -350,7 +350,7 @@ ${opts.conditionIssues?.length ? `<div class="hr"></div><p class="xs b">สภ�
 ${opts.accessories?.length ? `<div class="hr"></div><p class="xs b">อุปกรณ์ที่รับมา:</p><p class="xs">${opts.accessories.join(', ')}</p>` : ''}
 <div class="hr"></div>
 ${opts.dueDate ? `<div class="row"><span class="xs">กำหนดเสร็จ</span><span class="v xs">${opts.dueDate}</span></div>` : ''}
-${opts.estimateCost ? `<div class="row"><span>ประมาณการ</span><span class="v">฿${fmtI(opts.estimateCost)}</span></div>` : ''}
+${opts.estimateCost ? `<div class="row"><span>ราคาประเมิน</span><span class="v">฿${fmtI(opts.estimateCost)}</span></div>` : ''}
 <div class="total"><span>มัดจำ</span><span class="v">฿${fmtI(opts.deposit)}</span></div>
 <div class="hr"></div>
 ${opts.technicianName ? `<p class="xs">ช่าง: ${opts.technicianName}</p>` : ''}
@@ -454,7 +454,7 @@ function buildRepairIntakeText(opts: PrintRepairIntakeOptions): string {
     ...(opts.accessories?.length ? [`อุปกรณ์รับมา: ${opts.accessories.join(', ')}`] : []),
     HR,
     ...(opts.dueDate ? [`กำหนดเสร็จ: ${opts.dueDate}`] : []),
-    ...(opts.estimateCost ? [`ประมาณการ: ฿${fmtI(opts.estimateCost)}`] : []),
+    ...(opts.estimateCost ? [`ราคาประเมิน: ฿${fmtI(opts.estimateCost)}`] : []),
     `มัดจำ: ฿${fmtI(opts.deposit)}`,
     ...(opts.technicianName ? [`ช่าง: ${opts.technicianName}`] : []),
     HR,
@@ -1105,7 +1105,7 @@ export function buildRepairIntakePreviewData(opts: PrintRepairIntakeOptions): Th
       ? [{ type: 'row' as const, label: 'กำหนดเสร็จ', value: opts.dueDate }]
       : []),
     ...(opts.estimateCost
-      ? [{ type: 'row' as const, label: 'ประมาณการ', value: `฿${fmtI(opts.estimateCost)}` }]
+      ? [{ type: 'row' as const, label: 'ราคาประเมิน', value: `฿${fmtI(opts.estimateCost)}` }]
       : []),
     { type: 'row', label: 'มัดจำ', value: `฿${fmtI(opts.deposit)}`, bold: true },
     ...(opts.technicianName

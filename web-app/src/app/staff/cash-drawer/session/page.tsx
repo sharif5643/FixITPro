@@ -56,7 +56,8 @@ export default function SessionPage() {
 
   const { data: session, isLoading } = useQuery<SessionDetail | null>({
     queryKey: ['cash-drawer-session-current'],
-    queryFn:  async () => (await api.get('/cash-drawer/session/current')).data,
+    // No open session comes back as an empty body: treat it as none (it used to crash the page)
+    queryFn:  async () => (await api.get('/cash-drawer/session/current')).data || null,
     refetchInterval: 60_000,
   })
 
@@ -80,7 +81,7 @@ export default function SessionPage() {
     return new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
   }
 
-  const isParticipant = session?.participants.some(
+  const isParticipant = (session?.participants ?? []).some(
     p => p.user.id === user?.id && !p.leftAt
   )
 

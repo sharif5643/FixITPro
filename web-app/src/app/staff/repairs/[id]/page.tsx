@@ -456,15 +456,22 @@ export default function RepairDetailPage() {
   const curIdx    = STATUS_FLOW.indexOf(repair.status)
   const isLocked  = repair.status === 'COMPLETED' || repair.status === 'DELIVERED' || own.viewOnly
   const isFullyPaid = repair.paymentStatus === 'PAID'
+  // Handed over on "pay later": part is paid, the rest is owed (the debt page collects it too)
+  const isPartPaid  = repair.paymentStatus === 'PARTIAL'
   const hasShift  = !!currentShift
 
   const quotedTotal   = repairQuote(repair)
   const payPrice      = payFinal !== '' ? Number(payFinal) || 0 : quotedTotal
   const split         = quoteSplit(repair, payPrice)
   const payDiscountNum = Math.max(0, Number(payDiscount) || 0)
-  const repairTotal   = Math.max(0, payPrice - payDiscountNum)
+  // Once paid (in full or in part) the price is the one recorded then, after its discount
+  const settled       = repair.paymentStatus !== 'PENDING' && repair.finalCost != null
+  const repairTotal   = settled ? Number(repair.finalCost) : Math.max(0, payPrice - payDiscountNum)
   const repairDeposit = Number(repair.deposit ?? 0)
-  const repairBalance = Math.max(0, repairTotal - repairDeposit)
+  const paidSoFar     = settled
+    ? Number(repair.paidAmount ?? 0) + (repair.additionalPayments ?? []).reduce((s, p) => s + Number(p.amount), 0)
+    : 0
+  const repairBalance = Math.max(0, repairTotal - repairDeposit - paidSoFar)
   const payAmountNum  = Number(payAmount) || 0
   const payChange     = payAmountNum - repairBalance
 
@@ -1098,6 +1105,12 @@ export default function RepairDetailPage() {
                       <span className="tabular-nums">- {fmtMoney(repairDeposit)}</span>
                     </div>
                   )}
+                  {isPartPaid && paidSoFar > 0 && (
+                    <div className="flex justify-between text-emerald-600 text-xs">
+                      <span>รับแล้ว</span>
+                      <span className="tabular-nums">- {fmtMoney(paidSoFar)}</span>
+                    </div>
+                  )}
                   {!isFullyPaid && repairBalance > 0 && (
                     <div className="flex justify-between font-bold text-blue-700">
                       <span>ยอดค้างชำระ</span>
@@ -1211,17 +1224,25 @@ export default function RepairDetailPage() {
               </div>
             )}
 
-            {/* Paid badge */}
-            {isFullyPaid && (
+            {/* Paid badge — also for a part-paid job, which still takes the rest here */}
+            {(isFullyPaid || isPartPaid) && (
               <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-slate-100">
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 font-semibold text-slate-600">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" /> ชำระเงินแล้ว
-                  </div>
-                  <button onClick={() => setReverseOpen(true)}
-                    className="text-xs text-red-500 font-semibold bg-red-50 px-3 py-1 rounded-lg">
-                    ยกเลิก
-                  </button>
+                  {isFullyPaid ? (
+                    <div className="flex items-center gap-2 font-semibold text-slate-600">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" /> ชำระเงินแล้ว
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 font-semibold text-amber-700">
+                      <Clock className="h-4 w-4" /> ชำระบางส่วน · ค้าง {fmtMoney(repairBalance)}
+                    </div>
+                  )}
+                  {isFullyPaid && (
+                    <button onClick={() => setReverseOpen(true)}
+                      className="text-xs text-red-500 font-semibold bg-red-50 px-3 py-1 rounded-lg">
+                      ยกเลิก
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-1.5 text-sm">
                   <div className="flex justify-between">

@@ -65,7 +65,8 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
     if (!user && !isAuthPage) {
       router.replace('/staff/login')
     }
-    if (user && isAuthPage) {
+    // A signed-in user may open "เปลี่ยนรหัสผ่าน" from the menu; the other auth pages go home
+    if (user && isAuthPage && pathname !== '/staff/change-password') {
       router.replace('/staff/home')
     }
   }, [hasHydrated, meStatus, user, isAuthPage, router])
