@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Logger, Optional } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit, Logger, Optional } from '@nestjs/common';
 import { PushService } from '../push/push.service';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
@@ -34,7 +34,8 @@ export const SHIFT_MISMATCH_THRESHOLD      = 100;
 export const HIGH_VALUE_CUSTOMER_THRESHOLD = 50_000;
 
 @Injectable()
-export class NotificationsService implements OnModuleInit {
+export class NotificationsService implements OnModuleInit, OnModuleDestroy {
+  private timers: NodeJS.Timeout[] = [];
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
@@ -44,16 +45,23 @@ export class NotificationsService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    setTimeout(() => {
+    const run = setTimeout(() => {
       this.checkOverdueAlerts().catch((e) => this.logger.warn(`overdue check error: ${(e as Error).message}`));
       this.checkExpiringWarranties().catch((e) => this.logger.warn(`warranty check error: ${(e as Error).message}`));
       this.checkTechnicianAlerts().catch((e) => this.logger.warn(`technician check error: ${(e as Error).message}`));
     }, 10_000);
-    setInterval(() => {
+    const every = setInterval(() => {
       this.checkOverdueAlerts().catch((e) => this.logger.warn(`overdue check error: ${(e as Error).message}`));
       this.checkExpiringWarranties().catch((e) => this.logger.warn(`warranty check error: ${(e as Error).message}`));
       this.checkTechnicianAlerts().catch((e) => this.logger.warn(`technician check error: ${(e as Error).message}`));
     }, 30 * 60 * 1000);
+    this.timers.push(run, every);
+  }
+
+  // A timer firing after shutdown would reopen the database pool and keep it open
+  onModuleDestroy() {
+    this.timers.forEach((t) => clearTimeout(t));
+    this.timers = [];
   }
 
   // Fire-and-forget: safe, never throws, deduplicates by (type + entityId + tenantId) when unread

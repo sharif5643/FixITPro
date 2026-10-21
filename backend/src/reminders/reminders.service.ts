@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -39,7 +39,9 @@ const PARTS_STALE_HOURS = 24;
 // ── Service ───────────────────────────────────────────────────────────────────
 
 @Injectable()
-export class RemindersService implements OnModuleInit {
+export class RemindersService implements OnModuleInit, OnModuleDestroy {
+  private timers: NodeJS.Timeout[] = [];
+
   constructor(
     private readonly prisma:     PrismaService,
     private readonly tenantSvc:  TenantService,
@@ -48,8 +50,16 @@ export class RemindersService implements OnModuleInit {
 
   // Run cleanup shortly after boot, then once per day
   onModuleInit() {
-    setTimeout(() => this.purgeExpiredSnoozes(), 15_000);
-    setInterval(() => this.purgeExpiredSnoozes(), 24 * 60 * 60_000);
+    this.timers.push(
+      setTimeout(() => this.purgeExpiredSnoozes(), 15_000),
+      setInterval(() => this.purgeExpiredSnoozes(), 24 * 60 * 60_000),
+    );
+  }
+
+  // A timer firing after shutdown would reopen the database pool and keep it open
+  onModuleDestroy() {
+    this.timers.forEach((t) => clearTimeout(t));
+    this.timers = [];
   }
 
   private async purgeExpiredSnoozes(): Promise<void> {
