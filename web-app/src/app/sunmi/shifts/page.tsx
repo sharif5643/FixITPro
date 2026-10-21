@@ -2,7 +2,7 @@
 
 import { PartsPendingReminder } from '@/components/quick-cash/quick-cash-bar'
 import { CashBillReview } from '@/components/shift/cash-bill-review'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -26,6 +26,7 @@ import { JoinShifts, LeaveShiftButton, isBranchShiftOpenError, useMyBranchHasOpe
 import { OpenShiftsAdmin } from '@/components/shifts/open-shifts-admin'
 import { ClosedByOtherNotice } from '@/components/shift/long-shift-banner'
 import { ShiftLedgerSheet, StaffMoneyTable, type StaffMoney } from '@/components/shifts/shift-ledger'
+import { FloatLeftField, LastCloseHint, openingFloatOf, useLastClose } from '@/components/shifts/shift-float'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -380,6 +381,7 @@ export default function SunmiShiftsPage() {
   const [openNote,      setOpenNote]      = useState('')
   const [closeBalance,  setCloseBalance]  = useState('')
   const [closeNote,     setCloseNote]     = useState('')
+  const [floatLeft,     setFloatLeft]     = useState('')
   const [closeSummary,  setCloseSummary]  = useState<CloseSummary | null>(null)
   const [closingOpts,   setClosingOpts]   = useState<PrintDailyClosingOptions | null>(null)
   const [showPrint,     setShowPrint]     = useState(false)
@@ -413,6 +415,14 @@ export default function SunmiShiftsPage() {
     queryFn:  async () => (await api.get('/shifts/current')).data,
     staleTime: 0,
   })
+
+  // Open with the float the last close left in the drawer (staff can still change it)
+  const { data: lastClose } = useLastClose(!isLoading && !shift)
+  const openTouched = useRef(false)
+  useEffect(() => {
+    const float = openingFloatOf(lastClose)
+    if (float != null && !openTouched.current) setOpenBalance(String(float))
+  }, [lastClose])
 
   const { data: settings } = useQuery<ShopSettings>({
     queryKey:  ['settings'],
@@ -488,6 +498,8 @@ export default function SunmiShiftsPage() {
         closeBalance: Number(closeBalance) || 0,
         note: closeNote.trim() || undefined,
         handoverToUserId: handoverTo || undefined,
+        // Handing over passes the whole drawer on; otherwise what stays for the next shift
+        ...(!handoverTo && floatLeft !== '' ? { floatLeft: Number(floatLeft) || 0 } : {}),
       })
     },
     onSuccess: (res) => {
@@ -650,12 +662,13 @@ export default function SunmiShiftsPage() {
           ) : (<>
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-slate-600">ยอดเปิดกะ (บาท)</label>
+            <LastCloseHint last={lastClose} current={Number(openBalance) || 0} onUse={(n) => { setOpenBalance(String(n)); openTouched.current = true }} />
             <input
               type="number"
               inputMode="numeric"
               min="0"
               value={openBalance}
-              onChange={(e) => setOpenBalance(e.target.value)}
+              onChange={(e) => { setOpenBalance(e.target.value); openTouched.current = true }}
               className="w-full h-16 px-4 border-2 border-slate-200 rounded-xl text-3xl font-bold bg-white focus:outline-none focus:border-blue-500 tabular-nums"
             />
           </div>
@@ -827,6 +840,10 @@ export default function SunmiShiftsPage() {
           )}
         </div>
 
+        {!handoverTo && closeBalance !== '' && (
+          <FloatLeftField counted={closeBalanceNum} value={floatLeft} onChange={setFloatLeft} />
+        )}
+
         {walletBal.length > 0 && (shift.joined ? (
           <p className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-500">
             ยอดกระเป๋าค่ายตรวจโดยคนเปิดกะ ({shift.user.name}) — คุณดูยอดคงเหลือได้ด้านบน
@@ -879,7 +896,7 @@ export default function SunmiShiftsPage() {
 
         <button
           onClick={() => closeMutation.mutate()}
-          disabled={closeMutation.isPending || closeBalance === ''}
+          disabled={closeMutation.isPending || closeBalance === '' || (!handoverTo && floatLeft !== '' && Number(floatLeft) > closeBalanceNum)}
           className="w-full h-16 rounded-2xl bg-red-600 text-white text-xl font-bold active:bg-red-700 disabled:opacity-60 flex items-center justify-center gap-2"
         >
           {closeMutation.isPending

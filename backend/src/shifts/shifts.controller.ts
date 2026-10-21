@@ -64,6 +64,12 @@ export class ShiftsController {
     return this.shiftsService.closeShift(id, dto, user.id, user).then((r) => hideProfit(r, user));
   }
 
+  /** The last close of my branch: the float it left for the next shift. */
+  @Get('last-close')
+  lastClose(@CurrentUser() user: { id: string; branchId?: string | null; tenantId?: string | null }) {
+    return this.shiftsService.lastClose(user);
+  }
+
   /** Open shifts of my branch I can join (one cash drawer, several people). */
   @Get('joinable')
   listJoinable(@CurrentUser() user: { id: string; branchId?: string | null; tenantId?: string | null }) {

@@ -11,6 +11,7 @@ import {
 import { format, differenceInDays } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { SuperAdminStatCard } from '@/components/super-admin/stat-card'
+import { BillingReadiness } from '@/components/super-admin/billing-readiness'
 import { TenantStatusBadge, PlanBadge } from '@/components/super-admin/status-badge'
 import api from '@/lib/api'
 import type { Tenant, TenantPlan } from '@/types'
@@ -117,6 +118,8 @@ export default function SuperAdminDashboard() {
           {format(new Date(), "EEEE d MMMM yyyy", { locale: th })}
         </p>
       </div>
+
+      <BillingReadiness tenants={tenants} />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">

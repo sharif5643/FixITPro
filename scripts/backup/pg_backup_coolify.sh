@@ -143,6 +143,35 @@ done
 AFTER=$(find "$BACKUP_DIR" -maxdepth 1 -name "*.sql.gz" | wc -l)
 log "Cleanup: removed $((BEFORE - AFTER)) backup(s), $AFTER remaining"
 
+# ── Step 7b: Off-site copy ───────────────────────────────────────────────────
+# A backup on the same server is lost with the server. When /opt/fixitpro-backups/offsite.env
+# exists (written by the restore-drill workflow from GitHub secrets, root-only), the backup is
+# encrypted with its passphrase (AES-256, openssl) and copied with rclone to OFFSITE_REMOTE.
+# Copies older than OFFSITE_KEEP_DAYS (default 30) are removed there. A failed upload is logged
+# as an error but never removes or fails the local backup.
+OFFSITE_ENV="/opt/fixitpro-backups/offsite.env"
+OFFSITE_STATUS="not configured"
+if [ -f "$OFFSITE_ENV" ]; then
+  # shellcheck disable=SC1090
+  . "$OFFSITE_ENV"
+  if [ -n "${OFFSITE_REMOTE:-}" ] && [ -n "${OFFSITE_PASSPHRASE:-}" ] && command -v rclone >/dev/null 2>&1; then
+    ENC_FILE="/tmp/$(basename "$BACKUP_FILE").enc"
+    if openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$BACKUP_FILE" -out "$ENC_FILE" -pass env:OFFSITE_PASSPHRASE \
+       && rclone --config /opt/fixitpro-backups/rclone.conf copy "$ENC_FILE" "$OFFSITE_REMOTE" --retries 3 \
+       && rclone --config /opt/fixitpro-backups/rclone.conf copy "$CHECKSUM_FILE" "$OFFSITE_REMOTE" --retries 3; then
+      OFFSITE_STATUS="uploaded to $OFFSITE_REMOTE (encrypted)"
+      rclone --config /opt/fixitpro-backups/rclone.conf delete "$OFFSITE_REMOTE" --min-age "${OFFSITE_KEEP_DAYS:-30}d" 2>>"$LOG_FILE" || true
+    else
+      OFFSITE_STATUS="FAILED"
+      log "ERROR: off-site copy failed — the local backup is kept"
+    fi
+    rm -f "$ENC_FILE"
+  else
+    OFFSITE_STATUS="incomplete config (OFFSITE_REMOTE / OFFSITE_PASSPHRASE / rclone)"
+  fi
+fi
+log "Off-site  : $OFFSITE_STATUS"
+
 # ── Step 8: Disk usage report ─────────────────────────────────────────────────
 DISK_PCT=$(df / | awk 'NR==2{print $5}' | tr -d '%')
 DISK_AVAIL=$(df -h / | awk 'NR==2{print $4}')
@@ -160,4 +189,5 @@ log "  SHA-256   : $CHECKSUM"
 log "  Lines     : $LINE_COUNT"
 log "  Tables    : $TABLE_COUNT"
 log "  gzip test : PASS"
+log "  Off-site  : $OFFSITE_STATUS"
 log "=========================================="

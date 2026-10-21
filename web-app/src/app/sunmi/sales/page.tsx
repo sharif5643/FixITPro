@@ -22,6 +22,7 @@ import { useAppShell } from '@/lib/app-shell'
 import { BarcodeScannerDialog } from '@/components/sunmi/barcode-scanner-dialog'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
+import { ZeroBillPanel, type ZeroReason } from '@/components/pos/zero-bill-panel'
 import { useAuthStore } from '@/store/auth.store'
 import { useCartStore } from '@/store/cart.store'
 import {
@@ -219,7 +220,7 @@ function CheckoutSheet({
   const canLate = role === 'OWNER' || role === 'MANAGER'
   const [lateOn, setLateOn] = useState(false)
   const [lateAt, setLateAt] = useState(() => toLocalInput(new Date(Date.now() - 3600_000)))
-  const [zeroOk, setZeroOk] = useState(false)
+  const [zeroReason, setZeroReason] = useState<ZeroReason | null>(null)
   const [writeOffOpen, setWriteOffOpen] = useState(false)
   const items                       = useCartStore((s) => s.items)
   const discount                    = useCartStore((s) => s.discount)
@@ -244,7 +245,7 @@ function CheckoutSheet({
   // A bill that comes to 0: usually a gift / claim (take it out of stock instead) or an old sale
   const zeroBill  = total <= 0 && items.length > 0
   const canSubmit = (!!shiftId || lateOn) && serialsDone && !branch.needsPick && (method !== 'CASH' ? true : paidNum >= total)
-    && (!zeroBill || zeroOk) && (!lateOn || !!lateAt)
+    && (!zeroBill || (!lateOn && !!zeroReason)) && (!lateOn || !!lateAt)
 
   useEffect(() => pushBackHandler(onClose), [onClose])
   useEffect(() => { if (method !== 'CASH') setAmountPaid('') }, [method])
@@ -282,6 +283,7 @@ function CheckoutSheet({
         shiftId,
         branchId:      branch.branchId,
         ...(lateOn && lateAt ? { soldAt: new Date(lateAt).toISOString() } : {}),
+        ...(zeroBill && zeroReason ? { zeroReason } : {}),
         paymentMethod: method,
         amountPaid:    method === 'CASH' ? paidNum : total,
         discount,
@@ -351,17 +353,7 @@ function CheckoutSheet({
 
           {/* A 0-baht bill: a gift / claim belongs in stock write-off, an old sale at its real price */}
           {zeroBill && (
-            <div className="space-y-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              <p className="font-bold">บิลนี้ยอด 0 บาท</p>
-              <p className="text-xs">ถ้าเป็นของแถม / เคลม / เปลี่ยนให้ลูกค้า ให้ตัดสต๊อกพร้อมเหตุผลแทน — ยอดขายและกำไรจะไม่เพี้ยน
-                {canLate ? ' · ถ้าเป็นของที่ขายไปแล้วแต่ลืมคีย์ ให้ลบส่วนลดออก แล้วใช้ "บันทึกยอดขายย้อนหลัง" ด้วยราคาจริง' : ''}</p>
-              <div className="flex flex-wrap items-center gap-3">
-                <button type="button" onClick={() => setWriteOffOpen(true)} className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white active:bg-amber-700">ตัดสต๊อก (แถม/เคลม)</button>
-                <label className="flex items-center gap-1.5 text-xs">
-                  <input type="checkbox" checked={zeroOk} onChange={(e) => setZeroOk(e.target.checked)} /> ขาย 0 บาทจริง
-                </label>
-              </div>
-            </div>
+            <ZeroBillPanel lateOn={lateOn} reason={zeroReason} onReason={setZeroReason} onWriteOff={() => setWriteOffOpen(true)} />
           )}
 
           {/* Late entry: sold earlier, keyed in now — filed in the shift of that time */}

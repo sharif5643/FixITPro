@@ -103,6 +103,31 @@ jobs:
             scripts/backup/pg_backup_coolify.sh scripts/backup/pg_restore_verify.sh \
             root@91.98.151.10:/opt/fixitpro-backups/
 
+      - name: Off-site backup copy (config from secrets)
+        # A backup kept only on the server is lost with the server. With the secrets
+        # OFFSITE_RCLONE_CONF (an rclone.conf), OFFSITE_REMOTE (e.g. gdrive:fixitpro-backups) and
+        # OFFSITE_PASSPHRASE set, the nightly backup is encrypted and copied there
+        # (pg_backup_coolify.sh step 7b). The values go over ssh stdin into root-only files; they
+        # are never printed. Without the secrets this step only says so.
+        env:
+          RCLONE_CONF: ${{ secrets.OFFSITE_RCLONE_CONF }}
+          REMOTE: ${{ secrets.OFFSITE_REMOTE }}
+          PASSPHRASE: ${{ secrets.OFFSITE_PASSPHRASE }}
+        run: |
+          if [ -z "$RCLONE_CONF" ] || [ -z "$REMOTE" ] || [ -z "$PASSPHRASE" ]; then
+            echo "::warning::Off-site backup NOT configured — add secrets OFFSITE_RCLONE_CONF, OFFSITE_REMOTE, OFFSITE_PASSPHRASE (docs/operations/offsite-backup.md)"
+            exit 0
+          fi
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 \
+            'command -v rclone >/dev/null 2>&1 || (apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq rclone >/dev/null); rclone version | head -1'
+          printf '%s\n' "$RCLONE_CONF" | ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 \
+            'umask 077; cat > /opt/fixitpro-backups/rclone.conf'
+          { printf 'OFFSITE_REMOTE=%q\n' "$REMOTE"; printf 'OFFSITE_PASSPHRASE=%q\n' "$PASSPHRASE"; } | \
+            ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 'umask 077; cat > /opt/fixitpro-backups/offsite.env'
+          echo "--- off-site copies (newest 5, names and sizes only) ---"
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 \
+            '. /opt/fixitpro-backups/offsite.env; rclone --config /opt/fixitpro-backups/rclone.conf lsl "$OFFSITE_REMOTE" 2>&1 | sort -k2,3 | tail -5' || true
+
       - name: Ensure the nightly server backup is scheduled
         # Second, independent layer next to the app's own 03:00 backup: the host cron the docs
         # describe was not installed (found 2026-10-03; owner approved installing it).
