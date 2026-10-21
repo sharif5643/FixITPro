@@ -46,3 +46,6 @@ backend/uploads/
 
 # Claude project settings (local only)
 .claude/settings.local.json
+
+# Local QA scratch state (ids and a login token) — never commit
+qa-state.json
