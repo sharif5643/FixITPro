@@ -87,9 +87,11 @@ type StaffDraft = {
   selectedCust: Customer | null; newCustName: string; newCustPhone: string
   deviceType: string; brand: string; model: string; imei: string; serial: string; colorLabel: string
   issueTags: string[]; issueDesc: string; conditions: string[]; accessories: string[]
-  laborCost: string; partsCost: string; deposit: string; depositPM: string; discount: string
+  estimate: string; deposit: string; depositPM: string; discount: string
   dueDate: string; note: string; techId: string
   pricedJobs?: RepairPrice[]
+  // Drafts saved before the single price field (labour + parts)
+  laborCost?: string; partsCost?: string
 }
 
 export default function CreateRepairPage() {
@@ -131,8 +133,8 @@ export default function CreateRepairPage() {
   const [accessories, setAccessories] = useState<string[]>(['เครื่อง'])
 
   // ── Pricing ──
-  const [laborCost,  setLaborCost]  = useState('')
-  const [partsCost,  setPartsCost]  = useState('')
+  // One estimated price, as on the web and the POS app
+  const [estimate,   setEstimate]   = useState('')
   const [deposit,    setDeposit]    = useState('')
   const [depositPM,  setDepositPM]  = useState('CASH')
   const [discount,   setDiscount]   = useState('')
@@ -147,17 +149,18 @@ export default function CreateRepairPage() {
 
   const [loading, setLoading] = useState(false)
 
-  // Jobs picked from the shop's price list: the job goes into the issue, its price into labour
+  // Jobs picked from the shop's price list: the job goes into the issue, its price into the estimate
   const [pricedJobs, setPricedJobs] = useState<RepairPrice[]>([])
   function pickPrice(p: RepairPrice) {
-    const next = togglePricedJob(pricedJobs, p, issueDesc, parseFloat(laborCost) || 0)
+    const next = togglePricedJob(pricedJobs, p, issueDesc, parseFloat(estimate) || 0)
     setPricedJobs(next.picked)
     setIssueDesc(next.issue)
-    setLaborCost(next.estimate ? String(next.estimate) : '')
+    setEstimate(next.estimate ? String(next.estimate) : '')
   }
 
-  const total     = (parseFloat(laborCost) || 0) + (parseFloat(partsCost) || 0)
-  const remaining = total - (parseFloat(deposit) || 0) - (parseFloat(discount) || 0)
+  const total      = parseFloat(estimate) || 0
+  const depositNum = parseFloat(deposit) || 0
+  const remaining  = total - depositNum - (parseFloat(discount) || 0)
 
   // What was typed stays on this device until the job is saved (leaving the page loses nothing)
   const userId   = useAuthStore((s) => s.user?.id)
@@ -166,12 +169,12 @@ export default function CreateRepairPage() {
   const [draftReady, setDraftReady] = useState(false)
   const draft: StaffDraft = {
     selectedCust, newCustName, newCustPhone, deviceType, brand, model, imei, serial, colorLabel,
-    issueTags, issueDesc, conditions, accessories, laborCost, partsCost, deposit, depositPM, discount,
+    issueTags, issueDesc, conditions, accessories, estimate, deposit, depositPM, discount,
     dueDate, note, techId, pricedJobs,
   }
   const hasContent = !!(
     selectedCust || newCustName || newCustPhone || brand || model || imei || serial || issueTags.length ||
-    issueDesc || laborCost || partsCost || note
+    issueDesc || estimate || note
   )
   useDraftAutosave(draftKey, draft, draftReady && !loading, hasContent)
 
@@ -181,7 +184,8 @@ export default function CreateRepairPage() {
     setImei(d.imei ?? ''); setSerial(d.serial ?? ''); setColorLabel(d.colorLabel ?? '')
     setIssueTags(d.issueTags ?? []); setIssueDesc(d.issueDesc ?? ''); setConditions(d.conditions ?? [])
     setAccessories(d.accessories ?? ['เครื่อง'])
-    setLaborCost(d.laborCost ?? ''); setPartsCost(d.partsCost ?? ''); setDeposit(d.deposit ?? '')
+    const oldSplit = (parseFloat(d.laborCost ?? '') || 0) + (parseFloat(d.partsCost ?? '') || 0)
+    setEstimate(d.estimate ?? (oldSplit > 0 ? String(oldSplit) : '')); setDeposit(d.deposit ?? '')
     setDepositPM(d.depositPM ?? 'CASH'); setDiscount(d.discount ?? '')
     setDueDate(d.dueDate ?? ''); setNote(d.note ?? ''); setTechId(d.techId ?? '')
     setPricedJobs(d.pricedJobs ?? [])
@@ -301,8 +305,6 @@ export default function CreateRepairPage() {
         ...(colorLabel         && { deviceColor:       colorLabel  }),
         ...(conditions.length  && { deviceConditions:  conditions  }),
         ...(accessories.length && { accessories:       accessories.join(', ') }),
-        ...(parseFloat(laborCost) > 0 && { estimatedLaborCost: parseFloat(laborCost) }),
-        ...(parseFloat(partsCost) > 0 && { estimatedPartsCost: parseFloat(partsCost) }),
         ...(total > 0          && { estimateCost: total }),
         ...(parseFloat(deposit) > 0 && {
           deposit:              parseFloat(deposit),
@@ -581,29 +583,12 @@ export default function CreateRepairPage() {
           </div>
         </Card>
 
-        {/* ⑦ ประเมินราคา */}
+        {/* ⑦ ราคาประเมิน — one price, as on the web */}
         <Card>
-          <SectionHead num={7} title="ประเมินราคา (ไม่บังคับ)" />
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">ค่าแรง (฿)</p>
-              <input value={laborCost} onChange={(e) => setLaborCost(e.target.value)}
-                type="number" inputMode="decimal" placeholder="0" className={IC} />
-            </div>
-            <span className="mt-5 text-lg font-bold text-slate-300">+</span>
-            <div className="flex-1">
-              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">ค่าอะไหล่ (฿)</p>
-              <input value={partsCost} onChange={(e) => setPartsCost(e.target.value)}
-                type="number" inputMode="decimal" placeholder="0" className={IC} />
-            </div>
-            <span className="mt-5 text-lg font-bold text-slate-300">=</span>
-            <div className="flex-1">
-              <p className="mb-1.5 text-[11px] font-semibold text-slate-400">รวม</p>
-              <div className="flex h-12 items-center rounded-xl bg-[#F0FDF4] px-4">
-                <p className="text-[15px] font-extrabold text-emerald-600">{total.toLocaleString('th-TH')}</p>
-              </div>
-            </div>
-          </div>
+          <SectionHead num={7} title="ราคาประเมิน (ไม่บังคับ)" />
+          <p className="mb-1.5 text-[11px] font-semibold text-slate-400">ราคาประเมิน (฿)</p>
+          <input value={estimate} onChange={(e) => setEstimate(e.target.value)}
+            type="number" inputMode="decimal" min={0} placeholder="0" className={IC} />
         </Card>
 
         {/* ⑧ รับมัดจำ */}
@@ -617,15 +602,21 @@ export default function CreateRepairPage() {
             </div>
             {total > 0 && (
               <div className="flex-1">
-                <p className="mb-1.5 text-[11px] font-semibold text-slate-400">คงเหลือ</p>
+                <p className="mb-1.5 text-[11px] font-semibold text-slate-400">เหลือชำระเมื่อรับ</p>
                 <div className="flex h-12 items-center rounded-xl bg-[#F8F9FB] px-4">
                   <p className={`text-[15px] font-extrabold ${remaining > 0 ? 'text-[#111]' : 'text-emerald-600'}`}>
-                    {remaining.toLocaleString('th-TH')}
+                    {Math.max(0, remaining).toLocaleString('th-TH')}
                   </p>
                 </div>
               </div>
             )}
           </div>
+
+          {depositNum > 0 && total > 0 && depositNum > total && (
+            <p className="mb-3 rounded-xl bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">
+              ⚠️ มัดจำสูงกว่าราคาประเมิน — กรุณาตรวจสอบ
+            </p>
+          )}
 
           {/* ช่องทางรับมัดจำ — แสดงเมื่อกรอกมัดจำ */}
           {parseFloat(deposit) > 0 && (

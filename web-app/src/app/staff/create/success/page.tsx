@@ -257,7 +257,7 @@ function SuccessContent() {
               <div className="flex flex-col">
                 {labor > 0  && <Row label="ค่าแรง"    value={fmt(labor)}/>}
                 {parts > 0  && <Row label="ค่าอะไหล่" value={fmt(parts)}/>}
-                <Row label="รวม"       value={fmt(total)}   highlight/>
+                <Row label={labor > 0 || parts > 0 ? 'รวม' : 'ราคาประเมิน'} value={fmt(total)} highlight/>
                 {deposit > 0 && <Row label="รับมัดจำ" value={fmt(deposit)}/>}
                 {deposit > 0 && remain > 0 && <Row label="คงเหลือ"   value={fmt(remain)}/>}
               </div>

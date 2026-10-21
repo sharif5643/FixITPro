@@ -586,7 +586,7 @@ function StepDetails({
             className="w-full h-14 px-4 border border-slate-200 rounded-xl text-2xl font-bold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </Field>
-        <Field label="ประมาณการ (บาท)">
+        <Field label="ราคาประเมิน (บาท)">
           <input
             {...register('estimateCost')}
             type="number"
