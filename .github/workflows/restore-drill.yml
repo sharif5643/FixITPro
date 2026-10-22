@@ -150,6 +150,7 @@ jobs:
         # Read-only: versions, listening sockets and firewall status only.
         continue-on-error: true
         run: |
+          echo "deploy key (GitHub Actions) fingerprint: $(ssh-keygen -lf ~/.ssh/deploy_key | awk '{print $2}')"
           ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
             echo "--- PHP in running containers (name | image | php version) ---"
             for c in $(docker ps --format "{{.Names}}"); do
@@ -171,7 +172,9 @@ jobs:
             docker exec coolify sh -c "find /tmp /var/tmp /var/www/html/public -xdev -type f \\( -name \"*.php\" -o -name \"*.phtml\" -o -name \"*.sh\" \\) -mtime -14 2>/dev/null | head -20"
             echo "coolify log lines in 7 days: OOM / fatal / memory exhausted (counts):"
             docker logs --since 168h coolify 2>&1 | grep -ciE "out of memory|allowed memory size|PHP Fatal|segfault" || true
-            echo "root ssh keys (count, fingerprints):"; ssh-keygen -lf /root/.ssh/authorized_keys 2>/dev/null | awk "{print \$1, \$2, \$NF}"
+            echo "root ssh keys (count, fingerprints):"; ssh-keygen -lf /root/.ssh/authorized_keys 2>/dev/null
+            echo "fingerprints of the keys Coolify uses to log in here:"
+            for k in /data/coolify/ssh/keys/*; do [ -f "$k" ] && echo "  coolify $(basename "$k"): $(ssh-keygen -lf "$k" 2>/dev/null | awk "{print \$2}")"; done
             echo "users with a login shell:"; awk -F: "\$7 ~ /(ba|z)?sh$/ {print \$1}" /etc/passwd | tr "\n" " "; echo
             echo "crontabs:"; crontab -l 2>/dev/null | grep -v "^#"; ls -la /etc/cron.d 2>/dev/null | tail -n +4
             echo "last logins:"; last -n 8 -a 2>/dev/null | head -8
