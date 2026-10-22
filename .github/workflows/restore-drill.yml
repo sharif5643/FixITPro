@@ -93,6 +93,25 @@ jobs:
           code=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/downloads/apps.json --max-time 30 || true)
           echo "apps.json → HTTP $code"
 
+      - name: Security exposure (read-only)
+        # PHP inside any container (Coolify itself is PHP) and which ports listen publicly.
+        # Read-only: versions, listening sockets and firewall status only.
+        continue-on-error: true
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            echo "--- PHP in running containers (name | image | php version) ---"
+            for c in $(docker ps --format "{{.Names}}"); do
+              v=$(docker exec "$c" sh -c "command -v php >/dev/null 2>&1 && php -r \"echo PHP_VERSION;\"" 2>/dev/null)
+              [ -n "$v" ] && echo "$c | $(docker inspect -f "{{.Config.Image}}" "$c") | PHP $v"
+            done
+            echo "--- PHP on the host ---"; command -v php && php -v | head -1 || echo "no php on host"
+            echo "--- Coolify version ---"; docker exec coolify sh -c "grep -ho \"version.*=> *.[0-9.a-z-]*\" /var/www/html/config/constants.php 2>/dev/null | head -2" || true
+            echo "--- listening TCP ports (address:port process) ---"; ss -ltnp | awk "NR>1{print \$4, \$6}" | sed -E "s/users:\(\(\"([^\"]+)\".*/\1/" | sort -u
+            echo "--- docker published ports ---"; docker ps --format "{{.Names}}\t{{.Ports}}" | grep -v "^\s*$" | grep -E "0\.0\.0\.0|:::" || echo none
+            echo "--- firewall ---"; (ufw status 2>/dev/null || echo "ufw not installed") | head -20
+            iptables -S INPUT 2>/dev/null | head -15
+          '
+
       - name: Install backup + drill scripts
         # pg_backup_coolify.sh is also what the server's daily cron runs; the old copy is kept as
         # pg_backup_coolify.sh.bak-<date> next to it.
