@@ -19,6 +19,10 @@ on:
         description: Put the Android apps back on /download (same as the deploy's last step)
         type: boolean
         default: false
+      harden_server:
+        description: Close Coolify ports 8000/6001/6002/8080 to the internet (firewall, reapplied at boot) and fetch Coolify's upgrade script for review
+        type: boolean
+        default: false
 
 concurrency:
   group: restore-drill
@@ -42,6 +46,54 @@ jobs:
           |1|DvsnTBCxLHm8F065S5GQgbFtQ7A=|p3bzmY/gf4hK9k12IVBMYJRUmW0= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJXdI/T+EG5TAdAn1+taAQ11ZngzxKD1IfntVnXaH9du
           |1|ibmwetm0PAiC8BgSyTtf4uTAKd8=|eE9sCjfTwZLn5uRd6FLxn8RF2do= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLrzre/wkU0criEqkVfDAb3Dx1xjcWhPtoWGVXr7hKPyWz32Zd5rIuLBoqRrf+Llc9ODEUj6Zumb/3ummYQCjHc=
           EOF
+
+      - name: Reachable from the internet (before)
+        if: ${{ inputs.harden_server }}
+        run: |
+          for port in 8000 6001 6002 8080; do
+            echo "port $port → HTTP $(curl -s -o /dev/null -m 8 -w '%{http_code}' "http://91.98.151.10:$port/" || true)"
+          done
+          echo "shop site → HTTP $(curl -s -o /dev/null -m 15 -w '%{http_code}' https://fixitpro.in.th/login || true)"
+
+      - name: Firewall — keep Coolify ports off the internet
+        # PHP2Shell (2026-10): Coolify (PHP) answered on a public port with no firewall. Only
+        # 22/80/443 stay open; shops use 80/443 and deploys use ssh. Reapplied at boot.
+        # Undo: ssh in and run `fixitpro-firewall.sh off && systemctl disable fixitpro-firewall`.
+        if: ${{ inputs.harden_server }}
+        run: |
+          scp -i ~/.ssh/deploy_key -o ConnectTimeout=30 \
+            scripts/server/fixitpro-firewall.sh scripts/server/fixitpro-firewall.service root@91.98.151.10:/tmp/
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            set -e
+            install -m 755 /tmp/fixitpro-firewall.sh /usr/local/bin/fixitpro-firewall.sh
+            install -m 644 /tmp/fixitpro-firewall.service /etc/systemd/system/fixitpro-firewall.service
+            systemctl daemon-reload
+            systemctl enable fixitpro-firewall.service
+            systemctl restart fixitpro-firewall.service
+            systemctl is-active fixitpro-firewall.service
+            /usr/local/bin/fixitpro-firewall.sh status
+          '
+
+      - name: Reachable from the internet (after)
+        if: ${{ inputs.harden_server }}
+        run: |
+          for port in 8000 6001 6002 8080; do
+            echo "port $port → HTTP $(curl -s -o /dev/null -m 8 -w '%{http_code}' "http://91.98.151.10:$port/" || true)"
+          done
+          echo "shop site → HTTP $(curl -s -o /dev/null -m 15 -w '%{http_code}' https://fixitpro.in.th/login || true)"
+
+      - name: Coolify upgrade script (fetched for review, not run)
+        if: ${{ inputs.harden_server }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            mkdir -p /data/coolify/source
+            curl -fsSL https://cdn.coollabs.io/coolify/upgrade.sh -o /data/coolify/source/upgrade.review.sh
+            sha256sum /data/coolify/source/upgrade.review.sh
+            echo "--- versions.json (latest offered) ---"
+            curl -fsSL https://cdn.coollabs.io/coolify/versions.json | head -c 600; echo
+            echo "--- upgrade.review.sh ---"
+            cat /data/coolify/source/upgrade.review.sh
+          '
 
       - name: App containers and recent logs (read-only)
         # What is running and why it stopped: container states, memory/disk, and the last log
