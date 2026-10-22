@@ -110,6 +110,21 @@ jobs:
             echo "--- docker published ports ---"; docker ps --format "{{.Names}}\t{{.Ports}}" | grep -v "^\s*$" | grep -E "0\.0\.0\.0|:::" || echo none
             echo "--- firewall ---"; (ufw status 2>/dev/null || echo "ufw not installed") | head -20
             iptables -S INPUT 2>/dev/null | head -15
+            echo "--- signs of intrusion (read-only) ---"
+            echo "processes inside coolify not from its own stack:"
+            docker exec coolify ps -eo user,pid,etime,args 2>/dev/null | grep -vE "php-fpm|php artisan|nginx|supervisord|s6-|crond|redis|ps -eo|horizon|sh -c|/init|soketi|node|bash -c|sleep" | head -20
+            echo "files changed in the last 3 days under /var/www/html (excluding storage/cache):"
+            docker exec coolify sh -c "find /var/www/html -xdev -type f -mtime -3 ! -path \"*/storage/*\" ! -path \"*/bootstrap/cache/*\" 2>/dev/null | head -20"
+            echo "php / web files in temp and upload dirs of coolify:"
+            docker exec coolify sh -c "find /tmp /var/tmp /var/www/html/public -xdev -type f \\( -name \"*.php\" -o -name \"*.phtml\" -o -name \"*.sh\" \\) -mtime -14 2>/dev/null | head -20"
+            echo "coolify log lines in 7 days: OOM / fatal / memory exhausted (counts):"
+            docker logs --since 168h coolify 2>&1 | grep -ciE "out of memory|allowed memory size|PHP Fatal|segfault" || true
+            echo "root ssh keys (count, fingerprints):"; ssh-keygen -lf /root/.ssh/authorized_keys 2>/dev/null | awk "{print \$1, \$2, \$NF}"
+            echo "users with a login shell:"; awk -F: "\$7 ~ /(ba|z)?sh$/ {print \$1}" /etc/passwd | tr "\n" " "; echo
+            echo "crontabs:"; crontab -l 2>/dev/null | grep -v "^#"; ls -la /etc/cron.d 2>/dev/null | tail -n +4
+            echo "last logins:"; last -n 8 -a 2>/dev/null | head -8
+            echo "outbound connections from containers (non-local, established):"
+            ss -tnp state established 2>/dev/null | awk "NR>1 {print \$4, \$5, \$6}" | grep -vE "127\\.0\\.0\\.1|:22 |:5432|:6379" | head -15
           '
 
       - name: Install backup + drill scripts
