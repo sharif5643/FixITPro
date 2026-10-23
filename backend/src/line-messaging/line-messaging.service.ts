@@ -48,6 +48,50 @@ export class LineMessagingService {
     return this.callLine(token, '/v2/bot/message/reply', { replyToken, messages: [{ type: 'text', text }] });
   }
 
+  /**
+   * Answer on FixITPro's account with buttons under the message: tapping one sends its text back
+   * as if typed ("dtac 250 เหลือ 1200" to confirm a reading).
+   */
+  replyWithChoices(replyToken: string, text: string, choices: { label: string; text: string }[]): Promise<boolean> {
+    const { token } = centralLine();
+    if (!token || !replyToken) return Promise.resolve(false);
+    const quickReply = choices.length
+      ? { items: choices.slice(0, 13).map((c) => ({ type: 'action', action: { type: 'message', label: c.label.slice(0, 20), text: c.text.slice(0, 300) } })) }
+      : undefined;
+    return this.callLine(token, '/v2/bot/message/reply', { replyToken, messages: [{ type: 'text', text, ...(quickReply ? { quickReply } : {}) }] });
+  }
+
+  /** A message to someone on FixITPro's account who did not just write (counts against the quota). */
+  pushCentral(lineUserId: string, text: string): Promise<boolean> {
+    const { token } = centralLine();
+    if (!token) return Promise.resolve(false);
+    return this.pushMessage(token, lineUserId, text);
+  }
+
+  /** The bytes of an image someone sent to FixITPro's account (null when it cannot be fetched). */
+  fetchContent(messageId: string): Promise<{ data: Buffer; contentType: string } | null> {
+    const { token } = centralLine();
+    if (!token || !/^\w+$/.test(messageId)) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const req = https.get(
+        { hostname: 'api-data.line.me', path: `/v2/bot/message/${messageId}/content`, headers: { Authorization: `Bearer ${token}` } },
+        (res) => {
+          if (!res.statusCode || res.statusCode >= 300) { res.resume(); resolve(null); return; }
+          const chunks: Buffer[] = [];
+          let size = 0;
+          res.on('data', (c: Buffer) => {
+            size += c.length;
+            if (size > 10 * 1024 * 1024) { req.destroy(); resolve(null); return; }
+            chunks.push(c);
+          });
+          res.on('end', () => resolve({ data: Buffer.concat(chunks), contentType: String(res.headers['content-type'] ?? 'image/jpeg') }));
+        },
+      );
+      req.on('error', () => resolve(null));
+      req.setTimeout(20_000, () => { req.destroy(); resolve(null); });
+    });
+  }
+
   private callLine(accessToken: string, path: string, payload: unknown): Promise<boolean> {
     return new Promise((resolve) => {
       const body = JSON.stringify(payload);

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import api from '@/lib/api'
 import type { SystemSettings, SystemSettingsShop } from '@/types'
 import { cn } from '@/lib/utils'
+import { PlatformKeysCard } from '@/components/super-admin/platform-keys-card'
 
 function ReadOnlyRow({ label, value }: { label: string; value: string | boolean }) {
   return (
@@ -214,6 +215,7 @@ export default function SettingsPage() {
         </div>
 
         <RenewalPaymentCard shop={data.shop} />
+        <PlatformKeysCard />
       </div>
     </div>
   )

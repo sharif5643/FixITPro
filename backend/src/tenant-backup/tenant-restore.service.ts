@@ -463,11 +463,12 @@ export class TenantRestoreService {
       // Users — with forcePasswordChange=true, random temp password
       for (const u of withDates(users as Record<string, unknown>[])) {
         const userData = {
-          ...omit(u as Record<string, unknown>, ['password', 'googleId', 'lineUserId']),
+          ...omit(u as Record<string, unknown>, ['password', 'googleId', 'lineUserId', 'lineChatId']),
           password: `__TEMP_RESTORE_${crypto.randomUUID()}__`,  // must be reset
           forcePasswordChange: true,
           googleId: null,
           lineUserId: null,
+          lineChatId: null,
         };
         await tx.user.create({ data: userData as Parameters<typeof tx.user.create>[0]['data'] });
       }

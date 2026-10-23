@@ -11,12 +11,13 @@ import {
 import { Request } from 'express';
 import * as crypto from 'crypto';
 import { LineMessagingService } from './line-messaging.service';
-import { ticketFromMessage } from './line-central';
+import { LineSimService } from './line-sim.service';
+import { centralLine, ticketFromMessage } from './line-central';
 
 interface LineEvent {
   type: string;
   source?: { userId?: string; type?: string };
-  message?: { type?: string; text?: string };
+  message?: { id?: string; type?: string; text?: string };
   replyToken?: string;
 }
 
@@ -26,6 +27,7 @@ export class LineWebhookController {
 
   constructor(
     private lineMessaging: LineMessagingService,
+    private lineSim: LineSimService,
   ) {}
 
   @Post('webhook')
@@ -36,7 +38,7 @@ export class LineWebhookController {
     @Req() req: Request,
   ) {
     // P1-3 FIX: verify HMAC-SHA256 signature before processing any events.
-    const secret = process.env.LINE_CHANNEL_SECRET;
+    const secret = centralLine().secret;
     if (secret) {
       const rawBody = (req as any).rawBody as Buffer | undefined;
       if (!rawBody || !signature) {
@@ -72,10 +74,21 @@ export class LineWebhookController {
         await this.lineMessaging.unfollowAll(userId).catch(() => {});
       }
 
+      if (event.type === 'message' && event.message?.type === 'image') {
+        // Linked staff send a screenshot of the carrier app after a SIM / package sale
+        await this.lineSim.handleImage(userId, String(event.message.id ?? ''), event.replyToken).catch((e) =>
+          this.logger.warn(`LINE SIM image failed: ${(e as Error).message}`));
+      }
+
       if (event.type === 'message' && event.message?.type === 'text') {
         const text = event.message.text?.trim() ?? '';
         const ticket = ticketFromMessage(text);
-        if (ticket) {
+        // Staff linking their LINE, or linked staff reporting a SIM / package sale ("dtac 250")
+        const forSim = !ticket && await this.lineSim.handleText(userId, text, event.replyToken, String(event.message.id ?? ''))
+          .catch((e) => { this.logger.warn(`LINE SIM text failed: ${(e as Error).message}`); return true; });
+        if (forSim) {
+          // handled
+        } else if (ticket) {
           // From the tracking page button: follow this one repair
           await this.lineMessaging.followRepair(userId, ticket, event.replyToken).catch((e) =>
             this.logger.warn(`LINE follow ${ticket} failed: ${(e as Error).message}`));

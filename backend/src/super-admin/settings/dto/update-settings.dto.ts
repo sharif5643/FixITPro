@@ -22,3 +22,11 @@ export class UpdateSettingsDto {
   @IsOptional() @IsBoolean() showTaxId?: boolean;
   @IsOptional() @IsBoolean() showLogo?: boolean;
 }
+
+/** Empty string removes a key; a key left out is unchanged. */
+export class UpdatePlatformKeysDto {
+  @IsOptional() @IsString() @MaxLength(40)   LINE_OA_ID?: string;
+  @IsOptional() @IsString() @MaxLength(100)  LINE_CHANNEL_SECRET?: string;
+  @IsOptional() @IsString() @MaxLength(1000) LINE_CHANNEL_ACCESS_TOKEN?: string;
+  @IsOptional() @IsString() @MaxLength(300)  ANTHROPIC_API_KEY?: string;
+}
