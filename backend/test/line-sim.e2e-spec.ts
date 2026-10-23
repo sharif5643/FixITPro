@@ -88,11 +88,14 @@ describe('SIM / package sales by LINE (e2e)', () => {
   });
 
   it('LS-03: "ais 250 เหลือ 700" records the sale, and a balance that differs alerts the owners', async () => {
+    // Other suites share this wallet: work from whatever it holds now
+    const wallet = await prisma.carrierWallet.findFirst({ where: { tenantId: IDS.tenantA, carrier: 'AIS' } });
+    const after = Number(wallet!.balance) - 242.5;
     const before = await sales();
-    const reply = await say(staffLine, 'ais 250 0812345678 เหลือ 700');
+    const reply = await say(staffLine, `ais 250 0812345678 เหลือ ${after - 57.5}`);
     expect(await sales()).toBe(before + 1);
     expect(reply).toContain('บันทึกแล้ว AIS 250');
-    expect(reply).toContain('ระบบเหลือ 757.5');
+    expect(reply).toContain(`ระบบเหลือ ${after.toLocaleString('th-TH', { maximumFractionDigits: 2 })}`);
     expect(reply).toContain('⚠️');
     const sale = await prisma.packageSale.findFirst({ where: { tenantId: IDS.tenantA, note: { contains: 'LINE#' } }, orderBy: { createdAt: 'desc' } });
     expect(sale).toMatchObject({ cashierName: expect.any(String), phoneNumber: '0812345678', paymentMethod: 'CASH' });
