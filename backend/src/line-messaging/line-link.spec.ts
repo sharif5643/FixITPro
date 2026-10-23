@@ -28,7 +28,7 @@ describe('LINE customer linking', () => {
     const saved = process.env.LINE_CHANNEL_SECRET;
     delete process.env.LINE_CHANNEL_SECRET;
     const link = jest.fn();
-    const ctrl = new LineWebhookController({ linkLineUser: link } as any);
+    const ctrl = new LineWebhookController({ linkLineUser: link } as any, {} as any);
     await expect(ctrl.webhook(
       { events: [{ type: 'message', source: { userId: 'U1' }, message: { type: 'text', text: '0812345678' } } as any] },
       '', {} as any,

@@ -127,6 +127,7 @@ export const USER_EXCLUDED_FIELDS = [
   'password',
   'googleId',
   'lineUserId',
+  'lineChatId',
 ] as const;
 
 export const SHOP_SETTINGS_EXCLUDED_FIELDS = [

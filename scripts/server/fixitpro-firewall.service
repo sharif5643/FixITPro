@@ -1,0 +1,12 @@
+[Unit]
+Description=FixITPro firewall (keep Coolify ports off the internet)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fixitpro-firewall.sh apply
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -464,6 +464,9 @@ model User {
 
   googleId   String? @unique
   lineUserId String? @unique
+  /// This person's chat with FixITPro's LINE account (Messaging API id, not the LINE-login id):
+  /// SIM / package sales they type there are recorded as theirs
+  lineChatId String? @unique
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])
@@ -2284,4 +2287,12 @@ model RepairLineFollow {
 
   @@unique([repairId, lineUserId])
   @@index([lineUserId])
+}
+
+/// Platform-wide keys the super admin pastes in the web (FixITPro's LINE account, the AI key for
+/// reading carrier screenshots). A server environment variable of the same name wins.
+model PlatformSecret {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

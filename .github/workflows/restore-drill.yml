@@ -19,6 +19,10 @@ on:
         description: Put the Android apps back on /download (same as the deploy's last step)
         type: boolean
         default: false
+      harden_server:
+        description: Close Coolify ports 8000/6001/6002/8080 to the internet (firewall, reapplied at boot) and fetch Coolify's upgrade script for review
+        type: boolean
+        default: false
 
 concurrency:
   group: restore-drill
@@ -42,6 +46,54 @@ jobs:
           |1|DvsnTBCxLHm8F065S5GQgbFtQ7A=|p3bzmY/gf4hK9k12IVBMYJRUmW0= ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJXdI/T+EG5TAdAn1+taAQ11ZngzxKD1IfntVnXaH9du
           |1|ibmwetm0PAiC8BgSyTtf4uTAKd8=|eE9sCjfTwZLn5uRd6FLxn8RF2do= ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBLrzre/wkU0criEqkVfDAb3Dx1xjcWhPtoWGVXr7hKPyWz32Zd5rIuLBoqRrf+Llc9ODEUj6Zumb/3ummYQCjHc=
           EOF
+
+      - name: Reachable from the internet (before)
+        if: ${{ inputs.harden_server }}
+        run: |
+          for port in 8000 6001 6002 8080; do
+            echo "port $port → HTTP $(curl -s -o /dev/null -m 8 -w '%{http_code}' "http://91.98.151.10:$port/" || true)"
+          done
+          echo "shop site → HTTP $(curl -s -o /dev/null -m 15 -w '%{http_code}' https://fixitpro.in.th/login || true)"
+
+      - name: Firewall — keep Coolify ports off the internet
+        # PHP2Shell (2026-10): Coolify (PHP) answered on a public port with no firewall. Only
+        # 22/80/443 stay open; shops use 80/443 and deploys use ssh. Reapplied at boot.
+        # Undo: ssh in and run `fixitpro-firewall.sh off && systemctl disable fixitpro-firewall`.
+        if: ${{ inputs.harden_server }}
+        run: |
+          scp -i ~/.ssh/deploy_key -o ConnectTimeout=30 \
+            scripts/server/fixitpro-firewall.sh scripts/server/fixitpro-firewall.service root@91.98.151.10:/tmp/
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            set -e
+            install -m 755 /tmp/fixitpro-firewall.sh /usr/local/bin/fixitpro-firewall.sh
+            install -m 644 /tmp/fixitpro-firewall.service /etc/systemd/system/fixitpro-firewall.service
+            systemctl daemon-reload
+            systemctl enable fixitpro-firewall.service
+            systemctl restart fixitpro-firewall.service
+            systemctl is-active fixitpro-firewall.service
+            /usr/local/bin/fixitpro-firewall.sh status
+          '
+
+      - name: Reachable from the internet (after)
+        if: ${{ inputs.harden_server }}
+        run: |
+          for port in 8000 6001 6002 8080; do
+            echo "port $port → HTTP $(curl -s -o /dev/null -m 8 -w '%{http_code}' "http://91.98.151.10:$port/" || true)"
+          done
+          echo "shop site → HTTP $(curl -s -o /dev/null -m 15 -w '%{http_code}' https://fixitpro.in.th/login || true)"
+
+      - name: Coolify upgrade script (fetched for review, not run)
+        if: ${{ inputs.harden_server }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            mkdir -p /data/coolify/source
+            curl -fsSL https://cdn.coollabs.io/coolify/upgrade.sh -o /data/coolify/source/upgrade.review.sh
+            sha256sum /data/coolify/source/upgrade.review.sh
+            echo "--- versions.json (latest offered) ---"
+            curl -fsSL https://cdn.coollabs.io/coolify/versions.json | head -c 600; echo
+            echo "--- upgrade.review.sh ---"
+            cat /data/coolify/source/upgrade.review.sh
+          '
 
       - name: App containers and recent logs (read-only)
         # What is running and why it stopped: container states, memory/disk, and the last log
@@ -92,6 +144,43 @@ jobs:
             echo "Android apps restored into $c"'
           code=$(curl -s -o /dev/null -w "%{http_code}" https://fixitpro.in.th/downloads/apps.json --max-time 30 || true)
           echo "apps.json → HTTP $code"
+
+      - name: Security exposure (read-only)
+        # PHP inside any container (Coolify itself is PHP) and which ports listen publicly.
+        # Read-only: versions, listening sockets and firewall status only.
+        continue-on-error: true
+        run: |
+          echo "deploy key (GitHub Actions) fingerprint: $(ssh-keygen -lf ~/.ssh/deploy_key | awk '{print $2}')"
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 '
+            echo "--- PHP in running containers (name | image | php version) ---"
+            for c in $(docker ps --format "{{.Names}}"); do
+              v=$(docker exec "$c" sh -c "command -v php >/dev/null 2>&1 && php -r \"echo PHP_VERSION;\"" 2>/dev/null)
+              [ -n "$v" ] && echo "$c | $(docker inspect -f "{{.Config.Image}}" "$c") | PHP $v"
+            done
+            echo "--- PHP on the host ---"; command -v php && php -v | head -1 || echo "no php on host"
+            echo "--- Coolify version ---"; docker exec coolify sh -c "grep -ho \"version.*=> *.[0-9.a-z-]*\" /var/www/html/config/constants.php 2>/dev/null | head -2" || true
+            echo "--- listening TCP ports (address:port process) ---"; ss -ltnp | awk "NR>1{print \$4, \$6}" | sed -E "s/users:\(\(\"([^\"]+)\".*/\1/" | sort -u
+            echo "--- docker published ports ---"; docker ps --format "{{.Names}}\t{{.Ports}}" | grep -v "^\s*$" | grep -E "0\.0\.0\.0|:::" || echo none
+            echo "--- firewall ---"; (ufw status 2>/dev/null || echo "ufw not installed") | head -20
+            iptables -S INPUT 2>/dev/null | head -15
+            echo "--- signs of intrusion (read-only) ---"
+            echo "processes inside coolify not from its own stack:"
+            docker exec coolify ps -eo user,pid,etime,args 2>/dev/null | grep -vE "php-fpm|php artisan|nginx|supervisord|s6-|crond|redis|ps -eo|horizon|sh -c|/init|soketi|node|bash -c|sleep" | head -20
+            echo "files changed in the last 3 days under /var/www/html (excluding storage/cache):"
+            docker exec coolify sh -c "find /var/www/html -xdev -type f -mtime -3 ! -path \"*/storage/*\" ! -path \"*/bootstrap/cache/*\" 2>/dev/null | head -20"
+            echo "php / web files in temp and upload dirs of coolify:"
+            docker exec coolify sh -c "find /tmp /var/tmp /var/www/html/public -xdev -type f \\( -name \"*.php\" -o -name \"*.phtml\" -o -name \"*.sh\" \\) -mtime -14 2>/dev/null | head -20"
+            echo "coolify log lines in 7 days: OOM / fatal / memory exhausted (counts):"
+            docker logs --since 168h coolify 2>&1 | grep -ciE "out of memory|allowed memory size|PHP Fatal|segfault" || true
+            echo "root ssh keys (count, fingerprints):"; ssh-keygen -lf /root/.ssh/authorized_keys 2>/dev/null
+            echo "fingerprints of the keys Coolify uses to log in here:"
+            for k in /data/coolify/ssh/keys/*; do [ -f "$k" ] && echo "  coolify $(basename "$k"): $(ssh-keygen -lf "$k" 2>/dev/null | awk "{print \$2}")"; done
+            echo "users with a login shell:"; awk -F: "\$7 ~ /(ba|z)?sh$/ {print \$1}" /etc/passwd | tr "\n" " "; echo
+            echo "crontabs:"; crontab -l 2>/dev/null | grep -v "^#"; ls -la /etc/cron.d 2>/dev/null | tail -n +4
+            echo "last logins:"; last -n 8 -a 2>/dev/null | head -8
+            echo "outbound connections from containers (non-local, established):"
+            ss -tnp state established 2>/dev/null | awk "NR>1 {print \$4, \$5, \$6}" | grep -vE "127\\.0\\.0\\.1|:22 |:5432|:6379" | head -15
+          '
 
       - name: Install backup + drill scripts
         # pg_backup_coolify.sh is also what the server's daily cron runs; the old copy is kept as
@@ -156,6 +245,9 @@ jobs:
             echo "--- last lines of the backup log ---"
             tail -n 5 /opt/fixitpro-backups/backup.log 2>/dev/null || ls /opt/fixitpro-backups/*.log 2>/dev/null
             echo "--- LINE usage (counts only) ---"
+            be=$(docker ps --format "{{.Names}}" | grep "^backend-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
+            echo "backend settings present (set/missing only, values never printed):"
+            [ -n "$be" ] && docker exec "$be" sh -c "for v in LINE_OA_ID LINE_CHANNEL_SECRET LINE_CHANNEL_ACCESS_TOKEN ANTHROPIC_API_KEY; do if [ -n \"\$(printenv \$v)\" ]; then echo \"  \$v set\"; else echo \"  \$v missing\"; fi; done" || true
             pg=$(docker ps --format "{{.Names}}" | grep "^postgres-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
             echo "shops with LINE notify on | customers linked to LINE:"
             [ -n "$pg" ] && docker exec "$pg" psql -U fixitpro -d fixitpro -Atc "SELECT COUNT(*) FILTER (WHERE \"lineNotifyEnabled\"), (SELECT COUNT(*) FROM \"Customer\" WHERE \"lineUserId\" IS NOT NULL) FROM \"ShopSettings\"" || true

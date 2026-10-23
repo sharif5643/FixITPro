@@ -21,6 +21,7 @@ import { pushBackHandler } from '@/lib/back-stack'
 import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
 import { useOpenPackageDebt, OpenDebtWarning } from '@/components/package-sales/package-debts'
+import { LineSimLink } from '@/components/package-sales/line-sim-link'
 import type { ShopSettings, PaymentMethod } from '@/types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -492,6 +493,8 @@ export default function SimSalesPage() {
               <p className="text-sm text-amber-700 font-semibold">กรุณาเปิดกะก่อนขาย</p>
             </div>
           )}
+
+          <LineSimLink compact />
 
           {/* Carrier cards */}
           <div className="grid grid-cols-2 gap-3">
