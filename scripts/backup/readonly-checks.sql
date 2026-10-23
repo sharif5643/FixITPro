@@ -669,4 +669,40 @@ WHERE r."estimatedLaborCost" IS NOT NULL AND r."estimatedPartsCost" IS NOT NULL 
   AND r."estimatedLaborCost" + r."estimatedPartsCost" <> r."estimatedTotal"
 GROUP BY 1 ORDER BY 2 DESC;
 
+\echo '--- 29. SIM / package wallets: where does the money go? (last 60 days, shop ids only) ---'
+\echo '29a. Per shop + carrier: top-ups, deductions by sales, count differences at shift open (OPENING) and at close/owner fix (ADJUSTMENT)'
+SELECT mv."tenantId", mv.carrier,
+  sum(mv.amount) FILTER (WHERE mv.type::text = 'TOPUP') AS topups,
+  sum(mv.amount) FILTER (WHERE mv.type::text = 'DEDUCTION') AS deducted_by_sales,
+  count(*) FILTER (WHERE mv.type::text = 'DEDUCTION') AS sales,
+  sum(mv."balanceAfter" - mv."balanceBefore") FILTER (WHERE mv.type::text = 'OPENING') AS open_count_diff,
+  count(*) FILTER (WHERE mv.type::text = 'OPENING' AND mv."balanceAfter" <> mv."balanceBefore") AS open_counts_off,
+  sum(mv."balanceAfter" - mv."balanceBefore") FILTER (WHERE mv.type::text = 'ADJUSTMENT') AS adjust_diff,
+  count(*) FILTER (WHERE mv.type::text = 'ADJUSTMENT') AS adjustments
+FROM "CarrierWalletMovement" mv
+WHERE mv."createdAt" > now() - INTERVAL '60 days'
+GROUP BY 1, 2 ORDER BY 1, 2;
+\echo '29b. Sales: how the wallet deduction was set (default 97% vs real dealer cost typed), credit, payment method'
+SELECT ps."tenantId", ps.carrier, ps."saleType", count(*) AS sales, sum(ps."packageAmount") AS sold,
+  count(*) FILTER (WHERE ps."walletDeduction" = round(ps."packageAmount" * 0.97, 2)) AS used_default_97,
+  round(avg(ps."walletDeduction" / NULLIF(ps."packageAmount", 0)), 4) AS avg_deduct_ratio,
+  count(*) FILTER (WHERE ps."creditAmount" > 0) AS on_credit, sum(ps."amountDue") AS still_owed,
+  count(*) FILTER (WHERE ps."paymentMethod"::text = 'CASH') AS cash,
+  count(*) FILTER (WHERE ps."paymentMethod"::text <> 'CASH') AS not_cash
+FROM "PackageSale" ps
+WHERE ps."createdAt" > now() - INTERVAL '60 days'
+GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+\echo '29c. Last 40 wallet counts that did not match (when, carrier, system said, counted, difference, sales in that shift)'
+SELECT mv."tenantId", to_char(mv."createdAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS at_bkk, mv.carrier, mv.type,
+  mv."balanceBefore" AS system_said, mv."balanceAfter" AS counted, mv."balanceAfter" - mv."balanceBefore" AS diff,
+  (SELECT count(*) FROM "PackageSale" ps WHERE ps."shiftId" = mv."shiftId" AND ps.carrier = mv.carrier) AS sales_in_shift
+FROM "CarrierWalletMovement" mv
+WHERE mv.type::text IN ('OPENING', 'ADJUSTMENT') AND mv."balanceAfter" <> mv."balanceBefore"
+  AND mv."createdAt" > now() - INTERVAL '60 days'
+ORDER BY mv."createdAt" DESC LIMIT 40;
+\echo '29d. Package prices sold most often per carrier and what the wallet was charged (to compare with the real dealer price)'
+SELECT ps."tenantId", ps.carrier, ps."packageAmount", ps."walletDeduction", count(*) AS times
+FROM "PackageSale" ps WHERE ps."createdAt" > now() - INTERVAL '60 days'
+GROUP BY 1, 2, 3, 4 HAVING count(*) >= 2 ORDER BY 1, 2, 5 DESC LIMIT 40;
+
 ROLLBACK;
