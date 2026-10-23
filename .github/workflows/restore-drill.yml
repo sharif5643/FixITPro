@@ -245,6 +245,9 @@ jobs:
             echo "--- last lines of the backup log ---"
             tail -n 5 /opt/fixitpro-backups/backup.log 2>/dev/null || ls /opt/fixitpro-backups/*.log 2>/dev/null
             echo "--- LINE usage (counts only) ---"
+            be=$(docker ps --format "{{.Names}}" | grep "^backend-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
+            echo "backend settings present (set/missing only, values never printed):"
+            [ -n "$be" ] && docker exec "$be" sh -c "for v in LINE_OA_ID LINE_CHANNEL_SECRET LINE_CHANNEL_ACCESS_TOKEN ANTHROPIC_API_KEY; do if [ -n \"\$(printenv \$v)\" ]; then echo \"  \$v set\"; else echo \"  \$v missing\"; fi; done" || true
             pg=$(docker ps --format "{{.Names}}" | grep "^postgres-z9m1c1i9nr6kbyo4qn0vuv1b" | head -1)
             echo "shops with LINE notify on | customers linked to LINE:"
             [ -n "$pg" ] && docker exec "$pg" psql -U fixitpro -d fixitpro -Atc "SELECT COUNT(*) FILTER (WHERE \"lineNotifyEnabled\"), (SELECT COUNT(*) FROM \"Customer\" WHERE \"lineUserId\" IS NOT NULL) FROM \"ShopSettings\"" || true
