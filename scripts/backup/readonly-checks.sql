@@ -705,4 +705,16 @@ SELECT ps."tenantId", ps.carrier, ps."packageAmount", ps."walletDeduction", coun
 FROM "PackageSale" ps WHERE ps."createdAt" > now() - INTERVAL '60 days'
 GROUP BY 1, 2, 3, 4 HAVING count(*) >= 2 ORDER BY 1, 2, 5 DESC LIMIT 40;
 
+\echo '--- 30. Books: shops whose payments should reach the journal but have no chart of accounts ---'
+\echo '30a. Per shop: accounting in its package or switched on, accounts, journal entries and paid repairs / sales in the last 30 days'
+SELECT t.id, t.plan, t.status,
+  (EXISTS (SELECT 1 FROM "PackageModule" pm WHERE pm."packageKey" = t.plan::text AND pm."moduleKey" = 'accounting')
+     OR EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = 'accounting' AND tm.enabled))
+     AND NOT EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = 'accounting' AND NOT tm.enabled) AS accounting_on,
+  (SELECT count(*) FROM "AccountingAccount" a WHERE a."tenantId" = t.id) AS accounts,
+  (SELECT count(*) FROM "JournalEntry" j WHERE j."tenantId" = t.id AND j."entryDate" > now() - INTERVAL '30 days') AS journal_30d,
+  (SELECT count(*) FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId" WHERE b."tenantId" = t.id AND r."paidAt" > now() - INTERVAL '30 days') AS repairs_paid_30d,
+  (SELECT count(*) FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = t.id AND s."createdAt" > now() - INTERVAL '30 days') AS sales_30d
+FROM "Tenant" t ORDER BY 4 DESC, 5, 1;
+
 ROLLBACK;
