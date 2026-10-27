@@ -10,7 +10,7 @@
 2. ในหน้า channel:
    - **Basic settings** → คัดลอก **Channel secret**
    - **Messaging API** → **Channel access token (long-lived)** → กด **Issue** แล้วคัดลอก
-3. เข้าเว็บ FixITPro ด้วยบัญชี Super Admin → **Settings** → กล่อง **LINE ของระบบ**
+3. เข้าเว็บ FixITPro ด้วยบัญชี Super Admin → **Settings** → กล่อง **LINE และคีย์ของระบบ**
    - ใส่ LINE OA ID (`@fixitpro`), Channel secret และ Channel access token แล้วกด **บันทึก**
    - คัดลอก **Webhook URL** จากกล่องเดียวกัน
 4. กลับไปที่ LINE Developers → **Messaging API** → **Webhook URL**

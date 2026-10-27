@@ -180,7 +180,21 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
   })
 
-  const [view, setView] = useState<'one' | 'all' | 'pill'>('one')
+  // On the SUNMI a card covers the top of the screen. "ย่อ" is remembered for the session, and
+  // screens where staff are typing (repair intake, checkout) start small
+  const typingScreen = variant === 'sunmi' && /^\/sunmi\/(repair-intake|sales)(\/|$)/.test(pathname ?? '')
+  const [chosenView, setChosenView] = useState<'one' | 'all' | 'pill' | null>(null)
+  useEffect(() => {
+    try {
+      const v = sessionStorage.getItem('reminder-view')
+      if (v === 'one' || v === 'all' || v === 'pill') setChosenView(v)
+    } catch { /* storage blocked: keep the default */ }
+  }, [])
+  const view = chosenView ?? (typingScreen ? 'pill' : 'one')
+  const setView = useCallback((v: 'one' | 'all' | 'pill') => {
+    setChosenView(v)
+    try { sessionStorage.setItem('reminder-view', v) } catch { /* storage blocked */ }
+  }, [])
 
   // Filter new reminder items by settings + local dismiss
   const visibleReminderItems = mounted && settings

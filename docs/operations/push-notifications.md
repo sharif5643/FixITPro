@@ -12,8 +12,10 @@
 3. ดาวน์โหลด `google-services.json` ไฟล์เดียวที่มีทั้ง 2 แอป
 4. GitHub → Settings → Secrets → Actions → เพิ่ม `GOOGLE_SERVICES_JSON` = เนื้อหาไฟล์ทั้งไฟล์
 5. Firebase → Project settings → Service accounts → Generate new private key จะได้ไฟล์ JSON
-6. Coolify → แอป FixITPro (backend) → Environment Variables → เพิ่ม `FIREBASE_SERVICE_ACCOUNT` = เนื้อหาไฟล์นั้น
-   (จะใส่เป็น JSON ตรงๆ หรือเข้ารหัส base64 ก็ได้) แล้ว Redeploy
+6. เว็บ FixITPro → Super Admin → **Settings** → กล่อง **LINE และคีย์ของระบบ** → ช่อง **Firebase service account**
+   - วางเนื้อหาไฟล์นั้นทั้งไฟล์ แล้วกด **บันทึก**
+   - มีผลทันที ไม่ต้อง deploy ใหม่
+   - ใส่ใน Coolify ไม่ได้ผล เพราะการ deploy ใช้ค่าเดิมของแอปตัวเก่าทุกครั้ง
 7. รัน Actions → "Android apps (POS + Staff)" เพื่อ build แอปใหม่ ใน log จะเห็น `lock-screen notifications ON`
 8. ให้ร้านติดตั้งแอปใหม่จากหน้า /downloads แล้วล็อกอิน แอปจะขออนุญาตแจ้งเตือนครั้งแรก
 

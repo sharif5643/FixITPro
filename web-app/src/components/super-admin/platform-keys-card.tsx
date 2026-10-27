@@ -10,14 +10,15 @@ import { Label } from '@/components/ui/label'
 import api from '@/lib/api'
 
 type Source = 'env' | 'web' | null
-type Key = 'LINE_OA_ID' | 'LINE_CHANNEL_SECRET' | 'LINE_CHANNEL_ACCESS_TOKEN' | 'ANTHROPIC_API_KEY'
+type Key = 'LINE_OA_ID' | 'LINE_CHANNEL_SECRET' | 'LINE_CHANNEL_ACCESS_TOKEN' | 'ANTHROPIC_API_KEY' | 'FIREBASE_SERVICE_ACCOUNT'
 interface KeysStatus { keys: Record<Key, Source>; webhookUrl: string }
 
-const FIELDS: { key: Key; label: string; hint: string; secret: boolean }[] = [
+const FIELDS: { key: Key; label: string; hint: string; secret: boolean; multiline?: boolean }[] = [
   { key: 'LINE_OA_ID', label: 'LINE OA ID', hint: 'เช่น @fixitpro', secret: false },
   { key: 'LINE_CHANNEL_SECRET', label: 'Channel secret', hint: 'LINE Developers → Messaging API channel → Basic settings', secret: true },
   { key: 'LINE_CHANNEL_ACCESS_TOKEN', label: 'Channel access token (long-lived)', hint: 'Messaging API → Issue', secret: true },
   { key: 'ANTHROPIC_API_KEY', label: 'คีย์ AI สำหรับอ่านรูปหน้าจอแอปค่าย (ไม่บังคับ)', hint: 'console.anthropic.com → API keys', secret: true },
+  { key: 'FIREBASE_SERVICE_ACCOUNT', label: 'Firebase service account (แจ้งเตือนเด้งบนมือถือ)', hint: 'Firebase → Project settings → Service accounts → Generate new private key แล้ววางทั้งไฟล์ JSON', secret: true, multiline: true },
 ]
 
 const sourceText = (s: Source) => (s === 'env' ? 'ตั้งค่าบนเซิร์ฟเวอร์แล้ว' : s === 'web' ? 'ตั้งค่าแล้ว' : 'ยังไม่ได้ตั้ง')
@@ -48,8 +49,8 @@ export function PlatformKeysCard() {
           <MessageCircle className="h-4 w-4 text-green-400" />
         </div>
         <div className="flex-1">
-          <p className="text-white font-semibold text-sm">LINE ของระบบ</p>
-          <p className="text-slate-500 text-xs">ลูกค้าติดตามงานซ่อม · พนักงานบันทึกขายซิม/เน็ตทาง LINE</p>
+          <p className="text-white font-semibold text-sm">LINE และคีย์ของระบบ</p>
+          <p className="text-slate-500 text-xs">ลูกค้าติดตามงานซ่อม · พนักงานบันทึกขายซิม/เน็ตทาง LINE · แจ้งเตือนบนมือถือ</p>
         </div>
         <span className={`text-xs font-semibold ${lineReady ? 'text-green-400' : 'text-amber-300'}`}>{lineReady ? 'พร้อมใช้งาน' : 'ยังไม่พร้อม'}</span>
       </div>
@@ -74,6 +75,18 @@ export function PlatformKeysCard() {
                 <span className={`text-xs ${src ? 'text-green-400' : 'text-slate-500'}`}>{sourceText(src)}</span>
               </div>
               <div className="flex gap-2">
+                {f.multiline ? (
+                  <textarea
+                    rows={3}
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={values[f.key] ?? ''}
+                    disabled={src === 'env'}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+                    placeholder={src ? 'วางค่าใหม่เพื่อเปลี่ยน' : f.hint}
+                    className="w-full rounded-md bg-slate-800 border border-slate-700 text-white text-xs font-mono px-3 py-2 [-webkit-text-security:disc]"
+                  />
+                ) : (
                 <Input
                   type={f.secret ? 'password' : 'text'}
                   autoComplete="off"
@@ -83,6 +96,7 @@ export function PlatformKeysCard() {
                   placeholder={src ? 'วางค่าใหม่เพื่อเปลี่ยน' : f.hint}
                   className="bg-slate-800 border-slate-700 text-white text-sm"
                 />
+                )}
                 {src === 'web' && (
                   <Button size="sm" variant="ghost" className="text-red-300 hover:text-red-200 shrink-0"
                     onClick={() => save.mutate({ [f.key]: '' })} disabled={save.isPending}>ลบ</Button>

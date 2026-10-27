@@ -30,6 +30,7 @@ export class RemindersController {
     @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('branchId') userBranchId: string | null,
     @CurrentUser('role')     role: string,
+    @CurrentUser('permissions') permissions: string[] | undefined,
     @Query('branchId')       queryBranchId?: string,
     @Query('scope')          scope?: string,
   ) {
@@ -42,7 +43,13 @@ export class RemindersController {
     } else {
       effectiveBranchId = queryBranchId ?? null;
     }
-    return this.svc.getActiveReminders(userId, tenantId, effectiveBranchId);
+    // Only what this person can act on: repair jobs for repair staff, transfers for stock staff
+    const held = new Set(permissions ?? []);
+    const kinds = {
+      repairs:   isPrivileged || ['repair.create', 'repair.edit', 'repair.close', 'repair.technician'].some((p) => held.has(p)),
+      transfers: isPrivileged || held.has('stock.transfer'),
+    };
+    return this.svc.getActiveReminders(userId, tenantId, effectiveBranchId, kinds);
   }
 
   /**

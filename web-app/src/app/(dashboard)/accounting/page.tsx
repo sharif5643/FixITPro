@@ -13,6 +13,7 @@ import {
   DataTableRow, DataTableCell, DataTableLoadingRows,
 } from '@/components/ui/data-table'
 import { ModuleGate } from '@/components/auth/module-gate'
+import { BooksCatchUp } from '@/components/accounting/books-catch-up'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -507,6 +508,8 @@ function JournalListContent() {
         onClose={() => setVoidTarget(null)}
         onSuccess={handleJournalCreated}
       />
+
+      <BooksCatchUp />
 
       <PageHeader
         title="สมุดบัญชี"

@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Param,
   Post,
   Query,
@@ -11,11 +12,15 @@ import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { AccountingReconciliationService } from './accounting-reconciliation.service';
+import { BooksCatchUpService } from './books-catch-up.service';
 
 @Controller('admin/accounting')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard)
 export class AccountingReconciliationController {
-  constructor(private readonly reconciliation: AccountingReconciliationService) {}
+  constructor(
+    private readonly reconciliation: AccountingReconciliationService,
+    private readonly catchUp: BooksCatchUpService,
+  ) {}
 
   /**
    * POST /admin/accounting/run-reconciliation[?tenantId=xxx]
@@ -55,5 +60,21 @@ export class AccountingReconciliationController {
   ) {
     const { tenantId, role } = req.user as { tenantId?: string; role?: string };
     return this.reconciliation.retrySale(saleId, tenantId ?? '', role ?? '');
+  }
+
+  /**
+   * GET /admin/accounting/catch-up — how many payments of the caller's shop are missing from its
+   * books (nothing is written). POST posts them. Owners only (accounting.admin).
+   */
+  @Get('catch-up')
+  @RequirePermission('accounting.admin')
+  catchUpPreview(@Request() req: any) {
+    return this.catchUp.preview(req.user.tenantId);
+  }
+
+  @Post('catch-up')
+  @RequirePermission('accounting.admin')
+  catchUpRun(@Request() req: any) {
+    return this.catchUp.catchUp(req.user.tenantId, req.user.id ?? null);
   }
 }
