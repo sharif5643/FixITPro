@@ -24,6 +24,7 @@
     "test:e2e": "jest --config jest.e2e.config.ts --runInBand --forceExit --testTimeout=30000"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
     "@aws-sdk/client-s3": "^3.1090.0",
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.2.0",

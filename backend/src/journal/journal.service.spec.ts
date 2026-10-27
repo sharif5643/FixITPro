@@ -88,7 +88,7 @@ function makePrisma(txOverrides: Partial<ReturnType<typeof makeTx>> = {}) {
   return {
     tenant:           { findUnique: jest.fn().mockResolvedValue({ id: TENANT_ID }) },
     branch:           { findUnique: jest.fn().mockResolvedValue({ tenantId: TENANT_ID }) },
-    accountingAccount:{ findUnique: jest.fn() },
+    accountingAccount:{ findUnique: jest.fn(), count: jest.fn().mockResolvedValue(18), createMany: jest.fn() },
     journalEntry:     {
       findUnique:          jest.fn(),
       findFirst:           jest.fn().mockResolvedValue(null),
@@ -330,6 +330,21 @@ describe('JournalService', () => {
       })),
     ).rejects.toThrow(NotFoundException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('I2: a shop with no accounts at all gets the standard chart first; one with accounts is left alone', async () => {
+    const { service, prisma } = await build();
+    setupAccountMock(prisma);
+    prisma.accountingAccount.count.mockResolvedValueOnce(0);
+    await service.create(balancedInput());
+    expect(prisma.accountingAccount.createMany).toHaveBeenCalledTimes(1);
+    const rows = prisma.accountingAccount.createMany.mock.calls[0][0].data;
+    expect(rows.map((r: any) => r.code)).toEqual(expect.arrayContaining(['1100', '4100']));
+    expect(rows.every((r: any) => r.tenantId === TENANT_ID)).toBe(true);
+
+    prisma.accountingAccount.createMany.mockClear();
+    await service.create(balancedInput({ sourceId: 'other-source' }));
+    expect(prisma.accountingAccount.createMany).not.toHaveBeenCalled();
   });
 
   // ── J: Cross-tenant account rejected ─────────────────────────────────────

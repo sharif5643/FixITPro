@@ -46,6 +46,7 @@ import { RemindersModule }  from './reminders/reminders.module';
 import { PublicRegisterModule } from './public-register/public-register.module';
 import { PublicTrackingModule } from './public-tracking/public-tracking.module';
 import { LineMessagingModule } from './line-messaging/line-messaging.module';
+import { PlatformSecretsModule } from './platform-secrets/platform-secrets.service';
 import { FilesModule } from './files/files.module';
 import { ModulesModule } from './modules/modules.module';
 import { TenantModule } from './tenant/tenant.module';
@@ -73,6 +74,7 @@ import { TenantBackupModule }             from './tenant-backup/tenant-backup.mo
     { provide: APP_INTERCEPTOR, useClass: BranchTenantInterceptor },
   ],
   imports: [
+    PlatformSecretsModule,
     ConfigModule.forRoot({
       isGlobal: true,
       // Load environment-specific .env file first, then fall back to .env

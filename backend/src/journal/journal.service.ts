@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { CHART_OF_ACCOUNTS_TEMPLATE } from '../accounting-accounts/constants/chart-of-accounts';
 import { bangkokYmd } from '../common/bangkok-date';
 
 // ── Input types ───────────────────────────────────────────────────────────────
@@ -203,6 +204,23 @@ export class JournalService {
     return accountIds;
   }
 
+  /**
+   * A shop whose package includes accounting but whose owner never opened the accounts page has
+   * no chart of accounts, so every sale and repair payment failed to reach its books. Such a shop
+   * (no accounts at all) gets the standard chart first; a shop that already has accounts is left
+   * exactly as its owner set it up.
+   */
+  private async ensureChartOfAccounts(tenantId: string): Promise<void> {
+    if (await this.prisma.accountingAccount.count({ where: { tenantId } })) return;
+    await this.prisma.accountingAccount.createMany({
+      data: CHART_OF_ACCOUNTS_TEMPLATE.map((t) => ({
+        code: t.code, name: t.name, nameTh: t.nameTh, type: t.type, subType: t.subType ?? null,
+        sortOrder: t.sortOrder, tenantId, isSystem: true, isActive: true,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
   // ── Tenant + branch validation ────────────────────────────────────────────
 
   private async validateTenant(tenantId: string): Promise<void> {
@@ -264,6 +282,7 @@ export class JournalService {
     }
 
     // 5. Resolve account codes → accountIds (validates tenant ownership + active)
+    await this.ensureChartOfAccounts(input.tenantId);
     const accountIds = await this.resolveAccounts(input.lines, input.tenantId);
 
     // 6. Generate entry number (JE-{YYYYMMDD}-{8hex}, collision caught by @unique at DB)

@@ -1,13 +1,15 @@
+import { platformSecret } from '../platform-secrets/platform-secrets';
+
 /**
  * FixITPro's own LINE Official Account. A customer taps "รับแจ้งเตือนทาง LINE" on the tracking
  * page; LINE opens the chat with "ติดตามงาน REP-…" ready to send; sending it makes them follow
  * that one repair. The shop sets nothing up.
  */
 export const centralLine = () => {
-  const oaId = process.env.LINE_OA_ID?.trim() ?? '';
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN?.trim() ?? '';
-  const secret = process.env.LINE_CHANNEL_SECRET?.trim() ?? '';
-  return { oaId, token, ready: !!(oaId && token && secret) };
+  const oaId = platformSecret('LINE_OA_ID');
+  const token = platformSecret('LINE_CHANNEL_ACCESS_TOKEN');
+  const secret = platformSecret('LINE_CHANNEL_SECRET');
+  return { oaId, token, secret, ready: !!(oaId && token && secret) };
 };
 
 export const FOLLOW_PREFIX = 'ติดตามงาน';

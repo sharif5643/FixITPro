@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
 import { apiErrorMessage, formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
+import { LineSimLink } from '@/components/package-sales/line-sim-link'
 import { PackageDebtList, useOpenPackageDebt, OpenDebtWarning } from '@/components/package-sales/package-debts'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -863,6 +864,8 @@ export default function PackageSalesPage() {
             </button>
           </div>
         </div>
+
+        <LineSimLink />
 
         {/* Wallet balances */}
         <div className="grid grid-cols-4 gap-3">
