@@ -78,6 +78,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     userId:   string,
     tenantId: string | null,
     branchId: string | null,
+    kinds: { repairs: boolean; transfers: boolean } = { repairs: true, transfers: true },
   ): Promise<{ items: ReminderItem[]; total: number }> {
 
     // 1. Upsert settings (creates with all defaults on first call for this user)
@@ -107,7 +108,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     const allItems: ReminderItem[] = [];
 
     // ── [A] VIP_REPAIR ────────────────────────────────────────────────────────
-    if (settings.vipRepairEnabled) {
+    if (settings.vipRepairEnabled && kinds.repairs) {
       const rows = await this.prisma.repair.findMany({
         where: {
           status:   { notIn: ['DELIVERED', 'CANCELLED'] as any[] },
@@ -132,7 +133,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     );
 
     // ── [B] URGENT_REPAIR ─────────────────────────────────────────────────────
-    if (settings.urgentRepairEnabled) {
+    if (settings.urgentRepairEnabled && kinds.repairs) {
       const rows = await this.prisma.repair.findMany({
         where: {
           OR: [
@@ -162,7 +163,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── [C] PARTS_REQUEST_PENDING ─────────────────────────────────────────────
-    if (settings.partsRequestEnabled) {
+    if (settings.partsRequestEnabled && kinds.repairs) {
       const cutoff = new Date(now.getTime() - PARTS_STALE_HOURS * 60 * 60_000);
       const rows = await this.prisma.repair.findMany({
         where: {
@@ -186,7 +187,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── [D] TRANSFER_PENDING ──────────────────────────────────────────────────
-    if (settings.transferPendingEnabled) {
+    if (settings.transferPendingEnabled && kinds.transfers) {
       const rows = await this.prisma.stockTransfer.findMany({
         where: {
           status: 'PENDING' as any,
@@ -206,7 +207,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     }
 
     // ── [E] PICKUP_WAITING ────────────────────────────────────────────────────
-    if (settings.pickupWaitingEnabled) {
+    if (settings.pickupWaitingEnabled && kinds.repairs) {
       const rows = await this.prisma.repair.findMany({
         where: {
           status: 'COMPLETED' as any,
