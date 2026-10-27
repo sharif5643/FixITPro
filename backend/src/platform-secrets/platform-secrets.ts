@@ -1,9 +1,10 @@
 /**
- * Platform-wide keys: FixITPro's LINE account and the AI key for reading screenshots. The super
+ * Platform-wide keys: FixITPro's LINE account, the AI key for reading screenshots and the Firebase
+ * key for phone notifications. The super
  * admin pastes them in the web (stored in PlatformSecret, kept here in memory); a server
  * environment variable of the same name wins, so existing installs keep working.
  */
-export const PLATFORM_SECRET_KEYS = ['LINE_OA_ID', 'LINE_CHANNEL_SECRET', 'LINE_CHANNEL_ACCESS_TOKEN', 'ANTHROPIC_API_KEY'] as const;
+export const PLATFORM_SECRET_KEYS = ['LINE_OA_ID', 'LINE_CHANNEL_SECRET', 'LINE_CHANNEL_ACCESS_TOKEN', 'ANTHROPIC_API_KEY', 'FIREBASE_SERVICE_ACCOUNT'] as const;
 export type PlatformSecretKey = typeof PLATFORM_SECRET_KEYS[number];
 
 const cache = new Map<string, string>();

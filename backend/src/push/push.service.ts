@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createSign } from 'crypto';
 import { PrismaService } from '../database/prisma.service';
+import { platformSecret } from '../platform-secrets/platform-secrets';
 
 interface ServiceAccount { project_id: string; client_email: string; private_key: string }
 
@@ -10,20 +11,25 @@ const b64url = (b: Buffer | string) => Buffer.from(b).toString('base64').replace
 
 /**
  * Phone notifications through Firebase Cloud Messaging (HTTP v1), for the account signed in on
- * each phone. Configured by FIREBASE_SERVICE_ACCOUNT (the service-account JSON, as is or base64)
- * on the server; without it nothing is sent and nothing fails. Never throws.
+ * each phone. Configured by FIREBASE_SERVICE_ACCOUNT (the service-account JSON, as is or base64),
+ * pasted in Super Admin → Settings or set on the server; without it nothing is sent and nothing
+ * fails. Never throws.
  */
 @Injectable()
 export class PushService {
   private readonly logger = new Logger(PushService.name);
-  private account: ServiceAccount | null | undefined;
+  private account: ServiceAccount | null = null;
+  private accountRaw: string | undefined;
   private access: { token: string; expiresAt: number } | null = null;
 
   constructor(private prisma: PrismaService) {}
 
   private serviceAccount(): ServiceAccount | null {
-    if (this.account !== undefined) return this.account;
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
+    // The key can be pasted or replaced in the web at any time: re-read it when it changes
+    const raw = platformSecret('FIREBASE_SERVICE_ACCOUNT');
+    if (raw === this.accountRaw) return this.account;
+    this.accountRaw = raw;
+    this.access = null;
     try {
       const json = raw ? JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8')) : null;
       this.account = json?.project_id && json?.client_email && json?.private_key ? json : null;

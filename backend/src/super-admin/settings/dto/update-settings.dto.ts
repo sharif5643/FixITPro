@@ -29,4 +29,5 @@ export class UpdatePlatformKeysDto {
   @IsOptional() @IsString() @MaxLength(100)  LINE_CHANNEL_SECRET?: string;
   @IsOptional() @IsString() @MaxLength(1000) LINE_CHANNEL_ACCESS_TOKEN?: string;
   @IsOptional() @IsString() @MaxLength(300)  ANTHROPIC_API_KEY?: string;
+  @IsOptional() @IsString() @MaxLength(10000) FIREBASE_SERVICE_ACCOUNT?: string;
 }
