@@ -177,4 +177,52 @@ describe('Shift integrity: write-off, late entry, payment method (e2e)', () => {
     const split = (await sell(manager, { payments: [{ paymentMethod: 'CASH', amount: 400 }, { paymentMethod: 'TRANSFER', amount: 600 }] }).expect(201)).body;
     expect((await authPost(app, `/api/v1/sales/${split.id}/payment-method`, manager, { paymentMethod: 'CARD' })).status).toBe(400);
   });
+
+  it('SI-03c: a 0-baht bill with the line price keyed as 0 still needs a reason; soldAt needs its time zone', async () => {
+    await ensureShift(owner);
+    const zeroLine = await authPost(app, '/api/v1/sales', owner, {
+      branchId: IDS.branchA1, items: [{ productId, quantity: 1, price: 0 }], paymentMethod: 'CASH', amountPaid: 0,
+    });
+    expect(zeroLine.status).toBe(400);
+    expect(zeroLine.body.message).toContain('ต้องระบุเหตุผล');
+    const noZone = await sell(manager, { paymentMethod: 'CASH', amountPaid: 1000, soldAt: '2026-10-20T07:00:00' });
+    expect(noZone.status).toBe(400);
+  });
+
+  it('SI-04b: the cash taken back for a payment-method change is a reversal of that cash, not a refund', async () => {
+    const sale = (await sell(manager, { paymentMethod: 'CASH', amountPaid: 1000 }).expect(201)).body;
+    const leg = (await prisma.salePayment.findFirstOrThrow({ where: { saleId: sale.id } })).id;
+    const cashIn = await prisma.cashDrawerTransaction.findFirstOrThrow({ where: { referenceId: leg, direction: 'IN' } });
+    await authPost(app, `/api/v1/sales/${sale.id}/payment-method`, manager, { paymentMethod: 'TRANSFER' }).expect(201);
+    const back = await prisma.cashDrawerTransaction.findFirstOrThrow({ where: { referenceId: leg, direction: 'OUT' } });
+    expect(back).toMatchObject({ type: 'REVERSAL', reversalOfId: cashIn.id });
+  });
+
+  it('SI-06: a transfer keyed late into a closed shift keeps its audit record; late cash still is not counted again', async () => {
+    const soldAt = new Date(Date.now() - 5 * 3600_000).toISOString();
+    const t = (await sell(manager, { paymentMethod: 'TRANSFER', amountPaid: 1000, soldAt }).expect(201)).body;
+    const leg = await prisma.salePayment.findFirstOrThrow({ where: { saleId: t.id } });
+    expect(await prisma.cashDrawerTransaction.count({ where: { referenceId: leg.id } })).toBe(1);
+  });
+
+  it('SI-01b: a bad IMEI on a later line stops the whole write-off; a phone given free is not marked broken', async () => {
+    const phone = await prisma.product.create({ data: {
+      name: `Phone ${run}`, sku: `SIP-${run}`, type: 'PHONE', price: 9000, costPrice: 7000, stock: 2, hasSerial: true, tenantId: IDS.tenantA,
+    } as any });
+    await prisma.branchStock.create({ data: { productId: phone.id, branchId: IDS.branchA1, quantity: 2 } });
+    const [s1] = await Promise.all([`IM1${run}`, `IM2${run}`].map((serial) =>
+      prisma.serialNumber.create({ data: { serial, productId: phone.id, status: 'IN_STOCK' } as any })));
+    const before = await stockOf();
+    const bad = await authPost(app, '/api/v1/stock/write-off', manager, {
+      reason: 'FREEBIE', items: [{ productId, quantity: 1 }, { productId: phone.id, quantity: 1, serialIds: ['not-a-serial'] }],
+    });
+    expect(bad.status).toBe(400);
+    expect(await stockOf()).toBe(before);
+
+    await authPost(app, '/api/v1/stock/write-off', manager, {
+      reason: 'FREEBIE', items: [{ productId: phone.id, quantity: 1, serialIds: [s1.id] }],
+    }).expect(201);
+    expect((await prisma.serialNumber.findUniqueOrThrow({ where: { id: s1.id } })).status).toBe('SOLD');
+  });
 });
+

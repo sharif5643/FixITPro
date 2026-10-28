@@ -445,9 +445,11 @@ export class RepairsService {
     if (andClauses.length > 0) where.AND = andClauses;
 
     if (query.date) {
-      const start = new Date(query.date);
-      const end = new Date(query.date);
-      end.setDate(end.getDate() + 1);
+      // A plain day is the shop's day (Thai time), not midnight UTC
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(query.date) ? `${query.date}T00:00:00+07:00` : query.date;
+      const start = new Date(day);
+      if (isNaN(start.getTime())) throw new BadRequestException('วันที่ไม่ถูกต้อง');
+      const end = new Date(start.getTime() + 86_400_000);
       where.receivedAt = { gte: start, lt: end };
     }
 
@@ -1222,9 +1224,12 @@ export class RepairsService {
     // P0-1 FIX: wrap in $transaction with conditional updateMany.
     // The WHERE clause (paymentStatus != PAID) is evaluated under the row lock,
     // so a concurrent request that already committed will cause count=0 here.
+    // Paid again after a reversal: this payment is its own round in the ledger and the books
+    let round = 0;
     const paid = await this.prisma.$transaction(async (tx) => {
       const guard = await tx.repair.updateMany({
-        where: { id: repairId, paymentStatus: { not: 'PAID' } },
+        // Still waiting for pickup: a second payment sent at the same time finds it DELIVERED
+        where: { id: repairId, paymentStatus: { not: 'PAID' }, status: { in: ['COMPLETED', 'READY_PICKUP'] } },
         data: {
           paymentStatus: isPartial ? 'PARTIAL' : 'PAID',
           paymentMethod: dto.paymentMethod as any,
@@ -1265,10 +1270,12 @@ export class RepairsService {
         where: { id: repairId },
         select: { branchId: true, branch: { select: { tenantId: true } } },
       });
+      round = await tx.repairPaymentReversal.count({ where: { repairId } });
       if (repairRecord?.branchId && received > 0) {
         await this.accounting.record({
           sourceType:    ACCOUNTING_SOURCE.REPAIR_FINAL_PAYMENT,
           sourceId:      repairId,
+          occurrence:    round,
           paymentMethod: dto.paymentMethod as any,
           amount:        received,
           direction:     'IN',
@@ -1283,7 +1290,7 @@ export class RepairsService {
 
     // Post-commit: record final payment + COGS journals (AFTER $transaction — failure swallowed)
     if (tenantId) {
-      await this.repairAccounting.recordFinalPaymentJournal(paid as any, tenantId, userId);
+      await this.repairAccounting.recordFinalPaymentJournal(paid as any, tenantId, userId, round);
     }
 
     // Send LINE notification on DELIVERED (after transaction — non-critical)
@@ -1366,7 +1373,16 @@ export class RepairsService {
     const method = repair.paymentMethod ?? 'CASH';
     const outShift = await this.shiftForMoneyBack(userId, method === 'CASH');
 
+    // The payment being reversed is the round after every earlier reversal
+    let round = 0;
     const reversed = await this.prisma.$transaction(async (tx) => {
+      // Only one reversal or refund wins when two are sent at the same time
+      const claim = await tx.repair.updateMany({
+        where: { id: repairId, status: 'DELIVERED', paymentStatus: 'PAID' },
+        data:  { paymentStatus: 'PENDING' },
+      });
+      if (claim.count === 0) throw new BadRequestException('การชำระเงินนี้ถูกยกเลิกไปแล้ว');
+      round = await tx.repairPaymentReversal.count({ where: { repairId } });
       await tx.repairPaymentReversal.create({
         data: {
           repairId,
@@ -1409,8 +1425,9 @@ export class RepairsService {
         let reversalOfId: string | undefined;
         if (repair.paymentMethod === 'CASH') {
           const originalLedger = await (tx as any).cashDrawerTransaction.findFirst({
-            where:  { referenceType: 'REPAIR_FINAL_PAYMENT', referenceId: repairId },
-            select: { id: true },
+            where:   { referenceType: 'REPAIR_FINAL_PAYMENT', referenceId: repairId, direction: 'IN' },
+            orderBy: { createdAt: 'desc' },
+            select:  { id: true },
           });
           reversalOfId = originalLedger?.id;
         }
@@ -1419,6 +1436,7 @@ export class RepairsService {
           {
             sourceType:    ACCOUNTING_SOURCE.REVERSAL,
             sourceId:      repairId,
+            occurrence:    round,
             paymentMethod: (repair.paymentMethod ?? 'CASH') as any,
             amount:        repair.paidAmount ?? 0,
             direction:     'OUT',
@@ -1438,7 +1456,7 @@ export class RepairsService {
     // Post-commit: record payment reversal journals (AFTER $transaction — failure swallowed)
     const reverseTenantId = (repair as any).branch?.tenantId ?? tenantId ?? null;
     if (reverseTenantId) {
-      await this.repairAccounting.reversePaymentJournal(reversed as any, reverseTenantId, userId);
+      await this.repairAccounting.reversePaymentJournal(reversed as any, reverseTenantId, userId, round);
     }
 
     await this.auditLog.log({
@@ -1679,7 +1697,14 @@ export class RepairsService {
     ].filter((l) => l.amount > 0);
     const outShift = await this.shiftForMoneyBack(userId, moneyBack.some((l) => l.method === 'CASH'));
 
+    let round = 0;
     const updated = await this.prisma.$transaction(async (tx) => {
+      // Only one refund or reversal wins when two are sent at the same time
+      const claim = await tx.repair.updateMany({
+        where: { id: repairId, status: 'DELIVERED', paymentStatus: 'PAID' },
+        data:  { status: 'CANCELLED' },
+      });
+      if (claim.count === 0) throw new BadRequestException('งานซ่อมนี้ถูกยกเลิกหรือคืนเงินไปแล้ว');
       await this.recordMoneyBack(tx, {
         repairId, ticketNumber: repair.ticketNumber, userId, outShiftId: outShift?.id ?? null,
         branchId: repairBranchId, tenantId: repairTenantId, legs: moneyBack,
@@ -1764,6 +1789,7 @@ export class RepairsService {
       }
 
       // 5. Audit trail record (mirrors reversePayment)
+      round = await tx.repairPaymentReversal.count({ where: { repairId } });
       await tx.repairPaymentReversal.create({
         data: {
           repairId,
@@ -1811,7 +1837,7 @@ export class RepairsService {
     // Post-commit accounting journals (all no-throw — business TX already committed)
     if (repairTenantId) {
       // 7. Reverse final payment JEs: REPAIR_PAYMENT_REVERSAL + REPAIR_DEPOSIT_SETTLE_REVERSAL
-      await this.repairAccounting.reversePaymentJournal(updated as any, repairTenantId, userId);
+      await this.repairAccounting.reversePaymentJournal(updated as any, repairTenantId, userId, round);
 
       // 8. Deposit refund JE: REPAIR_DEPOSIT_REFUND (DR 2110 / CR 1100/1120)
       if (deposit > 0 && depositPaymentMethod) {

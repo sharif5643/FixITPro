@@ -56,7 +56,10 @@ export class StockService {
     return `SK${branch.branchNumber}-${String(branch.stockCodeSeq).padStart(6, '0')}`;
   }
 
-  async adjustStock(dto: AdjustStockDto, actorId?: string, actorName?: string, tenantId?: string) {
+  async adjustStock(
+    dto: AdjustStockDto, actorId?: string, actorName?: string, tenantId?: string,
+    serialStatus?: 'DEFECTIVE' | 'SOLD' | 'CLAIMED',
+  ) {
     // Controller guarantees dto.branchId is always set; guard defensively
     if (!dto.branchId) {
       throw new BadRequestException('กรุณาระบุสาขา (branchId is required)');
@@ -123,7 +126,7 @@ export class StockService {
       if (bySerial && dto.type === 'IN') {
         await addSerialsInStock(tx, dto.productId, serialsIn, dto.quantity, dto.note);
       } else if (bySerial && isDeduction) {
-        serialsOut = await takeSerialsOutOfStock(tx, dto.productId, dto.serialIds, dto.quantity, dto.note);
+        serialsOut = await takeSerialsOutOfStock(tx, dto.productId, dto.serialIds, dto.quantity, dto.note, serialStatus);
       }
 
       // Stock bought in at a price: average it into the product's cost before the stock goes up
@@ -238,11 +241,34 @@ export class StockService {
         throw new BadRequestException(`สต็อกสาขาไม่พอสำหรับ "${name}" คงเหลือ: ${have} ชิ้น`);
       }
     }
+    // IMEIs are checked for every line before any line goes out: a bad IMEI on a later line used
+    // to fail after the earlier lines were already written off (and a retry took them twice)
+    const allSerials = dto.items.flatMap((it) => (it.serialIds ?? []).map((id) => ({ id, productId: it.productId })));
+    if (new Set(allSerials.map((x) => x.id)).size !== allSerials.length) {
+      throw new BadRequestException('เลือก IMEI ซ้ำกันในรายการตัดสต๊อก');
+    }
+    for (const it of dto.items) {
+      if ((it.serialIds?.length ?? 0) > it.quantity) {
+        throw new BadRequestException(`เลือก IMEI มา ${it.serialIds!.length} เครื่อง มากกว่าจำนวนที่ตัดออก ${it.quantity}`);
+      }
+    }
+    if (allSerials.length) {
+      const inStock = await this.prisma.serialNumber.findMany({
+        where: { id: { in: allSerials.map((x) => x.id) }, status: 'IN_STOCK' },
+        select: { id: true, productId: true },
+      });
+      const ok = allSerials.every((x) => inStock.some((r) => r.id === x.id && r.productId === x.productId));
+      if (!ok) throw new BadRequestException('มี IMEI ที่ไม่ได้อยู่ในสต๊อกของสินค้านี้');
+    }
+    // Given to a customer stays with them; a claim is a claim; only damage marks the unit broken
+    const serialStatus = dto.reason === 'FREEBIE' || dto.reason === 'SWAP' ? 'SOLD' as const
+      : dto.reason === 'CLAIM' ? 'CLAIMED' as const
+      : 'DEFECTIVE' as const;
     const note = `${label}${dto.note?.trim() ? `: ${dto.note.trim()}` : ''}`;
     for (const it of dto.items) {
       await this.adjustStock(
         { productId: it.productId, type: 'OUT', quantity: it.quantity, branchId: dto.branchId, note, serialIds: it.serialIds },
-        actorId, actorName, tenantId,
+        actorId, actorName, tenantId, serialStatus,
       );
     }
     return { success: true, reason: dto.reason, items: dto.items.length };

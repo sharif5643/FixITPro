@@ -547,15 +547,18 @@ export class CashDrawerService {
     }
     this.assertSameTenant(actor.tenantId, session.tenantId);
 
-    const updated = await this.prisma.cashDrawerSession.update({
-      where: { id: sessionId },
+    // The staff's own note on why the count was off stays; the approver's note is added after it
+    const claimed = await this.prisma.cashDrawerSession.updateMany({
+      where: { id: sessionId, status: CashDrawerSessionStatus.PENDING_APPROVAL },
       data:  {
         status:      CashDrawerSessionStatus.CLOSED,
         approvedById: actor.id,
         approvedAt:  new Date(),
-        closingNote: dto.approvalNote,
+        closingNote: [session.closingNote, dto.approvalNote ? `อนุมัติ: ${dto.approvalNote}` : null].filter(Boolean).join('\n') || null,
       },
     });
+    if (claimed.count === 0) throw new BadRequestException('รอบนี้ไม่ได้อยู่ในสถานะรออนุมัติ');
+    const updated = await this.prisma.cashDrawerSession.findUniqueOrThrow({ where: { id: sessionId } });
 
     await this.auditLog.log({
       actorId:    actor.id,

@@ -47,6 +47,8 @@ export async function takeSerialsOutOfStock(
   serialIds: unknown,
   quantity: number,
   note?: string,
+  /** What the units become: written off as given to a customer, claimed or broken. Default broken */
+  status: 'DEFECTIVE' | 'SOLD' | 'CLAIMED' = 'DEFECTIVE',
 ): Promise<string[]> {
   const ids = Array.isArray(serialIds) ? [...new Set(serialIds.map(String))] : [];
   if (ids.length > quantity) {
@@ -70,7 +72,7 @@ export async function takeSerialsOutOfStock(
   if (rows.length !== ids.length) throw new BadRequestException('มี IMEI ที่ไม่ได้อยู่ในสต๊อกของสินค้านี้');
   await tx.serialNumber.updateMany({
     where: { id: { in: ids } },
-    data: { status: 'DEFECTIVE', ...(note ? { note } : {}) },
+    data: { status, ...(note ? { note } : {}) },
   });
   return rows.map((r: { serial: string }) => r.serial);
 }

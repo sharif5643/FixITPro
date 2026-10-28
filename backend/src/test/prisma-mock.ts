@@ -12,7 +12,7 @@ export function mockPrisma(): jest.Mocked<PrismaService> {
       updateMany: jest.fn(),
       create: jest.fn(),
     },
-    shift: { findFirst: jest.fn(), update: jest.fn() },
+    shift: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUniqueOrThrow: jest.fn() },
     shiftCashMovement: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn() },
     shiftMember: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), count: jest.fn().mockResolvedValue(0), findFirst: jest.fn(), update: jest.fn(), upsert: jest.fn() },
     auditLog: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn() },

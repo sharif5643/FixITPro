@@ -6,6 +6,8 @@ function make(shift: any, current: any = null) {
     shift: {
       findFirst: jest.fn(async ({ where }: any) => (where.id ? shift : current)),
       update: jest.fn(async () => ({ ...shift, isActive: false, user: { id: shift?.userId, name: 'A' } })),
+      updateMany: jest.fn(async () => ({ count: 1 })),
+      findUniqueOrThrow: jest.fn(async () => ({ ...shift, isActive: false, user: { id: shift?.userId, name: 'A' } })),
       findMany: jest.fn(async () => []),
     },
     shiftMember: {

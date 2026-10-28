@@ -44,6 +44,7 @@ describe('RepairsService.processPayment — P0-1', () => {
           findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_REPAIR),
         },
         auditLog: { create: jest.fn() },
+        repairPaymentReversal: { count: jest.fn().mockResolvedValue(0) },
       };
       return fn(tx);
     });
@@ -64,6 +65,7 @@ describe('RepairsService.processPayment — P0-1', () => {
           findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_REPAIR),
         },
         auditLog: { create: jest.fn() },
+        repairPaymentReversal: { count: jest.fn().mockResolvedValue(0) },
       };
       return fn(tx);
     });
@@ -124,7 +126,7 @@ function makeCancelService() {
       branchStock: { upsert: jest.fn(), aggregate: jest.fn().mockResolvedValue({ _sum: { quantity: 0 } }) },
       stockMovement: { create: jest.fn().mockResolvedValue({}) },
       product: { update: jest.fn().mockResolvedValue({}) },
-      repair: { update: jest.fn().mockResolvedValue(UPDATED_CANCELLED_REPAIR) },
+      repair: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(UPDATED_CANCELLED_REPAIR) },
       auditLog: { create: jest.fn() },
       cashDrawerTransaction: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -264,7 +266,7 @@ describe('RepairsService.update — cancellation deposit refund (Phase 4B.4K)', 
         },
         stockMovement: { create: jest.fn().mockResolvedValue({}) },
         product: { update: jest.fn().mockResolvedValue({}) },
-        repair: { update: jest.fn().mockResolvedValue(UPDATED_CANCELLED_REPAIR) },
+        repair: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(UPDATED_CANCELLED_REPAIR) },
         auditLog: { create: jest.fn() },
         cashDrawerTransaction: {
           findUnique: jest.fn().mockResolvedValue(null),
@@ -350,10 +352,10 @@ function makeRefundCancelService() {
       },
       stockMovement:        { create: jest.fn().mockResolvedValue({}) },
       product:              { update: jest.fn().mockResolvedValue({}) },
-      repairPaymentReversal:{ create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+      repairPaymentReversal:{ count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
       shiftCashMovement: { create: jest.fn() },
       repairAdditionalPayment: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
-      repair:               { update: jest.fn().mockResolvedValue(UPDATED_DELIVERED_CANCELLED) },
+      repair:               { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(UPDATED_DELIVERED_CANCELLED) },
       auditLog:             { create: jest.fn() },
       cashDrawerTransaction: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -561,10 +563,10 @@ describe('RepairsService.refundAndCancel — Phase 4B.4M', () => {
           }),
         },
         product: { update: jest.fn().mockResolvedValue({}) },
-        repairPaymentReversal: { create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+        repairPaymentReversal: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
         shiftCashMovement: { create: jest.fn() },
         repairAdditionalPayment: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
-        repair: { update: jest.fn().mockResolvedValue(UPDATED_DELIVERED_CANCELLED) },
+        repair: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(UPDATED_DELIVERED_CANCELLED) },
         auditLog: { create: jest.fn() },
         cashDrawerTransaction: {
           findUnique: jest.fn().mockResolvedValue(null),

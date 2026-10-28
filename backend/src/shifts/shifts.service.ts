@@ -251,8 +251,10 @@ export class ShiftsService {
       `ShiftClose id=${shiftId} sales=${salesCount} total=${totalSales} cashSales=${cashSales} cashRepairs=${cashRepairs} cashSupplier=${cashSupplierPayments} cashExpenses=${cashExpensesTotal} cashRefunds=${cashRefundsTotal} expected=${expectedBalance}`,
     );
 
-    const updatedShift = await this.prisma.shift.update({
-      where: { id: shiftId },
+    // Only one close wins: two people closing the same shift at once (the owner from the shifts
+    // list, the cashier at the till) used to both succeed, the second count overwriting the first
+    const closed = await this.prisma.shift.updateMany({
+      where: { id: shiftId, isActive: true },
       data: {
         closedAt: new Date(),
         closeBalance: dto.closeBalance,
@@ -260,6 +262,10 @@ export class ShiftsService {
         isActive: false,
         note: dto.note,
       },
+    });
+    if (closed.count === 0) throw new ConflictException('กะนี้ถูกปิดไปแล้ว');
+    const updatedShift = await this.prisma.shift.findUniqueOrThrow({
+      where: { id: shiftId },
       include: { user: { select: { id: true, name: true } } },
     });
     // Everyone who joined the shift leaves it with the close
@@ -911,7 +917,7 @@ export class ShiftsService {
    * The last closed shift of my branch (or mine, without a branch): what was counted and what was
    * left in the drawer — the next shift opens with that float instead of 0.
    */
-  async lastClose(user: { id: string; branchId?: string | null; tenantId?: string | null }) {
+  async lastClose(user: { id: string; role?: string; permissions?: string[]; branchId?: string | null; tenantId?: string | null }) {
     const last = await this.prisma.shift.findFirst({
       where: {
         isActive: false,
@@ -925,7 +931,10 @@ export class ShiftsService {
     return {
       shiftId:      last.id,
       closedAt:     last.closedAt,
-      closeBalance: Number(last.closeBalance ?? 0),
+      // The float left for the next shift is for whoever opens it; the full count only for those
+      // who may see drawer totals (as on the open-shifts list)
+      ...(user.role === 'OWNER' || user.role === 'SUPER_ADMIN' || (user.permissions ?? []).includes('cash_drawer.view_balance')
+        ? { closeBalance: Number(last.closeBalance ?? 0) } : {}),
       floatLeft:    last.floatLeft != null ? Number(last.floatLeft) : null,
       openedBy:     last.user.name,
     };
@@ -1047,14 +1056,22 @@ export class ShiftsService {
         OR: [{ userId }, { members: { some: { userId } } }],
       },
       orderBy: { closedAt: 'desc' },
-      select: { id: true, closedAt: true, user: { select: { name: true } } },
+      select: {
+        id: true, closedAt: true, userId: true, user: { select: { name: true } },
+        members: { where: { userId }, select: { leftAt: true } },
+      },
     });
     if (!shift) return null;
-    const log = await this.prisma.auditLog.findFirst({
-      where: { action: 'SHIFT_CLOSED', entityId: shift.id },
-      select: { actorId: true },
-    });
+    // A member who had already left before the close was not closed out by anyone
+    const left = shift.members[0]?.leftAt;
+    if (shift.userId !== userId && left && shift.closedAt && left.getTime() < shift.closedAt.getTime() - 60_000) return null;
+    const [log, handover] = await Promise.all([
+      this.prisma.auditLog.findFirst({ where: { action: 'SHIFT_CLOSED', entityId: shift.id }, select: { actorId: true } }),
+      this.prisma.auditLog.findFirst({ where: { action: 'SHIFT_HANDOVER', entityId: shift.id }, select: { afterData: true } }),
+    ]);
     if (!log || log.actorId === userId) return null;
+    // The person the drawer was handed to takes over: that is the handover screen, not this banner
+    if ((handover?.afterData as { toUserId?: string } | null)?.toUserId === userId) return null;
     const closer = await this.prisma.user.findUnique({ where: { id: log.actorId }, select: { name: true } });
     return { shiftId: shift.id, openedBy: shift.user.name, closedAt: shift.closedAt, closedBy: closer?.name ?? '' };
   }
@@ -1077,6 +1094,12 @@ export class ShiftsService {
         select: { id: true },
       });
       if (told) continue;
+      // Yesterday's alert still unread would block today's (alerts are not repeated while unread):
+      // it is replaced by the new one with the hours brought up to date
+      await this.prisma.notification.updateMany({
+        where: { type: 'SHIFT_LONG_OPEN', entityId: x.id, isRead: false },
+        data:  { isRead: true },
+      });
       const hours = Math.floor((Date.now() - x.openedAt.getTime()) / 3_600_000);
       await this.notif.notify({
         type:       'SHIFT_LONG_OPEN',

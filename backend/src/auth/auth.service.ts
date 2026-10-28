@@ -244,7 +244,7 @@ export class AuthService {
     return { message: GENERIC_MSG };
   }
 
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+  async changePassword(userId: string, currentPassword: string, newPassword: string, keepRefreshToken?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('User not found');
 
@@ -259,6 +259,13 @@ export class AuthService {
         forcePasswordChange: false,
         lastPasswordChangedAt: new Date(),
       },
+    });
+    // Signed in elsewhere (another phone, or someone who took the password): signed out there.
+    // This device stays signed in.
+    const keep = keepRefreshToken ? this.hashToken(keepRefreshToken) : null;
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null, ...(keep ? { NOT: { tokenHash: keep } } : {}) },
+      data:  { revokedAt: new Date() },
     });
 
     return { message: 'เปลี่ยนรหัสผ่านสำเร็จ' };
@@ -281,7 +288,12 @@ export class AuthService {
     if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') {
       permissions = ALL_PERMISSIONS;
     } else {
-      permissions = await loadRolePermissions(this.prisma, user.role, user.tenantId);
+      // Role grants plus this person's own grants, the same set login() and the guards use
+      const [roleRows, userRows] = await Promise.all([
+        loadRolePermissions(this.prisma, user.role, user.tenantId),
+        this.prisma.userPermission.findMany({ where: { userId: user.id }, select: { permission: true } }),
+      ]);
+      permissions = [...new Set([...roleRows, ...userRows.map((r) => r.permission)])];
     }
 
     let tenantExpiryDate: string | null = null;
@@ -323,6 +335,8 @@ export class AuthService {
     provider: 'google' | 'line';
     externalId: string;
     email: string;
+    /** The provider says this person owns the email (Google email_verified, LINE id_token email) */
+    emailVerified: boolean;
     name: string;
   }) {
     const idField = opts.provider === 'google' ? 'googleId' : 'lineUserId';
@@ -332,8 +346,9 @@ export class AuthService {
       where: { [idField]: opts.externalId },
     });
 
-    if (!user) {
-      // 2. Find by email and link social ID
+    if (!user && opts.emailVerified) {
+      // 2. Link to the account with this email — only when the provider verified the email,
+      //    otherwise anyone could put a shop owner's address on their profile and sign in as them
       user = await this.prisma.user.findUnique({ where: { email: opts.email } });
       if (user) {
         user = await this.prisma.user.update({
@@ -343,22 +358,10 @@ export class AuthService {
       }
     }
 
-    if (!user) {
-      // 3. Create new user (no tenant — admin assigns them later)
-      const randomPw = randomBytes(32).toString('hex');
-      const hashedPw = await bcrypt.hash(randomPw, 12);
-      user = await this.prisma.user.create({
-        data: {
-          email: opts.email,
-          name: opts.name,
-          password: hashedPw,
-          role: 'CASHIER',
-          isActive: true,
-          [idField]: opts.externalId,
-        },
-      });
-      this.logger.log(`Social auth: created new user ${user.email} via ${opts.provider}`);
-    }
+    // No account is ever created here: a new sign-in used to make an active cashier with no shop,
+    // which some screens read as "every shop". Staff accounts come from the owner or sign-up.
+    if (!user) throw new UnauthorizedException('ยังไม่มีบัญชีนี้ในระบบ — สมัครร้านใหม่ หรือให้เจ้าของร้านเพิ่มบัญชีให้');
+    if (!user.isActive) throw new UnauthorizedException('บัญชีนี้ถูกปิดใช้งาน');
 
     await this.prisma.user.update({
       where: { id: user.id },

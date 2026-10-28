@@ -86,8 +86,9 @@ export class SalesController {
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('branchId') branchId: string | null,
   ) {
-    return this.salesService.changePaymentMethod(id, dto.paymentMethod, userId, tenantId, role);
+    return this.salesService.changePaymentMethod(id, dto.paymentMethod, userId, tenantId, role, branchId);
   }
 
   @Post(':id/void')

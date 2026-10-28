@@ -160,8 +160,8 @@ export class AuthController {
   @Throttle({ auth_change_pwd: { limit: 5, ttl: 15 * 60 * 1000 } })
   @SkipThrottle({ auth_login: true, auth_register: true })
   @Post('change-password')
-  changePassword(@CurrentUser('id') userId: string, @Body() dto: ChangePasswordDto) {
-    return this.authService.changePassword(userId, dto.currentPassword, dto.newPassword);
+  changePassword(@CurrentUser('id') userId: string, @Body() dto: ChangePasswordDto, @Req() req: Request) {
+    return this.authService.changePassword(userId, dto.currentPassword, dto.newPassword, (req as any).cookies?.[REFRESH_COOKIE]);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -187,12 +187,18 @@ export class AuthController {
     const profile = req.user as any;
     if (!profile) return res.redirect('/staff/login?error=google_failed');
 
-    const result = await this.authService.loginOrCreateSocialUser({
-      provider:   'google',
-      externalId: profile.googleId,
-      email:      profile.email,
-      name:       profile.name,
-    });
+    let result: Awaited<ReturnType<AuthService['loginOrCreateSocialUser']>>;
+    try {
+      result = await this.authService.loginOrCreateSocialUser({
+        provider:      'google',
+        externalId:    profile.googleId,
+        email:         profile.email,
+        emailVerified: !!profile.emailVerified,
+        name:          profile.name,
+      });
+    } catch {
+      return res.redirect('/staff/login?error=no_account');
+    }
 
     this.setAuthCookies(res, result.accessToken, result.refreshToken, result.user.role);
     return res.redirect(STAFF_HOME);
@@ -275,21 +281,29 @@ export class AuthController {
 
       // Try to get email from id_token if available
       let email = `line_${lineProfile.userId}@noemail.fixitpro`;
+      let emailVerified = false;
       if (tokenRes.data.id_token) {
         try {
           const payload = JSON.parse(
             Buffer.from(tokenRes.data.id_token.split('.')[1], 'base64').toString('utf8'),
           );
-          if (payload.email) email = payload.email;
+          // Straight from LINE's token endpoint over TLS: LINE only gives an email the user verified
+          if (payload.email) { email = payload.email; emailVerified = true; }
         } catch { /* ignore */ }
       }
 
-      const result = await this.authService.loginOrCreateSocialUser({
-        provider:   'line',
-        externalId: lineProfile.userId,
-        email,
-        name:       lineProfile.displayName ?? email,
-      });
+      let result: Awaited<ReturnType<AuthService['loginOrCreateSocialUser']>>;
+      try {
+        result = await this.authService.loginOrCreateSocialUser({
+          provider:   'line',
+          externalId: lineProfile.userId,
+          email,
+          emailVerified,
+          name:       lineProfile.displayName ?? email,
+        });
+      } catch {
+        return res.redirect('/staff/login?error=no_account');
+      }
 
       this.setAuthCookies(res, result.accessToken, result.refreshToken, result.user.role);
       return res.redirect(STAFF_HOME);

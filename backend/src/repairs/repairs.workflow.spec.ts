@@ -98,6 +98,7 @@ describe('RepairsService — Workflow tests (RC1)', () => {
             findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED),
           },
           auditLog: { create: jest.fn() },
+          repairPaymentReversal: { count: jest.fn().mockResolvedValue(0) },
         };
         return fn(tx);
       });
@@ -129,6 +130,7 @@ describe('RepairsService — Workflow tests (RC1)', () => {
             findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED),
           },
           auditLog: { create: jest.fn() },
+          repairPaymentReversal: { count: jest.fn().mockResolvedValue(0) },
         };
         return fn(tx);
       });
@@ -152,6 +154,7 @@ describe('RepairsService — Workflow tests (RC1)', () => {
             findUniqueOrThrow: jest.fn().mockResolvedValue(MOCK_REPAIR_NO_BRANCH),
           },
           auditLog: { create: jest.fn() },
+          repairPaymentReversal: { count: jest.fn().mockResolvedValue(0) },
         };
         return fn(tx);
       });
@@ -219,9 +222,9 @@ describe('RepairsService — Workflow tests (RC1)', () => {
 
       (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
         const tx = {
-          repairPaymentReversal: { create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+          repairPaymentReversal: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
           shiftCashMovement: { create: jest.fn() },
-          repair: { update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
+          repair: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
           cashDrawerTransaction: { findFirst: jest.fn().mockResolvedValue({ id: 'orig-ledger-1' }) },
         };
         return fn(tx);
@@ -245,9 +248,9 @@ describe('RepairsService — Workflow tests (RC1)', () => {
 
       (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
         const tx = {
-          repairPaymentReversal: { create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+          repairPaymentReversal: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
           shiftCashMovement: { create: jest.fn() },
-          repair: { update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
+          repair: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
           cashDrawerTransaction: { findFirst: jest.fn().mockResolvedValue({ id: 'orig-ledger-99' }) },
         };
         return fn(tx);
@@ -268,9 +271,9 @@ describe('RepairsService — Workflow tests (RC1)', () => {
 
       (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
         const tx = {
-          repairPaymentReversal: { create: jest.fn().mockResolvedValue({ id: 'rev-2' }) },
+          repairPaymentReversal: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'rev-2' }) },
           shiftCashMovement: { create: jest.fn() },
-          repair: { update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
+          repair: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
         };
         return fn(tx);
       });
@@ -308,9 +311,9 @@ describe('RepairsService — Workflow tests (RC1)', () => {
 
       (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
         const tx = {
-          repairPaymentReversal: { create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+          repairPaymentReversal: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
           shiftCashMovement: { create: jest.fn() },
-          repair: { update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
+          repair: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
           cashDrawerTransaction: { findFirst: jest.fn().mockResolvedValue({ id: 'orig-1' }) },
         };
         return fn(tx);
@@ -337,9 +340,9 @@ describe('RepairsService — Workflow tests (RC1)', () => {
 
       (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
         const tx = {
-          repairPaymentReversal: { create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+          repairPaymentReversal: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
           shiftCashMovement: { create: jest.fn() },
-          repair: { update: jest.fn().mockResolvedValue(reversedRepair) },
+          repair: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(reversedRepair) },
           cashDrawerTransaction: { findFirst: jest.fn().mockResolvedValue({ id: 'orig-1' }) },
         };
         return fn(tx);
@@ -364,9 +367,9 @@ describe('RepairsService — Workflow tests (RC1)', () => {
 
       (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) => {
         const tx = {
-          repairPaymentReversal: { create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
+          repairPaymentReversal: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'rev-1' }) },
           shiftCashMovement: { create: jest.fn() },
-          repair: { update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
+          repair: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue(MOCK_REPAIR_COMPLETED) },
           cashDrawerTransaction: { findFirst: jest.fn().mockResolvedValue({ id: 'orig-1' }) },
         };
         return fn(tx);

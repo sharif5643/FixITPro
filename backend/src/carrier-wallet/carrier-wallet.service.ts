@@ -162,6 +162,16 @@ export class CarrierWalletService {
     return tx.carrierWallet.findFirstOrThrow({ where: { ...scope(tenantId), carrier: carrier as any } });
   }
 
+  /**
+   * The wallet row locked until the transaction ends, for code that writes a counted balance: a
+   * sale or top-up committing meanwhile waits, instead of its change being overwritten.
+   */
+  private async getWalletLocked(tx: any, tenantId: TenantId, carrier: string) {
+    const w = await this.getWallet(tx, tenantId, carrier);
+    await tx.$queryRaw`SELECT id FROM "CarrierWallet" WHERE id = ${w.id} FOR UPDATE`;
+    return tx.carrierWallet.findUniqueOrThrow({ where: { id: w.id } });
+  }
+
   // Receipt numbers are a per-day sequence; a concurrent sale can take the same
   // number, in which case the unique constraint fails and the whole transaction is retried.
   private async withReceiptRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -614,10 +624,12 @@ export class CarrierWalletService {
     // see the balances); owners and managers may count any time.
     const boss = role === 'OWNER' || role === 'MANAGER' || role === 'SUPER_ADMIN';
     const own = await this.prisma.shift.findFirst({ where: activeShiftWhere(userId), select: { id: true, userId: true } });
-    if (own && own.userId !== userId && !boss) {
-      throw new ForbiddenException('ตรวจยอดกระเป๋าได้เฉพาะคนที่เปิดกะ');
+    // Staff count the wallets in their own shift (without one, any balance could be set)
+    if (!boss && (!own || own.userId !== userId)) {
+      throw new ForbiddenException(own ? 'ตรวจยอดกระเป๋าได้เฉพาะคนที่เปิดกะ' : 'กรุณาเปิดกะก่อนตรวจยอดกระเป๋า');
     }
-    shiftId = own?.id ?? shiftId;
+    // The shift is the one found on the server, never one sent by the screen
+    shiftId = own?.id ?? (boss ? shiftId : null);
     await this.ensureWallets(tenantId, entries.map((e) => e.carrier));
 
     return this.prisma.$transaction(async (tx) => {
@@ -629,7 +641,7 @@ export class CarrierWalletService {
       }[] = [];
 
       for (const entry of entries) {
-        const wallet = await this.getWallet(tx, tenantId, entry.carrier);
+        const wallet = await this.getWalletLocked(tx, tenantId, entry.carrier);
 
         const currentBalance = Number(wallet.balance);
         const newBalance     = Math.round(entry.actualBalance * 100) / 100;
@@ -690,7 +702,7 @@ export class CarrierWalletService {
     await this.ensureWallets(tenantId, [dto.carrier]);
 
     return this.prisma.$transaction(async (tx) => {
-      const wallet         = await this.getWallet(tx, tenantId, dto.carrier);
+      const wallet         = await this.getWalletLocked(tx, tenantId, dto.carrier);
       const currentBalance = Number(wallet.balance);
       const newBalance     = Math.round(dto.newBalance * 100) / 100;
       const difference     = Math.round((newBalance - currentBalance) * 100) / 100;
@@ -739,7 +751,7 @@ export class CarrierWalletService {
       for (const [carrier, balance] of Object.entries(balances)) {
         if (balance === undefined || balance === null) continue;
 
-        const wallet = await this.getWallet(tx, tenantId, carrier);
+        const wallet = await this.getWalletLocked(tx, tenantId, carrier);
 
         const currentBalance = Number(wallet.balance);
         const newBalance     = Math.round(Number(balance) * 100) / 100;

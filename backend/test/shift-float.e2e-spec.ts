@@ -55,4 +55,18 @@ describe('Shifts: float left for the next shift (e2e)', () => {
     await authPost(app, `/api/v1/shifts/${id}/close`, ann, { closeBalance: 800 }).expect(201);
     expect((await authGet(app, '/api/v1/shifts/last-close', ann).expect(200)).body).toMatchObject({ shiftId: id, closeBalance: 800, floatLeft: null });
   });
+
+  it('FL-04: two closes of the same shift at once — only one wins, the count is not overwritten', async () => {
+    const id = (await authPost(app, '/api/v1/shifts/open', ann, { openBalance: 0 }).expect(201)).body.id;
+    const [a, b] = await Promise.all([
+      authPost(app, `/api/v1/shifts/${id}/close`, ann, { closeBalance: 100 }),
+      authPost(app, `/api/v1/shifts/${id}/close`, ann, { closeBalance: 200 }),
+    ]);
+    const ok = [a, b].filter((r) => r.status === 201);
+    expect(ok).toHaveLength(1);
+    expect([a, b].every((r) => r.status === 201 || r.status === 404 || r.status === 409)).toBe(true);
+    const saved = await prisma.shift.findUniqueOrThrow({ where: { id } });
+    expect(Number(saved.closeBalance)).toBe(ok[0] === a ? 100 : 200);
+    expect(await prisma.auditLog.count({ where: { action: 'SHIFT_CLOSED', entityId: id } })).toBe(1);
+  });
 });

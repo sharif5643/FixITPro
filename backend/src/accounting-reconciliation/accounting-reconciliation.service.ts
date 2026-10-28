@@ -8,6 +8,7 @@ import {
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../database/prisma.service';
 import { SalesAccountingAdapter } from '../sales/sales-accounting.adapter';
+import { repairPaymentKey } from '../repairs/repair-accounting.adapter';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -479,8 +480,10 @@ export class AccountingReconciliationService implements OnModuleInit {
     const allPartIds = repairs.flatMap((r) => r.parts.map((p) => p.id));
     const paymentIds = repairs.flatMap((r) => r.additionalPayments.map((p) => p.id));
 
+    // Rounds of a repair paid again after a reversal: repairId#1, #2, …
+    const roundIds   = repairs.flatMap((r) => r.paymentReversals.map((_, i) => repairPaymentKey(r.id, i + 1)));
     const orClauses: any[] = [
-      { sourceType: { in: REPAIR_ID_SOURCE_TYPES }, sourceId: { in: repairIds } },
+      { sourceType: { in: REPAIR_ID_SOURCE_TYPES }, sourceId: { in: [...repairIds, ...roundIds] } },
       ...(partIds.length    > 0 ? [{ sourceType: 'REPAIR_COGS',                          sourceId: { in: partIds    } }] : []),
       ...(allPartIds.length > 0 ? [{ sourceType: 'REPAIR_COGS_REVERSAL',                 sourceId: { in: allPartIds } }] : []),
       ...(paymentIds.length > 0 ? [{ sourceType: 'REPAIR_ADDITIONAL_PAYMENT',             sourceId: { in: paymentIds } }] : []),
@@ -502,7 +505,9 @@ export class AccountingReconciliationService implements OnModuleInit {
     const paidAmount   = Number(repair.paidAmount ?? 0);
     const isDelivered  = repair.status === 'DELIVERED';
     const isCancelled  = repair.status === 'CANCELLED';
-    const hasReversal  = (repair.paymentReversals ?? []).length > 0;
+    const reversals    = (repair.paymentReversals ?? []).length;
+    // The payment standing now is the round after every reversal
+    const paymentId    = repairPaymentKey(repair.id, reversals);
     const activeParts  = (repair.parts ?? []).filter(
       (p: any) => !p.isVoided && Number(p.costPrice ?? 0) > 0,
     );
@@ -528,7 +533,7 @@ export class AccountingReconciliationService implements OnModuleInit {
     // REPAIR_FINAL_PAYMENT — expected when repair is DELIVERED and paidAmount > 0
     if (isDelivered && paidAmount > 0) {
       anyExpected = true;
-      const j = journalIndex.get(`REPAIR_FINAL_PAYMENT:${repair.id}`);
+      const j = journalIndex.get(`REPAIR_FINAL_PAYMENT:${paymentId}`);
       if (!j) {
         missingEvents.push('REPAIR_FINAL_PAYMENT');
       } else {
@@ -542,7 +547,7 @@ export class AccountingReconciliationService implements OnModuleInit {
     // REPAIR_DEPOSIT_SETTLE — expected when delivered AND deposit > 0
     if (isDelivered && deposit > 0) {
       anyExpected = true;
-      const j = journalIndex.get(`REPAIR_DEPOSIT_SETTLE:${repair.id}`);
+      const j = journalIndex.get(`REPAIR_DEPOSIT_SETTLE:${paymentId}`);
       if (!j) {
         missingEvents.push('REPAIR_DEPOSIT_SETTLE');
       } else {
@@ -585,19 +590,23 @@ export class AccountingReconciliationService implements OnModuleInit {
       }
     }
 
-    // REPAIR_PAYMENT_REVERSAL — expected when a payment reversal exists
-    if (hasReversal) {
-      anyExpected = true;
-      if (!journalIndex.get(`REPAIR_PAYMENT_REVERSAL:${repair.id}`)) {
-        missingEvents.push('REPAIR_PAYMENT_REVERSAL');
+    // Each reversal undoes one payment round: round 0 under repair.id, later rounds under repairId#n
+    for (let i = 0; i < reversals; i++) {
+      const roundId = repairPaymentKey(repair.id, i);
+      // REPAIR_PAYMENT_REVERSAL — expected for the first reversal, and for a later one whose payment was booked
+      if (i === 0 || journalIndex.get(`REPAIR_FINAL_PAYMENT:${roundId}`)) {
+        anyExpected = true;
+        if (!journalIndex.get(`REPAIR_PAYMENT_REVERSAL:${roundId}`)) {
+          missingEvents.push('REPAIR_PAYMENT_REVERSAL');
+        }
       }
-    }
 
-    // REPAIR_DEPOSIT_SETTLE_REVERSAL — expected when reversal exists AND deposit settle was posted
-    if (hasReversal && deposit > 0 && journalIndex.get(`REPAIR_DEPOSIT_SETTLE:${repair.id}`)) {
-      anyExpected = true;
-      if (!journalIndex.get(`REPAIR_DEPOSIT_SETTLE_REVERSAL:${repair.id}`)) {
-        missingEvents.push('REPAIR_DEPOSIT_SETTLE_REVERSAL');
+      // REPAIR_DEPOSIT_SETTLE_REVERSAL — expected when that round's deposit settle was posted
+      if (deposit > 0 && journalIndex.get(`REPAIR_DEPOSIT_SETTLE:${roundId}`)) {
+        anyExpected = true;
+        if (!journalIndex.get(`REPAIR_DEPOSIT_SETTLE_REVERSAL:${roundId}`)) {
+          missingEvents.push('REPAIR_DEPOSIT_SETTLE_REVERSAL');
+        }
       }
     }
 

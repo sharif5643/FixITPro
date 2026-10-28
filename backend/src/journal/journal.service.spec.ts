@@ -8,6 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { JournalService, CreateJournalInput, JOURNAL_SOURCE } from './journal.service';
 import { PrismaService } from '../database/prisma.service';
+import { CHART_OF_ACCOUNTS_TEMPLATE } from '../accounting-accounts/constants/chart-of-accounts';
 import { AuditLogService } from '../audit-log/audit-log.service';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ function makePrisma(txOverrides: Partial<ReturnType<typeof makeTx>> = {}) {
   return {
     tenant:           { findUnique: jest.fn().mockResolvedValue({ id: TENANT_ID }) },
     branch:           { findUnique: jest.fn().mockResolvedValue({ tenantId: TENANT_ID }) },
-    accountingAccount:{ findUnique: jest.fn(), count: jest.fn().mockResolvedValue(18), createMany: jest.fn() },
+    accountingAccount:{ findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), createMany: jest.fn() },
     journalEntry:     {
       findUnique:          jest.fn(),
       findFirst:           jest.fn().mockResolvedValue(null),
@@ -332,18 +333,31 @@ describe('JournalService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('I2: a shop with no accounts at all gets the standard chart first; one with accounts is left alone', async () => {
+  it('I2: a missing standard account is added (with the rest of the standard chart), then the entry posts', async () => {
     const { service, prisma } = await build();
     setupAccountMock(prisma);
-    prisma.accountingAccount.count.mockResolvedValueOnce(0);
+    const known = prisma.accountingAccount.findUnique.getMockImplementation()!;
+    let seeded = false;
+    prisma.accountingAccount.findUnique.mockImplementation((args: any) => (seeded ? known(args) : Promise.resolve(null)));
+    prisma.accountingAccount.findMany.mockResolvedValue([{ code: '6100' }]);
+    prisma.accountingAccount.createMany.mockImplementation(async () => { seeded = true; return { count: 17 }; });
+
     await service.create(balancedInput());
     expect(prisma.accountingAccount.createMany).toHaveBeenCalledTimes(1);
     const rows = prisma.accountingAccount.createMany.mock.calls[0][0].data;
     expect(rows.map((r: any) => r.code)).toEqual(expect.arrayContaining(['1100', '4100']));
+    expect(rows.map((r: any) => r.code)).not.toContain('6100');      // the shop's own account is kept
     expect(rows.every((r: any) => r.tenantId === TENANT_ID)).toBe(true);
+    expect(prisma.$transaction).toHaveBeenCalled();
+  });
 
-    prisma.accountingAccount.createMany.mockClear();
-    await service.create(balancedInput({ sourceId: 'other-source' }));
+  it('I3: an account code that is not a standard one is still refused, nothing is added', async () => {
+    const { service, prisma } = await build();
+    setupAccountMock(prisma);
+    prisma.accountingAccount.findMany.mockResolvedValue(CHART_OF_ACCOUNTS_TEMPLATE.map((t) => ({ code: t.code })));
+    await expect(service.create(balancedInput({
+      lines: [{ accountCode: '8888', debit: 1000, credit: 0 }, { accountCode: '4100', debit: 0, credit: 1000 }],
+    }))).rejects.toThrow(NotFoundException);
     expect(prisma.accountingAccount.createMany).not.toHaveBeenCalled();
   });
 
