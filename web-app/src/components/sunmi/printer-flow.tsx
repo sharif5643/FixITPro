@@ -770,6 +770,12 @@ function CopyTypeStep({ onSelect }: {
 
 // ── HTML receipt preview (iframe) ─────────────────────────────────────────────
 
+/** On screen only: the slip (a fixed paper width) sits in the middle of the preview, not against the left edge */
+function centerInPreview(html: string): string {
+  const style = '<style>body{margin-left:auto!important;margin-right:auto!important}</style>'
+  return html.includes('</head>') ? html.replace('</head>', `${style}</head>`) : style + html
+}
+
 function HtmlPreview({ html, url, iframeRef }: {
   html?:      string
   url?:       string
@@ -780,7 +786,7 @@ function HtmlPreview({ html, url, iframeRef }: {
       <iframe
         ref={iframeRef}
         title="receipt preview"
-        srcDoc={url ? undefined : fitHtmlToAppPrinter(html ?? '')}
+        srcDoc={url ? undefined : centerInPreview(fitHtmlToAppPrinter(html ?? ''))}
         src={url}
         style={{ width: '100%', minHeight: '520px', border: 'none', display: 'block' }}
       />

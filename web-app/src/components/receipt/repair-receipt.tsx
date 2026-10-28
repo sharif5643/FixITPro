@@ -63,6 +63,7 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
   // Scratches, cracks… noted when the device came in: on the slip both sides signed
   const conditions = (repair.deviceConditions ?? []).filter(Boolean)
   const intakeSig   = signatureOf(repair, 'INTAKE')
+  const customerSignName = intakeSig?.signerName || repair.customer?.name || ''
 
   return (
     <div id="repair-receipt" className={`${widthClass} thermal-receipt text-[11px] leading-relaxed mx-auto bg-white text-gray-900`}>
@@ -142,23 +143,24 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
       </div>
       <Divider />
 
-      {/* Signatures */}
-      <div className="space-y-3 pt-1 pb-2">
-        <div className="flex justify-between items-end text-[10px]">
-          <div className="text-center">
+      {/* Signatures: both boxes the same shape (signature or blank line, title, name) so they line up */}
+      <div className="pt-1 pb-2">
+        <div className="flex justify-between text-[10px]">
+          <div className="w-[45%] text-center">
             {intakeSig
               // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={intakeSig.image} alt="ลายเซ็นลูกค้า" className="w-20 h-9 object-contain border-b border-gray-400 mb-1" />
-              : <div className="w-20 border-b border-gray-400 mb-1" />}
+              ? <img src={intakeSig.image} alt="ลายเซ็นลูกค้า" className="mx-auto w-24 h-9 object-contain border-b border-gray-400 mb-1" />
+              : <div className="mx-auto w-24 h-9 border-b border-gray-400 mb-1" />}
             <p>ลายเซ็นลูกค้า</p>
+            <p className="text-[9px] text-gray-500 truncate">{customerSignName ? `(${customerSignName})` : '\u00a0'}</p>
           </div>
-          <div className="text-center">
+          <div className="w-[45%] text-center">
             {repair.staffSignature
               // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={repair.staffSignature.image} alt="ลายเซ็นร้าน" className="w-20 h-9 object-contain border-b border-gray-400 mb-1" />
-              : <div className="w-20 border-b border-gray-400 mb-1" />}
+              ? <img src={repair.staffSignature.image} alt="ลายเซ็นร้าน" className="mx-auto w-24 h-9 object-contain border-b border-gray-400 mb-1" />
+              : <div className="mx-auto w-24 h-9 border-b border-gray-400 mb-1" />}
             <p>ลายเซ็นร้าน</p>
-            {repair.staffSignature && <p className="text-[9px] text-gray-500">({repair.staffSignature.name})</p>}
+            <p className="text-[9px] text-gray-500 truncate">{repair.staffSignature ? `(${repair.staffSignature.name})` : '\u00a0'}</p>
           </div>
         </div>
       </div>
