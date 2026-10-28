@@ -511,8 +511,8 @@ export class RepairsService {
   }
 
   /**
-   * The customer signs on the screen: INTAKE when the device is left with the shop (the
-   * conditions and the noted damage), APPROVAL when the price is agreed. Signing again replaces it.
+   * The customer signs on the screen when the device is left with the shop (INTAKE: the
+   * conditions and the noted damage). Signing again replaces it.
    */
   async sign(repairId: string, dto: { kind: string; image: string; signerName?: string }, userId: string, tenantId?: string | null) {
     const where: any = { id: repairId };

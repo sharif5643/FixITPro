@@ -11,12 +11,10 @@ import type { RepairSignature, RepairSignatureKind } from '@/types'
 
 const KINDS: { kind: RepairSignatureKind; label: string; hint: string }[] = [
   { kind: 'INTAKE',   label: 'ลูกค้าเซ็นรับทราบตอนฝากเครื่อง', hint: 'สภาพเครื่อง อุปกรณ์ที่ฝาก และเงื่อนไขการซ่อม' },
-  { kind: 'APPROVAL', label: 'ลูกค้าเซ็นอนุมัติราคา',          hint: 'ตกลงราคาซ่อมตามที่ร้านแจ้ง' },
 ]
 
 export const SIGNATURE_LABEL: Record<RepairSignatureKind, string> = {
   INTAKE:   'ลายเซ็นลูกค้า (ฝากเครื่อง)',
-  APPROVAL: 'ลายเซ็นลูกค้า (อนุมัติราคา)',
 }
 
 function fmt(iso: string) {

@@ -650,13 +650,9 @@ export function buildRepairReceiptThermalHtml(
 
   // Signatures drawn on the screen sit on the signature line; none: an empty line to sign on paper
   const intakeSig   = repair.signatures?.find((x) => x.kind === 'INTAKE')
-  const approvalSig = repair.signatures?.find((x) => x.kind === 'APPROVAL')
   const sigImg = (src?: string | null) => src && /^data:image\/png;base64,/.test(src)
     ? `<img src="${src}" alt="" style="width:${r(80)}px;height:${r(28)}px;object-fit:contain;border-bottom:1px solid #333;margin-bottom:${r(4)}px;display:block">`
     : '<div class="sig-line"></div>'
-  const approvalBlock = approvalSig && /^data:image\/png;base64,/.test(approvalSig.image)
-    ? `<div class="c sec"><img src="${approvalSig.image}" alt="" style="width:${r(96)}px;height:${r(28)}px;object-fit:contain;border-bottom:1px solid #333;margin:0 auto ${r(4)}px;display:block"><p>ลูกค้าอนุมัติราคา ${e(webReceiptDate(approvalSig.createdAt))}</p></div>`
-    : ''
 
   function makeQrBlock(isCustomer: boolean) {
     if (!isCustomer || !trackingOrigin) return ''
@@ -723,7 +719,6 @@ ${conditions.length > 0 ? `<div class="hr"></div>
   <div class="sig-box">${sigImg(intakeSig?.image)}<p>ลายเซ็นลูกค้า</p></div>
   <div class="sig-box">${sigImg(repair.staffSignature?.image)}<p>ลายเซ็นร้าน</p>${repair.staffSignature ? `<p class="gray">(${e(repair.staffSignature.name)})</p>` : ''}</div>
 </div>
-${approvalBlock}
 ${makeQrBlock(isCustomer)}
 <div class="hr"></div>
 <div class="sec">

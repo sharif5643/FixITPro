@@ -24,7 +24,7 @@ function fmtDay(iso: string) {
 }
 
 /** Signed on the screen: the picture sits on the signature line */
-function signatureOf(repair: Repair, kind: 'INTAKE' | 'APPROVAL') {
+function signatureOf(repair: Repair, kind: 'INTAKE') {
   return repair.signatures?.find((s) => s.kind === kind) ?? null
 }
 
@@ -63,7 +63,6 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
   // Scratches, cracks… noted when the device came in: on the slip both sides signed
   const conditions = (repair.deviceConditions ?? []).filter(Boolean)
   const intakeSig   = signatureOf(repair, 'INTAKE')
-  const approvalSig = signatureOf(repair, 'APPROVAL')
 
   return (
     <div id="repair-receipt" className={`${widthClass} thermal-receipt text-[11px] leading-relaxed mx-auto bg-white text-gray-900`}>
@@ -162,13 +161,6 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
             {repair.staffSignature && <p className="text-[9px] text-gray-500">({repair.staffSignature.name})</p>}
           </div>
         </div>
-        {approvalSig && (
-          <div className="text-center text-[10px]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={approvalSig.image} alt="ลูกค้าอนุมัติราคา" className="mx-auto w-24 h-9 object-contain border-b border-gray-400 mb-1" />
-            <p>ลูกค้าอนุมัติราคา {fmtDate(approvalSig.createdAt)}</p>
-          </div>
-        )}
       </div>
       <Divider />
 
@@ -219,7 +211,6 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
   // Scratches, cracks… noted when the device came in: on the slip both sides signed
   const conditions = (repair.deviceConditions ?? []).filter(Boolean)
   const intakeSig   = signatureOf(repair, 'INTAKE')
-  const approvalSig = signatureOf(repair, 'APPROVAL')
 
   const trackingUrl = buildTrackingUrl(trackingBaseUrl, repair.ticketNumber, repair.customer?.phone)
 
@@ -349,14 +340,6 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
           <p className="text-xs text-gray-400 mt-0.5">{repair.staffSignature ? `${repair.staffSignature.name} · ${shopName}` : shopName}</p>
         </div>
       </div>
-      {approvalSig && (
-        <div className="mt-6 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={approvalSig.image} alt="ลูกค้าอนุมัติราคา" className="mx-auto h-14 w-60 object-contain border-b border-dashed border-gray-400 mb-2" />
-          <p className="text-xs text-gray-600 font-semibold">ลูกค้าอนุมัติราคา</p>
-          <p className="text-xs text-gray-400 mt-0.5">{fmtDate(approvalSig.createdAt)}</p>
-        </div>
-      )}
 
       {/* QR Code + tracking link */}
       {trackingUrl && (

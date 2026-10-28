@@ -1,7 +1,7 @@
 import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class RepairSignatureDto {
-  @IsIn(['INTAKE', 'APPROVAL'])
+  @IsIn(['INTAKE'])
   kind: string;
 
   /** The signature drawn on the screen, as a PNG data URL (a few tens of KB) */

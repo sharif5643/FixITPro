@@ -72,10 +72,11 @@ describe('Promised features (e2e)', () => {
     await authPost(app, `/api/v1/repairs/${repair.id}/signatures`, owner, { kind: 'OTHER', image: PNG }).expect(400);
     await authPost(app, `/api/v1/repairs/${repair.id}/signatures`, owner, { kind: 'INTAKE', image: PNG, signerName: 'สมชาย' }).expect(201);
     await authPost(app, `/api/v1/repairs/${repair.id}/signatures`, owner, { kind: 'INTAKE', image: PNG, signerName: 'สมชาย ใจดี' }).expect(201);
-    await authPost(app, `/api/v1/repairs/${repair.id}/signatures`, owner, { kind: 'APPROVAL', image: PNG }).expect(201);
+    // Price approval is not signed (not on the slip)
+    await authPost(app, `/api/v1/repairs/${repair.id}/signatures`, owner, { kind: 'APPROVAL', image: PNG }).expect(400);
 
     const job = (await authGet(app, `/api/v1/repairs/${repair.id}`, owner).expect(200)).body;
-    expect(job.signatures).toHaveLength(2);
+    expect(job.signatures).toHaveLength(1);
     expect(job.signatures.find((s: any) => s.kind === 'INTAKE')).toMatchObject({ image: PNG, signerName: 'สมชาย ใจดี' });
 
     // Lists stay light: no signature pictures there

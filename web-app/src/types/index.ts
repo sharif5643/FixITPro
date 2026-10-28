@@ -599,7 +599,7 @@ export interface RepairPaymentReversal {
   createdBy: { id: string; name: string }
 }
 
-export type RepairSignatureKind = 'INTAKE' | 'APPROVAL'
+export type RepairSignatureKind = 'INTAKE'
 
 export interface RepairSignature {
   kind: RepairSignatureKind
