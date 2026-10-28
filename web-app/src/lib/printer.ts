@@ -899,7 +899,12 @@ export function buildRepairBatchThermalHtml(
   customer: { name?: string | null; phone?: string | null } | null | undefined,
   settings: { shopName?: string | null; shopPhone?: string | null; shopAddress?: string | null; logoUrl?: string | null } | null | undefined,
   /** copyType: like the single repair slip — the shop's copy, the customer's, or both with a cut line (left out: one plain slip) */
-  opts: { paperWidth?: '58mm' | '80mm'; copyType?: 'shop' | 'customer' | 'both' } = {},
+  opts: {
+    paperWidth?: '58mm' | '80mm'
+    copyType?: 'shop' | 'customer' | 'both'
+    /** Signed in the system: the customer (ผู้ส่งเครื่อง) and the staff member (ผู้รับเครื่อง); none: a blank line to sign on paper */
+    signatures?: { customer?: { image: string; name?: string | null } | null; staff?: { image: string; name?: string | null } | null }
+  } = {},
 ): string {
   const e   = escHtml
   const px  = opts.paperWidth === '80mm' ? 576 : 384
@@ -934,6 +939,12 @@ ${!x.cancelled && (x.paid > 0 || x.owed > 0) ? `<div class="row" style="padding-
     summary.cancelled ? `ยกเลิก ${summary.cancelled}` : '',
   ].filter(Boolean).join(' · ')
 
+  // Same boxes as the single repair slip: signature (or a blank line), title, name
+  const sigImg = (src?: string | null) => src && /^data:image\/png;base64,/.test(src)
+    ? `<img src="${src}" alt="" style="width:${r(80)}px;height:${r(28)}px;object-fit:contain;border-bottom:1px solid #333;margin-bottom:${r(4)}px;display:block">`
+    : '<div class="sig-line"></div>'
+  const senderName = opts.signatures?.customer ? (opts.signatures.customer.name || customer?.name || '') : (customer?.name || '')
+
   const copy = (label: string) => `${header}
 <div class="hr"></div>
 <div class="c sec">
@@ -957,8 +968,8 @@ ${summary.unpriced ? `<p class="gray">(ยังไม่ประเมิน�
 <div class="row b"><span>ค้างชำระ</span><span class="v">${money(summary.owed)}</span></div>
 <div class="hr"></div>
 <div class="sig">
-<div class="sig-box"><div class="sig-line"></div>ผู้ส่งเครื่อง</div>
-<div class="sig-box"><div class="sig-line"></div>ผู้รับเครื่อง</div>
+<div class="sig-box">${sigImg(opts.signatures?.customer?.image)}<p>ผู้ส่งเครื่อง</p><p class="gray">${senderName ? `(${e(senderName)})` : '&nbsp;'}</p></div>
+<div class="sig-box">${sigImg(opts.signatures?.staff?.image)}<p>ผู้รับเครื่อง</p><p class="gray">${opts.signatures?.staff?.name ? `(${e(opts.signatures.staff.name)})` : '&nbsp;'}</p></div>
 </div>
 <div class="hr"></div>
 <p class="c gray">กรุณานำใบนี้มาแสดงเมื่อรับเครื่อง</p>`

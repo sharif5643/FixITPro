@@ -536,6 +536,51 @@ export class RepairsService {
     }
   }
 
+  /** Per job on a combined slip: the customer's intake signature and the shop's (whoever took it in) */
+  async batchSignatures(ids: string[], tenantId?: string | null) {
+    if (!ids.length) return [];
+    const where: any = { id: { in: ids } };
+    if (tenantId) where.branch = { tenantId };
+    const jobs = await this.prisma.repair.findMany({ where, select: { id: true } });
+    const found = jobs.map((j) => j.id);
+    if (!found.length) return [];
+    const sigs = await this.prisma.repairSignature.findMany({
+      where:   { repairId: { in: found } },
+      select:  { repairId: true, kind: true, image: true, signerName: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return Promise.all(found.map(async (repairId) => {
+      const intake = sigs.find((x) => x.repairId === repairId && x.kind === 'INTAKE');
+      const kept   = sigs.find((x) => x.repairId === repairId && x.kind === STAFF_SIGNATURE);
+      return {
+        repairId,
+        intake: intake ? { image: intake.image, signerName: intake.signerName, createdAt: intake.createdAt } : null,
+        staff:  kept ? { name: kept.signerName ?? '', image: kept.image } : await this.intakeStaffSignature(repairId),
+      };
+    }));
+  }
+
+  /** One signature for every job on the combined slip (cancelled jobs are left out) */
+  async signBatch(dto: { ids: string[]; image: string; signerName?: string }, userId: string, tenantId?: string | null) {
+    const where: any = { id: { in: dto.ids }, status: { not: 'CANCELLED' } };
+    if (tenantId) where.branch = { tenantId };
+    const jobs = await this.prisma.repair.findMany({ where, select: { id: true } });
+    if (!jobs.length) throw new NotFoundException('Repair not found');
+    const signerName = dto.signerName?.trim() || null;
+    await this.prisma.$transaction(jobs.map((j) => this.prisma.repairSignature.upsert({
+      where:  { repairId_kind: { repairId: j.id, kind: 'INTAKE' } },
+      create: { repairId: j.id, kind: 'INTAKE', image: dto.image, signerName, createdById: userId },
+      update: { image: dto.image, signerName, createdById: userId, createdAt: new Date() },
+    })));
+    for (const j of jobs) {
+      await this.auditLog.log({
+        actorId: userId, action: 'REPAIR_SIGNED', entityType: 'Repair', entityId: j.id,
+        afterData: { kind: 'INTAKE', signerName, combinedSlip: true },
+      });
+    }
+    return { signed: jobs.length };
+  }
+
   /**
    * The customer signs on the screen when the device is left with the shop (INTAKE: the
    * conditions and the noted damage). Signing again replaces it.

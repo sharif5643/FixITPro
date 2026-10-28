@@ -4,9 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, ClipboardList, Loader2, Printer, RotateCcw, X, XCircle } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { ArrowLeft, CheckCircle2, ClipboardList, Loader2, PenLine, Printer, RotateCcw, X, XCircle } from 'lucide-react'
 import api from '@/lib/api'
+import { apiErrorMessage } from '@/lib/utils'
+import { useAuthStore } from '@/store/auth.store'
+import { FullscreenSignature } from './signature-fullscreen'
 import { Platform } from '@/lib/platform'
 import { localDay, pickBatch, summarizeBatch, type BatchRepair, type BatchScope } from '@/lib/repair-batch'
 import { buildRepairBatchThermalHtml } from '@/lib/printer'
@@ -32,6 +36,85 @@ export function useCustomerRepairs(customerId: string | null | undefined) {
     enabled:  !!customerId,
     staleTime: 10_000,
   })
+}
+
+export interface BatchSignatureRow {
+  repairId: string
+  intake: { image: string; signerName?: string | null; createdAt: string } | null
+  staff:  { name: string; image: string } | null
+}
+
+/** The signatures of the jobs on a combined slip (customer's intake signature, shop's per job) */
+export function useBatchSignatures(ids: string[]) {
+  const key = ids.join(',')
+  return useQuery<BatchSignatureRow[]>({
+    queryKey: ['repairs', 'batch-signatures', key],
+    queryFn:  async () => (await api.get('/repairs/batch-signatures', { params: { ids: key } })).data,
+    enabled:  ids.length > 0,
+    staleTime: 10_000,
+  })
+}
+
+/**
+ * What goes in the two boxes of the combined slip:
+ * - ผู้ส่งเครื่อง: the customer's latest signature on these jobs
+ * - ผู้รับเครื่อง: whoever took them all in; jobs taken in by several people → the person printing
+ * Nothing signed: a blank line to sign on paper.
+ */
+export function slipSignatures(rows: BatchSignatureRow[] | undefined, me: { name: string; image: string | null } | null) {
+  const list = rows ?? []
+  const customer = list.map((x) => x.intake).filter((x): x is NonNullable<BatchSignatureRow['intake']> => !!x)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null
+  const takers = Array.from(new Set(list.map((x) => x.staff?.image ?? '')))
+  const one = takers.length === 1 && takers[0] ? list[0].staff : null
+  const staff = one ?? (me?.image ? { name: me.name, image: me.image } : null)
+  return {
+    customer: customer ? { image: customer.image, name: customer.signerName } : null,
+    staff,
+  }
+}
+
+function useMySignature() {
+  const name = useAuthStore((st) => st.user?.name) ?? ''
+  const { data } = useQuery<{ image: string | null }>({
+    queryKey: ['my-signature'],
+    queryFn:  async () => (await api.get('/auth/my-signature')).data,
+    staleTime: 60_000,
+  })
+  return { name, image: data?.image ?? null }
+}
+
+/** "ให้ลูกค้าเซ็น" on the combined slip: one signature for every job in it */
+export function BatchSignButton({ ids, signed, customerName, className }: {
+  ids: string[]; signed: boolean; customerName?: string | null; className?: string
+}) {
+  const qc = useQueryClient()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState(customerName ?? '')
+  const save = useMutation({
+    mutationFn: (image: string) => api.post('/repairs/batch-signatures', { ids, image, signerName: name.trim() || undefined }),
+    onSuccess: () => {
+      toast.success('บันทึกลายเซ็นลูกค้าแล้ว')
+      qc.invalidateQueries({ queryKey: ['repairs', 'batch-signatures'] })
+      setOpen(false)
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  })
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} disabled={ids.length === 0}
+        className={className ?? 'flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-40'}>
+        <PenLine className="h-4 w-4" />
+        {signed ? 'ลูกค้าเซ็นแล้ว — เซ็นใหม่' : `ให้ลูกค้าเซ็น (${ids.length} เครื่อง)`}
+      </button>
+      {open && (
+        <FullscreenSignature title="ลูกค้าเซ็นรับทราบ (ใบรับเครื่องรวม)"
+          hint={`ลายเซ็นนี้ใช้กับทุกเครื่องในใบนี้ (${ids.length} เครื่อง)`}
+          name={name} onNameChange={setName} busy={save.isPending}
+          onConfirm={(png) => save.mutate(png)} onCancel={() => setOpen(false)} />
+      )}
+    </>
+  )
 }
 
 export function repairBatchPrintUrl(customerId: string, scope: BatchScope, paper?: '58mm' | '80mm') {
@@ -98,10 +181,17 @@ export function RepairBatchPrintSheet({ customer, date, onClose }: {
   const paperWidth = paperPick ?? (((settings as { paperWidth?: string } | undefined)?.paperWidth as '58mm' | '80mm' | undefined) ?? '58mm')
   const count = scopeKind === 'date' ? dayCount : openCount
 
-  const html = useMemo(
-    () => buildRepairBatchThermalHtml(summarizeBatch(pickBatch(repairs, scope)), scope, customer, settings, { paperWidth, copyType: selectedCopy }),
+  const ids = useMemo(() => pickBatch(repairs, scope).filter((r) => r.status !== 'CANCELLED').map((r) => r.id),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [repairs, scopeKind, day, customer, settings, paperWidth, selectedCopy],
+    [repairs, scopeKind, day])
+  const { data: sigRows } = useBatchSignatures(ids)
+  const me = useMySignature()
+  const signatures = slipSignatures(sigRows, me)
+
+  const html = useMemo(
+    () => buildRepairBatchThermalHtml(summarizeBatch(pickBatch(repairs, scope)), scope, customer, settings, { paperWidth, copyType: selectedCopy, signatures }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [repairs, scopeKind, day, customer, settings, paperWidth, selectedCopy, sigRows, me.image, me.name],
   )
   const title = scopeKind === 'date' ? 'พิมพ์ใบรับเครื่องรวม' : 'พิมพ์สรุปงานซ่อมค้าง'
 
@@ -246,6 +336,11 @@ export function RepairBatchPrintSheet({ customer, date, onClose }: {
               ))}
             </div>
           </div>
+        </div>
+
+        {/* The customer signs once for every device on the slip (or signs the paper) */}
+        <div className="shrink-0 border-b border-slate-100 bg-slate-50 px-4 pb-3">
+          <BatchSignButton ids={ids} signed={!!signatures.customer} customerName={customer.name} />
         </div>
 
         {/* The slip as it will print */}

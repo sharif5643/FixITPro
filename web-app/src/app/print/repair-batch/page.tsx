@@ -9,7 +9,8 @@ import { Loader2, Printer, X } from 'lucide-react'
 import api from '@/lib/api'
 import { localDay, pickBatch, summarizeBatch, type BatchScope } from '@/lib/repair-batch'
 import { buildRepairBatchThermalHtml } from '@/lib/printer'
-import { thaiDay, useCustomerRepairs } from '@/components/repairs/repair-batch-print'
+import { BatchSignButton, slipSignatures, thaiDay, useBatchSignatures, useCustomerRepairs } from '@/components/repairs/repair-batch-print'
+import { useAuthStore } from '@/store/auth.store'
 import type { ShopSettings } from '@/types'
 
 type PW = '58mm' | '80mm'
@@ -38,11 +39,24 @@ export default function RepairBatchPrintPage() {
   })
 
   const scope: BatchScope = kind === 'open' ? { kind: 'open' } : { kind: 'date', date: day }
+  // Signed in the system: the customer (once for the whole slip) and whoever took the devices in
+  const ids = useMemo(() => pickBatch(repairs, scope).filter((r) => r.status !== 'CANCELLED').map((r) => r.id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [repairs, kind, day])
+  const { data: sigRows } = useBatchSignatures(ids)
+  const myName = useAuthStore((st) => st.user?.name) ?? ''
+  const { data: mySig } = useQuery<{ image: string | null }>({
+    queryKey: ['my-signature'],
+    queryFn:  async () => (await api.get('/auth/my-signature')).data,
+    staleTime: 60_000,
+  })
+  const signatures = slipSignatures(sigRows, { name: myName, image: mySig?.image ?? null })
+
   const html = useMemo(() => {
     const summary = summarizeBatch(pickBatch(repairs, scope))
-    return buildRepairBatchThermalHtml(summary, scope, customer ?? repairs[0]?.customer, settings, { paperWidth: paper })
+    return buildRepairBatchThermalHtml(summary, scope, customer ?? repairs[0]?.customer, settings, { paperWidth: paper, signatures })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repairs, customer, settings, paper, kind, day])
+  }, [repairs, customer, settings, paper, kind, day, sigRows, mySig?.image, myName])
 
   // Days this customer brought devices in, newest first — to reprint an older intake
   const days = useMemo(() => Array.from(new Set(repairs.map((r) => localDay(r.receivedAt)))).sort().reverse(), [repairs])
@@ -67,6 +81,8 @@ export default function RepairBatchPrintPage() {
         {(['58mm', '80mm'] as const).map((w) => (
           <button key={w} className={chip(paper === w)} onClick={() => setPaper(w)}>{w}</button>
         ))}
+        <BatchSignButton ids={ids} signed={!!signatures.customer} customerName={customer?.name}
+          className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40" />
         <button onClick={() => frameRef.current?.contentWindow?.print()}
           className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700">
           <Printer className="h-3.5 w-3.5" /> พิมพ์

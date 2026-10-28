@@ -29,7 +29,7 @@ import { AddRepairPartDto } from './dto/add-repair-part.dto';
 import { RepairPaymentDto } from './dto/repair-payment.dto';
 import { ReversePaymentDto } from './dto/reverse-payment.dto';
 import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
-import { RepairSignatureDto } from './dto/repair-signature.dto';
+import { BatchSignatureDto, RepairSignatureDto } from './dto/repair-signature.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
 import { QuickRepairDto } from './dto/quick-repair.dto';
@@ -205,6 +205,28 @@ export class RepairsController {
       ? queryBranchId
       : (userBranchId ?? undefined);
     return this.repairsService.getArAging(branchId, tenantId);
+  }
+
+  /** Signatures of the jobs on a combined slip (?ids=a,b,c): the customer's and the shop's, per job */
+  @Get('batch-signatures')
+  batchSignatures(
+    @Query('ids') ids: string | undefined,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    const list = (ids ?? '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, 100);
+    return this.repairsService.batchSignatures(list, tenantId);
+  }
+
+  /** The customer signs once on the combined slip: the signature goes on every job in it */
+  @Post('batch-signatures')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.create', 'repair.edit', 'repair.close')
+  signBatch(
+    @Body() dto: BatchSignatureDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.signBatch(dto, userId, tenantId);
   }
 
   @Get(':id/profit')
