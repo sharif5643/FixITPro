@@ -898,7 +898,8 @@ export function buildRepairBatchThermalHtml(
   scope: BatchScope,
   customer: { name?: string | null; phone?: string | null } | null | undefined,
   settings: { shopName?: string | null; shopPhone?: string | null; shopAddress?: string | null; logoUrl?: string | null } | null | undefined,
-  opts: { paperWidth?: '58mm' | '80mm' } = {},
+  /** copyType: like the single repair slip — the shop's copy, the customer's, or both with a cut line (left out: one plain slip) */
+  opts: { paperWidth?: '58mm' | '80mm'; copyType?: 'shop' | 'customer' | 'both' } = {},
 ): string {
   const e   = escHtml
   const px  = opts.paperWidth === '80mm' ? 576 : 384
@@ -933,11 +934,12 @@ ${!x.cancelled && (x.paid > 0 || x.owed > 0) ? `<div class="row" style="padding-
     summary.cancelled ? `ยกเลิก ${summary.cancelled}` : '',
   ].filter(Boolean).join(' · ')
 
-  const body = `${header}
+  const copy = (label: string) => `${header}
 <div class="hr"></div>
 <div class="c sec">
 <p class="b">${batchTitle(scope)}</p>
 <p class="gray">${e(batchDateLine(scope))}</p>
+${label ? `<p class="gray">${label}</p>` : ''}
 </div>
 <div class="hr"></div>
 <div class="sec">
@@ -960,6 +962,10 @@ ${summary.unpriced ? `<p class="gray">(ยังไม่ประเมิน�
 </div>
 <div class="hr"></div>
 <p class="c gray">กรุณานำใบนี้มาแสดงเมื่อรับเครื่อง</p>`
+
+  const body = opts.copyType === 'both'
+    ? `${copy('[ฉบับร้าน]')}\n<div class="cut">✂ ──── ตัดที่นี่ ──── ✂</div>\n${copy('[ฉบับลูกค้า]')}`
+    : copy(opts.copyType === 'shop' ? '[ฉบับร้าน]' : opts.copyType === 'customer' ? '[ฉบับลูกค้า]' : '')
 
   return `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
