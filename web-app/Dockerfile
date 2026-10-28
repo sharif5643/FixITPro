@@ -1,12 +1,14 @@
 # ── Stage 1: Install deps ─────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+# Node 22 (22.23.4+ fixes the Brotli flaw CVE-2026-111497; Node 20 gets no fix). Alpine 3.23 as before,
+# so the system packages installed below are unchanged.
+FROM node:22-alpine3.23 AS deps
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY package*.json ./
 RUN npm ci
 
 # ── Stage 2: Builder ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine3.23 AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -23,7 +25,7 @@ ENV NODE_OPTIONS=--max-old-space-size=2048
 RUN npm run build
 
 # ── Stage 3: Runner ───────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine3.23 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
