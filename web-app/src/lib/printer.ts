@@ -545,7 +545,8 @@ function makeReceiptThermalCss(px: number): string {
   .row  { display: flex; justify-content: space-between; gap: ${r(4)}px; }
   .row .v { white-space: nowrap; text-align: right; }
   .sig  { display: flex; justify-content: space-between; margin: ${r(10)}px 0 ${r(6)}px; }
-  .sig-box  { text-align: center; font-size: ${r(10)}px; }
+  .sig-box  { text-align: center; font-size: ${r(10)}px; width: 45%; overflow: hidden; }
+  .sig-box img, .sig-box .sig-line { margin-left: auto; margin-right: auto; }
   .sig-line { width: ${r(80)}px; border-bottom: 1px solid #333; margin-bottom: ${r(4)}px; height: ${r(28)}px; }
   .cut  { border-top: 2px dashed #000; margin: ${r(10)}px 0; text-align: center; font-size: ${r(10)}px; color: #333; letter-spacing: 2px; }
   .qr-t   { font-size: ${r(10)}px; font-weight: 700; }
@@ -589,7 +590,7 @@ export function buildRepairReceiptThermalHtml(
     deposit?: number | null
     branch?: { name: string } | null
     /** Signed on the screen by the customer; staffSignature: who took the job in */
-    signatures?: { kind: string; image: string; createdAt: string }[] | null
+    signatures?: { kind: string; image: string; signerName?: string | null; createdAt: string }[] | null
     staffSignature?: { name: string; image: string } | null
   },
   settings: {
@@ -650,6 +651,7 @@ export function buildRepairReceiptThermalHtml(
 
   // Signatures drawn on the screen sit on the signature line; none: an empty line to sign on paper
   const intakeSig   = repair.signatures?.find((x) => x.kind === 'INTAKE')
+  const customerSignName = intakeSig?.signerName || repair.customer?.name || ''
   const sigImg = (src?: string | null) => src && /^data:image\/png;base64,/.test(src)
     ? `<img src="${src}" alt="" style="width:${r(80)}px;height:${r(28)}px;object-fit:contain;border-bottom:1px solid #333;margin-bottom:${r(4)}px;display:block">`
     : '<div class="sig-line"></div>'
@@ -716,8 +718,8 @@ ${conditions.length > 0 ? `<div class="hr"></div>
 </div>
 <div class="hr"></div>
 <div class="sig">
-  <div class="sig-box">${sigImg(intakeSig?.image)}<p>ลายเซ็นลูกค้า</p></div>
-  <div class="sig-box">${sigImg(repair.staffSignature?.image)}<p>ลายเซ็นร้าน</p>${repair.staffSignature ? `<p class="gray">(${e(repair.staffSignature.name)})</p>` : ''}</div>
+  <div class="sig-box">${sigImg(intakeSig?.image)}<p>ลายเซ็นลูกค้า</p><p class="gray">${customerSignName ? `(${e(customerSignName)})` : '&nbsp;'}</p></div>
+  <div class="sig-box">${sigImg(repair.staffSignature?.image)}<p>ลายเซ็นร้าน</p><p class="gray">${repair.staffSignature ? `(${e(repair.staffSignature.name)})` : '&nbsp;'}</p></div>
 </div>
 ${makeQrBlock(isCustomer)}
 <div class="hr"></div>
