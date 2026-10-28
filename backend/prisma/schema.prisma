@@ -296,6 +296,8 @@ model Tenant {
   notes       String?
   /// Six-character code another shop types to connect as a repair partner (made on first use)
   partnerCode String?      @unique
+  /// Branches this shop may open, set by the Super Admin for this shop; empty = the plan's limit
+  maxBranches Int?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -470,6 +472,8 @@ model User {
   // Staff app lock: the 6-digit PIN (bcrypt) and wrong tries since the last right one
   appPinHash     String?
   appPinFailures Int     @default(0)
+  /// This person's own signature (PNG data URL), printed as the shop's signature on slips they take in
+  signatureImage String?
 
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id])

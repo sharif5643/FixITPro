@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   History, Settings, ChevronRight, Bell, KeyRound,
-  LogOut, Loader2, Wrench, Lock, Fingerprint
+  LogOut, Loader2, Wrench, Lock, Fingerprint, PenLine
 } from 'lucide-react'
+import { MySignatureSheet } from '@/components/repairs/my-signature'
 import { AppVersion } from '@/components/app/app-version'
 import { markOpenedFromApp } from '@/lib/app-shell'
 import { CHANGE_PIN_EVENT } from '@/components/app/app-lock-gate'
@@ -38,6 +39,7 @@ export default function StaffProfilePage() {
   // Shop settings live in the web's settings page (same permission as there)
   const MENU_ITEMS = [...BASE_MENU, ...(canSettings ? [{ icon: Settings, label: 'ตั้งค่าร้าน', href: '/settings' }] : [])]
   const [loggingOut, setLoggingOut] = useState(false)
+  const [signatureOpen, setSignatureOpen] = useState(false)
   // App lock (staff app): change the PIN, fingerprint / face on or off on this phone
   const [lockOn, setLockOn] = useState(false)
   const [bioReady, setBioReady] = useState(false)
@@ -115,6 +117,17 @@ export default function StaffProfilePage() {
             )
           })}
         </div>
+
+        {/* My signature: printed as the shop's signature on the slips I take in */}
+        <button onClick={() => setSignatureOpen(true)}
+          className="mt-4 flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left shadow-card active:bg-slate-50">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-yellow/15">
+            <PenLine className="h-4.5 w-4.5 text-brand-black" strokeWidth={1.8} />
+          </div>
+          <span className="flex-1 text-sm font-medium text-brand-black">ลายเซ็นของฉัน</span>
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+        </button>
+        {signatureOpen && <MySignatureSheet onClose={() => setSignatureOpen(false)} />}
 
         {lockOn && (
           <div className="mt-4 rounded-2xl bg-white shadow-card overflow-hidden">

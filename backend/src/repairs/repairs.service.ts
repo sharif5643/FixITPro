@@ -491,7 +491,23 @@ export class RepairsService {
       select:  { kind: true, image: true, signerName: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
-    return { ...repair, signatures, ...(await this.moneyReceivedBy(repair)) };
+    return { ...repair, signatures, staffSignature: await this.intakeStaffSignature(id), ...(await this.moneyReceivedBy(repair)) };
+  }
+
+  /** The signature of the person who took the job in (saved once in their profile): the shop's signature on the slip */
+  private async intakeStaffSignature(repairId: string): Promise<{ name: string; image: string } | null> {
+    try {
+      const created = await this.prisma.auditLog.findFirst({
+        where:   { entityId: repairId, action: 'REPAIR_CREATED' },
+        select:  { actorId: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!created?.actorId) return null;
+      const u = await this.prisma.user.findUnique({ where: { id: created.actorId }, select: { name: true, signatureImage: true } });
+      return u?.signatureImage ? { name: u.name, image: u.signatureImage } : null;
+    } catch {
+      return null;
+    }
   }
 
   /**

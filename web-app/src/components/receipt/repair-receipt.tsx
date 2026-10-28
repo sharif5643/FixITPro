@@ -154,8 +154,12 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
             <p>ลายเซ็นลูกค้า</p>
           </div>
           <div className="text-center">
-            <div className="w-20 border-b border-gray-400 mb-1" />
+            {repair.staffSignature
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={repair.staffSignature.image} alt="ลายเซ็นร้าน" className="w-20 h-9 object-contain border-b border-gray-400 mb-1" />
+              : <div className="w-20 border-b border-gray-400 mb-1" />}
             <p>ลายเซ็นร้าน</p>
+            {repair.staffSignature && <p className="text-[9px] text-gray-500">({repair.staffSignature.name})</p>}
           </div>
         </div>
         {approvalSig && (
@@ -337,9 +341,12 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
           <p className="text-xs text-gray-400 mt-0.5">{repair.customer?.name ?? ''}</p>
         </div>
         <div className="text-center">
-          <div className="h-16 border-b border-dashed border-gray-400 mb-2" />
+          {repair.staffSignature
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={repair.staffSignature.image} alt="ลายเซ็นร้าน" className="h-16 w-full object-contain border-b border-dashed border-gray-400 mb-2" />
+            : <div className="h-16 border-b border-dashed border-gray-400 mb-2" />}
           <p className="text-xs text-gray-600 font-semibold">ลายเซ็นร้าน</p>
-          <p className="text-xs text-gray-400 mt-0.5">{shopName}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{repair.staffSignature ? `${repair.staffSignature.name} · ${shopName}` : shopName}</p>
         </div>
       </div>
       {approvalSig && (

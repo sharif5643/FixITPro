@@ -102,3 +102,42 @@ export function RepairSignatures({
     </div>
   )
 }
+
+/** Saves the signature drawn in the intake form once the job exists (a failure only warns: the job is saved) */
+export async function saveIntakeSignature(repairId: string, png: string | null, signerName?: string | null) {
+  if (!png) return
+  try {
+    await api.post(`/repairs/${repairId}/signatures`, { kind: 'INTAKE', image: png, signerName: signerName?.trim() || undefined })
+  } catch (err) {
+    toast.error(`บันทึกงานแล้ว แต่ลายเซ็นไม่ถูกบันทึก — ให้ลูกค้าเซ็นใหม่ในหน้างานซ่อม (${apiErrorMessage(err)})`)
+  }
+}
+
+/**
+ * "ให้ลูกค้าเซ็นชื่อ" inside the intake form: tick it and the customer signs right there
+ * (iPad / phone / SUNMI), saved with the job.
+ */
+export function IntakeSignatureField({ value, onChange, dark }: {
+  value: string | null
+  onChange: (png: string | null) => void
+  dark?: boolean
+}) {
+  const [on, setOn] = useState(false)
+  return (
+    <div className={`space-y-2 rounded-xl border p-3 ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+      <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+        <input type="checkbox" checked={on} className="h-4 w-4"
+          onChange={(e) => { setOn(e.target.checked); if (!e.target.checked) onChange(null) }} />
+        <PenLine className="h-4 w-4" /> ให้ลูกค้าเซ็นชื่อรับทราบ
+      </label>
+      {on && (
+        <>
+          <p className="text-xs text-slate-500">ลูกค้ารับทราบสภาพเครื่อง อุปกรณ์ที่ฝาก และเงื่อนไขการซ่อม</p>
+          <SignaturePad onChange={onChange} height={160} />
+          {!value && <p className="text-xs text-amber-600">ยังไม่ได้เซ็น — เซ็นในกรอบก่อนบันทึกงาน</p>}
+        </>
+      )}
+    </div>
+  )
+}
+

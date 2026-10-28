@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Res, Req, UnauthorizedException, Query, Optional } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Body, UseGuards, Res, Req, UnauthorizedException, Query, Optional } from '@nestjs/common';
 import { PushService } from '../push/push.service';
 import { Request, Response } from 'express';
 import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
@@ -7,6 +7,7 @@ import { AuthThrottlerGuard } from '../common/guards/auth-throttler.guard';
 import { AuthService } from './auth.service';
 import { AppPinService } from './app-pin.service';
 import { SetAppPinDto, VerifyAppPinDto } from './dto/app-pin.dto';
+import { MySignatureDto } from './dto/my-signature.dto';
 import { RedisService } from '../redis/redis.service';
 import { LoginFailures } from './login-failures';
 import { LoginDto } from './dto/login.dto';
@@ -165,6 +166,26 @@ export class AuthController {
   @Post('change-password')
   changePassword(@CurrentUser('id') userId: string, @Body() dto: ChangePasswordDto, @Req() req: Request) {
     return this.authService.changePassword(userId, dto.currentPassword, dto.newPassword, (req as any).cookies?.[REFRESH_COOKIE]);
+  }
+
+  // ── My signature: saved once, printed as the shop's signature on slips I take in ──
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my-signature')
+  mySignature(@CurrentUser('id') userId: string) {
+    return this.authService.mySignature(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('my-signature')
+  saveMySignature(@CurrentUser('id') userId: string, @Body() dto: MySignatureDto) {
+    return this.authService.saveMySignature(userId, dto.image);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('my-signature')
+  removeMySignature(@CurrentUser('id') userId: string) {
+    return this.authService.saveMySignature(userId, null);
   }
 
   // ── Staff app lock (PIN; fingerprint / face unlock on the phone itself) ─────────

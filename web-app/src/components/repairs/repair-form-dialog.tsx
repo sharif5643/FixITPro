@@ -36,6 +36,7 @@ import { DraftRestoredBanner } from '@/components/repairs/draft-restored-banner'
 import { RepairPriceChips } from '@/components/repair-prices/repair-price-chips'
 import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
 import type { Customer, RepairStatus } from '@/types'
+import { IntakeSignatureField, saveIntakeSignature } from '@/components/repairs/repair-signatures'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -195,6 +196,8 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
   })
 
   // Receipt state after creation
+  // Signed in the form (iPad / phone): saved with the job
+  const [intakeSig, setIntakeSig] = useState<string | null>(null)
   const [createdRepair, setCreatedRepair] = useState<{
     id: string; ticketNumber: string; receivedAt?: string
     customer?: { id: string; name: string; phone?: string | null } | null
@@ -227,6 +230,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
     setCustomerSearch('')
     setSearchOpen(false)
     setCreatedRepair(null)
+    setIntakeSig(null)
     setDeviceType('')
     setAccessories([])
     setDeviceConditions([])
@@ -346,6 +350,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
         photos.forEach((f) => fd.append('files', f))
         await api.post(`/repairs/${repair.id}/images`, fd)
       }
+      await saveIntakeSignature(repair.id, intakeSig, selectedCustomer?.name ?? data.customerName)
       return repair
     },
     onSuccess: (repair) => {
@@ -953,6 +958,9 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                 </div>
               )}
             </div>
+
+            {/* ── ลูกค้าเซ็นชื่อ (signed right here, printed on the slip) ── */}
+            <IntakeSignatureField value={intakeSig} onChange={setIntakeSig} />
 
             <DialogFooter className="pt-1">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={createMutation.isPending} className="h-11">

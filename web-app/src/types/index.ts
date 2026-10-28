@@ -661,6 +661,8 @@ export interface Repair {
   additionalPayments?: RepairAdditionalPayment[]
   /** Signed on the screen by the customer (only on the single job, not in lists) */
   signatures?: RepairSignature[]
+  /** The signature of who took the job in (saved in their profile): the shop's signature on the slip */
+  staffSignature?: { name: string; image: string } | null
   paymentReversals?: RepairPaymentReversal[]
   receivedAt: string
   completedAt?: string

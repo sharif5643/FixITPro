@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useQuery } from '@tanstack/react-query'
-import { Menu, AlertTriangle, Sun, Moon, LogOut, KeyRound, ChevronDown } from 'lucide-react'
+import { Menu, AlertTriangle, Sun, Moon, LogOut, KeyRound, ChevronDown, PenLine } from 'lucide-react'
+import { MySignatureSheet } from '@/components/repairs/my-signature'
 import { useAuthStore } from '@/store/auth.store'
 import { useShopName } from '@/hooks/useShopName'
 import { NotificationBell } from '@/components/layout/notification-bell'
@@ -38,6 +39,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
   const { theme, setTheme } = useTheme()
   const { user, clearAuth } = useAuthStore()
   const shopName = useShopName()
+  const [signatureOpen, setSignatureOpen] = useState(false)
 
   useEffect(() => {
     document.title = `${shopName} - FixITPro`
@@ -133,6 +135,9 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
                 <KeyRound className="mr-2 h-4 w-4" />เปลี่ยนรหัสผ่าน
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSignatureOpen(true)} className="cursor-pointer">
+              <PenLine className="mr-2 h-4 w-4" />ลายเซ็นของฉัน
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               className="cursor-pointer"
@@ -152,6 +157,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {signatureOpen && <MySignatureSheet onClose={() => setSignatureOpen(false)} />}
     </header>
   )
 }

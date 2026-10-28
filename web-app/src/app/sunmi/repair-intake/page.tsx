@@ -30,6 +30,7 @@ import { offlineQueue } from '@/lib/offline-queue'
 import { useNetworkStatus } from '@/hooks/use-network-status'
 import { loadDraft, clearDraft, useDraftAutosave } from '@/lib/form-draft'
 import { DraftRestoredBanner } from '@/components/repairs/draft-restored-banner'
+import { IntakeSignatureField, saveIntakeSignature } from '@/components/repairs/repair-signatures'
 import { RepairPriceChips } from '@/components/repair-prices/repair-price-chips'
 import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
 import type { Customer, ShopSettings, User as UserType, Repair } from '@/types'
@@ -884,6 +885,7 @@ export default function RepairIntakePage() {
 
   // Jobs picked from the shop's price list: the job goes into the issue, its price into the estimate
   const [pricedJobs, setPricedJobs] = useState<RepairPrice[]>([])
+  const [intakeSig, setIntakeSig] = useState<string | null>(null)
   function pickPrice(p: RepairPrice) {
     const next = togglePricedJob(pricedJobs, p, watch('issue') ?? '', Number(watch('estimateCost')) || 0)
     setPricedJobs(next.picked)
@@ -981,6 +983,7 @@ export default function RepairIntakePage() {
         if (draftKey) clearDraft(draftKey)
         setRestored(false)
         setPhotos([])
+        setIntakeSig(null)
         reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [], issueTags: [] } as any)
         setStep(0)
         return
@@ -1000,6 +1003,7 @@ export default function RepairIntakePage() {
           toast.error('บันทึกรูปถ่ายไม่สำเร็จ — งานซ่อมถูกบันทึกแล้ว')
         }
       }
+      await saveIntakeSignature(repair.id, intakeSig, repair.customer?.name ?? variables.customerName)
 
       const dueDateFormatted = variables.dueDate
         ? format(new Date(variables.dueDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: th })
@@ -1036,6 +1040,7 @@ export default function RepairIntakePage() {
       setPricedJobs([])
       setRestored(false)
       setPhotos([])
+      setIntakeSig(null)
       reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [], issueTags: [] } as any)
       setStep(0)
       setPreview(opts)
@@ -1137,7 +1142,12 @@ export default function RepairIntakePage() {
             />
           )}
           {step === 4 && (
-            <StepConfirm watch={watch} technicians={technicians} photoCount={photos.length} />
+            <>
+              <StepConfirm watch={watch} technicians={technicians} photoCount={photos.length} />
+              {online
+                ? <div className="mt-3"><IntakeSignatureField value={intakeSig} onChange={setIntakeSig} /></div>
+                : <p className="mt-3 text-xs text-slate-500">ออฟไลน์อยู่ — ให้ลูกค้าเซ็นในหน้างานซ่อมหลังซิงค์แล้ว</p>}
+            </>
           )}
         </div>
       </SunmiShell>

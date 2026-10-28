@@ -76,6 +76,19 @@ export class TenantsController {
     return this.tenantsService.changePlan(id, body.plan);
   }
 
+  /** Branches open and how many this shop may open */
+  @Get(':id/branch-limit')
+  branchLimit(@Param('id') id: string) {
+    return this.tenantsService.branchUsage(id);
+  }
+
+  /** Set how many branches this shop may open (null: back to the plan's limit) */
+  @Patch(':id/branch-limit')
+  @HttpCode(HttpStatus.OK)
+  setBranchLimit(@Param('id') id: string, @Body() body: { maxBranches: number | null }) {
+    return this.tenantsService.setBranchLimit(id, body?.maxBranches ?? null);
+  }
+
   /** Whether a (trial) shop may be removed: only one with no sales and no repair jobs. */
   @Get(':id/delete-check')
   deleteCheck(@Param('id') id: string) {

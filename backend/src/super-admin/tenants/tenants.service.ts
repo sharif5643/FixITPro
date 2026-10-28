@@ -376,6 +376,30 @@ export class TenantsService {
     return updated;
   }
 
+  /**
+   * How many branches this shop may open, set for the shop; null goes back to the plan's limit.
+   * Lowering it below the branches already open is refused (nothing is closed for the shop).
+   */
+  async setBranchLimit(id: string, maxBranches: number | null) {
+    if (maxBranches != null && (!Number.isInteger(maxBranches) || maxBranches < 1 || maxBranches > 999)) {
+      throw new BadRequestException('จำนวนสาขาต้องเป็น 1–999 หรือเว้นว่างเพื่อใช้ค่าของแพ็กเกจ');
+    }
+    const tenant = await this.prisma.tenant.findUnique({ where: { id }, select: { id: true } });
+    if (!tenant) throw new NotFoundException('ไม่พบข้อมูลร้าน');
+    if (maxBranches != null) {
+      const open = await this.prisma.branch.count({ where: { tenantId: id, status: { notIn: ['SUSPENDED', 'REJECTED'] } } });
+      if (open > maxBranches) {
+        throw new BadRequestException(`ร้านนี้เปิดอยู่แล้ว ${open} สาขา — ตั้งน้อยกว่านี้ไม่ได้ (ให้ร้านปิดสาขาก่อน)`);
+      }
+    }
+    await this.prisma.tenant.update({ where: { id }, data: { maxBranches } });
+    return this.planLimits.branchUsage(id);
+  }
+
+  branchUsage(id: string) {
+    return this.planLimits.branchUsage(id);
+  }
+
   async stats() {
     const now = new Date();
     const sevenDaysLater = new Date(Date.now() + 7 * DAY_MS);

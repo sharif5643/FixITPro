@@ -22,6 +22,12 @@ export class BranchesController {
 
   // ── Branches ──────────────────────────────────────────────────────────────
 
+  /** Branches open and how many the shop may open (set per shop by FixITPro, or the plan's) */
+  @Get('usage')
+  usage(@CurrentUser('tenantId') tenantId: string) {
+    return this.svc.branchUsage(tenantId);
+  }
+
   @Get()
   findAll(
     @CurrentUser('tenantId') tenantId: string,
