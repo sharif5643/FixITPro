@@ -1,3 +1,4 @@
+import { cleanLabel } from '../products/products.service';
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -125,7 +126,7 @@ export interface PreviewResult {
 
 const PRODUCT_HEADERS = [
   'ชื่อสินค้า', 'SKU', 'บาร์โค้ด', 'ประเภท(PHONE/SIM/ACCESSORY/PART)',
-  'ราคาขาย', 'ต้นทุน', 'สต็อก', 'สต็อกขั้นต่ำ',
+  'ราคาขาย', 'ต้นทุน', 'สต็อก', 'สต็อกขั้นต่ำ', 'ยี่ห้อ', 'รุ่น',
 ];
 const CUSTOMER_HEADERS  = ['ชื่อ', 'เบอร์โทร', 'อีเมล', 'ที่อยู่', 'หมายเหตุ'];
 const CATEGORY_HEADERS  = ['ชื่อหมวดหมู่', 'slug (ไม่บังคับ — ใส่หรือเว้นว่างให้ระบบสร้างเอง)'];
@@ -140,7 +141,7 @@ const SUPPLIER_HEADERS  = ['ชื่อบริษัท/ร้าน', 'เ�
 const IMPORT_COLUMNS: Record<string, { headers: string[]; columns: string[][]; required: number[] }> = {
   products: {
     headers: PRODUCT_HEADERS,
-    columns: [['ชื่อสินค้า', 'ชื่อ', 'name', 'productname'], ['sku', 'รหัสสินค้า'], ['บาร์โค้ด', 'barcode'], ['ประเภท*', 'type'], ['ราคาขาย', 'ราคา', 'price'], ['ต้นทุน', 'ราคาทุน', 'cost', 'costprice'], ['สต็อก', 'จำนวน', 'stock', 'qty'], ['สต็อกขั้นต่ำ', 'minstock']],
+    columns: [['ชื่อสินค้า', 'ชื่อ', 'name', 'productname'], ['sku', 'รหัสสินค้า'], ['บาร์โค้ด', 'barcode'], ['ประเภท*', 'type'], ['ราคาขาย', 'ราคา', 'price'], ['ต้นทุน', 'ราคาทุน', 'cost', 'costprice'], ['สต็อก', 'จำนวน', 'stock', 'qty'], ['สต็อกขั้นต่ำ', 'minstock'], ['ยี่ห้อ', 'แบรนด์', 'brand'], ['รุ่น', 'model']],
     required: [0, 1],
   },
   customers: {
@@ -247,12 +248,12 @@ export class DataService {
     });
     // Cost goes in the file only for people who may see it on screen
     const withCost = canViewCost(actor);
-    const headers = ['ID', 'ชื่อสินค้า', 'SKU', 'บาร์โค้ด', 'ประเภท', 'ราคาขาย', ...(withCost ? ['ต้นทุน'] : []), 'สต็อก', 'สต็อกขั้นต่ำ', 'หมวดหมู่', 'รับประกัน (วัน)', 'สถานะ', 'วันที่เพิ่ม'];
+    const headers = ['ID', 'ชื่อสินค้า', 'SKU', 'บาร์โค้ด', 'ประเภท', 'ราคาขาย', ...(withCost ? ['ต้นทุน'] : []), 'สต็อก', 'สต็อกขั้นต่ำ', 'หมวดหมู่', 'ยี่ห้อ', 'รุ่น', 'รับประกัน (วัน)', 'สถานะ', 'วันที่เพิ่ม'];
     const content = buildCSV(
       headers,
       rows.map((r) => [
         r.id, r.name, r.sku, r.barcode ?? '', r.type, Number(r.price), ...(withCost ? [Number(r.costPrice)] : []),
-        r.stock, r.minStock, r.category?.name ?? '', r.warrantyDays ?? '', r.isActive ? 'ใช้งาน' : 'ปิดใช้งาน', r.createdAt.toISOString(),
+        r.stock, r.minStock, r.category?.name ?? '', r.brand ?? '', r.model ?? '', r.warrantyDays ?? '', r.isActive ? 'ใช้งาน' : 'ปิดใช้งาน', r.createdAt.toISOString(),
       ]),
     );
     return { filename: `products_${dateTag()}.csv`, content, rowCount: rows.length };
@@ -392,7 +393,7 @@ export class DataService {
 
   getTemplate(type: string): { filename: string; content: string } {
     if (type === 'products') {
-      const example = [['ไอโฟน 15', 'IP15-128', '', 'PHONE', '32900', '28000', '10', '2']];
+      const example = [['ไอโฟน 15', 'IP15-128', '', 'PHONE', '32900', '28000', '10', '2', 'Apple', 'iPhone 15']];
       return { filename: 'products_template.csv', content: buildCSV(PRODUCT_HEADERS, example) };
     }
     if (type === 'customers') {
@@ -585,7 +586,7 @@ export class DataService {
     for (let i = 0; i < preview.rows.length; i++) {
       const r = preview.rows[i];
       if (!this.sortRow(r, i, out)) continue;
-      const [name, sku, barcode, type, price, cost, stock, minStock] = r.data;
+      const [name, sku, barcode, type, price, cost, stock, minStock, brand, model] = r.data;
       const qty = stock ? Math.max(0, Math.floor(num(stock)) || 0) : 0;
       const min = minStock ? Math.max(0, Math.floor(num(minStock)) || 0) : 0;
       try {
@@ -600,6 +601,8 @@ export class DataService {
               costPrice: num(cost),
               stock:     qty,
               minStock:  min,
+              brand:     cleanLabel(brand),
+              model:     cleanLabel(model),
               ...this.tenantSvc.scope(tenantId),
             },
           });

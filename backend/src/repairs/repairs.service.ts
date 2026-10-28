@@ -485,7 +485,37 @@ export class RepairsService {
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
-    return { ...repair, ...(await this.moneyReceivedBy(repair)) };
+    // Signatures only on the job itself (not in lists): each is a small picture
+    const signatures = await this.prisma.repairSignature.findMany({
+      where:   { repairId: id },
+      select:  { kind: true, image: true, signerName: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    return { ...repair, signatures, ...(await this.moneyReceivedBy(repair)) };
+  }
+
+  /**
+   * The customer signs on the screen: INTAKE when the device is left with the shop (the
+   * conditions and the noted damage), APPROVAL when the price is agreed. Signing again replaces it.
+   */
+  async sign(repairId: string, dto: { kind: string; image: string; signerName?: string }, userId: string, tenantId?: string | null) {
+    const where: any = { id: repairId };
+    if (tenantId) where.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({ where, select: { id: true, status: true } });
+    if (!repair) throw new NotFoundException('Repair not found');
+    if (repair.status === 'CANCELLED') throw new BadRequestException('งานนี้ถูกยกเลิกแล้ว');
+    const signerName = dto.signerName?.trim() || null;
+    const saved = await this.prisma.repairSignature.upsert({
+      where:  { repairId_kind: { repairId, kind: dto.kind } },
+      create: { repairId, kind: dto.kind, image: dto.image, signerName, createdById: userId },
+      update: { image: dto.image, signerName, createdById: userId, createdAt: new Date() },
+      select: { kind: true, signerName: true, createdAt: true },
+    });
+    await this.auditLog.log({
+      actorId: userId, action: 'REPAIR_SIGNED', entityType: 'Repair', entityId: repairId,
+      afterData: { kind: dto.kind, signerName },
+    });
+    return saved;
   }
 
   /**

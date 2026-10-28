@@ -29,6 +29,7 @@ import { Platform } from '@/lib/platform'
 import { getAssetUrl } from '@/lib/utils'
 import type { PrintRepairIntakeOptions } from '@/lib/printer'
 import { RepairReceiptPrintFlow } from '@/components/sunmi/repair-receipt-print'
+import { RepairSignatures } from '@/components/repairs/repair-signatures'
 import { RepairDeliveryPrintFlow } from '@/components/sunmi/repair-delivery-print'
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
 import { useAuthStore } from '@/store/auth.store'
@@ -787,6 +788,14 @@ export default function RepairDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* The customer signs on the screen: printed on the repair slip */}
+            <div className="rounded-2xl bg-white p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+              <p className="mb-2 text-sm font-bold text-[#111]">ลายเซ็นลูกค้า</p>
+              <RepairSignatures repairId={id} signatures={repair.signatures} customerName={repair.customer?.name}
+                disabled={repair.status === 'CANCELLED'}
+                onSaved={() => queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })} />
+            </div>
 
             {/* A dealer's other devices — one slip with each one's status, price and balance */}
             <RepairBatchButton customer={repair.customer} date={localDay(repair.receivedAt)} />

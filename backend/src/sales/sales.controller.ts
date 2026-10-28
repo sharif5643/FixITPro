@@ -76,6 +76,17 @@ export class SalesController {
     return this.salesService.findOne(id, tenantId);
   }
 
+  /** The receipt's link to the customer's LINE (customers who linked LINE with the shop) */
+  @Post(':id/send-line')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('sales.create', 'sales.refund')
+  sendLine(
+    @Param('id') id: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.salesService.sendReceiptToLine(id, tenantId);
+  }
+
   /** Fix how a bill was paid (cash ↔ transfer / card) while its shift is still open */
   @Post(':id/payment-method')
   @UseGuards(PermissionGuard)

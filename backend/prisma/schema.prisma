@@ -623,6 +623,9 @@ model Product {
   price        Decimal      @db.Decimal(10, 2)
   costPrice    Decimal      @db.Decimal(10, 2)
   stock        Int          @default(0)
+  // Brand and model (e.g. Apple / iPhone 15) — to group, search and filter products
+  brand        String?
+  model        String?
   minStock     Int          @default(0)
   description  String?
   imageUrl     String?
@@ -649,6 +652,7 @@ model Product {
   stockTransfers     StockTransfer[]
 
   @@unique([tenantId, sku])
+  @@index([tenantId, brand])
   @@index([tenantId])
 }
 
@@ -947,6 +951,7 @@ model Repair {
   parts              RepairPart[]
   images             RepairImage[]
   additionalPayments RepairAdditionalPayment[]
+  signatures         RepairSignature[]
   paymentReversals   RepairPaymentReversal[]
   claims             Claim[]
   warranties         Warranty[]
@@ -2298,4 +2303,19 @@ model PlatformSecret {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+/// The customer's signature on the screen: when the device is taken in (agrees to the conditions)
+/// and when the price is approved. Printed on the repair slip; signing again replaces it.
+model RepairSignature {
+  id          String   @id @default(cuid())
+  repairId    String
+  repair      Repair   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  kind        String // INTAKE | APPROVAL
+  image       String // PNG data URL
+  signerName  String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@unique([repairId, kind])
 }

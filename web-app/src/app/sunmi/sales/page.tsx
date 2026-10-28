@@ -576,6 +576,8 @@ export default function SunmiSalesPage() {
   const [lastReceipt, setLastReceipt]       = useState<PrintReceiptOptions | null>(null)
   // The sale itself: the printed slip is built from it, line for line the web's receipt
   const [lastSale, setLastSale]             = useState<Sale | null>(null)
+  // QR of the online receipt, printed at the bottom of the slip
+  const [lastSaleQr, setLastSaleQr]         = useState<string | undefined>(undefined)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Totals
@@ -747,8 +749,17 @@ export default function SunmiSalesPage() {
       try { await openCashDrawer() } catch { /* non-critical */ }
     }
 
+    let qr: string | undefined
+    if (sale.receiptPath) {
+      try {
+        const QRCode = await import('qrcode')
+        qr = await QRCode.default.toString(`${window.location.origin}${sale.receiptPath}`, { type: 'svg', width: 160, margin: 1 })
+      } catch { /* printed without the QR */ }
+    }
+
     setLastReceipt(opts)
     setLastSale(sale)
+    setLastSaleQr(qr)
     setReceiptPreview(opts)
   }
 
@@ -1060,7 +1071,7 @@ export default function SunmiSalesPage() {
       {receiptPreview && (
         <PrinterFlowSheet
           receiptHtml={lastSale && lastSale.receiptNumber === receiptPreview.receiptNumber
-            ? buildSaleReceiptThermalHtml(lastSale as any, settings, { paperWidth: receiptPreview.paperWidth, cashierName: receiptPreview.cashierName })
+            ? buildSaleReceiptThermalHtml(lastSale as any, settings, { paperWidth: receiptPreview.paperWidth, cashierName: receiptPreview.cashierName, qrSvg: lastSaleQr })
             : buildReceiptHtml(receiptPreview)}
           jobName={`ใบเสร็จ #${receiptPreview.receiptNumber}`}
           previewData={buildReceiptPreviewData(receiptPreview)}

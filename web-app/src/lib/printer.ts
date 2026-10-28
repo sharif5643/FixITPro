@@ -768,7 +768,8 @@ export function buildSaleReceiptThermalHtml(
     logoUrl?: string | null
     receiptFooter?: string | null
   } | null | undefined,
-  opts: { paperWidth?: '58mm' | '80mm'; cashierName?: string } = {},
+  /** qrSvg: QR of the online receipt (see receiptQrSvg) */
+  opts: { paperWidth?: '58mm' | '80mm'; cashierName?: string; qrSvg?: string } = {},
 ): string {
   const e   = escHtml
   const px  = opts.paperWidth === '80mm' ? 576 : 384
@@ -836,6 +837,8 @@ ${rf.items.map((i) => `<div class="row" style="padding-left:${r(8)}px"><span>${e
 <div class="row b"><span>ยอดหลังคืนสินค้า</span><span class="v">${money(after.netAfterRefunds)}</span></div>` : ''}
 ${sale.note ? `<div class="hr"></div><p class="gray">หมายเหตุ: ${e(sale.note)}</p>` : ''}
 <div class="hr"></div>
+${opts.qrSvg ? `<div class="c sec"><p class="b">สแกนดูใบเสร็จออนไลน์</p><div class="c qr-svg" style="margin:${r(4)}px 0">${opts.qrSvg}</div></div>
+<div class="hr"></div>` : ''}
 ${footer}`
 
   return `<!DOCTYPE html><html lang="th"><head>

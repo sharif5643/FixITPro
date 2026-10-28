@@ -29,6 +29,7 @@ import { AddRepairPartDto } from './dto/add-repair-part.dto';
 import { RepairPaymentDto } from './dto/repair-payment.dto';
 import { ReversePaymentDto } from './dto/reverse-payment.dto';
 import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
+import { RepairSignatureDto } from './dto/repair-signature.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
 import { QuickRepairDto } from './dto/quick-repair.dto';
@@ -222,6 +223,19 @@ export class RepairsController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.repairsService.findOne(id, tenantId);
+  }
+
+  /** The customer signs on the screen (taking in the device, or agreeing the price) */
+  @Post(':id/signatures')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.create', 'repair.edit', 'repair.close')
+  sign(
+    @Param('id') id: string,
+    @Body() dto: RepairSignatureDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.sign(id, dto, userId, tenantId);
   }
 
   @Patch(':id')

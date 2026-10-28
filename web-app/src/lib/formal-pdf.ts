@@ -5,12 +5,15 @@ import { Platform } from '@/lib/platform'
  * A4 PDF from the rendered document pages. Each page element is drawn to an image (Thai text
  * renders exactly as on screen) and long pages are cut into A4 sheets.
  */
-export async function renderPagesToPdf(pages: HTMLElement[]): Promise<Blob> {
+export async function renderPagesToPdf(pages: HTMLElement[], opts: { skip?: (el: Element) => boolean } = {}): Promise<Blob> {
   const [{ jsPDF }, { default: html2canvas }] = await Promise.all([import('jspdf'), import('html2canvas-pro')])
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
   let first = true
   for (const el of pages) {
-    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false })
+    const canvas = await html2canvas(el, {
+      scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false,
+      ...(opts.skip ? { ignoreElements: opts.skip } : {}),
+    })
     const sheetPx = Math.ceil(canvas.width * 297 / 210)
     // a few pixels over one sheet (rounding, borders) stays on that sheet
     const sheets = Math.max(1, Math.ceil((canvas.height - 16) / sheetPx))
@@ -37,7 +40,7 @@ function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
-/** Web: download the file. App: save it and open the share sheet (LINE, e-mail, Drive, files). */
+/** Web: download the file (phones: share sheet). App: save it and open the share sheet (LINE, e-mail, Drive, files). */
 export async function savePdf(blob: Blob, filename: string): Promise<void> {
   if (Platform.isNative()) {
     if (!Capacitor.isPluginAvailable('Filesystem') || !Capacitor.isPluginAvailable('Share')) {
@@ -47,6 +50,13 @@ export async function savePdf(blob: Blob, filename: string): Promise<void> {
     const saved = await Filesystem.writeFile({ path: filename, data: await blobToBase64(blob), directory: Directory.Cache })
     await Share.share({ title: filename, url: saved.uri, dialogTitle: 'บันทึก / ส่งต่อ PDF' })
     return
+  }
+  // Phone browsers: the share sheet (LINE, e-mail…) when it takes files
+  const file = new File([blob], filename, { type: 'application/pdf' })
+  if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] }) && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    try { await navigator.share({ files: [file], title: filename }); return } catch (e) {
+      if ((e as Error)?.name === 'AbortError') return
+    }
   }
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

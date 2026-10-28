@@ -506,6 +506,12 @@ export class TenantBackupService {
       repairPaymentReversals,
     );
 
+    // RepairSignatures (customer signed on screen)
+    const repairSignatures = repairIds.length
+      ? await this.prisma.repairSignature.findMany({ where: { repairId: { in: repairIds } } })
+      : [];
+    counts.repairSignatures = await write('repair_signatures.json', repairSignatures);
+
     // RepairQcs
     const repairQcs = repairIds.length
       ? await this.prisma.repairQc.findMany({ where: { repairId: { in: repairIds } } })

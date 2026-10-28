@@ -50,6 +50,7 @@ export class ProductsController {
       search?: string;
       type?: string;
       categoryId?: string;
+      brand?: string;
       lowStock?: string;
       branchId?: string;
     },
@@ -63,6 +64,11 @@ export class ProductsController {
         : (query.branchId ?? undefined);
 
     return this.productsService.findAll({ ...query, branchId: effectiveBranchId, role, tenantId });
+  }
+
+  @Get('brands')
+  brands(@CurrentUser('tenantId') tenantId: string) {
+    return this.productsService.brands(tenantId);
   }
 
   @Get('generate-sku')
