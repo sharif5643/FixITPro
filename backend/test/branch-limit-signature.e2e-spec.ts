@@ -12,6 +12,7 @@ import { CREDS, IDS, seedTestData, testPrisma } from './helpers/seed.helper';
 
 // A tiny real PNG (1×1 white pixel)
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
+const PNG2 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 describe('Branch limit per shop + staff signature (e2e)', () => {
   let app: INestApplication;
@@ -95,23 +96,30 @@ describe('Branch limit per shop + staff signature (e2e)', () => {
     expect((await authGet(app, '/api/v1/auth/my-signature', ownerB).expect(200)).body).toEqual({ image: null });
   });
 
-  it('SIG-02: the job shows the signature of whoever took it in', async () => {
+  it('SIG-02: the slip keeps the signature of whoever took the job in, as it was then', async () => {
     const repair = (await authPost(app, '/api/v1/repairs', ownerA, {
       deviceBrand: 'Oppo', deviceModel: `Reno ${run}`, issue: 'แบตเสื่อม', branchId: IDS.branchA1,
     }).expect(201)).body;
-
-    // The intake audit row is written right after the job: wait for it
-    let job: any;
-    for (let i = 0; i < 20; i++) {
-      job = (await authGet(app, `/api/v1/repairs/${repair.id}`, ownerA).expect(200)).body;
-      if (job.staffSignature) break;
-      await new Promise((r) => setTimeout(r, 100));
-    }
+    let job = (await authGet(app, `/api/v1/repairs/${repair.id}`, ownerA).expect(200)).body;
     expect(job.staffSignature).toEqual({ name: expect.any(String), image: PNG });
+    expect(job.signatures).toEqual([]); // the shop's signature is not a customer signature
 
-    // Removed: the slip goes back to a blank line
+    // Signing again later, or removing it, does not change the job already taken in
+    const put = (body: object) => request(app.getHttpServer()).put('/api/v1/auth/my-signature').set('Cookie', ownerA).send(body);
+    await put({ image: PNG2 }).expect(200);
+    job = (await authGet(app, `/api/v1/repairs/${repair.id}`, ownerA).expect(200)).body;
+    expect(job.staffSignature.image).toBe(PNG);
     await request(app.getHttpServer()).delete('/api/v1/auth/my-signature').set('Cookie', ownerA).expect(200);
     job = (await authGet(app, `/api/v1/repairs/${repair.id}`, ownerA).expect(200)).body;
-    expect(job.staffSignature).toBeNull();
+    expect(job.staffSignature.image).toBe(PNG);
+
+    // Only the customer's signature can be sent; the shop's cannot be faked through the API
+    await authPost(app, `/api/v1/repairs/${repair.id}/signatures`, ownerA, { kind: 'STAFF', image: PNG2 }).expect(400);
+
+    // Taken in with no signature saved: a blank line to sign on paper
+    const bare = (await authPost(app, '/api/v1/repairs', ownerA, {
+      deviceBrand: 'Vivo', deviceModel: `Y ${run}`, issue: 'จอเสีย', branchId: IDS.branchA1,
+    }).expect(201)).body;
+    expect((await authGet(app, `/api/v1/repairs/${bare.id}`, ownerA).expect(200)).body.staffSignature).toBeNull();
   });
 });

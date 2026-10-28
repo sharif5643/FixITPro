@@ -60,6 +60,9 @@ const REPAIR_STATUS_TH: Record<string, string> = {
   READY_PICKUP: 'พร้อมรับเครื่อง', DELIVERED: 'ส่งคืนแล้ว', CANCELLED: 'ยกเลิก',
 };
 
+/** The shop's signature kept with a job (the staff member who took it in); never signed through the API */
+const STAFF_SIGNATURE = 'STAFF';
+
 @Injectable()
 export class RepairsService {
   private readonly logger = new Logger(RepairsService.name);
@@ -370,6 +373,8 @@ export class RepairsService {
       );
     }
 
+    await this.keepStaffSignature(repair.id, actorId);
+
     await this.auditLog.log({
       actorId, actorName,
       action: 'REPAIR_CREATED',
@@ -486,15 +491,36 @@ export class RepairsService {
 
     if (!repair) throw new NotFoundException('Repair not found');
     // Signatures only on the job itself (not in lists): each is a small picture
-    const signatures = await this.prisma.repairSignature.findMany({
+    const all = await this.prisma.repairSignature.findMany({
       where:   { repairId: id },
       select:  { kind: true, image: true, signerName: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
-    return { ...repair, signatures, staffSignature: await this.intakeStaffSignature(id), ...(await this.moneyReceivedBy(repair)) };
+    const signatures = all.filter((x) => x.kind !== STAFF_SIGNATURE);
+    const kept = all.find((x) => x.kind === STAFF_SIGNATURE);
+    const staffSignature = kept ? { name: kept.signerName ?? '', image: kept.image } : await this.intakeStaffSignature(id);
+    return { ...repair, signatures, staffSignature, ...(await this.moneyReceivedBy(repair)) };
   }
 
-  /** The signature of the person who took the job in (saved once in their profile): the shop's signature on the slip */
+  /**
+   * The shop's signature on the slip is the signature of the person who took the job in, kept
+   * with the job when it is taken in: the slip stays the same when they sign again later, and it
+   * travels with the shop backup. Without a signature saved yet, nothing is kept.
+   */
+  private async keepStaffSignature(repairId: string, actorId?: string | null) {
+    if (!actorId) return;
+    try {
+      const u = await this.prisma.user.findUnique({ where: { id: actorId }, select: { name: true, signatureImage: true } });
+      if (!u?.signatureImage) return;
+      await this.prisma.repairSignature.create({
+        data: { repairId, kind: STAFF_SIGNATURE, image: u.signatureImage, signerName: u.name, createdById: actorId },
+      });
+    } catch {
+      // The job is saved either way; the slip then falls back to the person's current signature
+    }
+  }
+
+  /** Jobs taken in before signatures were kept with the job: the current signature of whoever took it in */
   private async intakeStaffSignature(repairId: string): Promise<{ name: string; image: string } | null> {
     try {
       const created = await this.prisma.auditLog.findFirst({
