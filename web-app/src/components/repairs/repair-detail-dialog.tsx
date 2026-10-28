@@ -479,7 +479,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
 
   const handlePayment = (allowPartial = false) => {
     const amount = Number(payAmount)
-    if (!amount || amount < 0) {
+    // A deposit that covers the whole price leaves nothing to take: handing over with 0 is fine
+    if (!(amount >= 0) || (amount === 0 && repairBalance > 0 && !allowPartial)) {
       toast.error('กรุณาระบุจำนวนเงิน')
       return
     }

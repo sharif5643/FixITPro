@@ -13,8 +13,9 @@ interface TopSellingWidgetProps {
 }
 
 export function TopSellingWidget({ branchId, days = 30 }: TopSellingWidgetProps) {
-  const endDate   = new Date().toISOString().slice(0, 10)
-  const startDate = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10)
+  // The shop's day (Thai time), not UTC
+  const endDate   = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10)
+  const startDate = new Date(Date.now() + 7 * 3_600_000 - days * 86_400_000).toISOString().slice(0, 10)
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-overview', 'top-selling', startDate, endDate, branchId],
