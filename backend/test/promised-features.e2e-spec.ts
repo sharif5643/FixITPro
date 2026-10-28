@@ -118,4 +118,24 @@ describe('Promised features (e2e)', () => {
     const line = await authPost(app, `/api/v1/sales/${sale.id}/send-line`, owner, {}).expect(400);
     expect(line.body.message).toContain('LINE');
   });
+
+  it('PF-04: the website shows the plans as sold: names, prices and branch limits from the system', async () => {
+    const before = await prisma.package.findUnique({ where: { key: 'LITE' }, select: { price: true } });
+    await prisma.package.update({ where: { key: 'LITE' }, data: { price: 990 } });
+    try {
+      const res = await request(app.getHttpServer()).get('/api/v1/public/plans').expect(200);
+      const keys = res.body.plans.map((p: any) => p.key);
+      expect(keys).toEqual(expect.arrayContaining(['LITE', 'BUSINESS']));
+      expect(keys).not.toContain('TRIAL');
+      const lite = res.body.plans.find((p: any) => p.key === 'LITE');
+      expect(lite).toMatchObject({ monthlyPrice: 990, branches: 1, custom: false });
+      expect(res.body.plans.find((p: any) => p.key === 'BUSINESS').branches).toBe(3);
+      const priv = res.body.plans.find((p: any) => p.key === 'PRIVATE');
+      if (priv) expect(priv).toMatchObject({ custom: true, monthlyPrice: null, branches: null });
+      expect(res.body.trial).toMatchObject({ days: 14, branches: 1 });
+      expect(res.body.terms).toEqual(expect.arrayContaining([{ months: 12, discountPct: 20 }]));
+    } finally {
+      await prisma.package.update({ where: { key: 'LITE' }, data: { price: before?.price ?? null } });
+    }
+  });
 });

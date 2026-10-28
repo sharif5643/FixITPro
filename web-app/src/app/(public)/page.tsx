@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { PricingPlans } from '@/components/public/pricing-plans'
 import {
   Wrench, ShoppingCart, Package, Users, BarChart2, Building2,
   Bell, CheckCircle, ArrowRight, Star, Zap, Shield, Clock,
@@ -315,30 +316,6 @@ function Workflow() {
 // ── Pricing preview ───────────────────────────────────────────────────────────
 
 function PricingPreview() {
-  const plans = [
-    {
-      name: 'Starter',
-      price: '990',
-      desc: 'เหมาะสำหรับร้านขนาดเล็ก 1 สาขา',
-      features: ['1 สาขา', 'POS + ซ่อม + สต็อก', 'รายงานพื้นฐาน', 'Support ทางอีเมล'],
-      highlight: false,
-    },
-    {
-      name: 'Business',
-      price: '1,990',
-      desc: 'ยอดนิยม สำหรับร้านที่กำลังเติบโต',
-      features: ['3 สาขา', 'ทุกฟีเจอร์ใน Starter', 'รายงานเชิงลึก', 'แจ้งเตือนอัตโนมัติ', 'Support ทาง LINE'],
-      highlight: true,
-    },
-    {
-      name: 'Enterprise',
-      price: '3,990',
-      desc: 'สำหรับธุรกิจหลายสาขา',
-      features: ['ไม่จำกัดสาขา', 'ทุกฟีเจอร์ใน Business', 'เปรียบเทียบสาขา', 'Dedicated Support'],
-      highlight: false,
-    },
-  ]
-
   return (
     <section className="py-20 lg:py-28 bg-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -346,53 +323,11 @@ function PricingPreview() {
           <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">
             ราคาโปร่งใส ไม่มีค่าใช้จ่ายซ่อน
           </h2>
-          <p className="text-lg text-slate-500">ทดลองใช้ฟรี 14 วัน ทุกแพ็กเกจ</p>
+          <p className="text-lg text-slate-500">ทดลองใช้ฟรี 14 วัน ไม่ต้องใช้บัตรเครดิต</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-          {plans.map(plan => (
-            <div
-              key={plan.name}
-              className={`rounded-2xl p-6 ${
-                plan.highlight
-                  ? 'bg-gradient-to-br from-blue-600 to-purple-700 text-white shadow-2xl shadow-blue-500/30 scale-105'
-                  : 'border border-slate-200 bg-white'
-              }`}
-            >
-              {plan.highlight && (
-                <div className="inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-xs font-medium mb-4">
-                  <Star className="h-3 w-3" /> ยอดนิยม
-                </div>
-              )}
-              <h3 className={`text-lg font-bold mb-1 ${plan.highlight ? 'text-white' : 'text-slate-900'}`}>
-                {plan.name}
-              </h3>
-              <p className={`text-sm mb-4 ${plan.highlight ? 'text-blue-100' : 'text-slate-500'}`}>{plan.desc}</p>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className={`text-3xl font-bold ${plan.highlight ? 'text-white' : 'text-slate-900'}`}>฿{plan.price}</span>
-                <span className={`text-sm ${plan.highlight ? 'text-blue-200' : 'text-slate-400'}`}>/เดือน</span>
-              </div>
-              <ul className="space-y-2.5 mb-8">
-                {plan.features.map(f => (
-                  <li key={f} className={`flex items-center gap-2 text-sm ${plan.highlight ? 'text-blue-100' : 'text-slate-600'}`}>
-                    <CheckCircle className={`h-4 w-4 shrink-0 ${plan.highlight ? 'text-blue-300' : 'text-emerald-500'}`} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/register"
-                className={`block text-center py-2.5 rounded-xl font-semibold text-sm transition-all ${
-                  plan.highlight
-                    ? 'bg-white text-blue-700 hover:bg-blue-50'
-                    : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                เริ่มทดลองฟรี
-              </Link>
-            </div>
-          ))}
-        </div>
+        {/* The same plans and prices as the system sells (Super Admin → แพ็กเกจ) */}
+        <PricingPlans />
 
         <div className="text-center mt-10">
           <Link href="/pricing" className="inline-flex items-center gap-2 text-blue-600 font-semibold hover:gap-3 transition-all">
