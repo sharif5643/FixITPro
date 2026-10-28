@@ -958,6 +958,7 @@ ${summary.unpriced ? `<p class="gray">(ยังไม่ประเมิน�
 <div class="sig-box"><div class="sig-line"></div>ผู้ส่งเครื่อง</div>
 <div class="sig-box"><div class="sig-line"></div>ผู้รับเครื่อง</div>
 </div>
+<div class="hr"></div>
 <p class="c gray">กรุณานำใบนี้มาแสดงเมื่อรับเครื่อง</p>`
 
   return `<!DOCTYPE html><html lang="th"><head>
