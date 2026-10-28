@@ -122,4 +122,33 @@ describe('Branch limit per shop + staff signature (e2e)', () => {
     }).expect(201)).body;
     expect((await authGet(app, `/api/v1/repairs/${bare.id}`, ownerA).expect(200)).body.staffSignature).toBeNull();
   });
+
+  it('BS-01: the combined slip — signatures of its jobs, and the customer signs once for all', async () => {
+    const put = (body: object) => request(app.getHttpServer()).put('/api/v1/auth/my-signature').set('Cookie', ownerA).send(body);
+    await put({ image: PNG2 }).expect(200);
+    const mk = (model: string, extra: object = {}) => authPost(app, '/api/v1/repairs', ownerA, {
+      deviceBrand: 'Apple', deviceModel: `${model} ${run}`, issue: 'จอแตก', branchId: IDS.branchA1, ...extra,
+    }).expect(201).then((r) => r.body);
+    const a = await mk('XR', { customerName: `ร้านตัวแทน ${run}`, customerPhone: '0899990000' });
+    const b = await mk('11', { customerId: a.customer.id });
+    const ids = `${a.id},${b.id}`;
+
+    let rows = (await authGet(app, `/api/v1/repairs/batch-signatures?ids=${ids}`, ownerA).expect(200)).body;
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r: any) => r.intake === null && r.staff?.image === PNG2)).toBe(true);
+
+    // Another shop: sees nothing, signs nothing
+    expect((await authGet(app, `/api/v1/repairs/batch-signatures?ids=${ids}`, ownerB).expect(200)).body).toEqual([]);
+    await authPost(app, '/api/v1/repairs/batch-signatures', ownerB, { ids: [a.id, b.id], image: PNG }).expect(404);
+    await authPost(app, '/api/v1/repairs/batch-signatures', ownerA, { ids: [a.id], image: 'data:text/html;base64,PHNjcmlwdD4=' }).expect(400);
+    await authPost(app, '/api/v1/repairs/batch-signatures', ownerA, { ids: [], image: PNG }).expect(400);
+
+    const signed = (await authPost(app, '/api/v1/repairs/batch-signatures', ownerA, { ids: [a.id, b.id], image: PNG, signerName: 'คุณวิชัย' }).expect(201)).body;
+    expect(signed).toEqual({ signed: 2 });
+    rows = (await authGet(app, `/api/v1/repairs/batch-signatures?ids=${ids}`, ownerA).expect(200)).body;
+    expect(rows.every((r: any) => r.intake?.image === PNG && r.intake.signerName === 'คุณวิชัย')).toBe(true);
+    // Each job's own slip carries it too
+    expect((await authGet(app, `/api/v1/repairs/${b.id}`, ownerA).expect(200)).body.signatures[0]).toMatchObject({ kind: 'INTAKE', image: PNG });
+    await request(app.getHttpServer()).delete('/api/v1/auth/my-signature').set('Cookie', ownerA).expect(200);
+  });
 });
