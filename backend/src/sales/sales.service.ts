@@ -4,7 +4,10 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { receiptPath, receiptTokenOk } from './receipt-link';
+import { LineMessagingService } from '../line-messaging/line-messaging.service';
 import { activeShiftWhere } from '../shifts/active-shift';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -24,6 +27,7 @@ export class SalesService {
     private notif: NotificationsService,
     private accounting: AccountingService,
     private salesAccounting?: SalesAccountingAdapter,
+    @Optional() private lineMsg?: LineMessagingService,
   ) {}
 
   private async syncProductShadowStock(productId: string, tx: any): Promise<void> {
@@ -495,6 +499,7 @@ export class SalesService {
       : [];
     return {
       ...sale,
+      receiptPath: receiptPath(sale.id),
       items: sale.items.map((i) => ({
         ...i,
         serialNumbers: sold.filter((x) => x.saleItemId === i.id).map(({ serial, warrantyExpiresAt }) => ({ serial, warrantyExpiresAt })),
@@ -578,7 +583,49 @@ export class SalesService {
     });
 
     if (!sale) throw new NotFoundException('Sale not found');
-    return sale;
+    // The online copy of the receipt: QR on the printout, link sent to the customer's LINE
+    return { ...sale, receiptPath: receiptPath(sale.id) };
+  }
+
+  /** The receipt as the customer sees it online: no costs, no staff, no customer phone. */
+  async publicReceipt(saleId: string, token: string) {
+    if (!receiptTokenOk(saleId, token)) throw new NotFoundException('ไม่พบใบเสร็จ');
+    const sale = await this.prisma.sale.findUnique({
+      where:  { id: saleId },
+      select: {
+        receiptNumber: true, status: true, subtotal: true, discount: true, total: true,
+        paymentMethod: true, amountPaid: true, change: true, createdAt: true,
+        customer: { select: { name: true } },
+        branch:   { select: { name: true, tenantId: true } },
+        items:    { select: { quantity: true, price: true, discount: true, product: { select: { name: true } },
+                    serialNumbers: { select: { serial: true, warrantyExpiresAt: true } } } },
+        payments: { select: { paymentMethod: true, amount: true }, orderBy: { sortOrder: 'asc' } },
+      },
+    });
+    if (!sale) throw new NotFoundException('ไม่พบใบเสร็จ');
+    const shop = sale.branch?.tenantId
+      ? await this.prisma.shopSettings.findFirst({
+          where:  { tenantId: sale.branch.tenantId },
+          select: { shopName: true, shopPhone: true, shopAddress: true, receiptFooter: true, logoUrl: true },
+        })
+      : null;
+    const { branch, ...rest } = sale;
+    return { ...rest, branchName: branch?.name ?? null, shop };
+  }
+
+  /**
+   * Sends the receipt link to the customer's LINE: only a customer who linked LINE with the shop
+   * (shop LINE notifications on). Otherwise the QR on the printed receipt does the same.
+   */
+  async sendReceiptToLine(saleId: string, tenantId?: string | null) {
+    const sale = await this.findOne(saleId, tenantId);
+    const lineUserId = (sale.customer as any)?.lineUserId as string | null | undefined;
+    if (!lineUserId) throw new BadRequestException('ลูกค้ายังไม่ได้เชื่อม LINE กับร้าน — ให้ลูกค้าสแกน QR บนใบเสร็จแทน');
+    const ok = !!this.lineMsg && await this.lineMsg.sendReceiptLink(lineUserId, tenantId ?? null, {
+      receiptNumber: sale.receiptNumber, total: Number(sale.total), path: receiptPath(sale.id),
+    });
+    if (!ok) throw new BadRequestException('ส่งเข้า LINE ไม่สำเร็จ — ตรวจการตั้งค่า LINE ของร้าน');
+    return { sent: true };
   }
 
   private generateRefundNumber(): string {

@@ -271,6 +271,16 @@ export class AuthService {
     return { message: 'เปลี่ยนรหัสผ่านสำเร็จ' };
   }
 
+  async mySignature(userId: string) {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { signatureImage: true } });
+    return { image: u?.signatureImage ?? null };
+  }
+
+  async saveMySignature(userId: string, image: string | null) {
+    await this.prisma.user.update({ where: { id: userId }, data: { signatureImage: image } });
+    return { image };
+  }
+
   async getProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

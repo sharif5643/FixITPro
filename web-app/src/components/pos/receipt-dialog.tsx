@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { CheckCircle2, Printer, Loader2, Eye } from 'lucide-react'
+import { CheckCircle2, Printer, Loader2, Eye, Send } from 'lucide-react'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { formatThaiMoney } from '@/lib/utils'
+import { apiErrorMessage, formatThaiMoney } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import { buildSaleReceiptThermalHtml, buildReceiptPreviewData } from '@/lib/printer'
 import { SerialPrintButton } from '@/components/printer/serial-print-button'
@@ -42,6 +43,13 @@ export function ReceiptDialog({ open, sale, onClose, drawerOpened }: ReceiptDial
     queryKey: ['settings'],
     queryFn: async () => (await api.get('/settings')).data,
     staleTime: 60_000,
+  })
+
+  // The online receipt's link to the customer's LINE (customers who linked LINE with the shop)
+  const sendLine = useMutation({
+    mutationFn: (id: string) => api.post(`/sales/${id}/send-line`),
+    onSuccess: () => toast.success('ส่งใบเสร็จเข้า LINE ลูกค้าแล้ว'),
+    onError: (err) => toast.error(apiErrorMessage(err)),
   })
 
   if (!sale) return null
@@ -253,6 +261,13 @@ export function ReceiptDialog({ open, sale, onClose, drawerOpened }: ReceiptDial
               ขายต่อ (Enter / F1)
             </Button>
           </div>
+          {sale.customer && (
+            <button type="button" onClick={() => sendLine.mutate(sale.id)} disabled={sendLine.isPending || sendLine.isSuccess}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 text-xs font-medium text-emerald-700 hover:underline disabled:opacity-50">
+              {sendLine.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              {sendLine.isSuccess ? 'ส่งเข้า LINE แล้ว' : 'ส่งใบเสร็จเข้า LINE ลูกค้า'}
+            </button>
+          )}
         </DialogContent>
       </Dialog>
 

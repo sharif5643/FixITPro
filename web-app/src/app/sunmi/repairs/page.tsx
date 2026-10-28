@@ -22,6 +22,7 @@ import api from '@/lib/api'
 import type { Repair, RepairStatus, ShopSettings, PaymentMethod } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
+import { RepairSignatures } from '@/components/repairs/repair-signatures'
 import { localDay } from '@/lib/repair-batch'
 import { RepairNextStep } from '@/components/repairs/repair-next-step'
 import { PART_MODES, partModeBody, partModeLabel, type PartMode } from '@/components/repairs/part-mode-picker'
@@ -420,6 +421,10 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                     </div>
                   )
                 })()}
+
+                <RepairSignatures repairId={repair.id} signatures={repairDetail?.signatures} customerName={repair.customer?.name}
+                  disabled={repair.status === 'CANCELLED'}
+                  onSaved={() => { qc.invalidateQueries({ queryKey: ['repair-detail', repair.id] }); qc.invalidateQueries({ queryKey: ['staff-repair', repair.id] }) }} />
 
                 <button
                   onClick={() => setReprintIntake(true)}

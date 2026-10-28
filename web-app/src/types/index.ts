@@ -432,6 +432,8 @@ export interface Product {
   sku: string
   barcode?: string
   type: 'PHONE' | 'SIM' | 'ACCESSORY' | 'PART'
+  brand?: string | null
+  model?: string | null
   price: number
   costPrice: number
   stock: number
@@ -552,6 +554,8 @@ export interface Sale {
   voidedAt?: string | null
   voidReason?: string | null
   voidedBy?: { id: string; name: string } | null
+  /** The online copy of the receipt (/r/<id>/<token>): QR on the printout, link sent to LINE */
+  receiptPath?: string
 }
 
 export interface RepairPart {
@@ -593,6 +597,16 @@ export interface RepairPaymentReversal {
   repairId: string
   createdById: string
   createdBy: { id: string; name: string }
+}
+
+export type RepairSignatureKind = 'INTAKE'
+
+export interface RepairSignature {
+  kind: RepairSignatureKind
+  /** PNG data URL */
+  image: string
+  signerName?: string | null
+  createdAt: string
 }
 
 export interface Repair {
@@ -645,6 +659,10 @@ export interface Repair {
   images?: { id: string; url: string; createdAt: string }[]
   _count?: { images: number }
   additionalPayments?: RepairAdditionalPayment[]
+  /** Signed on the screen by the customer (only on the single job, not in lists) */
+  signatures?: RepairSignature[]
+  /** The signature of who took the job in (saved in their profile): the shop's signature on the slip */
+  staffSignature?: { name: string; image: string } | null
   paymentReversals?: RepairPaymentReversal[]
   receivedAt: string
   completedAt?: string

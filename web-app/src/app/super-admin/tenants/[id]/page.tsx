@@ -571,8 +571,53 @@ function TenantNotes({ notes }: { notes: string }) {
 
 // ── Tab: Settings ─────────────────────────────────────────────────────────────
 
+/** How many branches this shop may open: set for the shop, or the plan's limit when empty */
+function BranchLimitCard({ tenantId }: { tenantId: string }) {
+  const qc = useQueryClient()
+  const { data } = useQuery<{ used: number; limit: number | null; setForShop: boolean }>({
+    queryKey: ['super-admin', 'branch-limit', tenantId],
+    queryFn: async () => (await api.get(`/super-admin/tenants/${tenantId}/branch-limit`)).data,
+  })
+  const [value, setValue] = useState('')
+  const save = useMutation({
+    mutationFn: (maxBranches: number | null) => api.patch(`/super-admin/tenants/${tenantId}/branch-limit`, { maxBranches }),
+    onSuccess: (res) => {
+      qc.setQueryData(['super-admin', 'branch-limit', tenantId], res.data)
+      setValue('')
+      toast.success('บันทึกจำนวนสาขาแล้ว')
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'บันทึกไม่สำเร็จ'),
+  })
+  const n = Number(value)
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+      <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest">จำนวนสาขาที่เปิดได้</p>
+      <p className="text-slate-200 text-sm">
+        ใช้ไป <span className="font-bold">{data?.used ?? '—'}</span> จาก{' '}
+        <span className="font-bold">{data ? (data.limit ?? 'ไม่จำกัด') : '—'}</span> สาขา
+        <span className="text-slate-500"> · {data?.setForShop ? 'ตั้งเฉพาะร้านนี้' : 'ตามแพ็กเกจ'}</span>
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input type="number" min={1} max={999} placeholder="จำนวนสาขา" value={value} onChange={(e) => setValue(e.target.value)}
+          className="w-36 bg-slate-800 border-slate-700 text-slate-100" />
+        <Button size="sm" disabled={!Number.isInteger(n) || n < 1 || save.isPending} onClick={() => save.mutate(n)}>
+          ตั้งเฉพาะร้านนี้
+        </Button>
+        {data?.setForShop && (
+          <Button size="sm" variant="outline" disabled={save.isPending} onClick={() => save.mutate(null)}>
+            กลับไปใช้ค่าของแพ็กเกจ
+          </Button>
+        )}
+      </div>
+      <p className="text-xs text-slate-500">ตั้งน้อยกว่าจำนวนสาขาที่เปิดอยู่ไม่ได้ ค่านี้ใช้แทนค่าของแพ็กเกจ แม้ร้านเปลี่ยนแพ็กเกจ</p>
+    </div>
+  )
+}
+
 function TenantSettingsTab({ tenant }: { tenant: Tenant }) {
   return (
+    <div className="space-y-4">
+    <BranchLimitCard tenantId={tenant.id} />
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
       <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest">ข้อมูล Tenant</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -596,6 +641,7 @@ function TenantSettingsTab({ tenant }: { tenant: Tenant }) {
           <TenantNotes notes={tenant.notes} />
         </div>
       )}
+    </div>
     </div>
   )
 }

@@ -20,6 +20,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import api from '@/lib/api'
 import { DrillDrawer, MetricCard } from '@/components/reports/drill-drawer'
 import { repairPrice } from '@/lib/repair-price'
+import { SendPdfButton } from '@/components/reports/send-pdf-button'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -433,7 +434,7 @@ export default function DailyClosingReportPage() {
 
   return (
     <>
-      <div className="space-y-5 pb-12 print:space-y-3">
+      <div id="daily-closing-report" className="space-y-5 pb-12 print:space-y-3">
 
         {/* ── Header ── */}
         <PageHeader
@@ -483,7 +484,7 @@ export default function DailyClosingReportPage() {
             </div>
           }
           primaryAction={
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" data-pdf-skip>
               <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isRefetching} className="gap-1.5">
                 <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
               </Button>
@@ -495,6 +496,7 @@ export default function DailyClosingReportPage() {
                   <Download className="h-3.5 w-3.5" />CSV
                 </Button>
               )}
+              <SendPdfButton target={() => document.getElementById('daily-closing-report')} filename={`ปิดวัน-${dateStr}.pdf`} />
             </div>
           }
         />

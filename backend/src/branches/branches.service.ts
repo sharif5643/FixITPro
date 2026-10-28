@@ -28,6 +28,11 @@ export class BranchesService implements OnModuleInit {
     private planLimits: PlanLimitsService,
   ) {}
 
+  branchUsage(tenantId: string | null) {
+    if (!tenantId) return { used: 0, limit: null, setForShop: false };
+    return this.planLimits.branchUsage(tenantId);
+  }
+
   async onModuleInit() {
     await this.backfillBranchNumbers();
     await this.backfillStockCodes();

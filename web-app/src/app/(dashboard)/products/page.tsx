@@ -78,6 +78,7 @@ export default function ProductsPage() {
   // UI state
   const [search, setSearch]               = useState('')
   const [typeFilter, setTypeFilter]       = useState('ALL')
+  const [brandFilter, setBrandFilter]     = useState('ALL')
   const [page, setPage]                   = useState(1)
   const [catalogEnrollOpen, setCatalogEnrollOpen] = useState(false)
   const [formOpen, setFormOpen]           = useState(false)
@@ -220,17 +221,27 @@ export default function ProductsPage() {
         !q ||
         p.name.toLowerCase().includes(q) ||
         p.sku.toLowerCase().includes(q) ||
-        (p.barcode?.toLowerCase().includes(q) ?? false)
+        (p.barcode?.toLowerCase().includes(q) ?? false) ||
+        (p.brand?.toLowerCase().includes(q) ?? false) ||
+        (p.model?.toLowerCase().includes(q) ?? false)
       const matchType = typeFilter === 'ALL' || p.type === typeFilter
-      return matchSearch && matchType
+      const matchBrand = brandFilter === 'ALL' || (p.brand ?? '').toLowerCase() === brandFilter.toLowerCase()
+      return matchSearch && matchType && matchBrand
     })
-  }, [products, search, typeFilter])
+  }, [products, search, typeFilter, brandFilter])
+
+  // Brands of the products shown, for the brand filter
+  const brandOptions = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const p of products) if (p.brand) seen.set(p.brand.toLowerCase(), seen.get(p.brand.toLowerCase()) ?? p.brand)
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'th'))
+  }, [products])
 
   const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
   const paginated   = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
-  useMemo(() => { setPage(1) }, [search, typeFilter]) // eslint-disable-line
+  useMemo(() => { setPage(1) }, [search, typeFilter, brandFilter]) // eslint-disable-line
 
   const stats = {
     total:      products.length,
@@ -361,8 +372,19 @@ export default function ProductsPage() {
       <FilterBar
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="ค้นหาชื่อสินค้า, SKU, Barcode..."
+        searchPlaceholder="ค้นหาชื่อสินค้า, ยี่ห้อ, รุ่น, SKU, Barcode..."
       >
+        {brandOptions.length > 0 && (
+          <Select value={brandFilter} onValueChange={setBrandFilter}>
+            <SelectTrigger className="w-36 h-9 text-sm border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">ทุกยี่ห้อ</SelectItem>
+              {brandOptions.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-36 h-9 text-sm border-slate-200 dark:border-slate-700/60 bg-white dark:bg-[#1E293B]">
             <SelectValue />
@@ -397,7 +419,7 @@ export default function ProductsPage() {
             ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-0">
-                  <EmptyState preset={search || typeFilter !== 'ALL' ? 'search' : 'products'} size="md" />
+                  <EmptyState preset={search || typeFilter !== 'ALL' || brandFilter !== 'ALL' ? 'search' : 'products'} size="md" />
                 </td>
               </tr>
             ) : (
@@ -427,6 +449,9 @@ export default function ProductsPage() {
                     {/* Name */}
                     <DataTableCell className="max-w-[200px]">
                       <p className="font-semibold text-slate-900 dark:text-white truncate">{p.name}</p>
+                      {(p.brand || p.model) && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{[p.brand, p.model].filter(Boolean).join(' · ')}</p>
+                      )}
                       {p.description && (
                         <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{p.description}</p>
                       )}

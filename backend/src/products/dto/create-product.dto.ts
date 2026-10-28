@@ -18,6 +18,18 @@ export class CreateProductDto {
   @IsIn(['PHONE', 'SIM', 'ACCESSORY', 'PART'])
   type: string;
 
+  /** e.g. Apple, Samsung — empty clears it */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  brand?: string;
+
+  /** e.g. iPhone 15, Galaxy A55 — empty clears it */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  model?: string;
+
   @Type(() => Number)
   @IsNumber()
   @Min(0)

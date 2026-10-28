@@ -279,7 +279,7 @@ export class TenantRestoreService {
       serialNumbers, saleRefundItems, warranties, claims, claimHistories,
       partnerRelationships, partnerTransfers, partnerTransferEvents,
       partnerQuotations, partnerQuotationEvents,
-      shiftCashMovements, repairPrices,
+      shiftCashMovements, repairPrices, repairSignatures,
     ] = await Promise.all([
       read('branches.json'),
       read('users.json'),
@@ -334,6 +334,8 @@ export class TenantRestoreService {
       // Older backups have neither file: read() gives [] and nothing is restored for them
       read('shift_cash_movements.json'),
       read('repair_prices.json'),
+      // Backups made before signatures existed have no such file: nothing to restore
+      read('repair_signatures.json'),
     ]);
 
     // Helper: parse dates in an object
@@ -591,6 +593,9 @@ export class TenantRestoreService {
       }
       for (const rpr of withDates(repairPaymentReversals as Record<string, unknown>[])) {
         await tx.repairPaymentReversal.create({ data: rpr as Parameters<typeof tx.repairPaymentReversal.create>[0]['data'] });
+      }
+      for (const rs of withDates(repairSignatures as Record<string, unknown>[])) {
+        await tx.repairSignature.create({ data: rs as Parameters<typeof tx.repairSignature.create>[0]['data'] });
       }
       for (const rqc of withDates(repairQcs as Record<string, unknown>[])) {
         await tx.repairQc.create({ data: rqc as Parameters<typeof tx.repairQc.create>[0]['data'] });

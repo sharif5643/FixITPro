@@ -19,6 +19,12 @@ const SKU_PREFIX: Record<string, string> = {
   PART: 'PART',
 };
 
+/** Brand / model as typed, trimmed; empty means none */
+export function cleanLabel(v?: string | null): string | null {
+  const t = (v ?? '').trim().replace(/\s+/g, ' ');
+  return t ? t.slice(0, 100) : null;
+}
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -139,6 +145,8 @@ export class ProductsService {
           sku:          dto.sku,
           barcode:      dto.barcode,
           type:         dto.type as any,
+          brand:        cleanLabel(dto.brand),
+          model:        cleanLabel(dto.model),
           price:        dto.price,
           costPrice:    dto.costPrice,
           stock:        0,          // always start at 0; synced from BranchStock below
@@ -229,6 +237,7 @@ export class ProductsService {
     search?: string;
     type?: string;
     categoryId?: string;
+    brand?: string;
     lowStock?: string;
     branchId?: string;
     role?: string;
@@ -245,11 +254,14 @@ export class ProductsService {
         { name: { contains: query.search, mode: 'insensitive' } },
         { sku: { contains: query.search, mode: 'insensitive' } },
         { barcode: { contains: query.search, mode: 'insensitive' } },
+        { brand: { contains: query.search, mode: 'insensitive' } },
+        { model: { contains: query.search, mode: 'insensitive' } },
       ];
     }
 
     if (query.type) where.type = query.type;
     if (query.categoryId) where.categoryId = query.categoryId;
+    if (query.brand) where.brand = { equals: query.brand.trim(), mode: 'insensitive' };
 
     // Fetch base products (master data only)
     const products = await this.prisma.product.findMany({
@@ -415,6 +427,9 @@ export class ProductsService {
         sku: dto.sku,
         barcode: dto.barcode,
         type: dto.type as any,
+        // Left out: unchanged. Empty: cleared.
+        ...(dto.brand !== undefined ? { brand: cleanLabel(dto.brand) } : {}),
+        ...(dto.model !== undefined ? { model: cleanLabel(dto.model) } : {}),
         price: dto.price,
         costPrice: dto.costPrice,
         // Stock is NOT editable here: Product.stock is the sum of BranchStock and is changed
@@ -456,6 +471,18 @@ export class ProductsService {
     return product;
   }
 
+  /** The shop's brands, for the brand filter and suggestions when adding a product */
+  async brands(tenantId?: string | null): Promise<string[]> {
+    const rows = await this.prisma.product.findMany({
+      where:    { isActive: true, brand: { not: null }, ...this.tenantSvc.scope(tenantId) },
+      select:   { brand: true },
+      distinct: ['brand'],
+      orderBy:  { brand: 'asc' },
+      take:     500,
+    });
+    return rows.map((r) => r.brand!).filter(Boolean);
+  }
+
   async catalogSearch(search?: string, barcode?: string, tenantId?: string | null) {
     if (!search && !barcode) return [];
 
@@ -468,6 +495,8 @@ export class ProductsService {
         { name: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
         { barcode: { contains: search, mode: 'insensitive' } },
+        { brand: { contains: search, mode: 'insensitive' } },
+        { model: { contains: search, mode: 'insensitive' } },
       ];
     }
 

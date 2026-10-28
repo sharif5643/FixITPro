@@ -25,6 +25,9 @@ export class PlanLimitsService {
    * allows. The same rule the Super Admin renew dialog has always applied.
    */
   async planChangeBlock(tenantId: string, newPlan: TenantPlan): Promise<string | null> {
+    // A limit the Super Admin set for this shop goes with the shop, whatever its plan
+    const shop = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { maxBranches: true } });
+    if (shop?.maxBranches != null) return null;
     const limit = PLAN_LIMITS[newPlan]?.branches;
     if (limit === undefined || !isFinite(limit)) return null;
     const branches = await this.prisma.branch.count({
@@ -48,6 +51,7 @@ export class PlanLimitsService {
   // Effective limits = plan base + add-ons
   private async getEffectiveLimits(tenantId: string, plan: TenantPlan): Promise<PlanLimits> {
     const base = PLAN_LIMITS[plan];
+    const shop = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { maxBranches: true } });
 
     const addons = await this.prisma.tenantAddon.findMany({
       where: { tenantId },
@@ -62,16 +66,29 @@ export class PlanLimitsService {
     }
 
     return {
-      branches:    isFinite(base.branches) ? base.branches + extraBranches : Infinity,
+      // Set by the Super Admin for this shop: that number, in place of the plan's (and add-ons)
+      branches:    shop?.maxBranches != null ? shop.maxBranches
+        : isFinite(base.branches) ? base.branches + extraBranches : Infinity,
       storageBytes: isFinite(base.storageBytes) ? base.storageBytes + extraStorage : Infinity,
     };
+  }
+
+  /** Branches open now and how many the shop may have (null = no limit), for the branches page */
+  async branchUsage(tenantId: string): Promise<{ used: number; limit: number | null; setForShop: boolean }> {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { plan: true, maxBranches: true } });
+    if (!tenant) return { used: 0, limit: null, setForShop: false };
+    const [{ branches }, used] = await Promise.all([
+      this.getEffectiveLimits(tenantId, tenant.plan),
+      this.prisma.branch.count({ where: { tenantId, status: { notIn: ['SUSPENDED', 'REJECTED'] } } }),
+    ]);
+    return { used, limit: isFinite(branches) ? branches : null, setForShop: tenant.maxBranches != null };
   }
 
   // Branch limit enforcement — call before creating a new branch.
   async assertBranchLimit(tenantId: string): Promise<void> {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { plan: true },
+      select: { plan: true, maxBranches: true },
     });
     if (!tenant) return;
 
@@ -84,7 +101,9 @@ export class PlanLimitsService {
 
     if (current >= limit) {
       throw new BadRequestException(
-        `แผน ${tenant.plan} รองรับสูงสุด ${limit} สาขา — กรุณาอัพเกรดแผนเพื่อสร้างสาขาเพิ่มเติม`,
+        tenant.maxBranches != null
+          ? `ร้านนี้เปิดได้สูงสุด ${limit} สาขา (ใช้ไปแล้ว ${current}) — ติดต่อผู้ดูแลระบบเพื่อเปิดสาขาเพิ่ม`
+          : `แผน ${tenant.plan} เปิดได้สูงสุด ${limit} สาขา (ใช้ไปแล้ว ${current}) — อัพเกรดแผนหรือติดต่อผู้ดูแลระบบเพื่อเปิดสาขาเพิ่ม`,
       );
     }
   }

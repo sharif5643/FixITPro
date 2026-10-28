@@ -588,6 +588,9 @@ export function buildRepairReceiptThermalHtml(
     estimatedTotal?: number | null
     deposit?: number | null
     branch?: { name: string } | null
+    /** Signed on the screen by the customer; staffSignature: who took the job in */
+    signatures?: { kind: string; image: string; createdAt: string }[] | null
+    staffSignature?: { name: string; image: string } | null
   },
   settings: {
     shopName?: string | null
@@ -644,6 +647,12 @@ export function buildRepairReceiptThermalHtml(
 <p class="b">อุปกรณ์ที่รับมา</p>
 <p>${accessories.join(', ')}</p>
 </div>` : ''
+
+  // Signatures drawn on the screen sit on the signature line; none: an empty line to sign on paper
+  const intakeSig   = repair.signatures?.find((x) => x.kind === 'INTAKE')
+  const sigImg = (src?: string | null) => src && /^data:image\/png;base64,/.test(src)
+    ? `<img src="${src}" alt="" style="width:${r(80)}px;height:${r(28)}px;object-fit:contain;border-bottom:1px solid #333;margin-bottom:${r(4)}px;display:block">`
+    : '<div class="sig-line"></div>'
 
   function makeQrBlock(isCustomer: boolean) {
     if (!isCustomer || !trackingOrigin) return ''
@@ -707,8 +716,8 @@ ${conditions.length > 0 ? `<div class="hr"></div>
 </div>
 <div class="hr"></div>
 <div class="sig">
-  <div class="sig-box"><div class="sig-line"></div><p>ลายเซ็นลูกค้า</p></div>
-  <div class="sig-box"><div class="sig-line"></div><p>ลายเซ็นร้าน</p></div>
+  <div class="sig-box">${sigImg(intakeSig?.image)}<p>ลายเซ็นลูกค้า</p></div>
+  <div class="sig-box">${sigImg(repair.staffSignature?.image)}<p>ลายเซ็นร้าน</p>${repair.staffSignature ? `<p class="gray">(${e(repair.staffSignature.name)})</p>` : ''}</div>
 </div>
 ${makeQrBlock(isCustomer)}
 <div class="hr"></div>
@@ -768,7 +777,8 @@ export function buildSaleReceiptThermalHtml(
     logoUrl?: string | null
     receiptFooter?: string | null
   } | null | undefined,
-  opts: { paperWidth?: '58mm' | '80mm'; cashierName?: string } = {},
+  /** qrSvg: QR of the online receipt (see receiptQrSvg) */
+  opts: { paperWidth?: '58mm' | '80mm'; cashierName?: string; qrSvg?: string } = {},
 ): string {
   const e   = escHtml
   const px  = opts.paperWidth === '80mm' ? 576 : 384
@@ -836,6 +846,8 @@ ${rf.items.map((i) => `<div class="row" style="padding-left:${r(8)}px"><span>${e
 <div class="row b"><span>ยอดหลังคืนสินค้า</span><span class="v">${money(after.netAfterRefunds)}</span></div>` : ''}
 ${sale.note ? `<div class="hr"></div><p class="gray">หมายเหตุ: ${e(sale.note)}</p>` : ''}
 <div class="hr"></div>
+${opts.qrSvg ? `<div class="c sec"><p class="b">สแกนดูใบเสร็จออนไลน์</p><div class="c qr-svg" style="margin:${r(4)}px 0">${opts.qrSvg}</div></div>
+<div class="hr"></div>` : ''}
 ${footer}`
 
   return `<!DOCTYPE html><html lang="th"><head>

@@ -45,6 +45,7 @@ import { useAuthStore } from '@/store/auth.store'
 import type { Repair, RepairStatus, Product, ShopSettings } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
+import { RepairSignatures } from '@/components/repairs/repair-signatures'
 import { TechOwnershipBar } from '@/components/repairs/tech-ownership'
 import { localDay } from '@/lib/repair-batch'
 import { STATUS_MOVES, NEXT_ACTION as SHARED_NEXT_ACTION, PATH_TO_DONE as SHARED_PATH_TO_DONE } from '@/lib/repair-status-flow'
@@ -766,6 +767,14 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 ) : (
                   <p className="text-sm text-muted-foreground">ยังไม่มีรูปถ่าย</p>
                 )}
+              </div>
+
+              {/* ─── Customer signatures (signed on the screen, printed on the slip) ─── */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">ลายเซ็นลูกค้า</p>
+                <RepairSignatures repairId={repair.id} signatures={repair.signatures} customerName={repair.customer?.name}
+                  disabled={repair.status === 'CANCELLED'}
+                  onSaved={() => queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })} />
               </div>
 
               {/* ─── Spare Parts Management ─── */}

@@ -158,6 +158,7 @@ const createMockPrisma = () => ({
   repairAdditionalPayment: { findMany: jest.fn().mockResolvedValue([]) },
   repairPaymentReversal: { findMany: jest.fn().mockResolvedValue([]) },
   repairQc: { findMany: jest.fn().mockResolvedValue([]) },
+  repairSignature: { findMany: jest.fn().mockResolvedValue([]) },
   repairMessage: { findMany: jest.fn().mockResolvedValue([]) },
   repairReview: { findMany: jest.fn().mockResolvedValue([]) },
   purchaseOrderItem: { findMany: jest.fn().mockResolvedValue([]) },

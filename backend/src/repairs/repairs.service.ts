@@ -60,6 +60,9 @@ const REPAIR_STATUS_TH: Record<string, string> = {
   READY_PICKUP: 'พร้อมรับเครื่อง', DELIVERED: 'ส่งคืนแล้ว', CANCELLED: 'ยกเลิก',
 };
 
+/** The shop's signature kept with a job (the staff member who took it in); never signed through the API */
+const STAFF_SIGNATURE = 'STAFF';
+
 @Injectable()
 export class RepairsService {
   private readonly logger = new Logger(RepairsService.name);
@@ -370,6 +373,8 @@ export class RepairsService {
       );
     }
 
+    await this.keepStaffSignature(repair.id, actorId);
+
     await this.auditLog.log({
       actorId, actorName,
       action: 'REPAIR_CREATED',
@@ -485,7 +490,74 @@ export class RepairsService {
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
-    return { ...repair, ...(await this.moneyReceivedBy(repair)) };
+    // Signatures only on the job itself (not in lists): each is a small picture
+    const all = await this.prisma.repairSignature.findMany({
+      where:   { repairId: id },
+      select:  { kind: true, image: true, signerName: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const signatures = all.filter((x) => x.kind !== STAFF_SIGNATURE);
+    const kept = all.find((x) => x.kind === STAFF_SIGNATURE);
+    const staffSignature = kept ? { name: kept.signerName ?? '', image: kept.image } : await this.intakeStaffSignature(id);
+    return { ...repair, signatures, staffSignature, ...(await this.moneyReceivedBy(repair)) };
+  }
+
+  /**
+   * The shop's signature on the slip is the signature of the person who took the job in, kept
+   * with the job when it is taken in: the slip stays the same when they sign again later, and it
+   * travels with the shop backup. Without a signature saved yet, nothing is kept.
+   */
+  private async keepStaffSignature(repairId: string, actorId?: string | null) {
+    if (!actorId) return;
+    try {
+      const u = await this.prisma.user.findUnique({ where: { id: actorId }, select: { name: true, signatureImage: true } });
+      if (!u?.signatureImage) return;
+      await this.prisma.repairSignature.create({
+        data: { repairId, kind: STAFF_SIGNATURE, image: u.signatureImage, signerName: u.name, createdById: actorId },
+      });
+    } catch {
+      // The job is saved either way; the slip then falls back to the person's current signature
+    }
+  }
+
+  /** Jobs taken in before signatures were kept with the job: the current signature of whoever took it in */
+  private async intakeStaffSignature(repairId: string): Promise<{ name: string; image: string } | null> {
+    try {
+      const created = await this.prisma.auditLog.findFirst({
+        where:   { entityId: repairId, action: 'REPAIR_CREATED' },
+        select:  { actorId: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!created?.actorId) return null;
+      const u = await this.prisma.user.findUnique({ where: { id: created.actorId }, select: { name: true, signatureImage: true } });
+      return u?.signatureImage ? { name: u.name, image: u.signatureImage } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The customer signs on the screen when the device is left with the shop (INTAKE: the
+   * conditions and the noted damage). Signing again replaces it.
+   */
+  async sign(repairId: string, dto: { kind: string; image: string; signerName?: string }, userId: string, tenantId?: string | null) {
+    const where: any = { id: repairId };
+    if (tenantId) where.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({ where, select: { id: true, status: true } });
+    if (!repair) throw new NotFoundException('Repair not found');
+    if (repair.status === 'CANCELLED') throw new BadRequestException('งานนี้ถูกยกเลิกแล้ว');
+    const signerName = dto.signerName?.trim() || null;
+    const saved = await this.prisma.repairSignature.upsert({
+      where:  { repairId_kind: { repairId, kind: dto.kind } },
+      create: { repairId, kind: dto.kind, image: dto.image, signerName, createdById: userId },
+      update: { image: dto.image, signerName, createdById: userId, createdAt: new Date() },
+      select: { kind: true, signerName: true, createdAt: true },
+    });
+    await this.auditLog.log({
+      actorId: userId, action: 'REPAIR_SIGNED', entityType: 'Repair', entityId: repairId,
+      afterData: { kind: dto.kind, signerName },
+    });
+    return saved;
   }
 
   /**

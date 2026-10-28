@@ -23,6 +23,11 @@ function fmtDay(iso: string) {
   catch { return iso }
 }
 
+/** Signed on the screen: the picture sits on the signature line */
+function signatureOf(repair: Repair, kind: 'INTAKE') {
+  return repair.signatures?.find((s) => s.kind === kind) ?? null
+}
+
 function buildTrackingUrl(baseUrl: string | undefined, ticketNumber: string, phone: string | undefined) {
   if (!baseUrl) return null
   const url = `${baseUrl}/track/${encodeURIComponent(ticketNumber)}`
@@ -57,6 +62,7 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
     : []
   // Scratches, cracks… noted when the device came in: on the slip both sides signed
   const conditions = (repair.deviceConditions ?? []).filter(Boolean)
+  const intakeSig   = signatureOf(repair, 'INTAKE')
 
   return (
     <div id="repair-receipt" className={`${widthClass} thermal-receipt text-[11px] leading-relaxed mx-auto bg-white text-gray-900`}>
@@ -138,14 +144,21 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
 
       {/* Signatures */}
       <div className="space-y-3 pt-1 pb-2">
-        <div className="flex justify-between text-[10px]">
+        <div className="flex justify-between items-end text-[10px]">
           <div className="text-center">
-            <div className="w-20 border-b border-gray-400 mb-1" />
+            {intakeSig
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={intakeSig.image} alt="ลายเซ็นลูกค้า" className="w-20 h-9 object-contain border-b border-gray-400 mb-1" />
+              : <div className="w-20 border-b border-gray-400 mb-1" />}
             <p>ลายเซ็นลูกค้า</p>
           </div>
           <div className="text-center">
-            <div className="w-20 border-b border-gray-400 mb-1" />
+            {repair.staffSignature
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={repair.staffSignature.image} alt="ลายเซ็นร้าน" className="w-20 h-9 object-contain border-b border-gray-400 mb-1" />
+              : <div className="w-20 border-b border-gray-400 mb-1" />}
             <p>ลายเซ็นร้าน</p>
+            {repair.staffSignature && <p className="text-[9px] text-gray-500">({repair.staffSignature.name})</p>}
           </div>
         </div>
       </div>
@@ -197,6 +210,7 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
     : []
   // Scratches, cracks… noted when the device came in: on the slip both sides signed
   const conditions = (repair.deviceConditions ?? []).filter(Boolean)
+  const intakeSig   = signatureOf(repair, 'INTAKE')
 
   const trackingUrl = buildTrackingUrl(trackingBaseUrl, repair.ticketNumber, repair.customer?.phone)
 
@@ -310,14 +324,20 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
       {/* Signatures */}
       <div className="grid grid-cols-2 gap-20 mt-10 pt-6 border-t border-gray-200">
         <div className="text-center">
-          <div className="h-16 border-b border-dashed border-gray-400 mb-2" />
+          {intakeSig
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={intakeSig.image} alt="ลายเซ็นลูกค้า" className="h-16 w-full object-contain border-b border-dashed border-gray-400 mb-2" />
+            : <div className="h-16 border-b border-dashed border-gray-400 mb-2" />}
           <p className="text-xs text-gray-600 font-semibold">ลายเซ็นลูกค้า</p>
           <p className="text-xs text-gray-400 mt-0.5">{repair.customer?.name ?? ''}</p>
         </div>
         <div className="text-center">
-          <div className="h-16 border-b border-dashed border-gray-400 mb-2" />
+          {repair.staffSignature
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={repair.staffSignature.image} alt="ลายเซ็นร้าน" className="h-16 w-full object-contain border-b border-dashed border-gray-400 mb-2" />
+            : <div className="h-16 border-b border-dashed border-gray-400 mb-2" />}
           <p className="text-xs text-gray-600 font-semibold">ลายเซ็นร้าน</p>
-          <p className="text-xs text-gray-400 mt-0.5">{shopName}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{repair.staffSignature ? `${repair.staffSignature.name} · ${shopName}` : shopName}</p>
         </div>
       </div>
 

@@ -20,6 +20,7 @@ import { RepairPriceChips } from '@/components/repair-prices/repair-price-chips'
 import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
 import { DEVICE_BRANDS, QUICK_MODELS } from '@/lib/device-models'
 import { intakeWarnings, confirmIntake } from '@/lib/intake-checks'
+import { IntakeSignatureField, saveIntakeSignature } from '@/components/repairs/repair-signatures'
 
 /* ─── Constants ────────────────────────────────────────────────────────────── */
 
@@ -136,6 +137,8 @@ export default function CreateRepairPage() {
   // One estimated price, as on the web and the POS app
   const [estimate,   setEstimate]   = useState('')
   const [deposit,    setDeposit]    = useState('')
+  // Signed in the form; saved with the job
+  const [intakeSig, setIntakeSig] = useState<string | null>(null)
   const [depositPM,  setDepositPM]  = useState('CASH')
   const [discount,   setDiscount]   = useState('')
 
@@ -329,6 +332,7 @@ export default function CreateRepairPage() {
         photoFiles.forEach((f) => fd.append('files', f))
         await api.post(`/repairs/${repairId}/images`, fd).catch(() => { /* non-fatal */ })
       }
+      if (repairId) await saveIntakeSignature(repairId, intakeSig, custName)
 
       if (draftKey) clearDraft(draftKey)
       router.replace(`/staff/create/success?id=${repairId}`)
@@ -683,6 +687,12 @@ export default function CreateRepairPage() {
             </select>
             <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           </div>
+        </Card>
+
+        {/* ⑪ ลูกค้าเซ็นชื่อ — right here on the phone, printed on the slip */}
+        <Card>
+          <SectionHead num={11} title="ลายเซ็นลูกค้า" />
+          <IntakeSignatureField value={intakeSig} onChange={setIntakeSig} />
         </Card>
 
       </div>

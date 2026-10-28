@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CheckCircle2, Printer, Send, Home, Loader2, Smartphone, User, Plus } from 'lucide-react'
+import { CheckCircle2, Printer, Send, Home, Loader2, Smartphone, User, Plus, PenLine } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { printRepairReceipt } from '@/lib/print'
@@ -10,6 +11,7 @@ import { isInWebViewApp, bridgePrintRepairIntake } from '@/lib/webview-bridge'
 import { Platform } from '@/lib/platform'
 import { RepairReceiptPrintFlow } from '@/components/sunmi/repair-receipt-print'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
+import { SignatureSheet } from '@/components/repairs/repair-signatures'
 import { localDay } from '@/lib/repair-batch'
 
 interface RepairDetail {
@@ -58,6 +60,10 @@ function SuccessContent() {
   const [loading,      setLoading]      = useState(true)
   const [mounted,      setMounted]      = useState(false)
   const [showPrintFlow, setShowPrintFlow] = useState(false)
+  // The customer signs on the screen before the slip is printed (it prints on the slip)
+  const [signing, setSigning] = useState(false)
+  const [signed, setSigned] = useState(false)
+  const queryClient = useQueryClient()
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -133,7 +139,7 @@ function SuccessContent() {
   }
 
   return (
-      <div className="min-h-screen bg-[#F8F9FB] pb-56">
+      <div className="min-h-screen bg-[#F8F9FB] pb-72">
 
         {/* ── Success banner ── */}
         <div className={`relative overflow-hidden bg-white px-6 pb-8 pt-14 text-center transition-all duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
@@ -292,6 +298,14 @@ function SuccessContent() {
 
         {/* ── Bottom actions ── */}
         <div className="fixed left-0 right-0 flex flex-col gap-2.5 bg-[#F8F9FB] px-5 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]" style={{ bottom: 'calc(70px + env(safe-area-inset-bottom))' }}>
+          {id && (
+            <button
+              onClick={() => setSigning(true)}
+              className={`flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 text-[14px] font-semibold active:bg-slate-50 ${signed ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-[#111] bg-white text-[#111]'}`}
+            >
+              {signed ? <><CheckCircle2 className="h-4 w-4"/> ลูกค้าเซ็นแล้ว (เซ็นใหม่)</> : <><PenLine className="h-4 w-4"/> ให้ลูกค้าเซ็นรับทราบ</>}
+            </button>
+          )}
           <button
             onClick={handlePrint}
             className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[rgb(var(--brand-accent))] text-[15px] font-bold text-[rgb(var(--brand-accent-fg))] shadow-[0_4px_20px_rgb(var(--brand-accent)/0.4)] active:scale-[0.98] transition-transform"
@@ -328,6 +342,11 @@ function SuccessContent() {
           </button>
         </div>
 
+      {signing && id && (
+        <SignatureSheet repairId={id} kind="INTAKE" customerName={repair?.customer?.name}
+          onClose={() => setSigning(false)}
+          onSaved={() => { setSigned(true); queryClient.invalidateQueries({ queryKey: ['staff-repair', id] }) }} />
+      )}
       {showPrintFlow && id && (
         <RepairReceiptPrintFlow
           repairId={id}

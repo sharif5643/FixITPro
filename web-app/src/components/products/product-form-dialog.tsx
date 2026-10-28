@@ -36,6 +36,8 @@ export const productSchema = z.object({
   barcode: z.string().optional(),
   type: z.enum(['PHONE', 'SIM', 'ACCESSORY', 'PART']).default('PHONE'),
   categoryId: z.string().optional(),
+  brand: z.string().max(100, 'ยาวเกิน 100 ตัวอักษร').optional(),
+  model: z.string().max(100, 'ยาวเกิน 100 ตัวอักษร').optional(),
   price: z.coerce.number().min(0, 'ราคาต้องไม่ติดลบ'),
   costPrice: z.coerce.number().min(0, 'ต้นทุนต้องไม่ติดลบ'),
   stock: z.coerce.number().min(0, 'สต็อกต้องไม่ติดลบ').default(0),
@@ -75,6 +77,8 @@ const defaultValues: ProductFormData = {
   barcode: '',
   type: 'PHONE',
   categoryId: '',
+  brand: '',
+  model: '',
   price: 0,
   costPrice: 0,
   stock: 0,
@@ -170,6 +174,14 @@ export function ProductFormDialog({
     enabled: open,
   })
 
+  // Brands already used in the shop: suggested while typing
+  const { data: brandList = [] } = useQuery<string[]>({
+    queryKey: ['product-brands'],
+    queryFn: () => api.get('/products/brands').then((r) => r.data),
+    staleTime: 60_000,
+    enabled: open,
+  })
+
   // Categories filtered by selected CategoryType (+ tenant-scoped on backend)
   const { data: categories = [], isFetching: categoriesLoading } = useQuery<
     (Category & { categoryType?: Pick<CategoryType, 'id' | 'name'> | null })[]
@@ -199,6 +211,8 @@ export function ProductFormDialog({
         barcode:      product.barcode ?? '',
         type:         product.type as ProductFormData['type'],
         categoryId:   product.categoryId ?? '',
+        brand:        product.brand ?? '',
+        model:        product.model ?? '',
         price:        Number(product.price),
         costPrice:    Number(product.costPrice ?? 0),
         stock:        product.stock,
@@ -280,6 +294,23 @@ export function ProductFormDialog({
               className={errors.name ? 'border-red-400' : ''}
             />
             {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
+          </div>
+
+          {/* Brand + model */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>ยี่ห้อ</Label>
+              <Input placeholder="เช่น Apple, Samsung" list="product-brand-list" autoComplete="off" disabled={isLoading} {...register('brand')} />
+              <datalist id="product-brand-list">
+                {brandList.map((b) => <option key={b} value={b} />)}
+              </datalist>
+              {errors.brand && <p className="text-xs text-red-500">{errors.brand.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label>รุ่น</Label>
+              <Input placeholder="เช่น iPhone 15, Galaxy A55" autoComplete="off" disabled={isLoading} {...register('model')} />
+              {errors.model && <p className="text-xs text-red-500">{errors.model.message}</p>}
+            </div>
           </div>
 
           {/* CategoryType → Category (linked) */}

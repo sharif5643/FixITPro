@@ -22,6 +22,7 @@ import type {
   ProfitReportPackageItem,
   ProfitReportExpenseItem,
 } from '@/types'
+import { SendPdfButton } from '@/components/reports/send-pdf-button'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -393,7 +394,7 @@ export default function ProfitReportPage() {
 
   return (
     <>
-      <div className="space-y-6 print:space-y-4">
+      <div id="profit-report" className="space-y-6 print:space-y-4">
 
         {/* Header */}
         <PageHeader
@@ -438,6 +439,8 @@ export default function ProfitReportPage() {
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.print()}>
                 <Printer className="h-3.5 w-3.5" />พิมพ์
               </Button>
+              <SendPdfButton target={() => document.getElementById('profit-report')}
+                filename={`รายงานกำไร-${mode === 'month' ? format(refMonth, 'yyyy-MM') : `${customStart}_${customEnd}`}.pdf`} />
             </div>
           }
         />

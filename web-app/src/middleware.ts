@@ -8,6 +8,8 @@ const PUBLIC_PATHS = [
   '/staff',
   // Public customer portal
   '/track',
+  // A receipt opened from the QR on the printout or the link sent to LINE
+  '/r/',
   // Public website routes
   '/register', '/features', '/pricing', '/billing', '/contact', '/about',
   // App downloads and the files that make the site installable (manifest, icons)

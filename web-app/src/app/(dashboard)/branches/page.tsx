@@ -171,6 +171,14 @@ export default function BranchesPage() {
     staleTime: 60_000,
   })
 
+  // How many branches the shop may open (FixITPro sets it per shop, or the plan's)
+  const { data: usage } = useQuery<{ used: number; limit: number | null }>({
+    queryKey: ['branches', 'usage'],
+    queryFn: async () => (await api.get('/branches/usage')).data,
+    staleTime: 60_000,
+  })
+  const atLimit = usage?.limit != null && usage.used >= usage.limit
+
   const { data: branchStock = [] } = useQuery<BranchStock[]>({
     queryKey: ['branch-stock', selectedBranchForStock, stockSearch],
     queryFn: async () => {
@@ -240,12 +248,14 @@ export default function BranchesPage() {
       <PageHeader
         title="จัดการสาขา"
         icon={Building2}
-        subtitle={`${activeBranches.length} สาขาที่ใช้งาน${pendingBranches.length > 0 ? ` · ${pendingBranches.length} รอการอนุมัติ` : ''}`}
+        subtitle={`${activeBranches.length} สาขาที่ใช้งาน${pendingBranches.length > 0 ? ` · ${pendingBranches.length} รอการอนุมัติ` : ''}${usage?.limit != null ? ` · เปิดได้สูงสุด ${usage.limit} สาขา` : ''}`}
         primaryAction={
           tab === 'branches' ? (
             <button
               onClick={() => { setEditBranch(undefined); setShowForm(true) }}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              disabled={atLimit}
+              title={atLimit ? `เปิดครบ ${usage?.limit} สาขาแล้ว — ติดต่อ FixITPro หรืออัพเกรดแพ็กเกจเพื่อเพิ่มสาขา` : undefined}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">เพิ่มสาขา</span>
@@ -253,6 +263,12 @@ export default function BranchesPage() {
           ) : undefined
         }
       />
+
+      {atLimit && tab === 'branches' && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-300">
+          เปิดครบ {usage?.limit} สาขาตามสิทธิ์ของร้านแล้ว — ติดต่อ FixITPro หรืออัพเกรดแพ็กเกจเพื่อเพิ่มสาขา
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-4 py-3 text-sm text-red-700 dark:text-red-400">

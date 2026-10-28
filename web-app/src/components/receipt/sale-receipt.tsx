@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
+import { QRCodeSVG } from 'qrcode.react'
 import { formatThaiMoney } from '@/lib/utils'
 import { receiptPaymentLegs, saleAfterSale, soldSerials } from '@/lib/sale-receipt-data'
 import type { Sale, ShopSettings } from '@/types'
@@ -186,6 +187,19 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
         <>
           <Divider />
           <p className="text-gray-600 pb-1">หมายเหตุ: {sale.note}</p>
+        </>
+      )}
+
+      {/* ── Online copy: the customer scans it to keep the receipt on the phone ── */}
+      {sale.receiptPath && typeof window !== 'undefined' && (
+        <>
+          <Divider />
+          <div className="text-center space-y-1 py-1">
+            <p className="font-bold">สแกนดูใบเสร็จออนไลน์</p>
+            <div className="flex justify-center">
+              <QRCodeSVG value={`${window.location.origin}${sale.receiptPath}`} size={paperWidth === '58mm' ? 90 : 110} level="M" />
+            </div>
+          </div>
         </>
       )}
 

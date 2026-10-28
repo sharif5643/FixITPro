@@ -183,6 +183,22 @@ export class LineMessagingService {
     }
   }
 
+  /** The online receipt's link to a customer who linked LINE with the shop (the shop's own LINE account) */
+  async sendReceiptLink(lineUserId: string, tenantId: string | null, r: { receiptNumber: string; total: number; path: string }): Promise<boolean> {
+    if (!tenantId) return false;
+    const settings = await this.prisma.shopSettings.findFirst({
+      where:  { tenantId },
+      select: { lineChannelAccessToken: true, lineNotifyEnabled: true, shopName: true },
+    });
+    if (!settings?.lineNotifyEnabled || !settings.lineChannelAccessToken) return false;
+    const text =
+      `[${settings.shopName ?? 'FixITPro'}] ใบเสร็จของคุณ\n` +
+      `เลขที่: ${r.receiptNumber}\n` +
+      `ยอดรวม: ${r.total.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท\n` +
+      `ดูใบเสร็จ: ${siteOrigin()}${r.path}`;
+    return this.pushMessage(settings.lineChannelAccessToken, lineUserId, text);
+  }
+
   async linkLineUser(lineUserId: string, phone: string, tenantId: string | null): Promise<boolean> {
     const where: any = {};
     if (tenantId) where.tenantId = tenantId;
