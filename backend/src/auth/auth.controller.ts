@@ -5,6 +5,8 @@ import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthThrottlerGuard } from '../common/guards/auth-throttler.guard';
 import { AuthService } from './auth.service';
+import { AppPinService } from './app-pin.service';
+import { SetAppPinDto, VerifyAppPinDto } from './dto/app-pin.dto';
 import { RedisService } from '../redis/redis.service';
 import { LoginFailures } from './login-failures';
 import { LoginDto } from './dto/login.dto';
@@ -38,6 +40,7 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private config: ConfigService,
+    private appPin: AppPinService,
     @Optional() private push?: PushService,
     @Optional() private redis?: RedisService,
   ) {
@@ -162,6 +165,36 @@ export class AuthController {
   @Post('change-password')
   changePassword(@CurrentUser('id') userId: string, @Body() dto: ChangePasswordDto, @Req() req: Request) {
     return this.authService.changePassword(userId, dto.currentPassword, dto.newPassword, (req as any).cookies?.[REFRESH_COOKIE]);
+  }
+
+  // ── Staff app lock (PIN; fingerprint / face unlock on the phone itself) ─────────
+
+  @UseGuards(JwtAuthGuard)
+  @Get('app-pin')
+  appPinStatus(@CurrentUser('id') userId: string) {
+    return this.appPin.status(userId);
+  }
+
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @Throttle({ auth_change_pwd: { limit: 10, ttl: 15 * 60 * 1000 } })
+  @SkipThrottle({ auth_login: true, auth_register: true })
+  @Post('app-pin')
+  setAppPin(@CurrentUser('id') userId: string, @Body() dto: SetAppPinDto) {
+    return this.appPin.set(userId, dto.pin, { currentPin: dto.currentPin, password: dto.password });
+  }
+
+  /** Wrong PINs are counted per person; at the limit this phone is signed out */
+  @UseGuards(JwtAuthGuard)
+  @Post('app-pin/verify')
+  async verifyAppPin(@CurrentUser('id') userId: string, @Body() dto: VerifyAppPinDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.appPin.verify(userId, dto.pin);
+    if ('signedOut' in result && result.signedOut) {
+      res.clearCookie('access_token',    { path: '/' });
+      res.clearCookie(REFRESH_COOKIE,    { path: '/api/v1/auth' });
+      res.clearCookie('tenant_role',     { path: '/' });
+      res.clearCookie('tenant_expiry_ts', { path: '/' });
+    }
+    return result;
   }
 
   @UseGuards(JwtAuthGuard)

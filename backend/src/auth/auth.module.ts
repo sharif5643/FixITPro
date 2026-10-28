@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AppPinService } from './app-pin.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { ModulesModule } from '../modules/modules.module';
@@ -25,7 +26,7 @@ import { AuthThrottlerGuard } from '../common/guards/auth-throttler.guard';
     ModulesModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, GoogleStrategy, AuthThrottlerGuard],
+  providers: [AuthService, AppPinService, JwtStrategy, GoogleStrategy, AuthThrottlerGuard],
   exports: [JwtModule],
 })
 export class AuthModule {}
