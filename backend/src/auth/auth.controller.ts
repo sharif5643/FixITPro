@@ -5,6 +5,8 @@ import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthThrottlerGuard } from '../common/guards/auth-throttler.guard';
 import { AuthService } from './auth.service';
+import { AppPinService } from './app-pin.service';
+import { SetAppPinDto, VerifyAppPinDto } from './dto/app-pin.dto';
 import { RedisService } from '../redis/redis.service';
 import { LoginFailures } from './login-failures';
 import { LoginDto } from './dto/login.dto';
@@ -38,6 +40,7 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private config: ConfigService,
+    private appPin: AppPinService,
     @Optional() private push?: PushService,
     @Optional() private redis?: RedisService,
   ) {
@@ -160,8 +163,38 @@ export class AuthController {
   @Throttle({ auth_change_pwd: { limit: 5, ttl: 15 * 60 * 1000 } })
   @SkipThrottle({ auth_login: true, auth_register: true })
   @Post('change-password')
-  changePassword(@CurrentUser('id') userId: string, @Body() dto: ChangePasswordDto) {
-    return this.authService.changePassword(userId, dto.currentPassword, dto.newPassword);
+  changePassword(@CurrentUser('id') userId: string, @Body() dto: ChangePasswordDto, @Req() req: Request) {
+    return this.authService.changePassword(userId, dto.currentPassword, dto.newPassword, (req as any).cookies?.[REFRESH_COOKIE]);
+  }
+
+  // ── Staff app lock (PIN; fingerprint / face unlock on the phone itself) ─────────
+
+  @UseGuards(JwtAuthGuard)
+  @Get('app-pin')
+  appPinStatus(@CurrentUser('id') userId: string) {
+    return this.appPin.status(userId);
+  }
+
+  @UseGuards(JwtAuthGuard, ThrottlerGuard)
+  @Throttle({ auth_change_pwd: { limit: 10, ttl: 15 * 60 * 1000 } })
+  @SkipThrottle({ auth_login: true, auth_register: true })
+  @Post('app-pin')
+  setAppPin(@CurrentUser('id') userId: string, @Body() dto: SetAppPinDto) {
+    return this.appPin.set(userId, dto.pin, { currentPin: dto.currentPin, password: dto.password });
+  }
+
+  /** Wrong PINs are counted per person; at the limit this phone is signed out */
+  @UseGuards(JwtAuthGuard)
+  @Post('app-pin/verify')
+  async verifyAppPin(@CurrentUser('id') userId: string, @Body() dto: VerifyAppPinDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.appPin.verify(userId, dto.pin);
+    if ('signedOut' in result && result.signedOut) {
+      res.clearCookie('access_token',    { path: '/' });
+      res.clearCookie(REFRESH_COOKIE,    { path: '/api/v1/auth' });
+      res.clearCookie('tenant_role',     { path: '/' });
+      res.clearCookie('tenant_expiry_ts', { path: '/' });
+    }
+    return result;
   }
 
   @UseGuards(JwtAuthGuard)
@@ -187,12 +220,18 @@ export class AuthController {
     const profile = req.user as any;
     if (!profile) return res.redirect('/staff/login?error=google_failed');
 
-    const result = await this.authService.loginOrCreateSocialUser({
-      provider:   'google',
-      externalId: profile.googleId,
-      email:      profile.email,
-      name:       profile.name,
-    });
+    let result: Awaited<ReturnType<AuthService['loginOrCreateSocialUser']>>;
+    try {
+      result = await this.authService.loginOrCreateSocialUser({
+        provider:      'google',
+        externalId:    profile.googleId,
+        email:         profile.email,
+        emailVerified: !!profile.emailVerified,
+        name:          profile.name,
+      });
+    } catch {
+      return res.redirect('/staff/login?error=no_account');
+    }
 
     this.setAuthCookies(res, result.accessToken, result.refreshToken, result.user.role);
     return res.redirect(STAFF_HOME);
@@ -275,21 +314,29 @@ export class AuthController {
 
       // Try to get email from id_token if available
       let email = `line_${lineProfile.userId}@noemail.fixitpro`;
+      let emailVerified = false;
       if (tokenRes.data.id_token) {
         try {
           const payload = JSON.parse(
             Buffer.from(tokenRes.data.id_token.split('.')[1], 'base64').toString('utf8'),
           );
-          if (payload.email) email = payload.email;
+          // Straight from LINE's token endpoint over TLS: LINE only gives an email the user verified
+          if (payload.email) { email = payload.email; emailVerified = true; }
         } catch { /* ignore */ }
       }
 
-      const result = await this.authService.loginOrCreateSocialUser({
-        provider:   'line',
-        externalId: lineProfile.userId,
-        email,
-        name:       lineProfile.displayName ?? email,
-      });
+      let result: Awaited<ReturnType<AuthService['loginOrCreateSocialUser']>>;
+      try {
+        result = await this.authService.loginOrCreateSocialUser({
+          provider:   'line',
+          externalId: lineProfile.userId,
+          email,
+          emailVerified,
+          name:       lineProfile.displayName ?? email,
+        });
+      } catch {
+        return res.redirect('/staff/login?error=no_account');
+      }
 
       this.setAuthCookies(res, result.accessToken, result.refreshToken, result.user.role);
       return res.redirect(STAFF_HOME);

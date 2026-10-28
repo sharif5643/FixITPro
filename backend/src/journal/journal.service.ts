@@ -206,19 +206,25 @@ export class JournalService {
 
   /**
    * A shop whose package includes accounting but whose owner never opened the accounts page has
-   * no chart of accounts, so every sale and repair payment failed to reach its books. Such a shop
-   * (no accounts at all) gets the standard chart first; a shop that already has accounts is left
-   * exactly as its owner set it up.
+   * no chart of accounts, so every sale and repair payment failed to reach its books. When a
+   * posting names a standard account the shop is missing, the missing standard accounts are added
+   * (accounts the owner set up are left as they are). Returns whether any was added.
    */
-  private async ensureChartOfAccounts(tenantId: string): Promise<void> {
-    if (await this.prisma.accountingAccount.count({ where: { tenantId } })) return;
+  private async addMissingStandardAccounts(tenantId: string, lines: JournalLineInput[]): Promise<boolean> {
+    const have = new Set((await this.prisma.accountingAccount.findMany({ where: { tenantId }, select: { code: true } })).map((a) => a.code));
+    // Only when what this posting lacks is a standard account (an unknown code stays an error)
+    const lacking = lines.map((l) => l.accountCode).filter((c) => !have.has(c));
+    if (!lacking.some((c) => CHART_OF_ACCOUNTS_TEMPLATE.some((t) => t.code === c))) return false;
+    const missing = CHART_OF_ACCOUNTS_TEMPLATE.filter((t) => !have.has(t.code));
+    if (!missing.length) return false;
     await this.prisma.accountingAccount.createMany({
-      data: CHART_OF_ACCOUNTS_TEMPLATE.map((t) => ({
+      data: missing.map((t) => ({
         code: t.code, name: t.name, nameTh: t.nameTh, type: t.type, subType: t.subType ?? null,
         sortOrder: t.sortOrder, tenantId, isSystem: true, isActive: true,
       })),
       skipDuplicates: true,
     });
+    return true;
   }
 
   // ── Tenant + branch validation ────────────────────────────────────────────
@@ -282,8 +288,12 @@ export class JournalService {
     }
 
     // 5. Resolve account codes → accountIds (validates tenant ownership + active)
-    await this.ensureChartOfAccounts(input.tenantId);
-    const accountIds = await this.resolveAccounts(input.lines, input.tenantId);
+    const accountIds = await this.resolveAccounts(input.lines, input.tenantId).catch(async (err) => {
+      // A standard account the shop does not have yet (no chart at all, or one created before it
+      // existed): add the missing standard accounts once, then try again
+      if (!(err instanceof NotFoundException) || !await this.addMissingStandardAccounts(input.tenantId, input.lines)) throw err;
+      return this.resolveAccounts(input.lines, input.tenantId);
+    });
 
     // 6. Generate entry number (JE-{YYYYMMDD}-{8hex}, collision caught by @unique at DB)
     const entryNumber = this.generateEntryNumber();

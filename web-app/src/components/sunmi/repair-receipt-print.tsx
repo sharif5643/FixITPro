@@ -8,6 +8,7 @@ import {
 import { RepairReceipt } from '@/components/receipt/repair-receipt'
 import { PrinterPickerStep, type PrinterInfo } from '@/components/sunmi/printer-flow'
 import { pushBackHandler } from '@/lib/back-stack'
+import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
 import type { Repair, ShopSettings } from '@/types'
 
@@ -344,16 +345,17 @@ export function RepairReceiptPrintFlow({
 
       {/* Action buttons */}
       <div
-        className="px-4 pt-3 shrink-0 grid grid-cols-2 gap-2"
+        className={`px-4 pt-3 shrink-0 grid gap-2 ${Platform.isNative() ? 'grid-cols-1' : 'grid-cols-2'}`}
         style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}
       >
-        <button
+        {/* A4 goes through the browser's print dialog, which the app (WebView) does not have */}
+        {!Platform.isNative() && <button
           onClick={handlePrintA4}
           className="h-14 rounded-2xl border border-slate-200 bg-white font-semibold text-sm text-slate-700 flex items-center justify-center gap-2 active:bg-slate-50"
         >
           <Printer className="h-4 w-4" />
           พิมพ์ A4
-        </button>
+        </button>}
         <button
           onClick={handlePrint}
           disabled={printing || isLoading}

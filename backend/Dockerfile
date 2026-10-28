@@ -1,5 +1,7 @@
 # ── Stage 1: Builder ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# Node 22 (22.23.4+ fixes the Brotli flaw CVE-2026-111497; Node 20 gets no fix). Alpine 3.23 as before,
+# so the system packages installed below are unchanged.
+FROM node:22-alpine3.23 AS builder
 WORKDIR /app
 
 # Install OpenSSL (required by Prisma)
@@ -21,7 +23,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # ── Stage 2: Runner ───────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine3.23 AS runner
 WORKDIR /app
 
 # Runtime dependencies

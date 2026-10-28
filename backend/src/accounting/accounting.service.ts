@@ -44,6 +44,8 @@ export interface AccountingEntry {
   actorUserId:   string;
   note?:         string;
   reversalOfId?: string;
+  /** The same record paid again (a repair paid, reversed and paid again): 1, 2, … keeps each its own entry. */
+  occurrence?:   number;
 }
 
 type TxClient = Prisma.TransactionClient;
@@ -122,12 +124,7 @@ export class AccountingService {
     // Non-CASH: write an unassigned ledger entry for audit (no drawer session involved).
     if (entry.paymentMethod !== 'CASH') {
       const client = tx ?? this.prisma;
-      const idempotencyKey = [
-        entry.tenantId ?? 'global',
-        entry.sourceType,
-        entry.sourceId,
-        entry.direction,
-      ].join(':');
+      const idempotencyKey = this.keyFor(entry);
       const existing = await (client as any).cashDrawerTransaction.findUnique({ where: { idempotencyKey } });
       if (existing) return existing;
       const data = this.buildEntryData(entry, idempotencyKey, null, null);
@@ -147,12 +144,7 @@ export class AccountingService {
     const client = tx ?? this.prisma;
 
     // Stable idempotency key: tenant:sourceType:sourceId:direction
-    const idempotencyKey = [
-      entry.tenantId ?? 'global',
-      entry.sourceType,
-      entry.sourceId,
-      entry.direction,
-    ].join(':');
+    const idempotencyKey = this.keyFor(entry);
 
     // Fast idempotency check — unique index on idempotencyKey
     const existing = await (client as any).cashDrawerTransaction.findUnique({
@@ -199,6 +191,12 @@ export class AccountingService {
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
+
+  /** tenant:sourceType:sourceId:direction, with #n for a repeated occurrence of the same record */
+  private keyFor(entry: AccountingEntry): string {
+    const id = entry.occurrence ? `${entry.sourceId}#${entry.occurrence}` : entry.sourceId;
+    return [entry.tenantId ?? 'global', entry.sourceType, id, entry.direction].join(':');
+  }
 
   private buildEntryData(
     entry: AccountingEntry,

@@ -438,7 +438,8 @@ export default function RepairDetailPage() {
       })
       return
     }
-    if (!amount || amount < 0) { toast.error('กรุณาระบุจำนวนเงิน'); return }
+    // A deposit that covers the whole price leaves nothing to take: handing over with 0 is fine
+    if (!(amount >= 0) || (amount === 0 && repairBalance > 0)) { toast.error('กรุณาระบุจำนวนเงิน'); return }
     paymentMutation.mutate({ paymentMethod: payMethod, amountPaid: amount, warrantyDays: warrantyDaysValue(payWarrantyDays), ...finalCostField })
   }
 

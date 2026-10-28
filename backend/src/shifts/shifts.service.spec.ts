@@ -23,6 +23,9 @@ describe('ShiftsService.closeShift — P0-3', () => {
     (prisma.shift.update as jest.Mock).mockResolvedValue({
       ...MOCK_SHIFT, isActive: false, user: { id: 'u1', name: 'Test User' },
     });
+    (prisma.shift.findUniqueOrThrow as jest.Mock).mockResolvedValue({
+      ...MOCK_SHIFT, isActive: false, user: { id: 'u1', name: 'Test User' },
+    });
     (prisma.repair.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.supplierPayment.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.packageSale.findMany as jest.Mock).mockResolvedValue([]);

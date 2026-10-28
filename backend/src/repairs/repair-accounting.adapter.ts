@@ -4,6 +4,12 @@ import { JournalService, JOURNAL_SOURCE } from '../journal/journal.service';
 import { ModulesService } from '../modules/modules.service';
 import { ACCOUNT_CODES } from '../accounting-accounts/constants/account-codes';
 
+/**
+ * Journal source id of a repair's final payment. A repair paid, reversed and paid again gets a
+ * new id per round (repairId, repairId#1, …) so the later payment is not taken for the first.
+ */
+export const repairPaymentKey = (repairId: string, round = 0) => (round > 0 ? `${repairId}#${round}` : repairId);
+
 // ── Minimal types for the Repair data the adapter needs ──────────────────────
 
 export interface RepairPartForAccounting {
@@ -116,10 +122,11 @@ export class RepairAccountingAdapter {
     repair:   RepairWithPartsForAccounting,
     tenantId: string,
     actorId?: string | null,
+    round = 0,
   ): Promise<void> {
     if (!await this.isEnabledForTenant(tenantId)) return;
     try {
-      await this._recordFinalPaymentJournal(repair, tenantId, actorId);
+      await this._recordFinalPaymentJournal(repair, tenantId, actorId, round);
     } catch (err) {
       this.logger.error(
         `RepairAccountingAdapter.recordFinalPaymentJournal failed: repairId=${repair.id} ticket=${repair.ticketNumber}`,
@@ -143,10 +150,11 @@ export class RepairAccountingAdapter {
     repair:   RepairForAccounting,
     tenantId: string,
     actorId?: string | null,
+    round = 0,
   ): Promise<void> {
     if (!await this.isEnabledForTenant(tenantId)) return;
     try {
-      await this._reversePaymentJournal(repair, tenantId, actorId);
+      await this._reversePaymentJournal(repair, tenantId, actorId, round);
     } catch (err) {
       this.logger.error(
         `RepairAccountingAdapter.reversePaymentJournal failed: repairId=${repair.id} ticket=${repair.ticketNumber}`,
@@ -249,7 +257,9 @@ export class RepairAccountingAdapter {
     repair:   RepairWithPartsForAccounting,
     tenantId: string,
     actorId?: string | null,
+    round = 0,
   ): Promise<void> {
+    const paymentId = repairPaymentKey(repair.id, round);
     // 1. Final payment revenue
     const paidAmount = this.toDecimal(repair.paidAmount);
     if (paidAmount.gt(0)) {
@@ -259,7 +269,7 @@ export class RepairAccountingAdapter {
         entryDate:   new Date(),
         description: `Final Payment — Repair ${repair.ticketNumber}`,
         sourceType:  JOURNAL_SOURCE.REPAIR_FINAL_PAYMENT,
-        sourceId:    repair.id,
+        sourceId:    paymentId,
         sourceRef:   repair.ticketNumber,
         postedById:  actorId ?? null,
         lines: [
@@ -286,7 +296,7 @@ export class RepairAccountingAdapter {
           entryDate:   new Date(),
           description: `Deposit Settlement — Repair ${repair.ticketNumber}`,
           sourceType:  JOURNAL_SOURCE.REPAIR_DEPOSIT_SETTLE,
-          sourceId:    repair.id,
+          sourceId:    paymentId,
           sourceRef:   repair.ticketNumber,
           postedById:  actorId ?? null,
           lines: [
@@ -363,10 +373,12 @@ export class RepairAccountingAdapter {
     repair:   RepairForAccounting,
     tenantId: string,
     actorId?: string | null,
+    round = 0,
   ): Promise<void> {
+    const paymentId = repairPaymentKey(repair.id, round);
     // 1. Reverse REPAIR_FINAL_PAYMENT — swap debit ↔ credit on all original lines
     const finalJe = await this.journal.findBySource(
-      JOURNAL_SOURCE.REPAIR_FINAL_PAYMENT, repair.id, tenantId,
+      JOURNAL_SOURCE.REPAIR_FINAL_PAYMENT, paymentId, tenantId,
     );
     if (!finalJe) {
       this.logger.warn(
@@ -385,7 +397,7 @@ export class RepairAccountingAdapter {
         entryDate:   new Date(),
         description: `Payment Reversal — Repair ${repair.ticketNumber}`,
         sourceType:  JOURNAL_SOURCE.REPAIR_PAYMENT_REVERSAL,
-        sourceId:    repair.id,
+        sourceId:    paymentId,
         sourceRef:   repair.ticketNumber,
         postedById:  actorId ?? null,
         lines:       reversedFinalLines,
@@ -394,7 +406,7 @@ export class RepairAccountingAdapter {
 
     // 2. Reverse REPAIR_DEPOSIT_SETTLE if it was posted
     const settleJe = await this.journal.findBySource(
-      JOURNAL_SOURCE.REPAIR_DEPOSIT_SETTLE, repair.id, tenantId,
+      JOURNAL_SOURCE.REPAIR_DEPOSIT_SETTLE, paymentId, tenantId,
     );
     if (settleJe) {
       const reversedSettleLines = (settleJe.lines as any[]).map((line) => {
@@ -409,7 +421,7 @@ export class RepairAccountingAdapter {
         entryDate:   new Date(),
         description: `Deposit Settle Reversal — Repair ${repair.ticketNumber}`,
         sourceType:  JOURNAL_SOURCE.REPAIR_DEPOSIT_SETTLE_REVERSAL,
-        sourceId:    repair.id,
+        sourceId:    paymentId,
         sourceRef:   repair.ticketNumber,
         postedById:  actorId ?? null,
         lines:       reversedSettleLines,

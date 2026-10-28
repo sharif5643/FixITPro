@@ -133,4 +133,54 @@ describe('Repair freebies and pickup discount (e2e)', () => {
     expect(Number(r!.finalCost)).toBe(800);
     expect(r!.paidDiscount).toBeNull();
   });
+
+  it('FD-07: paid, reversed and paid again — the second payment is in the drawer and the books', async () => {
+    const saved = { core: process.env.ACCOUNTING_CORE_ENABLED, tenants: process.env.ACCOUNTING_ENABLED_TENANTS };
+    process.env.ACCOUNTING_CORE_ENABLED = 'true';
+    process.env.ACCOUNTING_ENABLED_TENANTS = IDS.tenantA;
+    try {
+      const id = await completedRepair(1000);
+      const before = Number((await authGet(app, '/api/v1/shifts/current', owner).expect(200)).body.expectedCashBalance);
+      await authPost(app, `/api/v1/repairs/${id}/payment`, owner, { paymentMethod: 'CASH', amountPaid: 1000 }).expect(201);
+      await authPost(app, `/api/v1/repairs/${id}/reverse-payment`, owner, { reason: 'e2e wrong amount' }).expect(201);
+      await authPost(app, `/api/v1/repairs/${id}/payment`, owner, { paymentMethod: 'CASH', amountPaid: 900, discount: 100 }).expect(201);
+
+      const ledger = await prisma.cashDrawerTransaction.findMany({
+        where: { referenceId: id }, select: { referenceType: true, direction: true, amount: true, reversalOfId: true },
+      });
+      const ins = ledger.filter((l) => l.referenceType === 'REPAIR_FINAL_PAYMENT' && l.direction === 'IN').map((l) => Number(l.amount));
+      expect(ins.sort()).toEqual([1000, 900].sort());
+      expect(ledger.filter((l) => l.referenceType === 'REVERSAL' && l.direction === 'OUT')).toHaveLength(1);
+      const after = Number((await authGet(app, '/api/v1/shifts/current', owner).expect(200)).body.expectedCashBalance);
+      expect(after - before).toBe(900);
+
+      const journals = await prisma.journalEntry.findMany({
+        where: { tenantId: IDS.tenantA, sourceId: { in: [id, `${id}#1`] } }, select: { sourceType: true, sourceId: true },
+      });
+      const has = (t: string, s: string) => journals.some((j) => j.sourceType === t && j.sourceId === s);
+      expect(has('REPAIR_FINAL_PAYMENT', id)).toBe(true);
+      expect(has('REPAIR_PAYMENT_REVERSAL', id)).toBe(true);
+      expect(has('REPAIR_FINAL_PAYMENT', `${id}#1`)).toBe(true);
+
+      // Reversing the second payment undoes that one, not the first again
+      await authPost(app, `/api/v1/repairs/${id}/reverse-payment`, owner, { reason: 'e2e again' }).expect(201);
+      expect(await prisma.journalEntry.count({ where: { tenantId: IDS.tenantA, sourceType: 'REPAIR_PAYMENT_REVERSAL', sourceId: `${id}#1` } })).toBe(1);
+      expect(await prisma.cashDrawerTransaction.count({ where: { referenceId: id, referenceType: 'REVERSAL', direction: 'OUT' } })).toBe(2);
+    } finally {
+      if (saved.core === undefined) delete process.env.ACCOUNTING_CORE_ENABLED; else process.env.ACCOUNTING_CORE_ENABLED = saved.core;
+      if (saved.tenants === undefined) delete process.env.ACCOUNTING_ENABLED_TENANTS; else process.env.ACCOUNTING_ENABLED_TENANTS = saved.tenants;
+    }
+  });
+
+  it('FD-08: two reversals sent at once give the money back once', async () => {
+    const id = await completedRepair(700);
+    await authPost(app, `/api/v1/repairs/${id}/payment`, owner, { paymentMethod: 'CASH', amountPaid: 700 }).expect(201);
+    const res = await Promise.all([
+      authPost(app, `/api/v1/repairs/${id}/reverse-payment`, owner, { reason: 'e2e a' }),
+      authPost(app, `/api/v1/repairs/${id}/refund-and-cancel`, owner, { reason: 'e2e b' }),
+    ]);
+    expect(res.map((r) => r.status).sort()).toEqual([201, 400]);
+    expect(await prisma.repairPaymentReversal.count({ where: { repairId: id } })).toBe(1);
+    expect(await prisma.shiftCashMovement.count({ where: { referenceId: id, direction: 'OUT' } })).toBe(1);
+  });
 });

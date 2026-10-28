@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   History, Settings, ChevronRight, Bell, KeyRound,
-  LogOut, Loader2, Wrench
+  LogOut, Loader2, Wrench, Lock, Fingerprint
 } from 'lucide-react'
 import { AppVersion } from '@/components/app/app-version'
 import { markOpenedFromApp } from '@/lib/app-shell'
+import { CHANGE_PIN_EVENT } from '@/components/app/app-lock-gate'
+import { biometricAvailable, biometricOn, biometricUnlock, lockApplies, setBiometricOn } from '@/lib/app-lock'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import { toast } from 'sonner'
@@ -36,6 +38,21 @@ export default function StaffProfilePage() {
   // Shop settings live in the web's settings page (same permission as there)
   const MENU_ITEMS = [...BASE_MENU, ...(canSettings ? [{ icon: Settings, label: 'ตั้งค่าร้าน', href: '/settings' }] : [])]
   const [loggingOut, setLoggingOut] = useState(false)
+  // App lock (staff app): change the PIN, fingerprint / face on or off on this phone
+  const [lockOn, setLockOn] = useState(false)
+  const [bioReady, setBioReady] = useState(false)
+  const [bio, setBio] = useState(false)
+  useEffect(() => {
+    lockApplies().then(setLockOn)
+    biometricAvailable().then(setBioReady)
+  }, [])
+  useEffect(() => { if (user?.id) setBio(biometricOn(user.id)) }, [user?.id])
+
+  async function toggleBio() {
+    if (!user?.id) return
+    if (bio) { setBiometricOn(user.id, false); setBio(false); return }
+    if (await biometricUnlock()) { setBiometricOn(user.id, true); setBio(true); toast.success('เปิดใช้สแกนนิ้ว/ใบหน้าแล้ว') }
+  }
 
   const initials = (user?.name ?? 'U')
     .split(' ')
@@ -98,6 +115,31 @@ export default function StaffProfilePage() {
             )
           })}
         </div>
+
+        {lockOn && (
+          <div className="mt-4 rounded-2xl bg-white shadow-card overflow-hidden">
+            <button onClick={() => window.dispatchEvent(new Event(CHANGE_PIN_EVENT))}
+              className={`flex w-full items-center gap-3 px-4 py-4 text-left active:bg-slate-50 ${bioReady ? 'border-b border-slate-50' : ''}`}>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-yellow/15">
+                <Lock className="h-4.5 w-4.5 text-brand-black" strokeWidth={1.8} />
+              </div>
+              <span className="flex-1 text-sm font-medium text-brand-black">เปลี่ยน PIN เข้าแอป</span>
+              <ChevronRight className="h-4 w-4 text-slate-300" />
+            </button>
+            {bioReady && (
+              <button onClick={toggleBio} role="switch" aria-checked={bio}
+                className="flex w-full items-center gap-3 px-4 py-4 text-left active:bg-slate-50">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-yellow/15">
+                  <Fingerprint className="h-4.5 w-4.5 text-brand-black" strokeWidth={1.8} />
+                </div>
+                <span className="flex-1 text-sm font-medium text-brand-black">ปลดล็อกด้วยสแกนนิ้ว/ใบหน้า</span>
+                <span className={`relative h-6 w-11 rounded-full transition-colors ${bio ? 'bg-green-500' : 'bg-slate-300'}`}>
+                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${bio ? 'left-[22px]' : 'left-0.5'}`} />
+                </span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Logout */}
         <button

@@ -1,4 +1,5 @@
 import {
+  Matches,
   IsString,
   IsNumber,
   IsOptional,
@@ -129,6 +130,8 @@ export class CreateSaleDto {
    */
   @IsOptional()
   @IsISO8601()
+  // With its time zone (Z or +07:00): without one the server would read it in its own zone
+  @Matches(/T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/, { message: 'soldAt ต้องมีเขตเวลา เช่น 2026-10-20T07:00:00Z' })
   soldAt?: string;
 
   @IsArray()

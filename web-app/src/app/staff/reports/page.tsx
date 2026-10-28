@@ -11,13 +11,13 @@ interface DashData {
   weeklyRevenue?: { date:string; revenue:number }[]
 }
 
-const toISO = (dt: Date) => dt.toISOString().slice(0, 10)
-
+// The shop's day (Thai time): a UTC date was yesterday before 7am, and the 1st of the month
+// at local midnight came out as the last day of the month before
 function getRange(p: 'daily'|'monthly'|'yearly') {
-  const today = new Date()
-  if (p === 'daily')   return { startDate: toISO(today), endDate: toISO(today) }
-  if (p === 'monthly') return { startDate: toISO(new Date(today.getFullYear(), today.getMonth(), 1)), endDate: toISO(today) }
-  return { startDate: toISO(new Date(today.getFullYear(), 0, 1)), endDate: toISO(today) }
+  const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10)
+  if (p === 'daily')   return { startDate: today, endDate: today }
+  if (p === 'monthly') return { startDate: `${today.slice(0, 7)}-01`, endDate: today }
+  return { startDate: `${today.slice(0, 4)}-01-01`, endDate: today }
 }
 
 export default function ReportsPage() {

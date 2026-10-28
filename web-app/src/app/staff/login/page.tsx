@@ -70,6 +70,7 @@ function LoginForm() {
     if (e === 'google_failed')       toast.error('Google login ไม่สำเร็จ')
     if (e === 'line_failed')         toast.error('LINE login ไม่สำเร็จ')
     if (e === 'line_not_configured') toast.error('LINE login ยังไม่ได้ตั้งค่า')
+    if (e === 'no_account')          toast.error('ยังไม่มีบัญชีนี้ในระบบ หรือบัญชีถูกปิด — ให้เจ้าของร้านเพิ่มบัญชีให้ก่อน')
   }, [params])
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<Form>({

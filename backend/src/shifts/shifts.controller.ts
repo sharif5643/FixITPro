@@ -66,7 +66,7 @@ export class ShiftsController {
 
   /** The last close of my branch: the float it left for the next shift. */
   @Get('last-close')
-  lastClose(@CurrentUser() user: { id: string; branchId?: string | null; tenantId?: string | null }) {
+  lastClose(@CurrentUser() user: { id: string; role?: string; permissions?: string[]; branchId?: string | null; tenantId?: string | null }) {
     return this.shiftsService.lastClose(user);
   }
 

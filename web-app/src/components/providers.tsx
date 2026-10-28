@@ -7,6 +7,7 @@ import { PlatformBody } from '@/components/apk/platform-body'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { BrandTheme } from '@/components/providers/brand-theme'
 import { useAuthStore } from '@/store/auth.store'
+import { AppLockGate } from '@/components/app/app-lock-gate'
 
 function PermissionRefresher() {
   const refreshPermissions = useAuthStore((s) => s.refreshPermissions)
@@ -54,6 +55,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <PlatformBody />
         <BrandTheme />
         {children}
+        <AppLockGate />
         <Toaster position="top-right" richColors closeButton />
       </QueryClientProvider>
     </ThemeProvider>

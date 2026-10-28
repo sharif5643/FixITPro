@@ -3,7 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import { ModulesService } from '../modules/modules.service';
 import { JOURNAL_SOURCE } from '../journal/journal.service';
 import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
-import { RepairAccountingAdapter } from '../repairs/repair-accounting.adapter';
+import { RepairAccountingAdapter, repairPaymentKey } from '../repairs/repair-accounting.adapter';
 import { ExpenseAccountingAdapter } from '../expenses/expense-accounting.adapter';
 import { AccountingReconciliationService } from './accounting-reconciliation.service';
 
@@ -65,19 +65,22 @@ export class BooksCatchUpService {
         deposit: true, depositPaymentMethod: true, branchId: true,
         parts: { select: { id: true, costPrice: true, quantity: true, isVoided: true } },
         additionalPayments: { select: { id: true, amount: true, paymentMethod: true } },
+        _count: { select: { paymentReversals: true } },
       },
       orderBy: { receivedAt: 'asc' },
     });
     const ids = repairs.map((r) => r.id);
+    // A repair paid again after a reversal is booked under its current round
+    const paymentKey = (r: (typeof repairs)[number]) => repairPaymentKey(r.id, r._count.paymentReversals);
     const [deposits, finals, extras] = await Promise.all([
       this.posted(tenantId, JOURNAL_SOURCE.REPAIR_DEPOSIT, ids),
-      this.posted(tenantId, JOURNAL_SOURCE.REPAIR_FINAL_PAYMENT, ids),
+      this.posted(tenantId, JOURNAL_SOURCE.REPAIR_FINAL_PAYMENT, repairs.map(paymentKey)),
       this.posted(tenantId, JOURNAL_SOURCE.REPAIR_ADDITIONAL_PAYMENT, repairs.flatMap((r) => r.additionalPayments.map((p) => p.id))),
     ]);
     for (const r of repairs) {
       const needDeposit = Number(r.deposit) > 0 && !deposits.has(r.id);
       const needExtras = r.additionalPayments.filter((p) => !extras.has(p.id));
-      const needFinal = !!r.paidAt && !finals.has(r.id);
+      const needFinal = !!r.paidAt && !finals.has(paymentKey(r));
       if (!needDeposit && !needExtras.length && !needFinal) continue;
       result.repairs++;
       if (!write) continue;
@@ -88,7 +91,7 @@ export class BooksCatchUpService {
           { id: r.id, ticketNumber: r.ticketNumber, branchId: r.branchId }, tenantId, actorId,
         );
       }
-      if (needFinal) await this.repairs.recordFinalPaymentJournal(r as any, tenantId, actorId);
+      if (needFinal) await this.repairs.recordFinalPaymentJournal(r as any, tenantId, actorId, r._count.paymentReversals);
     }
 
     // ── Sales: the reconciliation rebuilds whatever a sale is missing

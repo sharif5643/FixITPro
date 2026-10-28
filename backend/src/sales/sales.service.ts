@@ -235,7 +235,11 @@ export class SalesService {
 
     // A bill of goods that comes to 0: a late entry is an old sale and needs its real price; any
     // other must say it is a gift or a claim (audit 2026-10: "ยอดเก่า" keyed at 0 baht)
-    const listValue = dto.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    // Valued at the shop's own price: keying the line price as 0 must not skip the reason
+    const listValue = dto.items.reduce((sum, item) => {
+      const shopPrice = Number(products.find((p) => p.id === item.productId)?.price ?? 0);
+      return sum + (shopPrice > 0 ? shopPrice : item.price) * item.quantity;
+    }, 0);
     if (total <= 0 && listValue > 0) {
       if (lateAt) {
         throw new BadRequestException('บันทึกยอดขายย้อนหลังต้องใช้ราคาที่ขายจริง — ลบส่วนลดออกแล้วใส่ยอดที่ลูกค้าจ่าย');
@@ -432,9 +436,11 @@ export class SalesService {
       }
 
       // Record each payment leg in accounting ledger (CASH → cash drawer; others → audit-only).
-      // A late entry into a closed shift skips it: that cash was counted when the shift closed.
-      if (branchId && !cashAlreadyCounted) {
+      // A late entry into a closed shift skips only its cash: that cash was counted when the shift
+      // closed. Transfers and cards still get their audit-only record.
+      if (branchId) {
         for (const payment of sale.payments) {
+          if (cashAlreadyCounted && payment.paymentMethod === 'CASH') continue;
           await this.accounting.record({
             sourceType:    ACCOUNTING_SOURCE.SALE_PAYMENT,
             sourceId:      payment.id,
@@ -849,12 +855,17 @@ export class SalesService {
    */
   async changePaymentMethod(
     id: string, method: 'CASH' | 'TRANSFER' | 'CARD', userId: string, tenantId?: string | null, role?: string,
+    actorBranchId?: string | null,
   ) {
     const sale = await this.findOne(id, tenantId);
     if (sale.status !== 'COMPLETED') throw new BadRequestException('แก้ได้เฉพาะบิลที่ขายสำเร็จ ไม่มีการคืนหรือยกเลิก');
     if (!sale.shift?.isActive) throw new BadRequestException('กะของบิลนี้ปิดไปแล้ว — แก้ช่องทางรับเงินไม่ได้');
     const elevated = role === 'OWNER' || role === 'MANAGER' || role === 'SUPER_ADMIN';
     if (!elevated && sale.userId !== userId) throw new ForbiddenException('แก้ได้เฉพาะบิลที่ตัวเองขาย');
+    // A manager of one branch moves money only in that branch's drawer (as when closing its shift)
+    if (role === 'MANAGER' && actorBranchId && sale.branchId && sale.branchId !== actorBranchId) {
+      throw new ForbiddenException('แก้ได้เฉพาะบิลของสาขาตัวเอง');
+    }
     const legs = sale.payments ?? [];
     if (legs.length !== 1) throw new BadRequestException('บิลนี้จ่ายหลายช่องทาง — แก้ช่องทางรับเงินไม่ได้');
     const old = legs[0];
@@ -862,9 +873,21 @@ export class SalesService {
     const total = Number(sale.total);
 
     const newLeg = await this.prisma.$transaction(async (tx) => {
+      // Checked again inside the change: a refund, a void or the shift being closed between the
+      // checks above and here must stop it (the bill would move money in a counted shift)
+      const still = await tx.sale.updateMany({
+        where: { id: sale.id, status: 'COMPLETED' as any, shift: { is: { isActive: true } } },
+        data:  { paymentMethod: method as any, amountPaid: total, change: 0 },
+      });
+      if (still.count === 0) throw new BadRequestException('บิลนี้เปลี่ยนไปแล้ว (คืน/ยกเลิก หรือปิดกะ) — แก้ช่องทางรับเงินไม่ได้');
       if (sale.branchId) {
+        // Undo the old leg in the drawer ledger as a reversal of it, not as a customer refund
+        const original = await (tx as any).cashDrawerTransaction.findFirst({
+          where:  { referenceType: ACCOUNTING_SOURCE.SALE_PAYMENT, referenceId: old.id },
+          select: { id: true },
+        });
         await this.accounting.record({
-          sourceType:    ACCOUNTING_SOURCE.SALE_REFUND,
+          sourceType:    ACCOUNTING_SOURCE.REVERSAL,
           sourceId:      old.id,
           direction:     'OUT',
           amount:        Number(old.amount),
@@ -873,15 +896,12 @@ export class SalesService {
           tenantId:      tenantId ?? null,
           actorUserId:   userId,
           note:          `แก้ช่องทางรับเงิน ${sale.receiptNumber}`,
+          ...(original?.id ? { reversalOfId: original.id } : {}),
         }, tx);
       }
       await tx.salePayment.delete({ where: { id: old.id } });
       const leg = await tx.salePayment.create({
         data: { saleId: sale.id, paymentMethod: method as any, amount: total, sortOrder: 0 },
-      });
-      await tx.sale.update({
-        where: { id: sale.id },
-        data:  { paymentMethod: method as any, amountPaid: total, change: 0 },
       });
       if (sale.branchId) {
         await this.accounting.record({
