@@ -547,6 +547,7 @@ function makeReceiptThermalCss(px: number): string {
   .sig  { display: flex; justify-content: space-between; margin: ${r(10)}px 0 ${r(6)}px; }
   .sig-box  { text-align: center; font-size: ${r(10)}px; width: 45%; overflow: hidden; }
   .sig-box img, .sig-box .sig-line { margin-left: auto; margin-right: auto; }
+  .sig-box p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sig-line { width: ${r(80)}px; border-bottom: 1px solid #333; margin-bottom: ${r(4)}px; height: ${r(28)}px; }
   .cut  { border-top: 2px dashed #000; margin: ${r(10)}px 0; text-align: center; font-size: ${r(10)}px; color: #333; letter-spacing: 2px; }
   .qr-t   { font-size: ${r(10)}px; font-weight: 700; }
