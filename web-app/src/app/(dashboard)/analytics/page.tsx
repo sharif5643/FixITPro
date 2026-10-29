@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
-import { formatThaiMoney } from '@/lib/utils'
+import { formatThaiMoney, initialOf } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
@@ -542,7 +542,7 @@ function TechnicianSection({ data, loading }: { data?: TechnicianTrend[]; loadin
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-violet-700 font-bold text-sm">
-                      {tech.technician.name.charAt(0).toUpperCase()}
+                      {initialOf(tech.technician.name)}
                     </span>
                     <div>
                       <p className="font-semibold text-sm text-slate-900">{tech.technician.name}</p>

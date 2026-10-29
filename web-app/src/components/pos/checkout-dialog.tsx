@@ -324,6 +324,9 @@ export function CheckoutDialog({
   const amountPaid    = Number(watch('amountPaid')) || 0
   const change        = amountPaid - total
 
+  // Already chosen in the payment panel (method, and the cash taken): shown as a summary, not asked again
+  const [paymentChosen, setPaymentChosen] = useState(false)
+
   useEffect(() => {
     if (open) {
       // Pre-populate from cart's pre-selected serialIds
@@ -346,6 +349,7 @@ export function CheckoutDialog({
         customerPhone: initialCustomerPhone ?? '',
         note:          '',
       })
+      setPaymentChosen(!!initialPaymentMethod && (initialPaymentMethod !== 'CASH' || (initialAmountPaid ?? 0) >= total))
       setSellerId('')
       setLateOn(false)
       setLateAt(toLocalInput(new Date(Date.now() - 3600_000)))
@@ -495,6 +499,38 @@ export function CheckoutDialog({
               </div>
             )}
 
+            {paymentChosen && !splitMode ? (
+              /* ── Chosen in the payment panel: what will be saved, with a way to change it ── */
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/10">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    {(() => { const opt = PAYMENT_OPTIONS.find((o) => o.value === paymentMethod); return opt ? <opt.icon className="h-5 w-5 text-blue-600 dark:text-blue-400" /> : null })()}
+                    <div>
+                      <p className="text-xs text-blue-700/70 dark:text-blue-300/70">ชำระด้วย</p>
+                      <p className="font-bold text-blue-900 dark:text-blue-200">{PAYMENT_OPTIONS.find((o) => o.value === paymentMethod)?.label}</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => setPaymentChosen(false)}
+                    className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:bg-transparent dark:text-blue-300">
+                    เปลี่ยน
+                  </button>
+                </div>
+                {isCash && (
+                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-blue-200/70 pt-3 text-sm dark:border-blue-800/60">
+                    <div><p className="text-xs text-muted-foreground">รับเงินมา</p><p className="font-bold tabular-nums">{formatThaiMoney(amountPaid)}</p></div>
+                    <div className="text-right"><p className="text-xs text-muted-foreground">เงินทอน</p><p className="text-xl font-bold tabular-nums text-green-700 dark:text-green-300">{formatThaiMoney(Math.max(0, change))}</p></div>
+                  </div>
+                )}
+                {paymentMethod === 'TRANSFER' && settings?.promptpayId && (
+                  <div className="mt-3 flex flex-col items-center gap-2 border-t border-blue-200/70 pt-3 dark:border-blue-800/60">
+                    <div className="rounded-xl bg-white p-3 shadow-sm">
+                      <QRCodeSVG value={generatePayload(settings.promptpayId, { amount: total })} size={160} level="M" />
+                    </div>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">ลูกค้าสแกนโอน {formatThaiMoney(total)} แล้วกด &quot;ยืนยันชำระเงิน&quot;</p>
+                  </div>
+                )}
+              </div>
+            ) : (<>
             {/* Split / Single mode toggle */}
             <div className="flex items-center justify-between">
               <Label>ช่องทางชำระเงิน <span className="text-red-500">*</span></Label>
@@ -680,6 +716,7 @@ export function CheckoutDialog({
                 )}
               </>
             )}
+            </>)}
 
             {/* Customer */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -723,7 +760,7 @@ export function CheckoutDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={createSaleMutation.isPending}>
                 ยกเลิก
               </Button>
-              <Button type="submit" disabled={!canSubmit} className="min-w-[140px] h-12 text-base font-bold">
+              <Button type="submit" disabled={!canSubmit} autoFocus={paymentChosen} className="min-w-[140px] h-12 text-base font-bold">
                 {createSaleMutation.isPending
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />กำลังบันทึก...</>
                   : 'ยืนยันชำระเงิน'}

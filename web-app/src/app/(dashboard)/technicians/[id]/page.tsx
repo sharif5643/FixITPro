@@ -12,7 +12,7 @@ import {
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatThaiMoney } from '@/lib/utils'
+import { formatThaiMoney, initialOf } from '@/lib/utils'
 import api from '@/lib/api'
 import type { TechnicianDetail, DailyPoint } from '@/types'
 
@@ -258,7 +258,7 @@ export default function TechnicianProfilePage() {
       <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
-            {tech.name.charAt(0).toUpperCase()}
+            {initialOf(tech.name)}
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">{tech.name}</h1>

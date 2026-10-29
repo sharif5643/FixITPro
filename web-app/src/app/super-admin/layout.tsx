@@ -7,7 +7,7 @@ import {
   Smartphone, LogOut, Bell, Search, Menu, X, ChevronRight,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
-import { cn } from '@/lib/utils'
+import { cn, initialOf } from '@/lib/utils'
 import api from '@/lib/api'
 
 const AUTH_TIMEOUT_MS = 10_000
@@ -135,7 +135,7 @@ function Sidebar({
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/50 mb-2">
           <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-blue-600 flex items-center justify-center shrink-0">
             <span className="text-white text-[11px] font-bold">
-              {(user.name ?? user.email).charAt(0).toUpperCase()}
+              {initialOf(user.name ?? user.email)}
             </span>
           </div>
           <div className="min-w-0 flex-1">

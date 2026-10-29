@@ -53,7 +53,9 @@ export default function SalesPage() {
     paymentMethod: PaymentMethod
     amountPaid: number
   } | null>(null)
-  const [isLgLayout, setIsLgLayout] = useState(false)
+  // The payment column beside the cart only fits on wide screens (not an iPad); narrower ones pay from the cart
+  const [isWideLayout, setIsWideLayout] = useState(false)
+  const [isTouch, setIsTouch] = useState(false)
 
   // Customer search
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
@@ -90,9 +92,10 @@ export default function SalesPage() {
   })
 
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)')
-    setIsLgLayout(mq.matches)
-    const handler = (e: MediaQueryListEvent) => setIsLgLayout(e.matches)
+    setIsTouch(window.matchMedia('(pointer: coarse)').matches)
+    const mq = window.matchMedia('(min-width: 1280px)')
+    setIsWideLayout(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsWideLayout(e.matches)
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
@@ -135,44 +138,44 @@ export default function SalesPage() {
   }, [])
 
   const handleFocusDiscount = useCallback(() => {
-    if (isLgLayout) {
+    if (isWideLayout) {
       paymentPanelRef.current?.focusDiscount()
     } else {
       setMobileTab('cart')
       requestAnimationFrame(() => cartDiscountRef.current?.focus())
     }
-  }, [isLgLayout])
+  }, [isWideLayout])
 
   const handleSelectQR = useCallback(() => {
-    if (isLgLayout) {
+    if (isWideLayout) {
       paymentPanelRef.current?.selectMethod('TRANSFER')
     } else {
       setPreSelectedPayment({ paymentMethod: 'TRANSFER', amountPaid: total })
       if (items.length > 0 && !hasZeroPriceItem) setCheckoutOpen(true)
     }
-  }, [isLgLayout, total, items.length, hasZeroPriceItem])
+  }, [isWideLayout, total, items.length, hasZeroPriceItem])
 
   const handleOpenDrawer = useCallback(() => {
     openCashDrawer().catch((e) => console.error('[CashDrawer F6]', e))
   }, [])
 
   const handleSelectCash = useCallback(() => {
-    if (isLgLayout) {
+    if (isWideLayout) {
       paymentPanelRef.current?.focusCashInput()
     } else {
       setPreSelectedPayment({ paymentMethod: 'CASH', amountPaid: 0 })
       if (items.length > 0 && !hasZeroPriceItem) setCheckoutOpen(true)
     }
-  }, [isLgLayout, items.length, hasZeroPriceItem])
+  }, [isWideLayout, items.length, hasZeroPriceItem])
 
   const handleSelectTransfer = useCallback(() => {
-    if (isLgLayout) {
+    if (isWideLayout) {
       paymentPanelRef.current?.selectMethod('TRANSFER')
     } else {
       setPreSelectedPayment({ paymentMethod: 'TRANSFER', amountPaid: total })
       if (items.length > 0 && !hasZeroPriceItem) setCheckoutOpen(true)
     }
-  }, [isLgLayout, total, items.length, hasZeroPriceItem])
+  }, [isWideLayout, total, items.length, hasZeroPriceItem])
 
   const handleEscape = useCallback(() => {
     if (cashOutOpen)  { setCashOutOpen(false);  return }
@@ -401,7 +404,7 @@ export default function SalesPage() {
     )
   }
 
-  const showHints    = !isSunmi && !Platform.isNative()
+  const showHints    = !isSunmi && !Platform.isNative() && !isTouch  // F-keys mean nothing without a keyboard
   const totalQtyCart = items.reduce((s, i) => s + i.quantity, 0)
 
   return (
@@ -488,13 +491,13 @@ export default function SalesPage() {
             onHold={handleHold}
             selectedProductId={selectedProductId}
             onSelectRow={setSelectedProductId}
-            showPaymentPanel={!isLgLayout}
+            showPaymentPanel={!isWideLayout}
             discountRef={cartDiscountRef}
           />
         </div>
 
         {/* Right — Payment Summary (desktop only) */}
-        <div className="hidden lg:flex flex-col bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] w-72 shrink-0">
+        <div className="hidden xl:flex flex-col bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] w-72 shrink-0">
           <div className="px-4 pt-3.5 pb-2.5 border-b border-slate-100 dark:border-slate-700/60 shrink-0 flex items-center justify-between">
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
               สรุปการชำระเงิน
@@ -516,7 +519,7 @@ export default function SalesPage() {
 
       {/* Desktop shortcut hints */}
       {showHints && (
-        <div className="hidden lg:flex items-center gap-4 pt-2 pb-0.5 px-1 shrink-0">
+        <div className="hidden xl:flex items-center gap-4 pt-2 pb-0.5 px-1 shrink-0">
           <Keyboard className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
           {[
             { key: 'F1', label: 'บิลใหม่' },
