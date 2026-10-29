@@ -5,6 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * The first letter of a name for an avatar or a product without a picture. Thai words can start
+ * with a vowel written before the consonant (เ แ โ ใ ไ): "เคส" gives "ค", not a lone "เ".
+ */
+export function initialOf(name?: string | null, fallback = '?'): string {
+  const ch = (name ?? '').trim().split('').find((c) => {
+    const code = c.charCodeAt(0)
+    if (code >= 0x0E01 && code <= 0x0E2E) return true          // Thai consonant
+    if (code >= 0x0E00 && code <= 0x0E7F) return false         // Thai vowel / tone mark
+    return /[A-Za-z0-9]/.test(c) || c.toLowerCase() !== c.toUpperCase()
+  })
+  return ch ? ch.toUpperCase() : fallback
+}
+
 export function formatThaiMoney(amount: number): string {
   const num = new Intl.NumberFormat('th-TH', {
     style: 'decimal',

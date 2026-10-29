@@ -9,7 +9,7 @@ import { th } from 'date-fns/locale'
 import {
   ScanBarcode, Camera, Trash2, Plus, Minus,
   Banknote, Smartphone, CreditCard, X, Tag, Search, User,
-  ShoppingCart, ChevronRight, History, Printer,
+  ShoppingCart, ChevronRight, ChevronDown, History, Printer, Star, LayoutGrid,
 } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
 import { SerialPicker } from '@/components/pos/checkout-dialog'
@@ -86,6 +86,139 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product)
   )
 }
 
+// ── Product picker (no typing needed) ─────────────────────────────────────────
+
+const FAVS_KEY   = 'pos_favorites'       // shared with the web POS's ⭐ list
+const RECENT_KEY = 'pos_recent_products' // what this device sold lately, newest first
+const RECENT_MAX = 16
+
+function readIds(key: string): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? '[]')
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  } catch { return [] }
+}
+
+function rememberRecent(productId: string) {
+  try {
+    const next = [productId, ...readIds(RECENT_KEY).filter((id) => id !== productId)].slice(0, RECENT_MAX)
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+  } catch { /* storage off: nothing remembered */ }
+}
+
+const BROWSE_TABS = [
+  { key: 'RECENT',    label: 'ขายล่าสุด' },
+  { key: 'FAVORITES', label: '⭐ ประจำ' },
+  { key: 'ALL',       label: 'ทั้งหมด' },
+  { key: 'PHONE',     label: 'มือถือ' },
+  { key: 'ACCESSORY', label: 'อุปกรณ์' },
+  { key: 'PART',      label: 'อะไหล่' },
+  { key: 'SIM',       label: 'ซิม' },
+] as const
+type BrowseTab = typeof BROWSE_TABS[number]['key']
+const BROWSE_LIMIT = 60
+
+/** Tap-to-add tiles: recent, favourites and each kind of product, so a sale needs no typing */
+function ProductBrowser({ branchId, onAdd }: { branchId?: string; onAdd: (p: Product) => void }) {
+  const { data: products = [], isLoading } = useQuery<Product[]>({
+    queryKey: ['products', branchId ?? 'all'],  // the web POS's list, shared cache
+    queryFn: async () => {
+      const res = await api.get('/products', { params: branchId ? { branchId } : {} })
+      return Array.isArray(res.data) ? res.data : res.data?.items ?? []
+    },
+    staleTime: 30_000,
+  })
+  const [favs, setFavs]     = useState<string[]>([])
+  const [recent, setRecent] = useState<string[]>([])
+  const [tab, setTab]       = useState<BrowseTab | null>(null)
+
+  useEffect(() => {
+    const f = readIds(FAVS_KEY), r = readIds(RECENT_KEY)
+    setFavs(f); setRecent(r)
+    setTab(r.length ? 'RECENT' : f.length ? 'FAVORITES' : 'ALL')
+  }, [])
+
+  function toggleFav(id: string) {
+    const next = favs.includes(id) ? favs.filter((x) => x !== id) : [...favs, id]
+    setFavs(next)
+    try { localStorage.setItem(FAVS_KEY, JSON.stringify(next)) } catch { /* storage off */ }
+  }
+
+  const list = useMemo(() => {
+    const active = products.filter((p) => p.isActive)
+    const byId = new Map(active.map((p) => [p.id, p]))
+    let picked: Product[]
+    if (tab === 'RECENT') picked = recent.map((id) => byId.get(id)).filter((p): p is Product => !!p)
+    else if (tab === 'FAVORITES') picked = favs.map((id) => byId.get(id)).filter((p): p is Product => !!p)
+    else if (tab === 'ALL' || !tab) picked = active
+    else picked = active.filter((p) => p.type === tab)
+    // Sellable items first; the order is otherwise kept
+    return [...picked].sort((a, b) => Number((a.branchQuantity ?? 0) < 1) - Number((b.branchQuantity ?? 0) < 1))
+  }, [products, tab, recent, favs])
+
+  // Only the groups that have something in them
+  const tabs = BROWSE_TABS.filter((t) =>
+    t.key === 'RECENT' ? recent.length > 0
+      : t.key === 'FAVORITES' ? favs.length > 0
+      : t.key === 'ALL' || products.some((p) => p.isActive && p.type === t.key))
+
+  return (
+    <div className="space-y-2">
+      <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-0.5 [scrollbar-width:none]">
+        {tabs.map((t) => (
+          <button key={t.key} type="button" onClick={() => setTab(t.key)}
+            className={`h-9 shrink-0 rounded-full px-4 text-sm font-bold ${
+              tab === t.key ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600 active:bg-slate-50'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-2 gap-2">
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[92px] animate-pulse rounded-2xl bg-white" />)}
+        </div>
+      ) : list.length === 0 ? (
+        <p className="py-8 text-center text-sm text-slate-400">
+          {products.length === 0 ? 'ยังไม่มีสินค้าในร้าน' : 'ไม่มีสินค้าในหมวดนี้'}
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            {list.slice(0, BROWSE_LIMIT).map((p) => {
+              const qty = p.branchQuantity ?? 0
+              const out = qty < 1
+              const fav = favs.includes(p.id)
+              return (
+                <div key={p.id} className={`relative rounded-2xl bg-white shadow-sm ${out ? 'opacity-40' : ''}`}>
+                  <button type="button" disabled={out} onClick={() => onAdd(p)}
+                    className="flex h-full min-h-[92px] w-full flex-col justify-between rounded-2xl p-3 pr-8 text-left active:bg-blue-50">
+                    <span className="line-clamp-2 text-sm font-bold leading-snug text-slate-900">{p.name}</span>
+                    <span className="mt-1.5 flex items-end justify-between gap-1">
+                      <span className="text-base font-bold tabular-nums text-blue-700">{formatThaiMoney(Number(p.price))}</span>
+                      <span className={`text-[11px] font-semibold ${!out && qty < 5 ? 'text-orange-500' : 'text-slate-400'}`}>
+                        {out ? 'หมด' : `เหลือ ${qty}`}
+                      </span>
+                    </span>
+                  </button>
+                  <button type="button" onClick={() => toggleFav(p.id)} aria-label={fav ? 'เอาออกจากสินค้าประจำ' : 'ปักเป็นสินค้าประจำ'}
+                    className="absolute right-0.5 top-0.5 flex h-9 w-9 items-center justify-center">
+                    <Star className={`h-4 w-4 ${fav ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+          {list.length > BROWSE_LIMIT && (
+            <p className="pt-1 text-center text-xs text-slate-400">แสดง {BROWSE_LIMIT} จาก {list.length} รายการ — ค้นหาชื่อเพื่อหาตัวอื่น</p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Cart row ──────────────────────────────────────────────────────────────────
 
 function CartRow({
@@ -114,14 +247,21 @@ function CartRow({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2.5">
-        {/* Name + price-per-unit */}
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-slate-900 text-sm leading-tight truncate">{product.name}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {formatThaiMoney(Number(product.price))} · สต็อก {quantity}/{product.branchQuantity ?? 0}
-          </p>
-        </div>
+      {/* The whole name on its own line; the numbers below it */}
+      <div className="flex items-start gap-2 px-3 pt-2.5">
+        <p className="flex-1 min-w-0 font-bold text-slate-900 text-sm leading-snug break-words">{product.name}</p>
+        <button
+          onClick={onRemove}
+          aria-label="เอาออก"
+          className="-mr-1 -mt-1 h-9 w-9 shrink-0 rounded-xl flex items-center justify-center text-red-400 active:bg-red-50"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex items-center gap-2 px-3 pb-2 pt-1">
+        <p className="flex-1 min-w-0 text-xs text-slate-400">
+          {formatThaiMoney(Number(product.price))} · สต็อก {quantity}/{product.branchQuantity ?? 0}
+        </p>
 
         {/* Qty controls */}
         <div className="flex items-center gap-1 shrink-0">
@@ -142,17 +282,9 @@ function CartRow({
         </div>
 
         {/* Line total */}
-        <span className="w-16 text-right font-bold text-sm text-slate-900 tabular-nums">
+        <span className="min-w-[4.5rem] text-right font-bold text-base text-slate-900 tabular-nums">
           {formatThaiMoney(lineTotal)}
         </span>
-
-        {/* Remove */}
-        <button
-          onClick={onRemove}
-          className="h-9 w-9 rounded-xl flex items-center justify-center text-red-400 active:bg-red-50"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
       </div>
 
       {loss > 0 && (
@@ -232,6 +364,7 @@ function CheckoutSheet({
   const [searchResults, setSearchResults] = useState<Customer[]>([])
   const [searching, setSearching]   = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+  const [customerOpen, setCustomerOpen] = useState(false)
 
   // Phones and other IMEI / serial items: pick which units are sold (the API requires it)
   const serialItems = items.filter((i) => i.product.hasSerial)
@@ -320,7 +453,7 @@ function CheckoutSheet({
           <div className="w-10 h-1.5 rounded-full bg-slate-300" />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-8 space-y-4">
+        <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
           <p className="font-bold text-xl text-slate-900 text-center">ชำระเงิน</p>
 
           {/* Order summary */}
@@ -356,6 +489,67 @@ function CheckoutSheet({
             <ZeroBillPanel lateOn={lateOn} reason={zeroReason} onReason={setZeroReason} onWriteOff={() => setWriteOffOpen(true)} />
           )}
 
+          {/* Payment method */}
+          <div className="grid grid-cols-3 gap-2">
+            {PAYMENT_OPTIONS.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                onClick={() => setMethod(value)}
+                className={`flex flex-col items-center py-4 rounded-xl border-2 font-medium text-sm transition-colors ${
+                  method === value
+                    ? 'border-blue-600 bg-blue-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-600 active:bg-slate-50'
+                }`}
+              >
+                <Icon className="h-6 w-6 mb-1" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Cash input */}
+          {method === 'CASH' && (
+            <div className="space-y-2">
+              <label className="text-sm text-slate-600 font-semibold">รับเงินมา (บาท)</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={amountPaid}
+                onChange={(e) => setAmountPaid(e.target.value)}
+                placeholder={String(total)}
+                className="w-full h-16 px-4 border-2 border-slate-200 rounded-xl text-3xl font-bold bg-white focus:outline-none focus:border-blue-500 tabular-nums"
+                autoFocus
+              />
+              {change > 0 && (
+                <p className="text-xl font-bold text-green-700 text-right pr-1">
+                  เงินทอน: {formatThaiMoney(change)}
+                </p>
+              )}
+              {amountPaid !== '' && paidNum < total && (
+                <p className="text-sm text-red-500 text-right pr-1">
+                  ขาดอีก {formatThaiMoney(total - paidNum)}
+                </p>
+              )}
+
+              {/* Quick-pay */}
+              <div className="flex gap-2 flex-wrap">
+                {quickAmounts.map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setAmountPaid(String(v))}
+                    className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                      paidNum === v
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-100 text-slate-700 active:bg-slate-200'
+                    }`}
+                  >
+                    {formatThaiMoney(v)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Late entry: sold earlier, keyed in now — filed in the shift of that time */}
           {canLate && (
             <div className="rounded-2xl border border-slate-200 p-3 text-sm">
@@ -374,6 +568,14 @@ function CheckoutSheet({
           )}
 
           {/* Customer (optional) */}
+          {!customerOpen && !selectedCustomer ? (
+            <button type="button" onClick={() => setCustomerOpen(true)}
+              className="flex w-full items-center gap-2 rounded-2xl border border-dashed border-slate-300 px-4 py-3 text-sm font-semibold text-slate-500 active:bg-slate-50">
+              <User className="h-4 w-4" />
+              <span className="flex-1 text-left">เพิ่มข้อมูลลูกค้า (ไม่บังคับ)</span>
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          ) : (
           <div className="space-y-2">
             <p className="text-sm font-semibold text-slate-500">ลูกค้า (ไม่บังคับ)</p>
             {selectedCustomer ? (
@@ -444,69 +646,11 @@ function CheckoutSheet({
               </>
             )}
           </div>
-
-          {/* Payment method */}
-          <div className="grid grid-cols-3 gap-2">
-            {PAYMENT_OPTIONS.map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                onClick={() => setMethod(value)}
-                className={`flex flex-col items-center py-4 rounded-xl border-2 font-medium text-sm transition-colors ${
-                  method === value
-                    ? 'border-blue-600 bg-blue-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-600 active:bg-slate-50'
-                }`}
-              >
-                <Icon className="h-6 w-6 mb-1" />
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Cash input */}
-          {method === 'CASH' && (
-            <div className="space-y-2">
-              <label className="text-sm text-slate-600 font-semibold">รับเงินมา (บาท)</label>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
-                placeholder={String(total)}
-                className="w-full h-16 px-4 border-2 border-slate-200 rounded-xl text-3xl font-bold bg-white focus:outline-none focus:border-blue-500 tabular-nums"
-                autoFocus
-              />
-              {change > 0 && (
-                <p className="text-xl font-bold text-green-700 text-right pr-1">
-                  เงินทอน: {formatThaiMoney(change)}
-                </p>
-              )}
-              {amountPaid !== '' && paidNum < total && (
-                <p className="text-sm text-red-500 text-right pr-1">
-                  ขาดอีก {formatThaiMoney(total - paidNum)}
-                </p>
-              )}
-
-              {/* Quick-pay */}
-              <div className="flex gap-2 flex-wrap">
-                {quickAmounts.map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setAmountPaid(String(v))}
-                    className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${
-                      paidNum === v
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-700 active:bg-slate-200'
-                    }`}
-                  >
-                    {formatThaiMoney(v)}
-                  </button>
-                ))}
-              </div>
-            </div>
           )}
+        </div>
 
-          {/* Confirm button */}
+        {/* Always in sight, however long the sheet is (small SUNMI screens) */}
+        <div className="shrink-0 border-t border-slate-100 bg-white px-4 pt-3" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
           <button
             onClick={() => mutation.mutate()}
             disabled={!canSubmit || mutation.isPending}
@@ -556,6 +700,8 @@ export default function SunmiSalesPage() {
   const [nameResults, setNameResults]     = useState<Product[]>([])
   const [nameLoading, setNameLoading]     = useState(false)
   const [notFoundCode, setNotFoundCode]   = useState<string | null>(null)
+  // Picking from the product tiles while the cart already has items
+  const [browsing, setBrowsing]           = useState(false)
   const nameTimer                         = useRef<NodeJS.Timeout>()
 
   // Cart discount
@@ -659,6 +805,8 @@ export default function SunmiSalesPage() {
           toast.error(`${exact.name} — สต็อกหมด`)
         } else {
           addItem(exact)
+          rememberRecent(exact.id)
+          setBrowsing(false)  // a scan shows the cart
           toast.success(`+ ${exact.name}`, { duration: 1500 })
         }
       } else {
@@ -677,6 +825,7 @@ export default function SunmiSalesPage() {
       return
     }
     addItem(product)
+    rememberRecent(product.id)
     toast.success(`+ ${product.name}`, { duration: 1500 })
     setNameQuery('')
     setNameResults([])
@@ -971,33 +1120,40 @@ export default function SunmiSalesPage() {
             )
           ) : (
             /* Cart items */
-            items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-10 text-slate-400">
-                <ScanBarcode className="h-14 w-14 opacity-20" />
-                <div className="text-center">
-                  <p className="font-semibold text-base">ยังไม่มีสินค้าในตะกร้า</p>
-                  <p className="text-sm mt-0.5 opacity-70">สแกนบาร์โค้ด หรือค้นหาชื่อสินค้า</p>
-                </div>
-                {/* Quick actions for empty cart */}
-                <div className="flex gap-2 mt-2">
-                  {lastReceipt && (
-                    <button
-                      onClick={() => setReceiptPreview(lastReceipt)}
-                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-700 text-white text-sm font-semibold active:bg-slate-600"
-                    >
-                      <Printer className="h-4 w-4" />
-                      พิมพ์ใบเสร็จซ้ำ
-                    </button>
-                  )}
-                  <Link
-                    href={shell.to('/sunmi/sales/history')}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold active:bg-slate-200"
+            items.length === 0 || browsing ? (
+              <>
+                {items.length > 0 && (
+                  <button
+                    onClick={() => setBrowsing(false)}
+                    className="w-full flex items-center justify-between bg-blue-600 text-white rounded-2xl px-4 py-3 active:bg-blue-700"
                   >
-                    <History className="h-4 w-4" />
-                    ประวัติการขาย
-                  </Link>
-                </div>
-              </div>
+                    <span className="flex items-center gap-2 font-bold"><ShoppingCart className="h-5 w-5" /> ดูตะกร้า ({totalQty} ชิ้น)</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                )}
+                <ProductBrowser branchId={branch.branchId} onAdd={(p) => { setBrowsing(true); handlePickProduct(p) }} />
+                {/* Quick actions for an empty cart */}
+                {items.length === 0 && (
+                  <div className="flex justify-center gap-2 pt-3">
+                    {lastReceipt && (
+                      <button
+                        onClick={() => setReceiptPreview(lastReceipt)}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-700 text-white text-sm font-semibold active:bg-slate-600"
+                      >
+                        <Printer className="h-4 w-4" />
+                        พิมพ์ใบเสร็จซ้ำ
+                      </button>
+                    )}
+                    <Link
+                      href={shell.to('/sunmi/sales/history')}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white text-slate-600 text-sm font-semibold active:bg-slate-200"
+                    >
+                      <History className="h-4 w-4" />
+                      ประวัติการขาย
+                    </Link>
+                  </div>
+                )}
+              </>
             ) : (
               items.map((item) => (
                 <CartRow
@@ -1013,7 +1169,16 @@ export default function SunmiSalesPage() {
                   }}
                   onSetDiscount={(d) => setItemDiscount(item.product.id, d)}
                 />
-              ))
+              )).concat(
+                <button
+                  key="browse"
+                  onClick={() => setBrowsing(true)}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 py-3 text-sm font-bold text-slate-500 active:bg-white"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  เลือกสินค้าเพิ่ม
+                </button>,
+              )
             )
           )}
 

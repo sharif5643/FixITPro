@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn, initialOf } from '@/lib/utils'
 
 const PALETTE = [
   'bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300',
@@ -37,7 +37,7 @@ export function TechnicianAvatar({ name, size = 'sm', className }: TechnicianAva
         className,
       )}
     >
-      {name.charAt(0).toUpperCase()}
+      {initialOf(name)}
     </span>
   )
 }

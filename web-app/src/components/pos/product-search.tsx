@@ -16,7 +16,7 @@ import { SerialPickerDialog } from '@/components/pos/serial-picker-dialog'
 import { useNativeScanner } from '@/hooks/useNativeScanner'
 import { Platform } from '@/lib/platform'
 import { beepSuccess, beepError, haptic } from '@/lib/beep'
-import { formatThaiMoney, cn } from '@/lib/utils'
+import { formatThaiMoney, cn, initialOf } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import { useBranchStore } from '@/store/branch.store'
 import { useBranchContext } from '@/hooks/useBranchContext'
@@ -133,7 +133,7 @@ function ProductCard({
           />
         ) : (
           <span className="text-4xl font-black text-slate-300 dark:text-slate-600 select-none leading-none">
-            {product.name.charAt(0).toUpperCase()}
+            {initialOf(product.name)}
           </span>
         )}
 

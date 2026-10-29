@@ -16,7 +16,7 @@ import { TenantStatusBadge, PlanBadge } from '@/components/super-admin/status-ba
 import api from '@/lib/api'
 import type { Tenant, TenantPlan } from '@/types'
 import { TENANT_PLAN_LABEL } from '@/types'
-import { cn } from '@/lib/utils'
+import { cn, initialOf } from '@/lib/utils'
 
 interface Stats {
   total: number
@@ -203,7 +203,7 @@ export default function SuperAdminDashboard() {
                   <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-800/40 transition-colors cursor-pointer">
                     <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-500/20 to-blue-500/20 border border-violet-500/20 flex items-center justify-center shrink-0">
                       <span className="text-violet-300 font-bold text-sm">
-                        {t.shopName.charAt(0).toUpperCase()}
+                        {initialOf(t.shopName)}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">

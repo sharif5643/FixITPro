@@ -5,7 +5,7 @@ import {
   Wrench, Star, ShieldAlert, ReceiptText,
   AlertTriangle, ChevronRight, ArrowRight,
 } from 'lucide-react'
-import { cn, formatThaiMoney } from '@/lib/utils'
+import { cn, formatThaiMoney, initialOf } from '@/lib/utils'
 import { Skel, PCard, hoverCard, CardHeader } from './primitives'
 import type { DashboardOverview, OwnerSummaryData } from './types'
 
@@ -93,7 +93,7 @@ function BestTechCard({ techs, loading }: { techs?: DashboardOverview['topTechni
               className="h-10 w-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center flex-shrink-0 text-white font-black text-sm shadow-sm"
               aria-hidden
             >
-              {top.name.charAt(0).toUpperCase()}
+              {initialOf(top.name)}
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-bold text-sm text-slate-900 dark:text-white truncate">{top.name}</p>

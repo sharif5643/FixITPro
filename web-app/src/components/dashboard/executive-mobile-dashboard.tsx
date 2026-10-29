@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import { useShopName } from '@/hooks/useShopName'
-import { formatThaiMoney, cn } from '@/lib/utils'
+import { formatThaiMoney, cn, initialOf } from '@/lib/utils'
 import api from '@/lib/api'
 
 // ── Local types (subset of full dashboard types) ───────────────────────────────
@@ -122,7 +122,7 @@ export function ExecutiveMobileDashboard() {
   }))
 
   const unread    = overview?.notifications.unreadCount ?? 0
-  const initials  = user?.name?.charAt(0)?.toUpperCase() ?? 'U'
+  const initials  = initialOf(user?.name, 'U')
   const greeting  = ROLE_LABEL[user?.role ?? ''] ?? user?.name ?? ''
   const dateLabel = format(thaiNow, 'd MMMM yyyy', { locale: th })
 

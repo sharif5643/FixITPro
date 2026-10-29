@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { cn } from '@/lib/utils'
+import { cn, initialOf } from '@/lib/utils'
 
 interface FiAvatarProps {
   name?: string
@@ -27,8 +27,8 @@ const statusColors = {
 function getInitials(name?: string): string {
   if (!name) return '?'
   const parts = name.trim().split(/\s+/)
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
+  if (parts.length === 1) return initialOf(parts[0])
+  return initialOf(parts[0]) + initialOf(parts[parts.length - 1])
 }
 
 function getAvatarColor(name?: string): string {

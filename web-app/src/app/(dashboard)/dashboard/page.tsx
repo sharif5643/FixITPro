@@ -17,7 +17,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { formatThaiMoney, cn } from '@/lib/utils'
+import { formatThaiMoney, cn, initialOf } from '@/lib/utils'
 import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
 import { useBranchContext } from '@/hooks/useBranchContext'
@@ -1503,7 +1503,7 @@ export default function DashboardPage() {
                         'h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold text-white',
                         i === 0 ? 'bg-orange-500' : i === 1 ? 'bg-slate-400 dark:bg-slate-600' : 'bg-slate-300 dark:bg-slate-700',
                       )}>
-                        {tech.name.charAt(0).toUpperCase()}
+                        {initialOf(tech.name)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate leading-tight">{tech.name}</p>
