@@ -717,4 +717,37 @@ SELECT t.id, t.plan, t.status,
   (SELECT count(*) FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = t.id AND s."createdAt" > now() - INTERVAL '30 days') AS sales_30d
 FROM "Tenant" t ORDER BY 4 DESC, 5, 1;
 
+\echo '--- 31. TEMP: shift closing at the shop whose name contains ริว (ids only) ---'
+\echo '31a. The shop'
+SELECT t.id, t.plan, t.status, (SELECT count(*) FROM "Branch" b WHERE b."tenantId" = t.id) AS branches
+FROM "Tenant" t WHERE t."shopName" ILIKE '%ริว%';
+\echo '31b. Its shifts in the last 21 days: opened / closed (Bangkok), open?, counted, bills, SIM sales, repair payments, members, cash movements'
+SELECT s.id, to_char(s."openedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS opened,
+  to_char(s."closedAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS closed, s."isActive", s."closeBalance", s."floatLeft",
+  (SELECT count(*) FROM "Sale" x WHERE x."shiftId" = s.id) AS bills,
+  (SELECT count(*) FROM "PackageSale" x WHERE x."shiftId" = s.id) AS sim_sales,
+  (SELECT count(*) FROM "Repair" x WHERE x."paymentShiftId" = s.id) AS repair_pay,
+  (SELECT count(*) FROM "ShiftMember" x WHERE x."shiftId" = s.id) AS members,
+  (SELECT count(*) FROM "ShiftCashMovement" x WHERE x."shiftId" = s.id) AS cash_moves,
+  s."userId", s."branchId"
+FROM "Shift" s JOIN "User" u ON u.id = s."userId"
+WHERE u."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%') AND s."openedAt" > now() - INTERVAL '21 days'
+ORDER BY s."openedAt" DESC;
+\echo '31c. Shift / wallet audit entries of its people in the last 21 days (when, what, which shift, device)'
+SELECT to_char(a."createdAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI:SS') AS at_bkk, a.action, a."entityId", a."actorId",
+  left(coalesce(a."userAgent", ''), 90) AS device
+FROM "AuditLog" a
+WHERE a."actorId" IN (SELECT u.id FROM "User" u WHERE u."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%'))
+  AND a."createdAt" > now() - INTERVAL '21 days'
+  AND (a.action ILIKE '%SHIFT%' OR a.action ILIKE '%WALLET%' OR a.action ILIKE '%RECONCIL%' OR a."entityType" = 'Shift')
+ORDER BY a."createdAt" DESC LIMIT 60;
+\echo '31d. Wallet counts at its shifts (when, carrier, type, before -> after)'
+SELECT to_char(mv."createdAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI:SS') AS at_bkk, mv."shiftId", mv.carrier, mv.type, mv."balanceBefore", mv."balanceAfter"
+FROM "CarrierWalletMovement" mv
+WHERE mv."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%') AND mv."createdAt" > now() - INTERVAL '21 days'
+  AND mv.type::text IN ('OPENING', 'ADJUSTMENT')
+ORDER BY mv."createdAt" DESC LIMIT 40;
+\echo '31e. Its modules switched on/off'
+SELECT tm."moduleKey", tm.enabled FROM "TenantModule" tm WHERE tm."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%');
+
 ROLLBACK;
