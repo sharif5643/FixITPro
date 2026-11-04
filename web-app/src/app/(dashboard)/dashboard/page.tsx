@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import { LongShiftBanner } from '@/components/shift/long-shift-banner'
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
@@ -727,6 +728,7 @@ export default function DashboardPage() {
     return (
       <>
         <SetupBanner />
+        <LongShiftBanner closeHref="/shifts?close=1" className="mb-4" />
         <OwnerCommandCenter />
       </>
     )
@@ -734,6 +736,7 @@ export default function DashboardPage() {
 
   return (
     <>
+      <LongShiftBanner closeHref="/shifts?close=1" className="mb-4" />
       {/* Executive mobile dashboard — OWNER/MANAGER only, mobile only */}
       {isOwnerOrManager && (
         <div className="-m-4 sm:-m-6 md:hidden">

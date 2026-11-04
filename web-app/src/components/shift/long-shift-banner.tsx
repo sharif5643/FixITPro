@@ -33,19 +33,24 @@ export function LongShiftBanner({ closeHref, className }: { closeHref: string; c
   const hours = shiftHours(shift?.openedAt)
   if (isSuccess && !shift?.id) return <ClosedByOtherNotice closeHref={closeHref} className={className} />
   if (!shift?.id || hours < LONG_SHIFT_HOURS) return null
+  const since = new Date(shift.openedAt).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   return (
-    <Link
-      href={closeHref}
-      className={cn('flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200', className)}
-    >
-      <Clock className="h-4 w-4 shrink-0" />
-      <span className="flex-1">
-        <span className="font-semibold">กะนี้เปิดมา {hours} ชั่วโมงแล้ว</span>
-        <span className="block text-xs opacity-80">ปิดกะเมื่อจบวัน แล้วเปิดกะใหม่ — ยอดเงินแต่ละวันจะได้ตรวจได้</span>
+    <div className={cn('flex items-center gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200', className)}>
+      <Clock className="h-5 w-5 shrink-0" />
+      <span className="min-w-0 flex-1">
+        <span className="font-bold">กะเปิดมา {openFor(hours)}แล้ว</span>
+        <span className="block text-xs opacity-80">เปิดเมื่อ {since} — นับเงินแล้วปิดกะได้เลย</span>
       </span>
-      <span className="shrink-0 text-xs font-bold underline">ปิดกะ</span>
-    </Link>
+      <Link href={closeHref} className="shrink-0 rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700">
+        ปิดกะเลย
+      </Link>
+    </div>
   )
+}
+
+/** "20 ชั่วโมง" up to two days, then "9 วัน" */
+export function openFor(hours: number): string {
+  return hours < 48 ? `${hours} ชั่วโมง` : `${Math.floor(hours / 24)} วัน`
 }
 
 export type ClosedByOther = { shiftId: string; openedBy: string; closedAt: string; closedBy: string }

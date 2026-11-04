@@ -410,7 +410,7 @@ export default function SalesPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] sm:h-[calc(100vh-8rem)]">
 
-      <LongShiftBanner closeHref="/shifts" className="mb-3 shrink-0" />
+      <LongShiftBanner closeHref="/shifts?close=1" className="mb-3 shrink-0" />
       <QuickCashBar className="mb-3 shrink-0" disabled={!currentShift} />
 
       {/* ── Mobile tab bar (hidden on lg) ───────────────────────────────── */}

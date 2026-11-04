@@ -8,7 +8,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { CheckCircle2, ShoppingCart, Wifi, Plus, Printer, History, Loader2 } from 'lucide-react'
+import { CheckCircle2, ShoppingCart, Wifi, Plus, Printer, History, Loader2, ChevronDown, Clock } from 'lucide-react'
+import {
+  CLOSE_TIMEOUT_MS, DiffBadge, NOTE_REQUIRED_DIFF, SlowHint, nextOpeningOf, noteRequiredFor, useSlowHint,
+} from '@/components/shifts/close-shift-parts'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
 import { useAppShell } from '@/lib/app-shell'
 import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
@@ -389,6 +392,9 @@ export default function SunmiShiftsPage() {
   const [ledgerShiftId, setLedgerShiftId] = useState<string | null>(null)
   const [closedShiftId, setClosedShiftId] = useState<string | null>(null)
   const [showCarrierInputs, setShowCarrierInputs] = useState(false)
+  const [extrasOpen,    setExtrasOpen]    = useState(false)
+  // What the next shift opens with after this close (null: handed over)
+  const [nextOpening,   setNextOpening]   = useState<number | null>(null)
 
   // Carrier opening balances
   const [aisOpening,  setAisOpening]  = useState('')
@@ -500,9 +506,10 @@ export default function SunmiShiftsPage() {
         handoverToUserId: handoverTo || undefined,
         // Handing over passes the whole drawer on; otherwise what stays for the next shift
         ...(!handoverTo && floatLeft !== '' ? { floatLeft: Number(floatLeft) || 0 } : {}),
-      })
+      }, { timeout: CLOSE_TIMEOUT_MS })
     },
     onSuccess: (res) => {
+      setNextOpening(handoverTo ? null : nextOpeningOf(Number(closeBalance) || 0, floatLeft))
       const to = (shift!.members ?? []).find((m) => m.userId === handoverTo)
       toast.success(to ? `ปิดกะแล้ว — ส่งต่อให้ ${to.name} รอเขากดยืนยันรับกะ` : 'ปิดกะสำเร็จ')
       setHandoverTo('')
@@ -513,8 +520,29 @@ export default function SunmiShiftsPage() {
       setClosingOpts(toClosingOpts(summary, { userName: shift!.user.name, openedAt: shift!.openedAt, closedAt: new Date() }, settings))
     },
     onError: (err: any) => {
+      // No answer in time: the close may still have gone through, so look before trying again
+      if (err?.code === 'ECONNABORTED') {
+        toast.error('ระบบตอบช้า — ตรวจสอบสถานะกะแล้วลองกดปิดกะอีกครั้ง')
+        queryClient.invalidateQueries({ queryKey: ['shifts'] })
+        return
+      }
       const msg = err.response?.data?.message
       toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'ปิดกะไม่สำเร็จ'))
+    },
+  })
+  const closeSlow = useSlowHint(closeMutation.isPending)
+
+  // Round-the-clock shops close and open again at once: the next shift starts with what stayed
+  const reopenMutation = useMutation({
+    mutationFn: (openBalance: number) => api.post('/shifts/open', { openBalance }),
+    onSuccess: () => {
+      toast.success('เปิดกะใหม่แล้ว — เริ่มขายได้เลย')
+      queryClient.invalidateQueries({ queryKey: ['shifts'] })
+      router.push(shell.pos)
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message
+      toast.error(Array.isArray(msg) ? msg[0] : (msg ?? 'เปิดกะไม่สำเร็จ'))
     },
   })
 
@@ -576,13 +604,24 @@ export default function SunmiShiftsPage() {
                 พิมพ์สรุปกะ
               </button>
             )}
-            <button
-              onClick={() => router.push(shell.pos)}
-              className="w-full h-14 rounded-2xl bg-blue-600 text-white font-bold text-lg flex items-center justify-center gap-2 active:bg-blue-700"
-            >
-              <ShoppingCart className="h-5 w-5" />
-              ไปหน้า POS
-            </button>
+            {nextOpening != null ? (
+              <button
+                onClick={() => reopenMutation.mutate(nextOpening)}
+                disabled={reopenMutation.isPending}
+                className="w-full h-14 rounded-2xl bg-emerald-600 text-white font-bold text-lg flex items-center justify-center gap-2 active:bg-emerald-700 disabled:opacity-60"
+              >
+                {reopenMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Clock className="h-5 w-5" />}
+                เปิดกะใหม่ (เริ่ม {formatThaiMoney(nextOpening)})
+              </button>
+            ) : (
+              <button
+                onClick={() => router.push(shell.pos)}
+                className="w-full h-14 rounded-2xl bg-blue-600 text-white font-bold text-lg flex items-center justify-center gap-2 active:bg-blue-700"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                ไปหน้า POS
+              </button>
+            )}
             <button
               onClick={() => router.push(shell.home)}
               className="w-full h-12 rounded-2xl border-2 border-slate-200 text-slate-700 font-medium flex items-center justify-center active:bg-slate-50"
@@ -757,6 +796,8 @@ export default function SunmiShiftsPage() {
 
   const closeBalanceNum = Number(closeBalance) || 0
   const liveDiff        = closeBalance !== '' ? closeBalanceNum - shift.expectedCashBalance : null
+  // A few baht off needs no explanation; more than NOTE_REQUIRED_DIFF does
+  const mustExplain     = noteRequiredFor(liveDiff)
 
   return (
     <SunmiShell title="เปิด/ปิดกะ" showBack>
@@ -806,6 +847,113 @@ export default function SunmiShiftsPage() {
           <Row label="เงินสดที่ควรมีในลิ้นชัก" value={formatThaiMoney(shift.expectedCashBalance)} highlight />
         </div>
 
+        {/* Big cash bills: fix a transfer keyed as cash before counting */}
+        <CashBillReview shiftId={shift.id} className="rounded-2xl" />
+
+        {/* Close form */}
+        <div className="space-y-1.5">
+          <label className="text-base font-bold text-slate-700">นับเงินในลิ้นชักได้เท่าไหร่ (บาท)</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            min="0"
+            value={closeBalance}
+            onChange={(e) => setCloseBalance(e.target.value)}
+            placeholder={String(Math.round(shift.expectedCashBalance))}
+            className="w-full h-16 px-4 border-2 border-slate-200 rounded-xl text-3xl font-bold bg-white focus:outline-none focus:border-blue-500 tabular-nums"
+          />
+          <DiffBadge diff={liveDiff} />
+        </div>
+
+        {/* A note only when the difference is worth explaining */}
+        {mustExplain && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-600">หมายเหตุ <span className="text-red-500">*</span> <span className="text-xs font-normal text-slate-400">(ขาด/เกินเกิน {formatThaiMoney(NOTE_REQUIRED_DIFF)})</span></label>
+            <input
+              value={closeNote}
+              onChange={(e) => setCloseNote(e.target.value)}
+              placeholder="เช่น ทอนเงินผิด, ลืมคีย์บิล..."
+              className="w-full h-12 px-4 border-2 border-red-200 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+            />
+          </div>
+        )}
+
+        {/* The rest is rarely needed: folded away */}
+        <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white">
+          <button type="button" onClick={() => setExtrasOpen((o) => !o)}
+            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-slate-600">
+            <span>เพิ่มเติม (ไม่บังคับ)</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${extrasOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {extrasOpen && (
+            <div className="space-y-4 border-t border-slate-100 px-4 py-3">
+              {!handoverTo && (
+                <FloatLeftField counted={closeBalanceNum} value={floatLeft} onChange={setFloatLeft} />
+              )}
+            {walletBal.length > 0 && (shift.joined ? (
+              <p className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-500">
+                ยอดกระเป๋าค่ายตรวจโดยคนเปิดกะ ({shift.user.name}) — คุณดูยอดคงเหลือได้ด้านบน
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-slate-600">นับยอดกระเป๋าค่าย (ถ้ามี)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {walletBal.map((w) => {
+                    const v = closeWallet[w.carrier] ?? ''
+                    const diff = v !== '' ? Number(v) - Number(w.balance) : null
+                    return (
+                      <div key={w.carrier} className="space-y-1">
+                        <label className="flex justify-between text-xs font-bold text-slate-600">
+                          <span>{w.carrier}</span>
+                          <span className="font-medium text-slate-400">ระบบ {formatThaiMoney(Number(w.balance))}</span>
+                        </label>
+                        <input
+                          type="number" inputMode="numeric" min="0"
+                          value={v}
+                          onChange={(e) => setCloseWallet((m) => ({ ...m, [w.carrier]: e.target.value }))}
+                          placeholder={String(Math.round(Number(w.balance)))}
+                          className="w-full h-12 px-3 border-2 border-slate-200 rounded-xl text-lg font-bold bg-white focus:outline-none focus:border-blue-500 tabular-nums"
+                        />
+                        {diff !== null && Math.abs(diff) >= 0.01 && (
+                          <p className={`text-right text-xs font-bold ${diff < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                            {diff > 0 ? '+' : ''}{formatThaiMoney(diff)}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+              {!shift.joined && (
+                <HandoverPicker people={shift.members ?? []} value={handoverTo} onChange={setHandoverTo} />
+              )}
+              {!mustExplain && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-slate-600">หมายเหตุ</label>
+                  <input
+                    value={closeNote}
+                    onChange={(e) => setCloseNote(e.target.value)}
+                    placeholder="หมายเหตุสำหรับกะนี้..."
+                    className="w-full h-12 px-4 border border-slate-200 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={() => closeMutation.mutate()}
+          disabled={closeMutation.isPending || closeBalance === '' || (mustExplain && !closeNote.trim()) || (!handoverTo && floatLeft !== '' && Number(floatLeft) > closeBalanceNum)}
+          className="w-full h-16 rounded-2xl bg-red-600 text-white text-xl font-bold active:bg-red-700 disabled:opacity-60 flex items-center justify-center gap-2"
+        >
+          {closeMutation.isPending
+            ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
+            : handoverTo ? `ปิดกะและส่งต่อให้ ${(shift.members ?? []).find((m) => m.userId === handoverTo)?.name ?? ''}` : 'ปิดกะ'}
+        </button>
+        <SlowHint show={closeSlow} />
+
         <button
           onClick={() => setLedgerShiftId(shift.id)}
           className="w-full h-11 rounded-2xl border-2 border-slate-200 bg-white text-sm font-semibold text-slate-700"
@@ -818,91 +966,6 @@ export default function SunmiShiftsPage() {
         {/* Carrier wallet balances */}
         <WalletBalances shiftId={shift.id} />
 
-        {/* Big cash bills: fix a transfer keyed as cash before counting */}
-        <CashBillReview shiftId={shift.id} className="rounded-2xl" />
-
-        {/* Close form */}
-        <div className="space-y-1.5">
-          <label className="text-sm font-semibold text-slate-600">ยอดเงินสดที่นับได้ (บาท)</label>
-          <input
-            type="number"
-            inputMode="numeric"
-            min="0"
-            value={closeBalance}
-            onChange={(e) => setCloseBalance(e.target.value)}
-            placeholder={String(Math.round(shift.expectedCashBalance))}
-            className="w-full h-16 px-4 border-2 border-slate-200 rounded-xl text-3xl font-bold bg-white focus:outline-none focus:border-blue-500 tabular-nums"
-          />
-          {liveDiff !== null && (
-            <p className={`text-sm font-bold text-right pr-1 ${liveDiff < 0 ? 'text-red-500' : liveDiff > 0 ? 'text-green-600' : 'text-slate-500'}`}>
-              {liveDiff >= 0 ? '+' : ''}{formatThaiMoney(liveDiff)} จากที่ควรมี
-            </p>
-          )}
-        </div>
-
-        {!handoverTo && closeBalance !== '' && (
-          <FloatLeftField counted={closeBalanceNum} value={floatLeft} onChange={setFloatLeft} />
-        )}
-
-        {walletBal.length > 0 && (shift.joined ? (
-          <p className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-500">
-            ยอดกระเป๋าค่ายตรวจโดยคนเปิดกะ ({shift.user.name}) — คุณดูยอดคงเหลือได้ด้านบน
-          </p>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-slate-600">นับยอดกระเป๋าค่าย (ถ้ามี)</p>
-            <div className="grid grid-cols-2 gap-3">
-              {walletBal.map((w) => {
-                const v = closeWallet[w.carrier] ?? ''
-                const diff = v !== '' ? Number(v) - Number(w.balance) : null
-                return (
-                  <div key={w.carrier} className="space-y-1">
-                    <label className="flex justify-between text-xs font-bold text-slate-600">
-                      <span>{w.carrier}</span>
-                      <span className="font-medium text-slate-400">ระบบ {formatThaiMoney(Number(w.balance))}</span>
-                    </label>
-                    <input
-                      type="number" inputMode="numeric" min="0"
-                      value={v}
-                      onChange={(e) => setCloseWallet((m) => ({ ...m, [w.carrier]: e.target.value }))}
-                      placeholder={String(Math.round(Number(w.balance)))}
-                      className="w-full h-12 px-3 border-2 border-slate-200 rounded-xl text-lg font-bold bg-white focus:outline-none focus:border-blue-500 tabular-nums"
-                    />
-                    {diff !== null && Math.abs(diff) >= 0.01 && (
-                      <p className={`text-right text-xs font-bold ${diff < 0 ? 'text-red-500' : 'text-green-600'}`}>
-                        {diff > 0 ? '+' : ''}{formatThaiMoney(diff)}
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ))}
-
-        {!shift.joined && (
-          <HandoverPicker people={shift.members ?? []} value={handoverTo} onChange={setHandoverTo} />
-        )}
-
-        <div className="space-y-1.5">
-          <label className="text-sm font-semibold text-slate-600">หมายเหตุ (ไม่บังคับ)</label>
-          <input
-            value={closeNote}
-            onChange={(e) => setCloseNote(e.target.value)}
-            placeholder="หมายเหตุสำหรับกะนี้..."
-            className="w-full h-12 px-4 border border-slate-200 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <button
-          onClick={() => closeMutation.mutate()}
-          disabled={closeMutation.isPending || closeBalance === '' || (!handoverTo && floatLeft !== '' && Number(floatLeft) > closeBalanceNum)}
-          className="w-full h-16 rounded-2xl bg-red-600 text-white text-xl font-bold active:bg-red-700 disabled:opacity-60 flex items-center justify-center gap-2"
-        >
-          {closeMutation.isPending
-            ? <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-white border-t-transparent" />
-            : handoverTo ? `ปิดกะและส่งต่อให้ ${(shift.members ?? []).find((m) => m.userId === handoverTo)?.name ?? ''}` : 'ปิดกะ'}
-        </button>
         <PastShifts settings={settings} onPrint={setReprintOpts} onView={setLedgerShiftId} />
         {ledgerShiftId && <ShiftLedgerSheet shiftId={ledgerShiftId} onClose={() => setLedgerShiftId(null)} />}
         {reprintOpts && (
