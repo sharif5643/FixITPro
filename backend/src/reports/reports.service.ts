@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { loadPeriodMoney, summarizeMoney } from '../common/money/period-money';
+import { loadPeriodMoney, summarizeMoney, bangkokDay } from '../common/money/period-money';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 
@@ -175,17 +175,9 @@ export class ReportsService {
     const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const [
-      todaySalesAgg,
-      todaySalesByMethod,
-      todayRepairAgg,
-      todayRepairByMethod,
-      todayPackageSalesAgg,
       todayVoidedAgg,
       activeRepairsByStatus,
       overdueCount,
-      weeklySales,
-      weeklyRepairPmts,
-      weeklyPackageSales,
       topProductGroups,
       staffSaleGroups,
       staffRepairGroups,
@@ -197,34 +189,6 @@ export class ReportsService {
       overdueSupplierPoCount,
       apOutstandingAgg,
     ] = await Promise.all([
-      this.prisma.sale.aggregate({
-        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
-        _sum: { total: true },
-        _count: { id: true },
-      }),
-      this.prisma.sale.groupBy({
-        by: ['paymentMethod'],
-        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
-        _sum: { total: true },
-      }),
-      this.prisma.repair.aggregate({
-        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
-        _sum: { paidAmount: true },
-        _count: { id: true },
-      }),
-      this.prisma.repair.groupBy({
-        by: ['paymentMethod'],
-        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
-        _sum: { paidAmount: true },
-      }),
-      this.prisma.packageSale.aggregate({
-        where: {
-          createdAt: { gte: todayStart, lt: todayEnd },
-          ...(tenantId ? { createdBy: { tenantId } } : {}),
-        },
-        _sum: { packageAmount: true, profit: true },
-        _count: { id: true },
-      }),
       this.prisma.sale.aggregate({
         where: { voidedAt: { gte: todayStart, lt: todayEnd }, status: 'VOIDED', ...bFilter },
         _sum: { total: true },
@@ -241,21 +205,6 @@ export class ReportsService {
           status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] },
           ...bFilter,
         },
-      }),
-      this.prisma.sale.findMany({
-        where: { createdAt: { gte: weekAgoStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
-        select: { total: true, createdAt: true },
-      }),
-      this.prisma.repair.findMany({
-        where: { paidAt: { gte: weekAgoStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
-        select: { paidAmount: true, paidAt: true },
-      }),
-      this.prisma.packageSale.findMany({
-        where: {
-          createdAt: { gte: weekAgoStart, lt: todayEnd },
-          ...(tenantId ? { createdBy: { tenantId } } : {}),
-        },
-        select: { profit: true, createdAt: true },
       }),
       this.prisma.saleItem.groupBy({
         by: ['productId'],
@@ -317,22 +266,24 @@ export class ReportsService {
       }),
     ]);
 
-    // --- Today financials ---
-    const salesRevenue = Number(todaySalesAgg._sum.total ?? 0);
-    const repairRevenue = Number(todayRepairAgg._sum.paidAmount ?? 0);
-    const packageSaleRevenue = Number(todayPackageSalesAgg._sum.profit ?? 0);
-    const packageSaleAmount = Number(todayPackageSalesAgg._sum.packageAmount ?? 0);
-    const totalRevenue = salesRevenue + repairRevenue + packageSaleRevenue;
+    // --- Today financials: the same money as the dashboard, profit report and daily close
+    // (refunds taken off, repair deposits / partial and debt payments counted, split payments
+    // per method) ---
+    const moneyRows = await loadPeriodMoney(this.prisma, {
+      start: weekAgoStart, end: todayEnd, branchWhere: bFilter, branchId, tenantId,
+    });
+    const today = summarizeMoney(moneyRows, (r) => bangkokDay(r.date) === todayStr);
+    const salesRevenue = today.posRevenue;
+    const repairRevenue = today.repairRevenue;
+    const packageSaleRevenue = today.packageProfit;
+    const packageSaleAmount = today.packageAmount;
+    const totalRevenue = today.totalRevenue;
 
     const voidedCount = todayVoidedAgg._count.id;
     const voidedAmount = Number(todayVoidedAgg._sum.total ?? 0);
 
-    const cashIn =
-      Number(todaySalesByMethod.find((r) => r.paymentMethod === 'CASH')?._sum.total ?? 0) +
-      Number(todayRepairByMethod.find((r) => r.paymentMethod === 'CASH')?._sum.paidAmount ?? 0);
-    const transferIn =
-      Number(todaySalesByMethod.find((r) => r.paymentMethod === 'TRANSFER')?._sum.total ?? 0) +
-      Number(todayRepairByMethod.find((r) => r.paymentMethod === 'TRANSFER')?._sum.paidAmount ?? 0);
+    const cashIn = today.byMethod['CASH'] ?? 0;
+    const transferIn = today.byMethod['TRANSFER'] ?? 0;
 
     // --- Repair operations ---
     const statusMap = Object.fromEntries(
@@ -345,29 +296,10 @@ export class ReportsService {
       const d = new Date(weekAgoStart.getTime() + i * 24 * 60 * 60 * 1000);
       weeklyMap.set(toThaiDate(d), { sales: 0, repairs: 0, packages: 0 });
     }
-    weeklySales.forEach((s) => {
-      const key = toThaiDate(s.createdAt);
-      const entry = weeklyMap.get(key);
-      if (entry) entry.sales += Number(s.total);
+    const weeklyRevenue = Array.from(weeklyMap.keys()).map((date) => {
+      const day = summarizeMoney(moneyRows, (r) => bangkokDay(r.date) === date);
+      return { date, sales: day.posRevenue, repairs: day.repairRevenue, packages: day.packageProfit, total: day.totalRevenue };
     });
-    weeklyRepairPmts.forEach((r) => {
-      if (!r.paidAt) return;
-      const key = toThaiDate(r.paidAt);
-      const entry = weeklyMap.get(key);
-      if (entry) entry.repairs += Number(r.paidAmount ?? 0);
-    });
-    weeklyPackageSales.forEach((p) => {
-      const key = toThaiDate(p.createdAt);
-      const entry = weeklyMap.get(key);
-      if (entry) entry.packages += Number(p.profit);
-    });
-    const weeklyRevenue = Array.from(weeklyMap.entries()).map(([date, v]) => ({
-      date,
-      sales: v.sales,
-      repairs: v.repairs,
-      packages: v.packages,
-      total: v.sales + v.repairs + v.packages,
-    }));
 
     // --- Top products (need names) ---
     const productIds = topProductGroups.map((p) => p.productId);
@@ -436,10 +368,10 @@ export class ReportsService {
         repairRevenue,
         packageSaleRevenue,
         packageSaleAmount,
-        packageSaleCount: todayPackageSalesAgg._count.id,
+        packageSaleCount: today.packageCount,
         totalRevenue,
-        salesCount: todaySalesAgg._count.id,
-        repairPaymentsCount: todayRepairAgg._count.id,
+        salesCount: today.salesCount,
+        repairPaymentsCount: today.repairPaymentCount,
         cashIn,
         transferIn,
         voidedCount,
@@ -657,18 +589,8 @@ export class ReportsService {
 
     // Revenue
     const posRevenue = sales.reduce((sum, s) => sum + Number(s.total), 0);
-    const posPaymentBreakdown = sales.reduce((acc, s) => {
-      acc[s.paymentMethod] = (acc[s.paymentMethod] || 0) + Number(s.total);
-      return acc;
-    }, {} as Record<string, number>);
 
     const repairRevenue = repairPayments.reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0);
-    const repairPaymentBreakdown = repairPayments.reduce((acc, r) => {
-      const m = r.paymentMethod ?? 'CASH';
-      acc[m] = (acc[m] || 0) + Number(r.paidAmount ?? 0);
-      return acc;
-    }, {} as Record<string, number>);
-
     const packageRevenue = packageSales.reduce((sum, p) => sum + Number(p.profit), 0);
     const packageAmount = packageSales.reduce((sum, p) => sum + Number(p.packageAmount), 0);
     const refundTotal = refunds.reduce((sum, r) => sum + Number(r.totalRefund), 0);
@@ -681,10 +603,22 @@ export class ReportsService {
     // Totals and the cash/transfer split use the shared money rules (common/money/period-money.ts):
     // refunds come off POS, repairs count deposits, partial and debt payments, split bills
     // count each payment leg. The lists below stay as detail.
-    const money = summarizeMoney(await loadPeriodMoney(this.prisma, {
+    const moneyRows = await loadPeriodMoney(this.prisma, {
       start, end, branchWhere: bFilter, branchId, tenantId,
-    }));
+    });
+    const money = summarizeMoney(moneyRows);
     const grandTotal = money.totalRevenue;
+    // Per payment method, adding up to the totals above: a split bill counts each leg, refunds
+    // come off the method they were paid back with, repairs include deposits and debt payments
+    const addTo = (acc: Record<string, number>, method: string, amount: number) => {
+      acc[method] = Math.round(((acc[method] ?? 0) + amount) * 100) / 100;
+      return acc;
+    };
+    const posPaymentBreakdown: Record<string, number> = {};
+    for (const s of moneyRows.sales) for (const l of s.legs) addTo(posPaymentBreakdown, l.method, l.amount);
+    for (const r of moneyRows.refunds) addTo(posPaymentBreakdown, r.method, -r.amount);
+    const repairPaymentBreakdown: Record<string, number> = {};
+    for (const r of [...moneyRows.deposits, ...moneyRows.pickups, ...moneyRows.debtPayments]) addTo(repairPaymentBreakdown, r.method, r.amount);
 
     // Repairs by status (current active state)
     const activeByStatus = await this.prisma.repair.groupBy({

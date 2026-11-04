@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { loadPeriodMoney, summarizeMoney } from '../common/money/period-money';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 
@@ -49,15 +50,10 @@ export class AnalyticsService {
             where: tenantId ? { tenantId } : {},
             select: { id: true, name: true },
           }),
-      this.prisma.sale.findMany({
-        where: {
-          createdAt: { gte: new Date(now - 30 * MS_PER_DAY) },
-          status: { not: 'VOIDED' },
-          ...bFilter,
-        },
-        include: {
-          items: { select: { quantity: true, price: true, costPrice: true } },
-        },
+      // Same money rules as the dashboard and the profit report: discounts and refunds come off,
+      // repairs count what was received and their parts / labour cost
+      loadPeriodMoney(this.prisma, {
+        start: new Date(now - 30 * MS_PER_DAY), end: new Date(now + 1), branchWhere: bFilter, branchId, tenantId,
       }),
     ]);
 
@@ -75,16 +71,11 @@ export class AnalyticsService {
     }).length;
 
     // Profit summary (30 days)
-    let totalRevenue = 0;
-    let totalCost    = 0;
-    for (const sale of salesLast30) {
-      for (const item of sale.items) {
-        totalRevenue += toNum(item.price) * item.quantity;
-        totalCost    += toNum(item.costPrice) * item.quantity;
-      }
-    }
-    const grossProfit = totalRevenue - totalCost;
-    const margin      = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+    const money30     = summarizeMoney(salesLast30);
+    const totalRevenue = money30.totalRevenue;
+    const totalCost    = Math.round((money30.posCOGS + money30.repairCOGS) * 100) / 100;
+    const grossProfit  = money30.grossProfit;
+    const margin       = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
     // Branch risk scores
     const branchRisks = branches.map((branch) => {
@@ -338,9 +329,11 @@ export class AnalyticsService {
       select: {
         productId: true,
         quantity: true,
-        price: true,
+        total: true,
         costPrice: true,
         product: { select: { id: true, name: true, sku: true } },
+        // What came back: off the product's sales and its cost
+        refundItems: { select: { quantity: true, total: true } },
       },
     });
 
@@ -354,8 +347,10 @@ export class AnalyticsService {
 
     for (const si of saleItems) {
       const existing = productMap.get(si.productId);
-      const rev  = toNum(si.price) * si.quantity;
-      const cost = toNum(si.costPrice) * si.quantity;
+      // The line total is after its own discount; refunded units come off both sides
+      const backQty = si.refundItems.reduce((n, r) => n + r.quantity, 0);
+      const rev  = toNum(si.total) - si.refundItems.reduce((n, r) => n + toNum(r.total), 0);
+      const cost = toNum(si.costPrice) * (si.quantity - backQty);
 
       if (existing) {
         existing.soldQty  += si.quantity;
