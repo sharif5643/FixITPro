@@ -1009,11 +1009,22 @@ export interface ProfitReport {
   period: { startDate: string; endDate: string }
   pos: {
     revenue: number; cogs: number; profit: number; margin: number
+    /** bills (not voided) and their total after discounts, before refunds */
+    billCount?: number; grossSales?: number; billDiscount?: number
+    refunds?: number; refundCount?: number
     items: ProfitReportPosItem[]
   }
   repair: {
     revenue: number; partsCost: number; laborCost: number; profit: number; count: number; margin: number
+    deposits?: number; atPickup?: number; debtPayments?: number
     items: ProfitReportRepairItem[]
+  }
+  /** what sold below its cost, or with no cost: the usual reasons a profit looks wrong */
+  costWarnings?: {
+    belowCost: { productId: string; name: string; cost: number; soldAt: number }[]
+    belowCostCount: number
+    noCost: { productId: string; name: string; price: number }[]
+    noCostCount: number
   }
   /** money taken at the counter without a bill (quick money in for goods / a service) */
   otherIncome?: { revenue: number; count: number }

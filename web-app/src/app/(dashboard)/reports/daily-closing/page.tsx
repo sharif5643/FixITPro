@@ -1,16 +1,16 @@
 'use client'
 
+import { DailyMoneySummary } from '@/components/reports/daily-money-summary'
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, subDays } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
   RefreshCw, Printer, Download, ChevronLeft, ChevronRight as ChevronRightIcon,
-  ShoppingCart, Wrench, Wifi, TrendingUp, TrendingDown,
+  ShoppingCart, Wrench, TrendingUp,
   AlertTriangle, Clock, Package, Users, ChevronRight,
   Banknote, Smartphone, CreditCard,
   BarChart2, Award, Receipt,
-  Wallet,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
@@ -27,9 +27,9 @@ import { SendPdfButton } from '@/components/reports/send-pdf-button'
 interface DailyClosingReport {
   date: string
   revenue: {
-    pos: { total: number; count: number; breakdown: Record<string, number> }
-    repairs: { total: number; count: number; breakdown: Record<string, number> }
-    packages: { total: number; amount: number; count: number }
+    pos: { total: number; gross?: number; count: number; breakdown: Record<string, number> }
+    repairs: { total: number; count: number; breakdown: Record<string, number>; deposits?: number; atPickup?: number; debtPayments?: number }
+    packages: { total: number; amount: number; count: number; byMethod?: Record<string, number> }
     otherIncome?: { total: number; count: number }
     refunds: { total: number; count: number }
     voided: { total: number; count: number }
@@ -440,7 +440,7 @@ export default function DailyClosingReportPage() {
         <PageHeader
           title="รายงานปิดวัน"
           icon={BarChart2}
-          subtitle="สรุปรายได้ · การซ่อม · กะ · แจ้งเตือน"
+          subtitle="เงินเข้าวันนี้ อยู่ที่ไหน มาจากอะไร · งานซ่อม · กะ"
           className="print:hidden"
           secondaryActions={
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -517,89 +517,20 @@ export default function DailyClosingReportPage() {
 
         {data && (
           <>
-            {/* ── 1. Revenue Summary ── */}
+            {/* ── 1. Money in, in plain Thai ── */}
             <section>
-              <SectionHeader icon={TrendingUp} title={dateStr === todayStr() ? 'สรุปรายได้วันนี้' : `สรุปรายได้ — ${format(new Date(dateStr + 'T12:00:00'), 'd MMM yyyy', { locale: th })}`} />
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <MetricCard
-                  label="ขายสินค้า (POS)"
-                  value={formatThaiMoney(data.revenue.pos.total)}
-                  sub={`${data.revenue.pos.count} รายการ`}
-                  color="text-green-700"
-                  icon={ShoppingCart}
-                  onClick={() => openDrawer('รายการขาย POS', salesDrawer)}
-                />
-                <MetricCard
-                  label="รายได้ซ่อม"
-                  value={formatThaiMoney(data.revenue.repairs.total)}
-                  sub={`${data.revenue.repairs.count} งาน`}
-                  color="text-blue-700"
-                  icon={Wrench}
-                  onClick={() => openDrawer('รายการรับเงินซ่อม', repairPayDrawer)}
-                />
-                <MetricCard
-                  label="ขาย SIM/Net"
-                  value={formatThaiMoney(data.revenue.packages.total)}
-                  sub={`${data.revenue.packages.count} รายการ`}
-                  color="text-cyan-700"
-                  icon={Wifi}
-                  onClick={() => openDrawer('รายการขาย SIM/Net', packageDrawer)}
-                />
-                {(data.revenue.otherIncome?.total ?? 0) > 0 && (
-                  <MetricCard
-                    label="รายรับไม่มีบิล"
-                    value={formatThaiMoney(data.revenue.otherIncome!.total)}
-                    sub={`${data.revenue.otherIncome!.count} รายการ (รับเงินด่วน)`}
-                    color="text-emerald-700"
-                    icon={Wallet}
-                  />
-                )}
-                <MetricCard
-                  label="รวมรายได้"
-                  value={formatThaiMoney(data.revenue.grandTotal)}
-                  color="text-slate-900 dark:text-white"
-                  icon={BarChart2}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-                <MetricCard
-                  label="เงินสด"
-                  value={formatThaiMoney(data.revenue.cash)}
-                  icon={Banknote}
-                />
-                <MetricCard
-                  label="โอนเงิน"
-                  value={formatThaiMoney(data.revenue.transfer)}
-                  icon={Smartphone}
-                />
-                <MetricCard
-                  label="บัตรเครดิต"
-                  value={formatThaiMoney(data.revenue.card)}
-                  icon={CreditCard}
-                />
-                <MetricCard
-                  label="มัดจำรับวันนี้"
-                  value={formatThaiMoney(data.revenue.deposits.total)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <MetricCard
-                  label="หนี้ค้างชำระ"
-                  value={formatThaiMoney(data.revenue.outstanding.total)}
-                  sub={`${data.revenue.outstanding.count} งาน`}
-                  color="text-amber-700"
-                  onClick={() => openDrawer('หนี้ค้างชำระ (ซ่อมเสร็จยังไม่ชำระ)', unpaidDrawer)}
-                />
-                <MetricCard
-                  label="คืนเงิน (Refund)"
-                  value={formatThaiMoney(data.revenue.refunds.total)}
-                  sub={`${data.revenue.refunds.count} รายการ`}
-                  color="text-orange-700"
-                  onClick={() => openDrawer('รายการคืนเงิน', refundDrawer)}
-                />
-              </div>
+              <SectionHeader icon={TrendingUp} title={dateStr === todayStr() ? 'สรุปเงินวันนี้' : `สรุปเงิน — ${format(new Date(dateStr + 'T12:00:00'), 'd MMM yyyy', { locale: th })}`} />
+              <DailyMoneySummary
+                r={data.revenue}
+                dayLabel={dateStr === todayStr() ? 'วันนี้' : `วันที่ ${format(new Date(dateStr + 'T12:00:00'), 'd MMM', { locale: th })} `}
+                onDetail={(what) => {
+                  if (what === 'sales') openDrawer('รายการขาย', salesDrawer)
+                  else if (what === 'refunds') openDrawer('รายการคืนเงิน', refundDrawer)
+                  else if (what === 'repairs') openDrawer('รับเงินค่าซ่อม', repairPayDrawer)
+                  else if (what === 'packages') openDrawer('ขายซิม / เติมเงิน', packageDrawer)
+                  else openDrawer('ค้างชำระ (ซ่อมเสร็จยังไม่จ่าย)', unpaidDrawer)
+                }}
+              />
             </section>
 
             {/* ── 2. Sales Transactions ── */}

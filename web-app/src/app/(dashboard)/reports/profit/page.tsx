@@ -5,8 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
-  ChevronLeft, ChevronRight, TrendingUp, TrendingDown,
-  ShoppingCart, Wrench, Package, Receipt, Download, Printer,
+  ChevronLeft, ChevronRight, TrendingUp,
+  Download, Printer, AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
@@ -23,6 +23,8 @@ import type {
   ProfitReportExpenseItem,
 } from '@/types'
 import { SendPdfButton } from '@/components/reports/send-pdf-button'
+import { MoneyEquation, MoneyLine, SourceCard, SplitBar } from '@/components/reports/money-parts'
+import Link from 'next/link'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -134,95 +136,136 @@ function DrawerTable({ head, rows }: { head: string[]; rows: (string | React.Rea
   )
 }
 
-// ── Clickable StatCard ────────────────────────────────────────────────────────
+type DrawerKey = 'pos' | 'repair' | 'package' | 'expense' | 'net' | null
 
-function StatCard({
-  label, value, sub, icon: Icon, color, onClick,
-}: {
-  label: string; value: string; sub?: string
-  icon: React.ElementType; color: string; onClick?: () => void
-}) {
-  const inner = (
-    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 flex items-start gap-3 h-full">
-      <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${color}`}>
-        <Icon className="h-5 w-5 text-white" />
+/** The report in plain Thai: one sentence for the profit, then where each part comes from */
+function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; periodLabel: string; onDetail: (k: DrawerKey) => void }) {
+  const cost = data.pos.cogs + data.repair.partsCost + data.repair.laborCost
+  const income = data.summary.totalRevenue
+  const net = data.summary.netProfit
+  const per100 = income > 0 ? Math.round((net / income) * 100) : 0
+  const refunds = data.pos.refunds ?? 0
+  const sold = data.pos.grossSales ?? data.pos.revenue + refunds
+  const w = data.costWarnings
+  const hasWarnings = !!w && (w.belowCostCount > 0 || w.noCostCount > 0)
+  const other = data.otherIncome?.revenue ?? 0
+  return (
+    <div className="space-y-4">
+      {/* The answer first */}
+      <div className="grid gap-5 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm md:grid-cols-[minmax(0,320px)_1fr] dark:border-slate-700/60 dark:bg-[#1E293B]">
+        <div>
+          <p className="text-sm text-muted-foreground">{periodLabel} ร้าน{net >= 0 ? 'ได้กำไรจริง' : 'ขาดทุน'}</p>
+          <p className={`text-5xl font-extrabold tabular-nums ${net >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600'}`}>{formatThaiMoney(Math.abs(net))}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            หักทุนของและค่าใช้จ่ายแล้ว{income > 0 && net > 0 ? ` · ทุก ฿100 ที่รับมา เหลือเป็นกำไร ฿${per100}` : ''}
+          </p>
+          <button type="button" onClick={() => onDetail('net')} className="mt-2 inline-flex items-center text-sm font-semibold text-blue-600 hover:underline print:hidden">
+            ดูที่มาทีละรายการ<ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-4">
+          <MoneyEquation parts={[
+            { label: 'รับเงินมา', value: income, tone: 'in' },
+            { label: 'ทุนของ/อะไหล่', value: cost, tone: 'out' },
+            { label: 'ค่าใช้จ่าย', value: data.expenses.total, tone: 'out' },
+            { label: net >= 0 ? 'เหลือ' : 'ขาดทุน', value: net, tone: 'result', result: true },
+          ]} />
+          <SplitBar parts={[
+            { value: Math.max(0, net), className: 'bg-emerald-500', label: 'กำไร' },
+            { value: cost, className: 'bg-red-300', label: 'ทุนของ/อะไหล่' },
+            { value: data.expenses.total, className: 'bg-orange-300', label: 'ค่าใช้จ่าย' },
+          ]} />
+          <p className="text-xs text-muted-foreground">
+            “รับเงินมา” = ขายของ (หักเงินคืนแล้ว) + ค่าซ่อมที่ได้รับจริง + ค่าคอมซิม{other > 0 ? ' + รายรับไม่มีบิล' : ''}
+          </p>
+        </div>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-slate-500 truncate">{label}</p>
-        <p className="mt-0.5 text-lg font-bold text-slate-900 leading-tight">{value}</p>
-        {sub && <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
+
+      {/* Where it came from */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <SourceCard icon="🛒" title="ขายของหน้าร้าน" onDetail={() => onDetail('pos')} detailLabel="ดูทีละบิล"
+          why="ราคาที่ขายจริงหลังส่วนลด · ของที่ลูกค้าคืน ทุนของชิ้นนั้นก็กลับเข้าร้าน">
+          <MoneyLine label={`ขายได้${data.pos.billCount != null ? ` (${data.pos.billCount} บิล)` : ''}`} value={sold} />
+          {refunds > 0 && <MoneyLine label={`คืนเงินลูกค้า${data.pos.refundCount ? ` (${data.pos.refundCount} ครั้ง)` : ''}`} value={refunds} minus />}
+          <MoneyLine label="ทุนของที่ขายไป" value={data.pos.cogs} minus />
+          <MoneyLine label="กำไร" value={data.pos.profit} total />
+        </SourceCard>
+        <SourceCard icon="🔧" title="งานซ่อม" onDetail={() => onDetail('repair')} detailLabel="ดูทีละงาน"
+          why="นับเงินในวันที่ได้รับจริง — มัดจำนับวันรับเครื่อง ส่วนที่ยังค้างชำระยังไม่นับ">
+          <MoneyLine label={`รับเงินค่าซ่อม${data.repair.count ? ` (${data.repair.count} งาน)` : ''}`} value={data.repair.revenue} />
+          {(data.repair.deposits ?? 0) > 0 && <MoneyLine label="มัดจำตอนรับเครื่อง" value={data.repair.deposits!} muted />}
+          {(data.repair.atPickup ?? 0) > 0 && <MoneyLine label="จ่ายตอนรับเครื่องคืน" value={data.repair.atPickup!} muted />}
+          {(data.repair.debtPayments ?? 0) > 0 && <MoneyLine label="จ่ายหนี้ค้าง" value={data.repair.debtPayments!} muted />}
+          <MoneyLine label="ค่าอะไหล่ที่ใช้" value={data.repair.partsCost} minus />
+          {data.repair.laborCost > 0 && <MoneyLine label="ค่าแรงช่าง" value={data.repair.laborCost} minus />}
+          <MoneyLine label="กำไร" value={data.repair.profit} total />
+        </SourceCard>
+        <SourceCard icon="📶" title="ซิม / เติมเงิน" onDetail={data.package.count > 0 ? () => onDetail('package') : undefined}
+          why="เงินซิมส่วนใหญ่เป็นของค่าย ร้านได้แค่ค่าคอม จึงนับเป็นกำไรเฉพาะค่าคอม">
+          <MoneyLine label={`ขายแพ็กเกจ${data.package.count ? ` (${data.package.count} รายการ)` : ''}`} value={data.package.revenue} />
+          <MoneyLine label="จ่ายค่าย" value={data.package.revenue - data.package.profit} minus />
+          <MoneyLine label="ค่าคอมที่ได้" value={data.package.profit} total />
+        </SourceCard>
       </div>
-      {onClick && (
-        <ChevronRight className="h-4 w-4 text-slate-300 shrink-0 mt-3 group-hover:text-blue-400 transition-colors" />
-      )}
+
+      <div className={`grid gap-4 ${hasWarnings ? 'md:grid-cols-2' : ''}`}>
+        <SourceCard icon="🧾" title="ค่าใช้จ่าย" onDetail={data.expenses.items.length ? () => onDetail('expense') : undefined}
+          why="รายจ่ายที่ลงไว้ในหน้าค่าใช้จ่าย เช่น ค่าเช่า ค่าไฟ เงินเดือน">
+          {data.expenses.breakdown.length === 0
+            ? <p className="py-1 text-sm text-muted-foreground">ไม่มีค่าใช้จ่ายในช่วงนี้</p>
+            : data.expenses.breakdown.map((e) => <MoneyLine key={e.code} label={e.name} value={e.total} minus />)}
+          {other > 0 && <MoneyLine label={`รายรับไม่มีบิล (${data.otherIncome!.count} รายการ)`} value={other} note="เงินรับเข้าลิ้นชักที่ไม่ได้ออกบิล — นับเป็นกำไรทั้งหมด" />}
+          {data.expenses.breakdown.length > 1 && <MoneyLine label="รวมค่าใช้จ่าย" value={-data.expenses.total} total />}
+        </SourceCard>
+        {hasWarnings && (
+          <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/20">
+            <h3 className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200"><AlertTriangle className="h-4 w-4" /> ตัวเลขที่อาจทำให้กำไรผิด — ตรวจก่อน</h3>
+            <div className="mt-2 divide-y divide-amber-200 text-sm dark:divide-amber-800">
+              {w!.belowCost.map((x) => (
+                <div key={x.productId} className="flex items-center justify-between gap-3 py-2">
+                  <span className="min-w-0">{x.name} · ทุน <b className="text-red-700">{formatThaiMoney(x.cost)}</b> แต่ขาย {formatThaiMoney(x.soldAt)}
+                    <span className="block text-xs text-amber-800/80">ขายต่ำกว่าทุน — ถ้าทุนพิมพ์ผิด กำไรจะติดลบเกินจริง</span></span>
+                  <Link href={`/products?q=${encodeURIComponent(x.name)}`} className="shrink-0 rounded-lg border border-amber-400 bg-white px-2.5 py-1 text-xs font-bold text-amber-900 print:hidden">แก้ทุน</Link>
+                </div>
+              ))}
+              {w!.noCostCount > 0 && (
+                <div className="py-2">
+                  สินค้าที่ไม่มีต้นทุน {w!.noCostCount} รายการ — กำไรของชิ้นเหล่านี้จะดูสูงเกินจริง
+                  <span className="block text-xs text-amber-800/80">{w!.noCost.map((x) => x.name).join(', ')}{w!.noCostCount > w!.noCost.length ? ' …' : ''}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
-  if (onClick) {
-    return (
-      <button onClick={onClick} className="group text-left w-full hover:shadow-md transition-shadow rounded-xl">
-        {inner}
-      </button>
-    )
-  }
-  return inner
 }
-
-// ── Clickable ProfitBar ───────────────────────────────────────────────────────
-
-function ProfitBar({
-  label, profit, revenue, color, onClick,
-}: {
-  label: string; profit: number; revenue: number; color: string; onClick?: () => void
-}) {
-  const margin = revenue > 0 ? (profit / revenue) * 100 : 0
-  const content = (
-    <>
-      <div className="flex items-center justify-between text-sm mb-1">
-        <span className="text-slate-700">{label}</span>
-        <span className={`font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-          {formatThaiMoney(profit)}
-          {onClick && <ChevronRight className="inline h-3.5 w-3.5 ml-1 text-slate-400" />}
-        </span>
-      </div>
-      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(Math.abs(margin), 100)}%` }} />
-      </div>
-      <div className="flex justify-between text-[11px] text-slate-400 mt-0.5">
-        <span>รายได้ {formatThaiMoney(revenue)}</span>
-        <span>margin {margin.toFixed(1)}%</span>
-      </div>
-    </>
-  )
-  if (onClick) {
-    return (
-      <button onClick={onClick} className="w-full text-left hover:bg-slate-50 rounded-lg p-1 -m-1 transition-colors">
-        {content}
-      </button>
-    )
-  }
-  return <div>{content}</div>
-}
-
-// ── Main Page ─────────────────────────────────────────────────────────────────
-
-type DrawerKey = 'pos' | 'repair' | 'package' | 'expense' | 'net' | null
 
 export default function ProfitReportPage() {
   const hasModule = useAuthStore((s) => s.hasModule)
   const [refMonth, setRefMonth]     = useState(() => new Date())
-  const [mode, setMode]             = useState<'month' | 'custom'>('month')
+  const [mode, setMode]             = useState<'today' | 'week' | 'month' | 'custom'>('month')
   const [customStart, setCustomStart] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [customEnd, setCustomEnd]   = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [drawer, setDrawer]         = useState<DrawerKey>(null)
 
   const { startDate, endDate } = useMemo(() => {
     if (mode === 'custom') return { startDate: customStart, endDate: customEnd }
+    const todayStr = format(new Date(), 'yyyy-MM-dd')
+    if (mode === 'today') return { startDate: todayStr, endDate: todayStr }
+    if (mode === 'week') return { startDate: format(new Date(Date.now() - 6 * 86_400_000), 'yyyy-MM-dd'), endDate: todayStr }
     const s = startOfMonth(refMonth)
     const e = endOfMonth(refMonth)
     return { startDate: format(s, 'yyyy-MM-dd'), endDate: format(e, 'yyyy-MM-dd') }
   }, [mode, refMonth, customStart, customEnd])
 
   const period = `${startDate}—${endDate}`
+  const fmtDay = (d: string) => format(new Date(`${d}T00:00:00`), 'd MMM yy', { locale: th })
+  const periodLabel = mode === 'today' ? 'วันนี้'
+    : mode === 'week' ? '7 วันล่าสุด'
+    : mode === 'month' ? `เดือน${format(refMonth, 'MMMM yyyy', { locale: th })}`
+    : startDate === endDate ? fmtDay(startDate) : `${fmtDay(startDate)} – ${fmtDay(endDate)}`
 
   const { data, isLoading, isError } = useQuery<ProfitReport>({
     queryKey: ['profit-report', startDate, endDate],
@@ -232,15 +275,13 @@ export default function ProfitReportPage() {
 
   const openDrawer = useCallback((key: DrawerKey) => setDrawer(key), [])
 
-  const netPositive = (data?.summary.netProfit ?? 0) >= 0
-
   // ── Drawer content ──────────────────────────────────────────────────────────
 
   const posDrawerContent = useMemo(() => {
     const items = data?.pos.items ?? []
     return (
       <DrawerTable
-        head={['เวลา', 'ใบเสร็จ', 'ลูกค้า', 'สินค้า', 'จำนวน', 'รายได้', 'COGS', 'กำไร']}
+        head={['เวลา', 'ใบเสร็จ', 'ลูกค้า', 'สินค้า', 'จำนวน', 'ขายได้', 'ทุน', 'กำไร']}
         rows={items.map((i) => [
           fmtTime(i.time),
           <span key="r" className="font-mono text-blue-700 font-bold">{i.receiptNumber}</span>,
@@ -310,7 +351,7 @@ export default function ProfitReportPage() {
     if (!data) return null
     const allRows: { time: string; type: string; label: string; revenue: number; cost: number; profit: number }[] = [
       ...data.pos.items.map((i) => ({
-        time: i.time, type: 'POS', label: `${i.receiptNumber} · ${i.product}`,
+        time: i.time, type: 'ขายของ', label: `${i.receiptNumber} · ${i.product}`,
         revenue: i.revenue, cost: i.cogs, profit: i.profit,
       })),
       ...data.repair.items.map((i) => ({
@@ -318,7 +359,7 @@ export default function ProfitReportPage() {
         revenue: i.revenue, cost: i.partsCost + i.laborCost, profit: i.profit,
       })),
       ...data.package.items.map((i) => ({
-        time: i.time, type: 'Package', label: `${i.receiptNumber} · ${i.carrier}`,
+        time: i.time, type: 'ซิม', label: `${i.receiptNumber} · ${i.carrier}`,
         revenue: i.amount, cost: i.amount - i.profit, profit: i.profit,
       })),
     ].sort((a, b) => a.time.localeCompare(b.time))
@@ -339,9 +380,9 @@ export default function ProfitReportPage() {
         {/* Summary */}
         <div className="border-t pt-4 space-y-2 text-sm">
           {[
-            { label: 'Gross Profit (POS + ซ่อม + Package)', value: data.summary.grossProfit, bold: false },
+            { label: 'กำไรก่อนหักค่าใช้จ่าย (ขายของ + ซ่อม + ซิม)', value: data.summary.grossProfit, bold: false },
             { label: `ค่าใช้จ่าย (${data.expenses.items.length} รายการ)`, value: -data.expenses.total, bold: false },
-            { label: 'Net Profit', value: data.summary.netProfit, bold: true },
+            { label: 'กำไรจริง', value: data.summary.netProfit, bold: true },
           ].map(({ label, value, bold }) => (
             <div key={label} className={`flex justify-between ${bold ? 'font-bold text-base border-t pt-2' : ''}`}>
               <span className={bold ? '' : 'text-slate-600'}>{label}</span>
@@ -361,27 +402,27 @@ export default function ProfitReportPage() {
     csvFn?: () => void
   }> = useMemo(() => ({
     pos: {
-      title: `POS Profit Detail (${data?.pos.items.length ?? 0} รายการ)`,
+      title: `ขายของหน้าร้าน — ทีละรายการ (${data?.pos.items.length ?? 0} รายการ)`,
       content: posDrawerContent,
       csvFn: data ? () => posCSV(data.pos.items, period) : undefined,
     },
     repair: {
-      title: `Repair Profit Detail (${data?.repair.count ?? 0} งาน)`,
+      title: `งานซ่อม — ทีละงาน (${data?.repair.count ?? 0} งาน)`,
       content: repairDrawerContent,
       csvFn: data ? () => repairCSV(data.repair.items, period) : undefined,
     },
     package: {
-      title: `Package Profit Detail (${data?.package.count ?? 0} รายการ)`,
+      title: `ซิม / เติมเงิน — ทีละรายการ (${data?.package.count ?? 0} รายการ)`,
       content: packageDrawerContent,
       csvFn: data ? () => packageCSV(data.package.items, period) : undefined,
     },
     expense: {
-      title: `Expense Detail (${data?.expenses.items.length ?? 0} รายการ)`,
+      title: `ค่าใช้จ่าย — ทีละรายการ (${data?.expenses.items.length ?? 0} รายการ)`,
       content: expenseDrawerContent,
       csvFn: data ? () => expenseCSV(data.expenses.items, period) : undefined,
     },
     net: {
-      title: 'Net Profit Breakdown',
+      title: 'ที่มาของกำไรทั้งหมด',
       content: netDrawerContent,
     },
   }), [data, posDrawerContent, repairDrawerContent, packageDrawerContent, expenseDrawerContent, netDrawerContent, period])
@@ -398,24 +439,18 @@ export default function ProfitReportPage() {
 
         {/* Header */}
         <PageHeader
-          title="รายงานกำไร"
+          title="กำไรของร้าน"
           icon={TrendingUp}
-          subtitle="คลิกที่การ์ดเพื่อดูรายละเอียด · Net Profit = Gross − ค่าใช้จ่าย"
+          subtitle="เงินที่รับมา หักทุนของและค่าใช้จ่าย เหลือเป็นกำไรเท่าไร"
           primaryAction={
             <div className="flex items-center gap-2 flex-wrap print:hidden">
               <div className="flex rounded-lg border overflow-hidden text-sm">
-                <button
-                  onClick={() => setMode('month')}
-                  className={`px-3 py-1.5 ${mode === 'month' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
-                >
-                  รายเดือน
-                </button>
-                <button
-                  onClick={() => setMode('custom')}
-                  className={`px-3 py-1.5 ${mode === 'custom' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}
-                >
-                  กำหนดเอง
-                </button>
+                {([['today', 'วันนี้'], ['week', '7 วัน'], ['month', 'รายเดือน'], ['custom', 'เลือกวัน']] as const).map(([m, label]) => (
+                  <button key={m} onClick={() => setMode(m)}
+                    className={`px-3 py-1.5 ${mode === m ? 'bg-blue-600 text-white' : 'bg-white dark:bg-[#1E293B] text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/40'}`}>
+                    {label}
+                  </button>
+                ))}
               </div>
               {mode === 'month' ? (
                 <div className="flex items-center gap-1">
@@ -429,7 +464,7 @@ export default function ProfitReportPage() {
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
-              ) : (
+              ) : mode !== 'custom' ? null : (
                 <div className="flex items-center gap-2 text-sm">
                   <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                   <span className="text-slate-400">—</span>
@@ -440,7 +475,7 @@ export default function ProfitReportPage() {
                 <Printer className="h-3.5 w-3.5" />พิมพ์
               </Button>
               <SendPdfButton target={() => document.getElementById('profit-report')}
-                filename={`รายงานกำไร-${mode === 'month' ? format(refMonth, 'yyyy-MM') : `${customStart}_${customEnd}`}.pdf`} />
+                filename={`รายงานกำไร-${mode === 'month' ? format(refMonth, 'yyyy-MM') : `${startDate}_${endDate}`}.pdf`} />
             </div>
           }
         />
@@ -448,256 +483,7 @@ export default function ProfitReportPage() {
         {isLoading && <div className="flex items-center justify-center py-20 text-slate-400">กำลังโหลด...</div>}
         {isError  && <div className="flex items-center justify-center py-20 text-red-500">เกิดข้อผิดพลาด ลองใหม่อีกครั้ง</div>}
 
-        {data && (
-          <>
-            {/* Summary KPI cards — all clickable */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard
-                label="รายได้รวม"
-                value={formatThaiMoney(data.summary.totalRevenue)}
-                sub={`${startDate} — ${endDate}`}
-                icon={TrendingUp}
-                color="bg-blue-500"
-                onClick={() => openDrawer('net')}
-              />
-              <StatCard
-                label="Gross Profit"
-                value={formatThaiMoney(data.summary.grossProfit)}
-                sub={`margin ${data.summary.grossMargin.toFixed(1)}%`}
-                icon={data.summary.grossProfit >= 0 ? TrendingUp : TrendingDown}
-                color={data.summary.grossProfit >= 0 ? 'bg-emerald-500' : 'bg-red-500'}
-                onClick={() => openDrawer('net')}
-              />
-              <StatCard
-                label="ค่าใช้จ่ายรวม"
-                value={formatThaiMoney(data.expenses.total)}
-                sub={`${data.expenses.items.length} รายการ`}
-                icon={Receipt}
-                color="bg-orange-500"
-                onClick={() => openDrawer('expense')}
-              />
-              <StatCard
-                label="Net Profit"
-                value={formatThaiMoney(data.summary.netProfit)}
-                sub={`margin ${data.summary.netMargin.toFixed(1)}%`}
-                icon={netPositive ? TrendingUp : TrendingDown}
-                color={netPositive ? 'bg-violet-600' : 'bg-red-600'}
-                onClick={() => openDrawer('net')}
-              />
-            </div>
-
-            {/* Profit breakdown by segment — clickable bars */}
-            <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-5">
-              <h2 className="font-semibold text-slate-800 mb-4">กำไรแยกตามหมวด</h2>
-              <div className="space-y-5">
-                <ProfitBar
-                  label="POS (ขายสินค้า)"
-                  profit={data.pos.profit}
-                  revenue={data.pos.revenue}
-                  color="bg-blue-500"
-                  onClick={() => openDrawer('pos')}
-                />
-                <ProfitBar
-                  label="งานซ่อม"
-                  profit={data.repair.profit}
-                  revenue={data.repair.revenue}
-                  color="bg-purple-500"
-                  onClick={() => openDrawer('repair')}
-                />
-                <ProfitBar
-                  label="Package"
-                  profit={data.package.profit}
-                  revenue={data.package.revenue}
-                  color="bg-teal-500"
-                  onClick={() => openDrawer('package')}
-                />
-                {(data.otherIncome?.revenue ?? 0) > 0 && (
-                  <ProfitBar
-                    label={`รายรับไม่มีบิล (${data.otherIncome!.count} รายการ)`}
-                    profit={data.otherIncome!.revenue}
-                    revenue={data.otherIncome!.revenue}
-                    color="bg-emerald-500"
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Detail segment cards — all clickable */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              {/* POS */}
-              <button
-                onClick={() => openDrawer('pos')}
-                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-left hover:border-blue-300 hover:-translate-y-0.5 dark:hover:border-blue-700 transition-all group"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4 text-blue-600" />
-                    <h3 className="font-semibold text-slate-800">POS</h3>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-blue-400 transition-colors" />
-                </div>
-                <table className="w-full text-sm">
-                  <tbody className="divide-y divide-slate-100">
-                    <tr>
-                      <td className="py-1.5 text-slate-500">รายได้</td>
-                      <td className="py-1.5 text-right font-medium">{formatThaiMoney(data.pos.revenue)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1.5 text-slate-500">ต้นทุนสินค้า (COGS)</td>
-                      <td className="py-1.5 text-right font-medium text-red-600">− {formatThaiMoney(data.pos.cogs)}</td>
-                    </tr>
-                    <tr className="font-semibold">
-                      <td className="py-1.5">กำไรขั้นต้น</td>
-                      <td className={`py-1.5 text-right ${profitColor(data.pos.profit)}`}>
-                        {formatThaiMoney(data.pos.profit)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </button>
-
-              {/* Repair */}
-              <button
-                onClick={() => openDrawer('repair')}
-                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-left hover:border-purple-300 hover:-translate-y-0.5 dark:hover:border-purple-700 transition-all group"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Wrench className="h-4 w-4 text-purple-600" />
-                    <h3 className="font-semibold text-slate-800">งานซ่อม ({data.repair.count} งาน)</h3>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-purple-400 transition-colors" />
-                </div>
-                <table className="w-full text-sm">
-                  <tbody className="divide-y divide-slate-100">
-                    <tr>
-                      <td className="py-1.5 text-slate-500">รายได้ซ่อม</td>
-                      <td className="py-1.5 text-right font-medium">{formatThaiMoney(data.repair.revenue)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1.5 text-slate-500">ค่าอะไหล่</td>
-                      <td className="py-1.5 text-right font-medium text-red-600">− {formatThaiMoney(data.repair.partsCost)}</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1.5 text-slate-500">ค่าแรง</td>
-                      <td className="py-1.5 text-right font-medium text-red-600">− {formatThaiMoney(data.repair.laborCost)}</td>
-                    </tr>
-                    <tr className="font-semibold">
-                      <td className="py-1.5">กำไรขั้นต้น</td>
-                      <td className={`py-1.5 text-right ${profitColor(data.repair.profit)}`}>
-                        {formatThaiMoney(data.repair.profit)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </button>
-
-              {/* Package */}
-              <button
-                onClick={() => openDrawer('package')}
-                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-left hover:border-teal-300 hover:-translate-y-0.5 dark:hover:border-teal-700 transition-all group"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-teal-600" />
-                    <h3 className="font-semibold text-slate-800">Package ({data.package.count} รายการ)</h3>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-teal-400 transition-colors" />
-                </div>
-                <table className="w-full text-sm">
-                  <tbody className="divide-y divide-slate-100">
-                    <tr>
-                      <td className="py-1.5 text-slate-500">ยอด Package</td>
-                      <td className="py-1.5 text-right font-medium">{formatThaiMoney(data.package.revenue)}</td>
-                    </tr>
-                    <tr className="font-semibold">
-                      <td className="py-1.5">กำไร</td>
-                      <td className={`py-1.5 text-right ${profitColor(data.package.profit)}`}>
-                        {formatThaiMoney(data.package.profit)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </button>
-
-              {/* Expense */}
-              <button
-                onClick={() => openDrawer('expense')}
-                className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] p-4 text-left hover:border-orange-300 hover:-translate-y-0.5 dark:hover:border-orange-700 transition-all group"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Receipt className="h-4 w-4 text-orange-600" />
-                    <h3 className="font-semibold text-slate-800">ค่าใช้จ่าย</h3>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-400 transition-colors" />
-                </div>
-                {data.expenses.breakdown.length === 0 ? (
-                  <p className="text-sm text-slate-400">ไม่มีค่าใช้จ่ายในช่วงนี้</p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <tbody className="divide-y divide-slate-100">
-                      {data.expenses.breakdown.map((exp) => (
-                        <tr key={exp.code}>
-                          <td className="py-1.5 text-slate-600">{exp.name}</td>
-                          <td className="py-1.5 text-right font-medium text-red-600">
-                            − {formatThaiMoney(exp.total)}
-                          </td>
-                        </tr>
-                      ))}
-                      <tr className="font-semibold border-t border-slate-200">
-                        <td className="py-1.5">รวม</td>
-                        <td className="py-1.5 text-right text-red-600">− {formatThaiMoney(data.expenses.total)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                )}
-              </button>
-            </div>
-
-            {/* Net Profit summary — clickable */}
-            <button
-              onClick={() => openDrawer('net')}
-              className={`w-full rounded-xl border-2 p-5 text-left hover:shadow-md transition-shadow group ${netPositive ? 'border-green-400 bg-green-50 hover:border-green-500' : 'border-red-400 bg-red-50 hover:border-red-500'}`}
-            >
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Net Profit (กำไรสุทธิ)</p>
-                  <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                    Gross Profit − ค่าใช้จ่าย
-                    <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 transition-colors" />
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className={`text-2xl font-bold ${netPositive ? 'text-green-700' : 'text-red-700'}`}>
-                    {formatThaiMoney(data.summary.netProfit)}
-                  </p>
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    Net margin {data.summary.netMargin.toFixed(1)}%
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-3 text-center text-sm border-t border-current/20 pt-3">
-                <div>
-                  <p className="text-slate-500 text-xs">Gross Profit</p>
-                  <p className={`font-semibold ${data.summary.grossProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                    {formatThaiMoney(data.summary.grossProfit)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-500 text-xs">ค่าใช้จ่าย</p>
-                  <p className="font-semibold text-orange-700">− {formatThaiMoney(data.expenses.total)}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 text-xs">อัตรากำไรสุทธิ</p>
-                  <p className={`font-semibold ${netPositive ? 'text-green-700' : 'text-red-700'}`}>
-                    {data.summary.netMargin.toFixed(1)}%
-                  </p>
-                </div>
-              </div>
-            </button>
-          </>
-        )}
+        {data && <ProfitSummary data={data} periodLabel={periodLabel} onDetail={openDrawer} />}
       </div>
 
       {/* Detail drawer */}

@@ -529,7 +529,7 @@ export class ReportsService {
         },
         select: {
           id: true, receiptNumber: true, carrier: true, packageAmount: true,
-          profit: true, paymentMethod: true, createdAt: true,
+          profit: true, paymentMethod: true, createdAt: true, creditAmount: true,
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'asc' },
@@ -752,7 +752,15 @@ export class ReportsService {
           total: money.repairRevenue, count: repairPayments.length, breakdown: repairPaymentBreakdown,
           deposits: money.repairDeposits, atPickup: money.repairPickup, debtPayments: money.repairDebtPayments,
         },
-        packages: { total: packageRevenue, amount: packageAmount, count: packageSales.length },
+        packages: {
+          total: packageRevenue, amount: packageAmount, count: packageSales.length,
+          // What customers paid at the counter per method (a credit sale brings in only its part)
+          byMethod: packageSales.reduce((acc, p) => {
+            const paid = Number(p.packageAmount) - Number(p.creditAmount ?? 0);
+            acc[p.paymentMethod] = Math.round(((acc[p.paymentMethod] ?? 0) + paid) * 100) / 100;
+            return acc;
+          }, {} as Record<string, number>),
+        },
         // money taken at the counter without a bill (quick money in for goods / a service)
         otherIncome: { total: money.otherIncome, count: money.otherIncomeCount },
         refunds: { total: refundTotal, count: refunds.length },
@@ -868,7 +876,7 @@ export class ReportsService {
           costPrice: true,
           discount: true,
           total: true,
-          product: { select: { id: true, name: true, sku: true } },
+          product: { select: { id: true, name: true, sku: true, price: true } },
           sale: {
             select: {
               createdAt: true,
@@ -898,7 +906,7 @@ export class ReportsService {
               price:     true,
               costPrice: true,
               sellPrice: true,
-              product:   { select: { name: true } },
+              product:   { select: { id: true, name: true, price: true } },
             },
           },
         },
@@ -937,9 +945,10 @@ export class ReportsService {
 
     // Totals use the shared money rules (common/money/period-money.ts): bill discounts and
     // refunds come off POS revenue, repairs count deposits, partial and debt payments.
-    const money = summarizeMoney(await loadPeriodMoney(this.prisma, {
+    const moneyRows = await loadPeriodMoney(this.prisma, {
       start, end, branchWhere: bFilter, branchId, tenantId,
-    }));
+    });
+    const money = summarizeMoney(moneyRows);
     const lineTotal = saleItems.reduce((s, i) => s + Number(i.total), 0);
 
     // --- POS profit ---
@@ -987,6 +996,8 @@ export class ReportsService {
       period: { startDate, endDate },
       pos: {
         revenue: posRevenue,
+        billCount:    money.salesCount,
+        refundCount:  moneyRows.refunds.length,
         grossSales:   money.posGross,
         billDiscount: Math.round((lineTotal - money.posGross) * 100) / 100,
         refunds:      money.posRefunds,
@@ -1054,6 +1065,7 @@ export class ReportsService {
           amount:        Number(e.amount),
         })),
       },
+      costWarnings: costWarningsOf(saleItems, repaids),
       summary: {
         grossProfit,
         netProfit,
@@ -1137,4 +1149,33 @@ export class ReportsService {
 
     return { suppliers, totals };
   }
+}
+
+/**
+ * Costs that make the profit wrong: a product sold for less than it cost (often a typing slip in
+ * the cost, e.g. 150,000 for 15,000), or sold with no cost at all (all of it shows as profit).
+ * Only what was sold in the period, so the warning explains this report's numbers.
+ */
+export function costWarningsOf(
+  saleItems: { quantity: number; total: unknown; costPrice: unknown; product: { id: string; name: string; price: unknown } }[],
+  repairs: { parts: { quantity: number; costPrice?: unknown; price: unknown; product: { id: string; name: string; price: unknown } | null }[] }[],
+) {
+  const below = new Map<string, { productId: string; name: string; cost: number; soldAt: number }>();
+  const noCost = new Map<string, { productId: string; name: string; price: number }>();
+  for (const i of saleItems) {
+    const cost = Number(i.costPrice ?? 0);
+    const unit = i.quantity > 0 ? Number(i.total) / i.quantity : 0;
+    if (cost <= 0) noCost.set(i.product.id, { productId: i.product.id, name: i.product.name, price: Number(i.product.price ?? 0) });
+    else if (cost > unit && unit >= 0) below.set(i.product.id, { productId: i.product.id, name: i.product.name, cost, soldAt: Math.round(unit * 100) / 100 });
+  }
+  for (const r of repairs) for (const p of r.parts) {
+    if (!p.product) continue;
+    if (Number(p.costPrice ?? p.price ?? 0) <= 0) noCost.set(p.product.id, { productId: p.product.id, name: p.product.name, price: Number(p.product.price ?? 0) });
+  }
+  return {
+    belowCost: [...below.values()].sort((a, b) => (b.cost - b.soldAt) - (a.cost - a.soldAt)).slice(0, 10),
+    belowCostCount: below.size,
+    noCost: [...noCost.values()].slice(0, 10),
+    noCostCount: noCost.size,
+  };
 }

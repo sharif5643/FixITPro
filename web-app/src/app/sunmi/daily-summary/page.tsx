@@ -1,30 +1,22 @@
 'use client'
 
+import { DailyMoneySummary, type DailyRevenue } from '@/components/reports/daily-money-summary'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import {
-  ChevronLeft, RefreshCw, TrendingUp, ShoppingCart, Wrench,
-  Wifi, AlertTriangle, Clock, Package,
+  ChevronLeft, RefreshCw,
+  AlertTriangle, Clock, Package,
 } from 'lucide-react'
 import { SunmiShell } from '@/components/sunmi/sunmi-shell'
+import { useAppShell } from '@/lib/app-shell'
 import { formatThaiMoney } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 
 interface DailyClosing {
-  revenue: {
-    pos: { total: number; count: number }
-    repairs: { total: number; count: number }
-    packages: { total: number; count: number }
-    voided: { total: number; count: number }
-    outstanding: { total: number; count: number }
-    grandTotal: number
-    cash: number
-    transfer: number
-    card: number
-  }
+  revenue: DailyRevenue & { grandTotal: number }
   repairSummary: { overdue: number; byStatus: Record<string, number> }
   lowStock: { count: number }
 }
@@ -71,6 +63,7 @@ function SummaryTile({ label, value, sub, color = 'text-slate-900', icon: Icon, 
 
 export default function SunmiDailySummaryPage() {
   const router = useRouter()
+  const shell = useAppShell()
   const { user, hasPermission } = useAuthStore()
   const isOwnerOrManager = user?.role === 'OWNER' || user?.role === 'MANAGER' || hasPermission('reports.view')
   const today = format(new Date(), 'yyyy-MM-dd')
@@ -85,7 +78,7 @@ export default function SunmiDailySummaryPage() {
 
   if (!isOwnerOrManager) {
     return (
-      <SunmiShell title="สรุปรายได้วันนี้" showBack>
+      <SunmiShell title="สรุปเงินวันนี้" showBack>
         <div className="flex flex-col items-center justify-center h-52 text-slate-400">
           <AlertTriangle className="h-12 w-12 mb-3 opacity-20" />
           <p className="text-base font-medium">ไม่มีสิทธิ์เข้าถึง</p>
@@ -98,7 +91,7 @@ export default function SunmiDailySummaryPage() {
 
   return (
     <SunmiShell
-      title="สรุปรายได้วันนี้"
+      title="สรุปเงินวันนี้"
       showBack
       rightContent={
         <button
@@ -124,69 +117,17 @@ export default function SunmiDailySummaryPage() {
           </div>
         ) : data ? (
           <>
-            {/* Revenue tiles */}
-            <div className="grid grid-cols-2 gap-3">
-              <SummaryTile
-                label="รวมรายได้วันนี้"
-                value={formatThaiMoney(data.revenue.grandTotal)}
-                sub="ทุกช่องทาง"
-                color="text-slate-900"
-                icon={TrendingUp}
-              />
-              <SummaryTile
-                label="ขายสินค้า POS"
-                value={formatThaiMoney(data.revenue.pos.total)}
-                sub={`${data.revenue.pos.count} รายการ`}
-                color="text-green-700"
-                icon={ShoppingCart}
-                href="/sunmi/sales/history"
-              />
-              <SummaryTile
-                label="รายได้ซ่อม"
-                value={formatThaiMoney(data.revenue.repairs.total)}
-                sub={`${data.revenue.repairs.count} งาน`}
-                color="text-blue-700"
-                icon={Wrench}
-                href="/sunmi/repairs"
-              />
-              <SummaryTile
-                label="ขาย SIM/Net"
-                value={formatThaiMoney(data.revenue.packages.total)}
-                sub={`${data.revenue.packages.count} รายการ`}
-                color="text-cyan-700"
-                icon={Wifi}
-                href="/sunmi/sim-sales"
-              />
-            </div>
-
-            {/* Payment method breakdown */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">แบ่งตามช่องทาง</p>
-              <div className="space-y-2">
-                {[
-                  { label: 'เงินสด', value: data.revenue.cash },
-                  { label: 'โอนเงิน', value: data.revenue.transfer },
-                  { label: 'บัตร', value: data.revenue.card },
-                ].map(({ label, value }) => {
-                  const total = data.revenue.grandTotal || 1
-                  const pct = Math.round((value / total) * 100)
-                  return (
-                    <div key={label} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">{label}</span>
-                        <span className="font-bold tabular-nums">{formatThaiMoney(value)}</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-1.5">
-                        <div
-                          className="bg-slate-700 h-1.5 rounded-full transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+            {/* Money in: how much, where it is now, where it came from */}
+            <DailyMoneySummary
+              r={data.revenue}
+              dayLabel="วันนี้"
+              compact
+              onDetail={(what) => router.push(
+                what === 'repairs' || what === 'outstanding' ? shell.to('/sunmi/repairs')
+                  : what === 'packages' ? shell.to('/sunmi/sim-sales')
+                  : shell.to('/sunmi/sales/history'),
+              )}
+            />
 
             {/* Alerts */}
             <div className="grid grid-cols-2 gap-3">
@@ -228,17 +169,6 @@ export default function SunmiDailySummaryPage() {
                 />
               )}
             </div>
-
-            {/* Voided */}
-            {data.revenue.voided.count > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5 flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-red-700 text-sm">บิลยกเลิกวันนี้</p>
-                  <p className="text-xs text-red-500 mt-0.5">{data.revenue.voided.count} รายการ · {formatThaiMoney(data.revenue.voided.total)}</p>
-                </div>
-                <AlertTriangle className="h-5 w-5 text-red-400" />
-              </div>
-            )}
 
             {/* Link to full report */}
             <button

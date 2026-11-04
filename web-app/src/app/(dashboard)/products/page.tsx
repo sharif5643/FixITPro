@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -77,6 +77,11 @@ export default function ProductsPage() {
 
   // UI state
   const [search, setSearch]               = useState('')
+  // From a link such as the profit report's "แก้ทุน": open with that product found
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('q')
+    if (q) setSearch(q)
+  }, [])
   const [typeFilter, setTypeFilter]       = useState('ALL')
   const [brandFilter, setBrandFilter]     = useState('ALL')
   const [page, setPage]                   = useState(1)
