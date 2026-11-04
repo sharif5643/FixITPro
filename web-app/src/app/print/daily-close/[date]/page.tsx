@@ -229,8 +229,9 @@ export default function DailyClosePrintPage() {
             <button onClick={() => window.print()} style={{ background: '#fff', color: '#1e293b', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
               <Printer size={14} /> พิมพ์
             </button>
-            <button onClick={() => window.close()} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-              <X size={14} />
+            {/* Back to the close-shift page (this report opens in its own tab) */}
+            <button onClick={() => window.close()} style={{ background: 'none', border: '1px solid #64748b', borderRadius: 4, color: '#e2e8f0', cursor: 'pointer', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <X size={14} /> ปิดหน้านี้
             </button>
           </div>
         </div>

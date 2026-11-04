@@ -968,10 +968,11 @@ export default function ShiftsPage() {
                 พิมพ์รายงาน ({paperSize})
               </Button>
 
+              {/* Printing first used to be required: on a phone it opens the report in another tab,
+                  and people stayed there thinking the close had hung. The report prints after too. */}
               {!hasPrinted && (
-                <p className="text-center text-xs text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1">
-                  <AlertTriangle className="h-3 w-3 shrink-0" />
-                  กรุณาพิมพ์รายงานก่อนยืนยันปิดกะ
+                <p className="text-center text-xs text-muted-foreground">
+                  พิมพ์ตอนนี้หรือหลังปิดกะก็ได้ — หลังพิมพ์ให้กลับมาที่หน้านี้เพื่อกดยืนยัน
                 </p>
               )}
 
@@ -987,9 +988,8 @@ export default function ShiftsPage() {
                 <Button
                   type="submit"
                   variant="destructive"
-                  disabled={closeMutation.isPending || !hasPrinted}
+                  disabled={closeMutation.isPending}
                   className="gap-2"
-                  title={!hasPrinted ? 'กรุณาพิมพ์รายงานก่อน' : undefined}
                 >
                   {closeMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
