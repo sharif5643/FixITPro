@@ -750,4 +750,24 @@ ORDER BY mv."createdAt" DESC LIMIT 40;
 \echo '31e. Its modules switched on/off'
 SELECT tm."moduleKey", tm.enabled FROM "TenantModule" tm WHERE tm."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%');
 
+\echo '31f. Everything its people did from 10-26 on (when, what, entity)'
+SELECT to_char(a."createdAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI:SS') AS at_bkk, a.action, a."entityType", a."entityId"
+FROM "AuditLog" a
+WHERE a."actorId" IN (SELECT u.id FROM "User" u WHERE u."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%'))
+  AND a."createdAt" > '2026-10-26 12:00:00+07'
+ORDER BY a."createdAt" LIMIT 120;
+\echo '31g. Bills of the open shift (when, total, method, status, payments, items)'
+SELECT to_char(s."createdAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS at_bkk, s.total, s."paymentMethod", s.status,
+  (SELECT count(*) FROM "SalePayment" p WHERE p."saleId" = s.id) AS pays, (SELECT count(*) FROM "SaleItem" i WHERE i."saleId" = s.id) AS items
+FROM "Sale" s WHERE s."shiftId" IN (SELECT x.id FROM "Shift" x JOIN "User" u ON u.id = x."userId"
+  WHERE x."isActive" AND u."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%'))
+ORDER BY s."createdAt";
+\echo '31h. Its users (role, has branch, active, last login) and repairs / sales per day since 10-20'
+SELECT u.id, u.role, u."branchId" IS NOT NULL AS has_branch, u."isActive", to_char(u."lastLoginAt" AT TIME ZONE 'Asia/Bangkok', 'MM-DD HH24:MI') AS last_login
+FROM "User" u WHERE u."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%');
+SELECT to_char(d AT TIME ZONE 'Asia/Bangkok', 'MM-DD') AS day,
+  (SELECT count(*) FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%') AND date_trunc('day', s."createdAt" AT TIME ZONE 'Asia/Bangkok') = date_trunc('day', d AT TIME ZONE 'Asia/Bangkok')) AS sales,
+  (SELECT count(*) FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId" WHERE b."tenantId" IN (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%') AND date_trunc('day', r."receivedAt" AT TIME ZONE 'Asia/Bangkok') = date_trunc('day', d AT TIME ZONE 'Asia/Bangkok')) AS repairs
+FROM generate_series(now() - INTERVAL '15 days', now(), INTERVAL '1 day') d;
+
 ROLLBACK;
