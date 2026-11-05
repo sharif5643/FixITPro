@@ -15,6 +15,7 @@ import { formatThaiMoney } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
 import api from '@/lib/api'
+import { LEDGER_SOURCE } from '@/lib/cash-ledger-labels'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,21 +42,7 @@ interface TransactionResponse {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const SOURCE_LABEL: Record<string, string> = {
-  SALE_PAYMENT:              'ยอดขาย',
-  REPAIR_FINAL_PAYMENT:      'ค่าซ่อม',
-  REPAIR_DEPOSIT:            'มัดจำซ่อม',
-  REPAIR_ADDITIONAL_PAYMENT: 'บริการเพิ่ม',
-  EXPENSE_PAYMENT:           'ค่าใช้จ่าย',
-  SUPPLIER_PAYMENT:          'ซัพพลายเออร์',
-  PACKAGE_SALE:              'ซิม/แพ็กเกจ',
-  SALE_REFUND:               'คืนเงิน',
-  CASH_WITHDRAWAL:           'เบิกเงิน',
-  CASH_DEPOSIT:              'เติมเงิน',
-  BANK_DEPOSIT:              'ฝากธนาคาร',
-  OPENING:                   'เปิดกะ',
-  MANUAL:                    'อื่น ๆ',
-}
+const SOURCE_LABEL: Record<string, string> = Object.fromEntries(Object.entries(LEDGER_SOURCE).map(([k, v]) => [k, v.label]))
 
 const PAYMENT_LABEL: Record<string, string> = {
   CASH: 'เงินสด', TRANSFER: 'โอน', CARD: 'บัตร',

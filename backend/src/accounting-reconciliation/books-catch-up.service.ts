@@ -13,6 +13,12 @@ export interface CatchUpResult {
   sales: number;
   expenses: number;
   packageSales: number;
+  /** quick money in / out at the till */
+  cashMovements?: number;
+  /** delivery fees on repair jobs */
+  extraCosts?: number;
+  /** stock put in / taken out by hand (product form, count, import) */
+  stockMoves?: number;
 }
 
 /**
@@ -53,7 +59,7 @@ export class BooksCatchUpService {
   }
 
   private async run(tenantId: string, actorId: string | null, write: boolean): Promise<CatchUpResult> {
-    const result: CatchUpResult = { enabled: false, repairs: 0, sales: 0, expenses: 0, packageSales: 0 };
+    const result: CatchUpResult = { enabled: false, repairs: 0, sales: 0, expenses: 0, packageSales: 0, cashMovements: 0, extraCosts: 0, stockMoves: 0 };
     if (!tenantId || !await this.modules.isAccountingEnabled(tenantId)) return result;
     result.enabled = true;
 
@@ -110,7 +116,7 @@ export class BooksCatchUpService {
     // ── Expenses that were not voided
     const expenses = await this.prisma.expense.findMany({
       where: { branch: { tenantId }, voidedAt: null },
-      select: { id: true, description: true, amount: true, paymentMethod: true, branchId: true, category: { select: { code: true } } },
+      select: { id: true, description: true, amount: true, paymentMethod: true, paidByOwner: true, branchId: true, category: { select: { code: true } } },
     });
     const paidExpenses = await this.posted(tenantId, JOURNAL_SOURCE.EXPENSE_PAYMENT, expenses.map((e) => e.id));
     for (const e of expenses) {
@@ -142,6 +148,51 @@ export class BooksCatchUpService {
         tenantId, branchId: p.shiftId ? shiftBranch.get(p.shiftId) ?? null : null, actorId,
         sale: { ...p, carrier: p.carrier as string, saleType: p.saleType as string, paymentMethod: p.paymentMethod as string },
       }).catch((e) => this.logger.warn(`Catch-up package sale ${p.id}: ${(e as Error).message}`));
+    }
+
+    // ── Quick money in / out at the till (a delivery fee for a job is booked with the job, below)
+    const moves = await this.prisma.shiftCashMovement.findMany({
+      where: { tenantId, kind: { in: ['MANUAL_IN', 'MANUAL_OUT'] }, OR: [{ referenceType: null }, { referenceType: { not: 'RepairExtraCost' } }] },
+      select: { id: true, branchId: true, direction: true, category: true, amount: true, reason: true, createdById: true },
+    });
+    const postedMoves = new Set([
+      ...await this.posted(tenantId, JOURNAL_SOURCE.SHIFT_CASH_IN, moves.map((m) => m.id)),
+      ...await this.posted(tenantId, JOURNAL_SOURCE.SHIFT_CASH_OUT, moves.map((m) => m.id)),
+    ]);
+    for (const m of moves) {
+      if (postedMoves.has(m.id)) continue;
+      result.cashMovements!++;
+      if (write) await this.ops.recordShiftCash({
+        tenantId, branchId: m.branchId, movementId: m.id, direction: m.direction === 'OUT' ? 'OUT' : 'IN',
+        category: m.category, amount: m.amount, reason: m.reason, actorId,
+      });
+    }
+
+    // ── Delivery fees on repair jobs
+    const costs = await this.prisma.repairExtraCost.findMany({
+      where: { repair: { branch: { tenantId } } },
+      select: { id: true, amount: true, fromDrawer: true, repair: { select: { ticketNumber: true, branchId: true } } },
+    });
+    const postedCosts = await this.posted(tenantId, JOURNAL_SOURCE.REPAIR_EXTRA_COST, costs.map((c) => c.id));
+    for (const c of costs) {
+      if (postedCosts.has(c.id)) continue;
+      result.extraCosts!++;
+      if (write) await this.ops.recordRepairExtraCost({
+        tenantId, branchId: c.repair.branchId, costId: c.id, ticketNumber: c.repair.ticketNumber,
+        amount: c.amount, fromDrawer: c.fromDrawer, actorId,
+      });
+    }
+
+    // ── Stock put in / taken out by hand (not a PO, sale, repair or transfer)
+    const stockMoves = await this.prisma.stockMovement.findMany({
+      where: { ...OpsAccountingAdapter.HAND_STOCK, product: { tenantId } } as any,
+      select: { id: true, unitCost: true, product: { select: { costPrice: true } } },
+    });
+    const postedStock = await this.posted(tenantId, JOURNAL_SOURCE.STOCK_ADJUST, stockMoves.map((m) => m.id));
+    for (const m of stockMoves) {
+      if (postedStock.has(m.id) || !(Number(m.unitCost ?? m.product.costPrice) > 0)) continue;
+      result.stockMoves!++;
+      if (write) await this.ops.bookStockMovement(m.id, actorId);
     }
 
     if (write) this.logger.log(`Books catch-up tenant=${tenantId}: ${JSON.stringify(result)}`);

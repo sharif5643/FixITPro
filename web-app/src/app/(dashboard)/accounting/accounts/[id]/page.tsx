@@ -15,6 +15,7 @@ import { SectionCard } from '@/components/ui/section-card'
 import { Button } from '@/components/ui/button'
 import { formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
+import { JOURNAL_SOURCE_LABEL, journalDescription } from '@/lib/journal-labels'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -46,30 +47,7 @@ interface LedgerData {
 
 // ── Source type labels ────────────────────────────────────────────────────────
 
-const SOURCE_LABEL: Record<string, string> = {
-  REPAIR_DEPOSIT:               'มัดจำซ่อม',
-  REPAIR_FINAL_PAYMENT:         'รับเงินซ่อม',
-  REPAIR_DEPOSIT_SETTLE:        'หักมัดจำ',
-  REPAIR_DEPOSIT_REFUND:        'คืนมัดจำ',
-  REPAIR_COGS:                  'ต้นทุนซ่อม',
-  REPAIR_PAYMENT_REVERSAL:      'ยกเลิกรับเงิน',
-  REPAIR_COGS_REVERSAL:         'ยกเลิกต้นทุน',
-  REPAIR_ADDITIONAL_PAYMENT:    'ชำระเพิ่มเติม',
-  EXPENSE_PAYMENT:              'ค่าใช้จ่าย',
-  EXPENSE_REVERSAL:             'ยกเลิกค่าใช้จ่าย',
-  PO_RECEIVE:                    'รับสินค้าเข้า (PO)',
-  PO_PAYMENT:                    'จ่ายซัพพลายเออร์',
-  PACKAGE_SALE:                  'ขายซิม/แพ็กเกจ',
-  WALLET_TOPUP:                  'เติมเงินกระเป๋าค่าย',
-  DRAWER_WITHDRAWAL:             'เบิกเงินลิ้นชัก',
-  DRAWER_DEPOSIT:                'เติมเงินลิ้นชัก',
-  DRAWER_REVERSAL:               'ยกเลิกรายการลิ้นชัก',
-  SALE_REVENUE:                 'รายได้ขาย',
-  SALE_COGS:                    'ต้นทุนขาย',
-  SALE_EXCHANGE:                'แลกสินค้า',
-  JOURNAL_MANUAL:               'บันทึกทั่วไป',
-  JOURNAL_REVERSAL:             'กลับรายการ',
-}
+const SOURCE_LABEL = JOURNAL_SOURCE_LABEL
 
 const TYPE_COLOR: Record<string, string> = {
   ASSET:     'text-blue-600 dark:text-blue-400',
@@ -237,7 +215,7 @@ function LedgerContent({ accountId }: { accountId: string }) {
                         {item.entryNumber}
                       </td>
                       <td className="px-4 py-2.5">
-                        <p className="text-sm text-slate-800 dark:text-slate-100 leading-snug">{item.description}</p>
+                        <p className="text-sm text-slate-800 dark:text-slate-100 leading-snug">{journalDescription(item.description)}</p>
                         {item.sourceType && (
                           <p className="text-xs text-muted-foreground">{SOURCE_LABEL[item.sourceType] ?? item.sourceType}</p>
                         )}

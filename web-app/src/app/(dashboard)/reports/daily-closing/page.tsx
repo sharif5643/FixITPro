@@ -1,6 +1,6 @@
 'use client'
 
-import { DailyMoneySummary } from '@/components/reports/daily-money-summary'
+import { DailyMoneySummary, type DailyDrawer } from '@/components/reports/daily-money-summary'
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, subDays } from 'date-fns'
@@ -26,6 +26,7 @@ import { SendPdfButton } from '@/components/reports/send-pdf-button'
 
 interface DailyClosingReport {
   date: string
+  drawer?: DailyDrawer
   revenue: {
     pos: { total: number; gross?: number; count: number; breakdown: Record<string, number> }
     repairs: { total: number; count: number; breakdown: Record<string, number>; deposits?: number; atPickup?: number; debtPayments?: number }
@@ -522,6 +523,7 @@ export default function DailyClosingReportPage() {
               <SectionHeader icon={TrendingUp} title={dateStr === todayStr() ? 'สรุปเงินวันนี้' : `สรุปเงิน — ${format(new Date(dateStr + 'T12:00:00'), 'd MMM yyyy', { locale: th })}`} />
               <DailyMoneySummary
                 r={data.revenue}
+                drawer={data.drawer}
                 dayLabel={dateStr === todayStr() ? 'วันนี้' : `วันที่ ${format(new Date(dateStr + 'T12:00:00'), 'd MMM', { locale: th })} `}
                 onDetail={(what) => {
                   if (what === 'sales') openDrawer('รายการขาย', salesDrawer)

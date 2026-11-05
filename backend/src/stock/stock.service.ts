@@ -1,4 +1,5 @@
 import {
+  Optional,
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -13,6 +14,7 @@ import { WriteOffDto, WRITE_OFF_REASONS } from './dto/write-off.dto';
 import { addSerialsInStock, cleanSerials, takeSerialsOutOfStock } from './serial-stock';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
 
 @Injectable()
 export class StockService {
@@ -22,6 +24,7 @@ export class StockService {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private notif: NotificationsService,
+    @Optional() private books?: OpsAccountingAdapter,
   ) {}
 
   private async assertBranchActive(branchId: string) {
@@ -122,6 +125,7 @@ export class StockService {
     let serialsOut: string[] = [];
 
     let costChange: CostChange | null = null;
+    let movementId: string | null = null;
     await this.prisma.$transaction(async (tx) => {
       if (bySerial && dto.type === 'IN') {
         await addSerialsInStock(tx, dto.productId, serialsIn, dto.quantity, dto.note);
@@ -133,7 +137,7 @@ export class StockService {
       const unitCost = dto.type === 'IN' && dto.unitCost != null ? dto.unitCost : null;
       if (unitCost != null) costChange = await applyAverageCost(tx, dto.productId, dto.quantity, unitCost);
 
-      await tx.stockMovement.create({
+      movementId = (await tx.stockMovement.create({
         data: {
           productId: dto.productId,
           type:      dto.type as any,
@@ -142,7 +146,7 @@ export class StockService {
           note:      withSerials(dto.note, serialsIn.length ? serialsIn : serialsOut),
           ...(unitCost != null ? { unitCost } : {}),
         },
-      });
+      })).id;
 
       if (isDeduction) {
         // N-3 FIX: atomic conditional decrement prevents concurrent adjustments
@@ -200,6 +204,8 @@ export class StockService {
         ...(costChange ? { costBefore: (costChange as CostChange).before, costAfter: (costChange as CostChange).after } : {}),
       },
     }).catch((err) => this.logger.error('[adjustStock] audit log failed', err));
+    // Stock in / out by hand reaches the books too (valued at cost)
+    if (movementId) await this.books?.bookStockMovement(movementId, actorId);
 
     if (isDeduction) {
       const updatedBs = await this.prisma.branchStock.findUnique({

@@ -18,12 +18,21 @@ export interface DailyRevenue {
   card: number
 }
 
+/** Cash that left / entered the drawer outside sales and repairs (/reports/daily-closing → drawer) */
+export interface DailyDrawer {
+  out: { expenses: number; delivery: number; ownerDraw: number; suppliers: number; other: number }
+  outTotal: number
+  in: number
+}
+
 /**
  * The day's money in plain Thai: how much came in, where it should be now (drawer / bank), and
  * where it came from — with a line that adds it all up so it can be checked by hand.
  */
-export function DailyMoneySummary({ r, dayLabel, compact, onDetail }: {
+export function DailyMoneySummary({ r, drawer, dayLabel, compact, onDetail }: {
   r: DailyRevenue
+  /** cash out of / into the drawer that is not a sale: shows what should be in the drawer */
+  drawer?: DailyDrawer
   dayLabel: string
   /** phones / SUNMI: one column */
   compact?: boolean
@@ -48,11 +57,13 @@ export function DailyMoneySummary({ r, dayLabel, compact, onDetail }: {
           <p className="mt-1 text-sm text-muted-foreground">หักเงินที่คืนลูกค้าแล้ว</p>
         </div>
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <MethodBox icon="💵" label="เงินสด" value={cash} hint="ต้องอยู่ในลิ้นชัก (ไม่รวมเงินทอนตั้งต้น)" tone="bg-emerald-50 dark:bg-emerald-900/20" />
+          <MethodBox icon="💵" label="เงินสด" value={cash} hint={drawer ? 'รับมาเป็นเงินสด' : 'ต้องอยู่ในลิ้นชัก (ไม่รวมเงินทอนตั้งต้น)'} tone="bg-emerald-50 dark:bg-emerald-900/20" />
           <MethodBox icon="📱" label="โอน" value={transfer} hint="เช็คกับแอปธนาคาร" tone="bg-blue-50 dark:bg-blue-900/20" />
           <MethodBox icon="💳" label="บัตร" value={card} hint="เช็คกับสลิปเครื่องรูดบัตร" tone="bg-violet-50 dark:bg-violet-900/20" />
         </div>
       </div>
+
+      {drawer && <DrawerCard cashIn={cash} drawer={drawer} compact={compact} />}
 
       <div className={cn('grid gap-4', !compact && 'md:grid-cols-3')}>
         <SourceCard icon="🛒" title="ขายของ" onDetail={onDetail && (() => onDetail('sales'))} detailLabel="ดูบิล"
@@ -104,6 +115,38 @@ function MethodBox({ icon, label, value, hint, tone }: { icon: string; label: st
       <p className="text-xs text-muted-foreground sm:text-sm">{icon} {label}</p>
       <p className="text-lg font-bold tabular-nums sm:text-2xl">{formatThaiMoney(value)}</p>
       <p className="hidden text-[11px] leading-tight text-muted-foreground sm:block">{hint}</p>
+    </div>
+  )
+}
+
+/** What should be in the drawer: cash taken in, minus what left it, written out line by line */
+function DrawerCard({ cashIn, drawer, compact }: { cashIn: number; drawer: DailyDrawer; compact?: boolean }) {
+  const shouldHave = cashIn + drawer.in - drawer.outTotal
+  const outs = ([
+    ['🧾 ค่าใช้จ่ายร้าน', drawer.out.expenses],
+    ['🚐 ค่ารถส่งอะไหล่ (ของงานซ่อม)', drawer.out.delivery],
+    ['👤 เจ้าของเอาออก', drawer.out.ownerDraw],
+    ['📦 จ่ายซัพพลายเออร์', drawer.out.suppliers],
+    ['↗️ เงินออกอื่นๆ', drawer.out.other],
+  ] as const).filter(([, v]) => v > 0)
+  return (
+    <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white shadow-sm dark:border-emerald-900 dark:from-emerald-950/40 dark:to-[#1E293B]">
+      <div className={cn('grid gap-4 p-5', !compact && 'md:grid-cols-[minmax(0,260px)_1fr]')}>
+        <div>
+          <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">💵 ลิ้นชักควรมีเงินสด</p>
+          <p className={cn('font-extrabold tabular-nums', compact ? 'text-4xl' : 'text-5xl', shouldHave < 0 ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400')}>
+            {shouldHave < 0 ? '− ' : ''}{formatThaiMoney(Math.abs(shouldHave))}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">+ เงินทอนตั้งต้นของกะ · นับเงินจริงแล้วเทียบตอนปิดกะ</p>
+        </div>
+        <div className="rounded-xl bg-white/80 px-4 py-2 dark:bg-slate-900/40">
+          <MoneyLine label="รับเงินสดวันนี้" value={cashIn} />
+          {drawer.in > 0 && <MoneyLine label="เงินใส่ลิ้นชัก (เงินทอน / เจ้าของเติม)" value={drawer.in} />}
+          {outs.map(([label, v]) => <MoneyLine key={label} label={label} value={v} minus />)}
+          {outs.length === 0 && <p className="py-1 text-xs text-muted-foreground">วันนี้ยังไม่มีเงินออกจากลิ้นชัก</p>}
+          <MoneyLine label="ควรอยู่ในลิ้นชัก" value={shouldHave} total />
+        </div>
+      </div>
     </div>
   )
 }

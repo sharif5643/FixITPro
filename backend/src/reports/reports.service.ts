@@ -1,3 +1,4 @@
+import { INCOME_CATEGORIES } from '../shifts/shift-cash';
 import { Injectable } from '@nestjs/common';
 import { loadPeriodMoney, summarizeMoney, bangkokDay } from '../common/money/period-money';
 import { PrismaService } from '../database/prisma.service';
@@ -659,6 +660,42 @@ export class ReportsService {
           ORDER BY stock ASC LIMIT 20
         `;
 
+    // The drawer: cash taken in, minus cash that left it (expenses paid from it, delivery fees,
+    // the owner taking money, supplier payments), plus cash put in that is not income. This is
+    // what should be in the drawer, apart from the change float the shifts started with.
+    const tenantOf = tenantId ? { tenantId } : {};
+    const [drawerExpenses, drawerMoves, cashSupplier] = await Promise.all([
+      this.prisma.expense.findMany({
+        where: { createdAt: { gte: start, lt: end }, voidedAt: null, paymentMethod: 'CASH', shiftId: { not: null }, paidByOwner: false, ...bFilter },
+        select: { amount: true },
+      }),
+      this.prisma.shiftCashMovement.findMany({
+        where: {
+          createdAt: { gte: start, lt: end }, kind: { in: ['MANUAL_IN', 'MANUAL_OUT'] }, paymentMethod: 'CASH',
+          ...tenantOf, ...(branchId ? { branchId } : {}),
+        },
+        select: { direction: true, category: true, amount: true },
+      }),
+      this.prisma.supplierPayment.findMany({
+        where: {
+          paidAt: { gte: start, lt: end }, paymentMethod: 'CASH',
+          purchaseOrder: { ...(tenantId ? { supplier: { tenantId } } : {}), ...(branchId ? { branchId } : {}) },
+        },
+        select: { amount: true },
+      }),
+    ]);
+    const sumOf = (rows: { amount: unknown }[]) => Math.round(rows.reduce((t, r) => t + Number(r.amount), 0) * 100) / 100;
+    const outMoves = drawerMoves.filter((m) => m.direction === 'OUT');
+    const drawerOut = {
+      expenses:  sumOf(drawerExpenses),
+      delivery:  sumOf(outMoves.filter((m) => m.category === 'DELIVERY')),
+      ownerDraw: sumOf(outMoves.filter((m) => m.category === 'OWNER_DRAW')),
+      suppliers: sumOf(cashSupplier),
+      other:     sumOf(outMoves.filter((m) => m.category !== 'DELIVERY' && m.category !== 'OWNER_DRAW')),
+    };
+    const drawerIn = sumOf(drawerMoves.filter((m) => m.direction === 'IN' && !INCOME_CATEGORIES.includes(m.category ?? '')));
+    const drawerOutTotal = Math.round(Object.values(drawerOut).reduce((a, b) => a + b, 0) * 100) / 100;
+
     // Shift cash reconciliation
     const shiftsWithCash = await Promise.all(
       shiftsToday.map(async (shift) => {
@@ -772,6 +809,8 @@ export class ReportsService {
         transfer: money.byMethod['TRANSFER'] ?? 0,
         card: money.byMethod['CARD'] ?? 0,
       },
+      /** cash that left / entered the drawer that is not a sale, repair or income: drawer = cash in + in − out */
+      drawer: { out: drawerOut, outTotal: drawerOutTotal, in: drawerIn },
       sales: { items: sales, count: sales.length },
       voidedSales: { items: voidedSales, count: voidedSales.length },
       refunds: { items: refunds, count: refunds.length },

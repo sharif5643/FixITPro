@@ -1467,6 +1467,8 @@ model Expense {
   amount        Decimal       @db.Decimal(10, 2)
   description   String
   paymentMethod PaymentMethod
+  /// paid by the owner from their own pocket (not from the drawer or the shop's account)
+  paidByOwner   Boolean       @default(false)
   referenceNo   String?
   note          String?
   voidedAt      DateTime?

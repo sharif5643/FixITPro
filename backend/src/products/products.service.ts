@@ -1,4 +1,5 @@
 import {
+  Optional,
   Injectable,
   NotFoundException,
   ConflictException,
@@ -11,6 +12,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { EnrollBranchDto } from './dto/enroll-branch.dto';
 import { addSerialsInStock, cleanSerials } from '../stock/serial-stock';
+import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
 
 const SKU_PREFIX: Record<string, string> = {
   PHONE: 'PHONE',
@@ -31,6 +33,7 @@ export class ProductsService {
     private prisma: PrismaService,
     private auditLog: AuditLogService,
     private tenantSvc: TenantService,
+    @Optional() private books?: OpsAccountingAdapter,
   ) {}
 
   async generateSku(type: string, tenantId?: string | null): Promise<{ sku: string }> {
@@ -138,6 +141,7 @@ export class ProductsService {
     if (existing) throw new ConflictException('SKU already exists');
 
     // Create Product master + optional BranchStock atomically
+    let openingMoveId: string | null = null;
     const product = await this.prisma.$transaction(async (tx) => {
       const prod = await tx.product.create({
         data: {
@@ -187,7 +191,7 @@ export class ProductsService {
           });
           (prod as any).stock = initialStock;
           // The opening stock is history too: without it the stock card cannot explain the balance
-          await tx.stockMovement.create({
+          openingMoveId = (await tx.stockMovement.create({
             data: {
               productId: prod.id,
               type:      'IN',
@@ -196,7 +200,7 @@ export class ProductsService {
               note:      'สต๊อกตั้งต้นตอนสร้างสินค้า' + (openingSerials.length ? ` · IMEI: ${openingSerials.join(', ')}` : ''),
               ...(Number(dto.costPrice) > 0 ? { unitCost: Number(dto.costPrice) } : {}),
             },
-          });
+          })).id;
         }
       } else if (isPrivileged && tenantId) {
         // OWNER in global mode: seed BranchStock=0 for every active branch so the
@@ -232,6 +236,8 @@ export class ProductsService {
         price: Number(product.price), branchId: effectiveBranchId,
       },
     });
+    // The opening stock is goods the shop now owns: it reaches the books at cost
+    if (openingMoveId) await this.books?.bookStockMovement(openingMoveId, actorId);
     return product;
   }
 
@@ -560,6 +566,7 @@ export class ProductsService {
 
     const enrollSerials = product.hasSerial && dto.quantity > 0 ? cleanSerials(dto.serials) : [];
 
+    let enrollMoveId: string | null = null;
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await (tx as any).branchStock.findUnique({
         where: { branchId_productId: { branchId: effectiveBranchId, productId } },
@@ -568,7 +575,7 @@ export class ProductsService {
         if (product.hasSerial) {
           await addSerialsInStock(tx, productId, enrollSerials, dto.quantity, 'เพิ่มสินค้าเข้าสาขา');
         }
-        await tx.stockMovement.create({
+        enrollMoveId = (await tx.stockMovement.create({
           data: {
             productId,
             type:     'IN',
@@ -577,7 +584,7 @@ export class ProductsService {
             note:     'เพิ่มสินค้าเข้าสาขา' + (enrollSerials.length ? ` · IMEI: ${enrollSerials.join(', ')}` : ''),
             ...(Number(product.costPrice) > 0 ? { unitCost: Number(product.costPrice) } : {}),
           },
-        });
+        })).id;
       }
 
       if (existing) {
@@ -613,6 +620,7 @@ export class ProductsService {
       entityId: productId,
       afterData: { productId, branchId: effectiveBranchId, quantity: dto.quantity },
     });
+    if (enrollMoveId) await this.books?.bookStockMovement(enrollMoveId, actorId);
 
     return result;
   }

@@ -16,8 +16,10 @@ import { OpenShiftDto } from './dto/open-shift.dto';
 import { CloseShiftDto } from './dto/close-shift.dto';
 import { CarrierWalletService } from '../carrier-wallet/carrier-wallet.service';
 import { activeShiftWhere } from './active-shift';
-import { SHIFT_CASH_KIND, CASH_CATEGORY_IN, CASH_CATEGORY_OUT, movementTotals, refundsOfShiftWhere, supplierPaymentsOfShiftWhere } from './shift-cash';
+import { SHIFT_CASH_KIND, INCOME_CATEGORIES, CASH_CATEGORY_IN, CASH_CATEGORY_OUT, movementTotals, refundsOfShiftWhere, supplierPaymentsOfShiftWhere } from './shift-cash';
 import { ExpensesService } from '../expenses/expenses.service';
+import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
+import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
 import { DeliveryFeeDto } from './dto/delivery-fee.dto';
 import { CashMovementDto } from './dto/cash-movement.dto';
 import { buildShiftLedger, staffMoneyOf } from './shift-ledger';
@@ -38,7 +40,30 @@ export class ShiftsService {
     private auditLog: AuditLogService,
     private notif: NotificationsService,
     @Optional() private expenses?: ExpensesService,
+    @Optional() private ledger?: AccountingService,
+    @Optional() private books?: OpsAccountingAdapter,
   ) {}
+
+  /**
+   * Cash that left or entered the drawer outside a sale, repair or expense also reaches the
+   * cash ledger (finance pages) and the books (accounting pages), so they show what the drawer has.
+   */
+  private async bookShiftCash(p: {
+    movementId: string; direction: 'IN' | 'OUT'; category?: string | null; amount: number;
+    reason?: string | null; branchId?: string | null; tenantId: string | null; userId: string;
+  }) {
+    if (p.branchId) {
+      await this.ledger?.record({
+        sourceType: p.category === 'DELIVERY' ? ACCOUNTING_SOURCE.DELIVERY_FEE
+          : p.category === 'OWNER_DRAW' ? ACCOUNTING_SOURCE.OWNER_DRAW
+          : p.direction === 'IN' && INCOME_CATEGORIES.includes(p.category ?? '') ? ACCOUNTING_SOURCE.OTHER_INCOME
+          : p.direction === 'OUT' ? ACCOUNTING_SOURCE.CASH_WITHDRAWAL : ACCOUNTING_SOURCE.CASH_DEPOSIT,
+        sourceId: p.movementId, paymentMethod: 'CASH', amount: p.amount, direction: p.direction,
+        branchId: p.branchId, tenantId: p.tenantId, actorUserId: p.userId, note: p.reason ?? undefined,
+      }).catch(() => undefined);
+    }
+  }
+
 
   private async assertBranchActive(branchId: string) {
     const branch = await this.prisma.branch.findUnique({
@@ -881,6 +906,9 @@ export class ShiftsService {
         ...(shift.branchId ? { branchId: shift.branchId } : {}),
       }).catch(() => undefined);
     }
+    const booked = { movementId: movement.id, direction: dto.direction, category: dto.category ?? null, amount, reason: dto.reason, branchId: shift.branchId, tenantId, userId: user.id };
+    await this.bookShiftCash(booked);
+    await this.books?.recordShiftCash({ ...booked, actorId: user.id });
     return { ...movement, amount: Number(movement.amount) };
   }
 
@@ -913,22 +941,32 @@ export class ShiftsService {
     });
     if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
     const note = dto.note?.trim() || null;
+    let movementId: string | null = null;
     const cost = await this.prisma.$transaction(async (tx) => {
       const created = await tx.repairExtraCost.create({
         data: { repairId: repair.id, kind: 'DELIVERY', amount, note, fromDrawer, shiftId: fromDrawer ? shift!.id : null, createdById: user.id },
       });
       if (fromDrawer) {
         // Leaves the drawer: the shift's expected cash goes down (not an expense — it is the job's cost)
-        await tx.shiftCashMovement.create({
+        movementId = (await tx.shiftCashMovement.create({
           data: {
             shiftId: shift!.id, kind: SHIFT_CASH_KIND.MANUAL_OUT, direction: 'OUT', amount, paymentMethod: 'CASH',
             reason: `ค่ารถส่งอะไหล่ — งาน ${repair.ticketNumber}${note ? ` (${note})` : ''}`,
             category: 'DELIVERY', referenceType: 'RepairExtraCost', referenceId: created.id,
             createdById: user.id, tenantId, branchId: shift!.branchId,
           },
-        });
+        })).id;
       }
       return created;
+    });
+    if (movementId) {
+      await this.bookShiftCash({
+        movementId, direction: 'OUT', category: 'DELIVERY', amount, reason: `งาน ${repair.ticketNumber}`,
+        branchId: shift!.branchId, tenantId, userId: user.id,
+      });
+    }
+    await this.books?.recordRepairExtraCost({
+      tenantId, branchId: repair.branchId, costId: cost.id, ticketNumber: repair.ticketNumber, amount, fromDrawer, actorId: user.id,
     });
     await this.auditLog.log({
       actorId: user.id, actorName: user.name, action: 'REPAIR_DELIVERY_FEE', entityType: 'Repair', entityId: repair.id,

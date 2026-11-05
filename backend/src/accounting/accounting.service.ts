@@ -25,6 +25,10 @@ export const ACCOUNTING_SOURCE = {
   REPAIR_ADDITIONAL_PAYMENT_REFUND:    'REPAIR_ADDITIONAL_PAYMENT_REFUND',
   PACKAGE_SALE:              'PACKAGE_SALE',
   PACKAGE_DEBT_PAYMENT:      'PACKAGE_DEBT_PAYMENT',
+  // Quick money in / out at the till (shift)
+  OTHER_INCOME:              'OTHER_INCOME',
+  OWNER_DRAW:                'OWNER_DRAW',
+  DELIVERY_FEE:              'DELIVERY_FEE',
 } as const;
 
 export type AccountingSource = (typeof ACCOUNTING_SOURCE)[keyof typeof ACCOUNTING_SOURCE];
@@ -73,6 +77,9 @@ const SOURCE_TO_DB_TYPE: Record<
   REPAIR_DEPOSIT_REFUND:               'REVERSAL',
   REPAIR_FINAL_PAYMENT_REFUND:         'REVERSAL',
   REPAIR_ADDITIONAL_PAYMENT_REFUND:    'REVERSAL',
+  OTHER_INCOME:              'DEPOSIT',
+  OWNER_DRAW:                'WITHDRAWAL',
+  DELIVERY_FEE:              'WITHDRAWAL',
 };
 
 const SOURCE_TO_REASON: Record<AccountingSource, string> = {
@@ -94,6 +101,9 @@ const SOURCE_TO_REASON: Record<AccountingSource, string> = {
   REPAIR_DEPOSIT_REFUND:               'คืนมัดจำงานซ่อม',
   REPAIR_FINAL_PAYMENT_REFUND:         'คืนเงินค่าซ่อม',
   REPAIR_ADDITIONAL_PAYMENT_REFUND:    'คืนเงินชำระเพิ่มเติมงานซ่อม',
+  OTHER_INCOME:              'รับเงินไม่มีบิล',
+  OWNER_DRAW:                'เจ้าของเอาเงินออก',
+  DELIVERY_FEE:              'ค่ารถส่งอะไหล่',
 };
 
 @Injectable()

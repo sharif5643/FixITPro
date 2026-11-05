@@ -1,3 +1,4 @@
+import { JournalModule } from '../journal/journal.module';
 import { Module } from '@nestjs/common';
 import { StockController } from './stock.controller';
 import { StockService } from './stock.service';
@@ -6,7 +7,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports:     [AuditLogModule, NotificationsModule],
+  imports:     [AuditLogModule, NotificationsModule, JournalModule],
   controllers: [StockController],
   providers:   [StockService, TenantActiveGuard],
   exports:     [StockService],

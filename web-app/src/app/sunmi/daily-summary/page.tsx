@@ -1,6 +1,6 @@
 'use client'
 
-import { DailyMoneySummary, type DailyRevenue } from '@/components/reports/daily-money-summary'
+import { DailyMoneySummary, type DailyDrawer, type DailyRevenue } from '@/components/reports/daily-money-summary'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -17,6 +17,7 @@ import api from '@/lib/api'
 
 interface DailyClosing {
   revenue: DailyRevenue & { grandTotal: number }
+  drawer?: DailyDrawer
   repairSummary: { overdue: number; byStatus: Record<string, number> }
   lowStock: { count: number }
 }
@@ -120,6 +121,7 @@ export default function SunmiDailySummaryPage() {
             {/* Money in: how much, where it is now, where it came from */}
             <DailyMoneySummary
               r={data.revenue}
+              drawer={data.drawer}
               dayLabel="วันนี้"
               compact
               onDetail={(what) => router.push(

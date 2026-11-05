@@ -316,7 +316,7 @@ export default function SalesPage() {
     } finally {
       quickSaleBusy.current = false
     }
-  }, [items, hasZeroPriceItem, total, discount, selectedCustomer, currentShift?.id, effectiveBranch, queryClient, handleSuccess, handlePaymentPanelCheckout])
+  }, [items, freebies, hasZeroPriceItem, total, discount, selectedCustomer, currentShift?.id, effectiveBranch, queryClient, handleSuccess, handlePaymentPanelCheckout])
 
   // F1: new bill — close the receipt and scan again
   const handleNewSale = useCallback(() => {

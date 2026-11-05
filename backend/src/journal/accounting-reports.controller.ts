@@ -5,6 +5,12 @@ import { Roles }           from '../common/decorators/roles.decorator';
 import { CurrentUser }     from '../common/decorators/current-user.decorator';
 import { AccountingReportsService } from './accounting-reports.service';
 
+/** A day picked on screen ("2026-11-05") is a Bangkok day: from its first to its last moment. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+export const dayStart = (s: string) => new Date(DATE_ONLY.test(s) ? `${s}T00:00:00.000+07:00` : s);
+export const dayEnd   = (s: string) => new Date(DATE_ONLY.test(s) ? `${s}T23:59:59.999+07:00` : s);
+
+
 @Controller('accounting/reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('OWNER', 'SUPER_ADMIN')
@@ -25,8 +31,8 @@ export class AccountingReportsController {
     const tenantId = role === 'SUPER_ADMIN' && tenantIdParam ? tenantIdParam : callerTenantId;
     return this.reports.trialBalance({
       tenantId,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate:   endDate   ? new Date(endDate)   : undefined,
+      startDate: startDate ? dayStart(startDate) : undefined,
+      endDate:   endDate ? dayEnd(endDate)   : undefined,
       branchId,
     });
   }
@@ -45,8 +51,8 @@ export class AccountingReportsController {
     const tenantId = role === 'SUPER_ADMIN' && tenantIdParam ? tenantIdParam : callerTenantId;
     return this.reports.incomeStatement({
       tenantId,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate:   endDate   ? new Date(endDate)   : undefined,
+      startDate: startDate ? dayStart(startDate) : undefined,
+      endDate:   endDate ? dayEnd(endDate)   : undefined,
       branchId,
     });
   }
@@ -64,7 +70,7 @@ export class AccountingReportsController {
     const tenantId = role === 'SUPER_ADMIN' && tenantIdParam ? tenantIdParam : callerTenantId;
     return this.reports.balanceSheet({
       tenantId,
-      endDate:  asOfDate ? new Date(asOfDate) : new Date(),
+      endDate:  asOfDate ? dayEnd(asOfDate) : new Date(),
       branchId,
     });
   }
@@ -83,8 +89,8 @@ export class AccountingReportsController {
     const tenantId = role === 'SUPER_ADMIN' && tenantIdParam ? tenantIdParam : callerTenantId;
     return this.reports.cashFlow({
       tenantId,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate:   endDate   ? new Date(endDate)   : undefined,
+      startDate: startDate ? dayStart(startDate) : undefined,
+      endDate:   endDate ? dayEnd(endDate)   : undefined,
       branchId:  branchId  ?? undefined,
     });
   }
@@ -122,8 +128,8 @@ export class AccountingReportsController {
     return this.reports.generalLedger({
       tenantId,
       accountId,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate:   endDate   ? new Date(endDate)   : undefined,
+      startDate: startDate ? dayStart(startDate) : undefined,
+      endDate:   endDate ? dayEnd(endDate)   : undefined,
       page:  page  ? parseInt(page,  10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });

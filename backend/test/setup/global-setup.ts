@@ -88,6 +88,11 @@ export default async function globalSetup() {
     }).catch(() => {/* table might not exist */});
     await prisma.cashDrawerSession.deleteMany({ where: { branchId: { in: E2E_BRANCH_IDS } } });
     await prisma.cashDrawer.deleteMany({ where: { branchId: { in: E2E_BRANCH_IDS } } });
+    // Money moved in a shift points at it: remove it first (a re-run on a used test database)
+    await prisma.shiftCashMovement.deleteMany({
+      where: { OR: [{ branchId: { in: E2E_BRANCH_IDS } }, { shift: { branchId: { in: E2E_BRANCH_IDS } } }] },
+    });
+    await prisma.repairExtraCost.deleteMany({ where: { repair: { branchId: { in: E2E_BRANCH_IDS } } } });
     await prisma.shift.deleteMany({ where: { branchId: { in: E2E_BRANCH_IDS } } });
     // Delete repair children before repairs
     await (prisma as any).repairPaymentReversal.deleteMany({
