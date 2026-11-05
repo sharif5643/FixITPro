@@ -717,4 +717,16 @@ SELECT t.id, t.plan, t.status,
   (SELECT count(*) FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = t.id AND s."createdAt" > now() - INTERVAL '30 days') AS sales_30d
 FROM "Tenant" t ORDER BY 4 DESC, 5, 1;
 
+\echo '--- 31 (temp). Quick cash in/out at the till per shop, last 60 days: reaches drawer ledger / books? ---'
+SELECT m."tenantId", m.kind, coalesce(m.category, '-') AS category, count(*) AS n, sum(m.amount) AS total,
+  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "CashDrawerTransaction" c WHERE c."referenceId" = m.id OR c."idempotencyKey" LIKE '%' || m.id || '%')) AS in_ledger,
+  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "JournalEntry" j WHERE j."sourceId" = m.id)) AS in_books
+FROM "ShiftCashMovement" m WHERE m."createdAt" > now() - INTERVAL '60 days'
+GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+\echo '31b. Expenses per shop and method, last 60 days, and how many have a books entry'
+SELECT b."tenantId", e."paymentMethod", (e."shiftId" IS NOT NULL) AS from_drawer, count(*) AS n, sum(e.amount) AS total,
+  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "JournalEntry" j WHERE j."sourceId" = e.id)) AS in_books
+FROM "Expense" e LEFT JOIN "Branch" b ON b.id = e."branchId" WHERE e."createdAt" > now() - INTERVAL '60 days'
+GROUP BY 1, 2, 3 ORDER BY 1, 2, 3;
+
 ROLLBACK;
