@@ -18,6 +18,7 @@ import { CarrierWalletService } from '../carrier-wallet/carrier-wallet.service';
 import { activeShiftWhere } from './active-shift';
 import { SHIFT_CASH_KIND, CASH_CATEGORY_IN, CASH_CATEGORY_OUT, movementTotals, refundsOfShiftWhere, supplierPaymentsOfShiftWhere } from './shift-cash';
 import { ExpensesService } from '../expenses/expenses.service';
+import { DeliveryFeeDto } from './dto/delivery-fee.dto';
 import { CashMovementDto } from './dto/cash-movement.dto';
 import { buildShiftLedger, staffMoneyOf } from './shift-ledger';
 
@@ -881,6 +882,59 @@ export class ShiftsService {
       }).catch(() => undefined);
     }
     return { ...movement, amount: Number(movement.amount) };
+  }
+
+  /**
+   * A delivery fee for parts (ค่ารถส่งอะไหล่). For one repair job → that job's cost; otherwise a
+   * shop expense. Paid from the drawer → the shift's expected cash goes down by it; paid by the
+   * owner → only the profit counts it. Each fee is booked once, in one place.
+   */
+  async addDeliveryFee(dto: DeliveryFeeDto, user: { id: string; name?: string; tenantId?: string | null; branchId?: string | null }) {
+    const amount = Math.round(Number(dto.amount) * 100) / 100;
+    const fromDrawer = dto.fromDrawer !== false;
+    const shift = await this.prisma.shift.findFirst({
+      where: activeShiftWhere(user.id),
+      include: { user: { select: { tenantId: true } } },
+    });
+    if (fromDrawer && !shift) throw new BadRequestException('กรุณาเปิดกะก่อน (หรือเลือก “เจ้าของจ่ายเอง”)');
+    const tenantId = shift?.user?.tenantId ?? user.tenantId ?? null;
+
+    if (!dto.repairId) {
+      if (!this.expenses) throw new BadRequestException('บันทึกค่าใช้จ่ายไม่ได้');
+      const expense = await this.expenses.createDeliveryExpense({
+        amount, note: dto.note, fromDrawer, userId: user.id, branchId: shift?.branchId ?? user.branchId, tenantId,
+      });
+      return { kind: 'EXPENSE', id: expense.id, amount, fromDrawer };
+    }
+
+    const repair = await this.prisma.repair.findFirst({
+      where: { id: dto.repairId, ...(tenantId ? { branch: { tenantId } } : {}) },
+      select: { id: true, ticketNumber: true, branchId: true },
+    });
+    if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
+    const note = dto.note?.trim() || null;
+    const cost = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.repairExtraCost.create({
+        data: { repairId: repair.id, kind: 'DELIVERY', amount, note, fromDrawer, shiftId: fromDrawer ? shift!.id : null, createdById: user.id },
+      });
+      if (fromDrawer) {
+        // Leaves the drawer: the shift's expected cash goes down (not an expense — it is the job's cost)
+        await tx.shiftCashMovement.create({
+          data: {
+            shiftId: shift!.id, kind: SHIFT_CASH_KIND.MANUAL_OUT, direction: 'OUT', amount, paymentMethod: 'CASH',
+            reason: `ค่ารถส่งอะไหล่ — งาน ${repair.ticketNumber}${note ? ` (${note})` : ''}`,
+            category: 'DELIVERY', referenceType: 'RepairExtraCost', referenceId: created.id,
+            createdById: user.id, tenantId, branchId: shift!.branchId,
+          },
+        });
+      }
+      return created;
+    });
+    await this.auditLog.log({
+      actorId: user.id, actorName: user.name, action: 'REPAIR_DELIVERY_FEE', entityType: 'Repair', entityId: repair.id,
+      afterData: { amount, fromDrawer, note, extraCostId: cost.id },
+    });
+    return { kind: 'REPAIR', id: cost.id, repairId: repair.id, ticketNumber: repair.ticketNumber, amount, fromDrawer };
   }
 
   /** Cash put in / taken out by hand in a shift, newest first, with who did it. */

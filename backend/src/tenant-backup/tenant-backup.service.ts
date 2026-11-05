@@ -495,6 +495,12 @@ export class TenantBackupService {
       repairAdditionalPayments,
     );
 
+    // RepairExtraCosts (e.g. a job's parts delivery fee)
+    const repairExtraCosts = repairIds.length
+      ? await this.prisma.repairExtraCost.findMany({ where: { repairId: { in: repairIds } } })
+      : [];
+    counts.repairExtraCosts = await write('repair_extra_costs.json', repairExtraCosts);
+
     // RepairPaymentReversals
     const repairPaymentReversals = repairIds.length
       ? await this.prisma.repairPaymentReversal.findMany({

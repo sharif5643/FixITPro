@@ -163,6 +163,13 @@ export class SalesService {
       sellerId = seller.id;
     }
 
+    // Give-aways (ของแถม) are priced 0 and are no discount; they come with something sold
+    for (const item of dto.items) if (item.isFreebie) { item.price = 0; item.discount = 0; }
+    if (dto.items.length > 0 && dto.items.every((i) => i.isFreebie)) {
+      throw new BadRequestException('ของแถมต้องแถมพร้อมสินค้าที่ขาย — ถ้าให้ฟรีทั้งบิล ให้ขายราคา 0 บาทแล้วเลือกเหตุผล “แถม”');
+    }
+    const paidItems = dto.items.filter((i) => !i.isFreebie);
+
     const productIds = dto.items.map((i) => i.productId);
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds }, isActive: true, ...(tenantId ? { tenantId } : {}) },
@@ -213,6 +220,9 @@ export class SalesService {
 
     for (const item of dto.items) {
       const product = products.find((p) => p.id === item.productId);
+      if (product.giveawayOnly && !item.isFreebie) {
+        throw new BadRequestException(`"${product.name}" เป็นของแถม ขายไม่ได้ — กด “เพิ่มของแถม” แทน`);
+      }
       if (product.hasSerial) {
         if (!item.serialIds || item.serialIds.length === 0) {
           throw new BadRequestException(
@@ -240,7 +250,7 @@ export class SalesService {
     // A bill of goods that comes to 0: a late entry is an old sale and needs its real price; any
     // other must say it is a gift or a claim (audit 2026-10: "ยอดเก่า" keyed at 0 baht)
     // Valued at the shop's own price: keying the line price as 0 must not skip the reason
-    const listValue = dto.items.reduce((sum, item) => {
+    const listValue = paidItems.reduce((sum, item) => {
       const shopPrice = Number(products.find((p) => p.id === item.productId)?.price ?? 0);
       return sum + (shopPrice > 0 ? shopPrice : item.price) * item.quantity;
     }, 0);
@@ -265,7 +275,7 @@ export class SalesService {
       });
       const limit = settings?.staffDiscountLimitPercent;
       if (limit != null) {
-        const listTotal = dto.items.reduce((sum, item) => {
+        const listTotal = paidItems.reduce((sum, item) => {
           const listPrice = Number(products.find((p) => p.id === item.productId)?.price ?? 0);
           return sum + (listPrice > 0 ? listPrice : item.price) * item.quantity;
         }, 0);
@@ -330,6 +340,11 @@ export class SalesService {
               costPrice: Number(products.find((p) => p.id === item.productId)?.costPrice ?? 0),
               discount: item.discount || 0,
               total: item.price * item.quantity - (item.discount || 0),
+              ...(item.isFreebie ? {
+                isFreebie: true,
+                // what it is worth: the shop's price when it is also sold, shown on the receipt
+                freebieValue: Number(products.find((p) => p.id === item.productId)?.price ?? 0) || null,
+              } : {}),
             })),
           },
           payments: {
@@ -597,7 +612,7 @@ export class SalesService {
         paymentMethod: true, amountPaid: true, change: true, createdAt: true,
         customer: { select: { name: true } },
         branch:   { select: { name: true, tenantId: true } },
-        items:    { select: { quantity: true, price: true, discount: true, product: { select: { name: true } },
+        items:    { select: { quantity: true, price: true, discount: true, isFreebie: true, freebieValue: true, product: { select: { name: true } },
                     serialNumbers: { select: { serial: true, warrantyExpiresAt: true } } } },
         payments: { select: { paymentMethod: true, amount: true }, orderBy: { sortOrder: 'asc' } },
       },

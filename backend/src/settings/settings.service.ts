@@ -175,6 +175,7 @@ export class SettingsService {
         await tx.repairMessage.deleteMany({ where: { repairId: { in: repairIds } } });
         await tx.repairImage.deleteMany({ where: { repairId: { in: repairIds } } });
         await tx.repairAdditionalPayment.deleteMany({ where: { repairId: { in: repairIds } } });
+        await tx.repairExtraCost.deleteMany({ where: { repairId: { in: repairIds } } });
         await tx.repairPaymentReversal.deleteMany({ where: { repairId: { in: repairIds } } });
       }
 

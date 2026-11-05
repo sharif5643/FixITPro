@@ -876,6 +876,7 @@ export class ReportsService {
           costPrice: true,
           discount: true,
           total: true,
+          isFreebie: true,
           product: { select: { id: true, name: true, sku: true, price: true } },
           sale: {
             select: {
@@ -906,9 +907,11 @@ export class ReportsService {
               price:     true,
               costPrice: true,
               sellPrice: true,
+              isFreebie: true,
               product:   { select: { id: true, name: true, price: true } },
             },
           },
+          extraCosts: { select: { kind: true, amount: true } },
         },
       }),
 
@@ -960,11 +963,14 @@ export class ReportsService {
     // costPrice = COGS (product cost snapshot at time of adding the part)
     // fallback to price for legacy parts created before the migration
     const repairRevenue   = money.repairRevenue;
-    const repairPartsCost = repaids.reduce(
-      (s, r) => s + r.parts.reduce((ps, p) => ps + Number((p as any).costPrice ?? p.price) * p.quantity, 0), 0,
-    );
+    const partCost = (p: { costPrice?: unknown; price: unknown; quantity: number }) => Number(p.costPrice ?? p.price) * p.quantity;
+    const repairPartsCost = repaids.reduce((s, r) => s + r.parts.filter((p) => !p.isFreebie).reduce((ps, p) => ps + partCost(p), 0), 0);
+    // Hidden costs of the jobs: parts given free, and the delivery fee of the parts ordered for them
+    const repairFreebieCost = repaids.reduce((s, r) => s + r.parts.filter((p) => p.isFreebie).reduce((ps, p) => ps + partCost(p), 0), 0);
+    const repairDeliveryCost = repaids.reduce((s, r) => s + r.extraCosts.reduce((cs, c) => cs + Number(c.amount), 0), 0);
+    const repairDeliveryCount = repaids.reduce((n, r) => n + r.extraCosts.length, 0);
     const repairLaborCost = repaids.reduce((s, r) => s + Number(r.actualLaborCost ?? 0), 0);
-    const repairProfit    = repairRevenue - repairPartsCost - repairLaborCost;
+    const repairProfit    = repairRevenue - repairPartsCost - repairFreebieCost - repairDeliveryCost - repairLaborCost;
 
     // --- Package profit ---
     const packageProfit  = packageSales.reduce((s, p) => s + Number(p.profit), 0);
@@ -972,6 +978,27 @@ export class ReportsService {
 
     // --- Expenses ---
     const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+    const shopDelivery = expenses.filter((e) => e.category.code === 'parts_delivery');
+
+    // Hidden costs (ต้นทุนแฝง): already inside the figures above, gathered here to be seen
+    const freebieLines = saleItems.filter((i) => i.isFreebie);
+    const posFreebieCost = freebieLines.reduce((s, i) => s + Number(i.costPrice) * i.quantity, 0);
+    const freebieByName = new Map<string, number>();
+    for (const i of freebieLines) freebieByName.set(i.product.name, (freebieByName.get(i.product.name) ?? 0) + i.quantity);
+    for (const r of repaids) for (const p of r.parts) if (p.isFreebie && p.product) freebieByName.set(p.product.name, (freebieByName.get(p.product.name) ?? 0) + p.quantity);
+    const deliveryShop = shopDelivery.reduce((s, e) => s + Number(e.amount), 0);
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const hiddenCosts = {
+      freebies: {
+        total: r2(posFreebieCost + repairFreebieCost), sales: r2(posFreebieCost), repairs: r2(repairFreebieCost),
+        items: [...freebieByName.entries()].map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty),
+      },
+      delivery: {
+        total: r2(repairDeliveryCost + deliveryShop), jobs: r2(repairDeliveryCost), shop: r2(deliveryShop),
+        count: repairDeliveryCount + shopDelivery.length,
+      },
+      total: r2(posFreebieCost + repairFreebieCost + repairDeliveryCost + deliveryShop),
+    };
 
     // Expense breakdown by category
     const expByCat = new Map<string, { name: string; total: number }>();
@@ -1002,6 +1029,8 @@ export class ReportsService {
         billDiscount: Math.round((lineTotal - money.posGross) * 100) / 100,
         refunds:      money.posRefunds,
         cogs:    posCOGS,
+        // of which: goods given free with the bills (ต้นทุนแฝง)
+        freebieCost: r2(posFreebieCost),
         profit:  posProfit,
         margin:  posRevenue > 0 ? (posProfit / posRevenue) * 100 : 0,
         items:   saleItems.map((i) => ({
@@ -1010,6 +1039,7 @@ export class ReportsService {
           customer:      i.sale.customer?.name ?? null,
           product:       i.product.name,
           qty:           i.quantity,
+          isFreebie:     i.isFreebie,
           revenue:       Number(i.total),
           cogs:          Number(i.costPrice) * i.quantity,
           profit:        Number(i.total) - Number(i.costPrice) * i.quantity,
@@ -1021,12 +1051,16 @@ export class ReportsService {
         atPickup:     money.repairPickup,
         debtPayments: money.repairDebtPayments,
         partsCost: repairPartsCost,
+        freebieCost: r2(repairFreebieCost),
+        deliveryCost: r2(repairDeliveryCost),
+        deliveryCount: repairDeliveryCount,
         laborCost: repairLaborCost,
         profit:    repairProfit,
         count:     repaids.length,
         margin:    repairRevenue > 0 ? (repairProfit / repairRevenue) * 100 : 0,
         items:     repaids.map((r) => {
-          const pc = r.parts.reduce((s, p) => s + Number((p as any).costPrice ?? p.price) * p.quantity, 0);
+          const pc = r.parts.reduce((s, p) => s + partCost(p), 0);
+          const dc = r.extraCosts.reduce((s, c) => s + Number(c.amount), 0);
           const lc = Number(r.actualLaborCost ?? 0);
           return {
             time:         (r.paidAt as Date).toISOString(),
@@ -1035,8 +1069,9 @@ export class ReportsService {
             device:       `${r.deviceBrand} ${r.deviceModel}`,
             revenue:      Number(r.paidAmount ?? 0),
             partsCost:    pc,
+            deliveryCost: dc,
             laborCost:    lc,
-            profit:       Number(r.paidAmount ?? 0) - pc - lc,
+            profit:       Number(r.paidAmount ?? 0) - pc - dc - lc,
           };
         }),
       },
@@ -1065,7 +1100,8 @@ export class ReportsService {
           amount:        Number(e.amount),
         })),
       },
-      costWarnings: costWarningsOf(saleItems, repaids),
+      costWarnings: costWarningsOf(saleItems.filter((i) => !i.isFreebie), repaids),
+      hiddenCosts,
       summary: {
         grossProfit,
         netProfit,

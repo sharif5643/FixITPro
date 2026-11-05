@@ -454,6 +454,10 @@ export interface Product {
   hasStockRecord?: boolean
   otherBranchTotal?: number
   branchBreakdown?: BranchStockBreakdown[]
+  /** a give-away: cost and stock, never sold — only added free to a bill */
+  giveawayOnly?: boolean
+  /** given free every time this product is sold */
+  freebies?: { productId: string; quantity: number }[] | null
 }
 
 export interface Customer {
@@ -489,6 +493,9 @@ export interface SaleItem {
   discount: number
   total: number
   refundedQty: number
+  /** given free with the bill; freebieValue = what it is worth (its normal price) */
+  isFreebie?: boolean
+  freebieValue?: number | string | null
   productId: string
   product: Product
   serialNumbers?: SerialNumber[]
@@ -993,10 +1000,12 @@ export interface DailyPoint {
 export interface ProfitReportPosItem {
   time: string; receiptNumber: string; customer: string | null
   product: string; qty: number; revenue: number; cogs: number; profit: number
+  isFreebie?: boolean
 }
 export interface ProfitReportRepairItem {
   time: string; ticketNumber: string; customer: string | null
   device: string; revenue: number; partsCost: number; laborCost: number; profit: number
+  deliveryCost?: number
 }
 export interface ProfitReportPackageItem {
   time: string; receiptNumber: string; carrier: string; amount: number; profit: number
@@ -1012,14 +1021,24 @@ export interface ProfitReport {
     /** bills (not voided) and their total after discounts, before refunds */
     billCount?: number; grossSales?: number; billDiscount?: number
     refunds?: number; refundCount?: number
+    /** of cogs: goods given free with the bills */
+    freebieCost?: number
     items: ProfitReportPosItem[]
   }
   repair: {
     revenue: number; partsCost: number; laborCost: number; profit: number; count: number; margin: number
     deposits?: number; atPickup?: number; debtPayments?: number
+    /** hidden costs of the jobs: parts given free, delivery fees of their parts */
+    freebieCost?: number; deliveryCost?: number; deliveryCount?: number
     items: ProfitReportRepairItem[]
   }
   /** what sold below its cost, or with no cost: the usual reasons a profit looks wrong */
+  /** ต้นทุนแฝง — already inside the figures above, gathered to be seen */
+  hiddenCosts?: {
+    freebies: { total: number; sales: number; repairs: number; items: { name: string; qty: number }[] }
+    delivery: { total: number; jobs: number; shop: number; count: number }
+    total: number
+  }
   costWarnings?: {
     belowCost: { productId: string; name: string; cost: number; soldAt: number }[]
     belowCostCount: number

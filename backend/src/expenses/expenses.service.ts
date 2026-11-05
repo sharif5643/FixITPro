@@ -131,7 +131,27 @@ export class ExpensesService implements OnModuleInit {
     } as CreateExpenseDto, p.userId, p.branchId ?? undefined);
   }
 
-  private async createRecorded(dto: CreateExpenseDto, userId: string, branchId?: string) {
+  /**
+   * A delivery fee for parts (ค่ารถส่งอะไหล่) that is not tied to one job: an expense in its own
+   * category. Paid from the drawer → it is in the shift's cash; paid by the owner → not.
+   */
+  async createDeliveryExpense(p: { amount: number; note?: string; fromDrawer: boolean; userId: string; branchId?: string | null; tenantId?: string | null }) {
+    const code = 'parts_delivery';
+    const cat = await this.prisma.expenseCategory.findFirst({
+      where: { code, OR: [{ tenantId: null }, ...(p.tenantId ? [{ tenantId: p.tenantId }] : [])] },
+      orderBy: { tenantId: { sort: 'desc', nulls: 'last' } },
+    }) ?? await this.prisma.expenseCategory.create({
+      data: { code, name: 'ค่าขนส่งอะไหล่', tenantId: p.tenantId ?? null },
+    });
+    if (!cat.isActive) await this.prisma.expenseCategory.update({ where: { id: cat.id }, data: { isActive: true } });
+    const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+    return this.createRecorded({
+      expenseDate: today, amount: p.amount, description: p.note?.trim() || 'ค่ารถส่งอะไหล่',
+      paymentMethod: 'CASH', categoryId: cat.id, note: p.fromDrawer ? undefined : 'เจ้าของจ่ายเอง (ไม่ได้ใช้เงินในลิ้นชัก)',
+    } as CreateExpenseDto, p.userId, p.branchId ?? undefined, p.fromDrawer);
+  }
+
+  private async createRecorded(dto: CreateExpenseDto, userId: string, branchId?: string, inDrawer = true) {
     const cat = await this.prisma.expenseCategory.findUnique({
       where: { id: dto.categoryId },
     });
@@ -139,10 +159,10 @@ export class ExpensesService implements OnModuleInit {
       throw new BadRequestException('หมวดหมู่ไม่ถูกต้องหรือถูกปิดใช้งาน');
     }
     // Auto-attach to creator's active shift so cash expenses reduce expected drawer balance
-    const activeShift = await this.prisma.shift.findFirst({
+    const activeShift = inDrawer ? await this.prisma.shift.findFirst({
       where: activeShiftWhere(userId),
       select: { id: true },
-    });
+    }) : null;
     const { start } = this.thaiDateBounds(dto.expenseDate);
 
     const expense = await this.prisma.$transaction(async (tx) => {

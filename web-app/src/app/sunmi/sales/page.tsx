@@ -1,5 +1,6 @@
 'use client'
 
+import { AddFreebieButton, FreebieList, useAutoFreebies } from '@/components/pos/freebies'
 import Link from 'next/link'
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -24,7 +25,7 @@ import { PrinterFlowSheet } from '@/components/sunmi/printer-flow'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
 import { ZeroBillPanel, type ZeroReason } from '@/components/pos/zero-bill-panel'
 import { useAuthStore } from '@/store/auth.store'
-import { useCartStore } from '@/store/cart.store'
+import { useCartStore, freebieLines } from '@/store/cart.store'
 import {
   buildReceiptHtml, buildReceiptPreviewData, shareReceipt, openCashDrawer, buildSaleReceiptThermalHtml,
   type PrintReceiptOptions,
@@ -145,7 +146,8 @@ function ProductBrowser({ branchId, onAdd }: { branchId?: string; onAdd: (p: Pro
   }
 
   const list = useMemo(() => {
-    const active = products.filter((p) => p.isActive)
+    // Give-aways are never sold: they go on a bill with "เพิ่มของแถม"
+    const active = products.filter((p) => p.isActive && !p.giveawayOnly)
     const byId = new Map(active.map((p) => [p.id, p]))
     let picked: Product[]
     if (tab === 'RECENT') picked = recent.map((id) => byId.get(id)).filter((p): p is Product => !!p)
@@ -429,7 +431,7 @@ function CheckoutSheet({
           price:     Number(i.product.price),
           discount:  itemDiscounts.get(i.product.id) ?? 0,
           serialIds: i.product.hasSerial ? serialIds[i.product.id] ?? [] : undefined,
-        })),
+        })).concat(freebieLines(useCartStore.getState().freebies) as never[]),
       }),
     onSuccess: (res) => onSuccess(res.data as Sale),
     onError: (err: any) => {
@@ -683,6 +685,8 @@ function CheckoutSheet({
 export default function SunmiSalesPage() {
   const shell = useAppShell()
   const branch = useAppBranch()
+  // Products sold with give-aways set on them bring those onto the bill
+  useAutoFreebies(branch.branchId)
   const queryClient   = useQueryClient()
   const user          = useAuthStore((s) => s.user)
   const items         = useCartStore((s) => s.items)
@@ -692,6 +696,7 @@ export default function SunmiSalesPage() {
   const updateQty     = useCartStore((s) => s.updateQuantity)
   const setDiscount   = useCartStore((s) => s.setDiscount)
   const clearCart     = useCartStore((s) => s.clearCart)
+  const addFreebie    = useCartStore((s) => s.addFreebie)
 
   // Search state
   const [searchMode, setSearchMode]       = useState<'barcode' | 'name'>('barcode')
@@ -770,7 +775,7 @@ export default function SunmiSalesPage() {
       try {
         const res = await api.get('/products', { params: { search: nameQuery.trim(), limit: 20, ...(branch.canPick && branch.branchId ? { branchId: branch.branchId } : {}) } })
         const list: Product[] = Array.isArray(res.data) ? res.data : res.data?.items ?? []
-        setNameResults(list)
+        setNameResults(list.filter((p) => !p.giveawayOnly))
       } catch {} finally {
         setNameLoading(false)
       }
@@ -800,7 +805,10 @@ export default function SunmiSalesPage() {
       const res = await api.get('/products', { params: { search: trimmed, limit: 10, ...(branch.canPick && branch.branchId ? { branchId: branch.branchId } : {}) } })
       const list: Product[] = Array.isArray(res.data) ? res.data : res.data?.items ?? []
       const exact = list.find((p) => p.barcode === trimmed || p.sku === trimmed) ?? list[0]
-      if (exact) {
+      if (exact?.giveawayOnly) {
+        if ((exact.branchQuantity ?? 0) < 1) toast.error(`${exact.name} — หมดสต็อก`)
+        else { addFreebie(exact); toast.success(`🎁 แถม ${exact.name}`, { duration: 1500 }) }
+      } else if (exact) {
         if ((exact.branchQuantity ?? exact.stock) < 1) {
           toast.error(`${exact.name} — สต็อกหมด`)
         } else {
@@ -817,7 +825,7 @@ export default function SunmiSalesPage() {
     }
     setBarcodeInput('')
     setTimeout(() => inputRef.current?.focus(), 50)
-  }, [addItem])
+  }, [addItem, addFreebie])
 
   function handlePickProduct(product: Product) {
     if ((product.branchQuantity ?? 0) < 1) {
@@ -1170,6 +1178,8 @@ export default function SunmiSalesPage() {
                   onSetDiscount={(d) => setItemDiscount(item.product.id, d)}
                 />
               )).concat(
+                <FreebieList key="freebies" />,
+                <AddFreebieButton key="add-freebie" branchId={branch.branchId} className="w-full bg-white" />,
                 <button
                   key="browse"
                   onClick={() => setBrowsing(true)}

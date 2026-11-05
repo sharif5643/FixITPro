@@ -138,9 +138,18 @@ function DrawerTable({ head, rows }: { head: string[]; rows: (string | React.Rea
 
 type DrawerKey = 'pos' | 'repair' | 'package' | 'expense' | 'net' | null
 
+/** Marks a hidden cost (ต้นทุนแฝง) */
+function HiddenTag() {
+  return <span className="ml-1 rounded bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-bold text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300">แฝง</span>
+}
+
 /** The report in plain Thai: one sentence for the profit, then where each part comes from */
 function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; periodLabel: string; onDetail: (k: DrawerKey) => void }) {
-  const cost = data.pos.cogs + data.repair.partsCost + data.repair.laborCost
+  const posFreebie = data.pos.freebieCost ?? 0
+  const repFreebie = data.repair.freebieCost ?? 0
+  const delivery = data.repair.deliveryCost ?? 0
+  const cost = data.pos.cogs + data.repair.partsCost + repFreebie + delivery + data.repair.laborCost
+  const hidden = data.hiddenCosts
   const income = data.summary.totalRevenue
   const net = data.summary.netProfit
   const per100 = income > 0 ? Math.round((net / income) * 100) : 0
@@ -181,13 +190,27 @@ function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; pe
         </div>
       </div>
 
+      {/* Profit by source, added up */}
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm dark:border-slate-700/60 dark:bg-[#1E293B]">
+        <span className="text-sm font-semibold">กำไรมาจากไหน:</span>
+        <MoneyEquation parts={[
+          { label: '🛒 ขายของ', value: data.pos.profit, tone: 'in' },
+          { label: '🔧 งานซ่อม', value: data.repair.profit, tone: 'in' },
+          { label: '📶 ค่าคอมซิม', value: data.package.profit, tone: 'in' },
+          ...(other > 0 ? [{ label: 'รับเงินไม่มีบิล', value: other, tone: 'in' as const }] : []),
+          { label: '🏠 ค่าใช้จ่ายร้าน', value: data.expenses.total, tone: 'out' },
+          { label: net >= 0 ? 'กำไร' : 'ขาดทุน', value: net, tone: 'result', result: true },
+        ]} />
+      </div>
+
       {/* Where it came from */}
       <div className="grid gap-4 md:grid-cols-3">
         <SourceCard icon="🛒" title="ขายของหน้าร้าน" onDetail={() => onDetail('pos')} detailLabel="ดูทีละบิล"
           why="ราคาที่ขายจริงหลังส่วนลด · ของที่ลูกค้าคืน ทุนของชิ้นนั้นก็กลับเข้าร้าน">
           <MoneyLine label={`ขายได้${data.pos.billCount != null ? ` (${data.pos.billCount} บิล)` : ''}`} value={sold} />
           {refunds > 0 && <MoneyLine label={`คืนเงินลูกค้า${data.pos.refundCount ? ` (${data.pos.refundCount} ครั้ง)` : ''}`} value={refunds} minus />}
-          <MoneyLine label="ทุนของที่ขายไป" value={data.pos.cogs} minus />
+          <MoneyLine label="ทุนของที่ขายไป" value={data.pos.cogs - posFreebie} minus />
+          {posFreebie > 0 && <MoneyLine label={<>ทุนของแถม <HiddenTag /></>} value={posFreebie} minus />}
           <MoneyLine label="กำไร" value={data.pos.profit} total />
         </SourceCard>
         <SourceCard icon="🔧" title="งานซ่อม" onDetail={() => onDetail('repair')} detailLabel="ดูทีละงาน"
@@ -197,6 +220,8 @@ function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; pe
           {(data.repair.atPickup ?? 0) > 0 && <MoneyLine label="จ่ายตอนรับเครื่องคืน" value={data.repair.atPickup!} muted />}
           {(data.repair.debtPayments ?? 0) > 0 && <MoneyLine label="จ่ายหนี้ค้าง" value={data.repair.debtPayments!} muted />}
           <MoneyLine label="ค่าอะไหล่ที่ใช้" value={data.repair.partsCost} minus />
+          {repFreebie > 0 && <MoneyLine label={<>อะไหล่แถม <HiddenTag /></>} value={repFreebie} minus />}
+          {delivery > 0 && <MoneyLine label={<>ค่ารถส่งอะไหล่ ({data.repair.deliveryCount ?? 0} รอบ) <HiddenTag /></>} value={delivery} minus />}
           {data.repair.laborCost > 0 && <MoneyLine label="ค่าแรงช่าง" value={data.repair.laborCost} minus />}
           <MoneyLine label="กำไร" value={data.repair.profit} total />
         </SourceCard>
@@ -208,15 +233,33 @@ function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; pe
         </SourceCard>
       </div>
 
-      <div className={`grid gap-4 ${hasWarnings ? 'md:grid-cols-2' : ''}`}>
+      <div className={`grid gap-4 ${hasWarnings || (hidden && hidden.total > 0) ? 'md:grid-cols-2' : ''}`}>
         <SourceCard icon="🧾" title="ค่าใช้จ่าย" onDetail={data.expenses.items.length ? () => onDetail('expense') : undefined}
-          why="รายจ่ายที่ลงไว้ในหน้าค่าใช้จ่าย เช่น ค่าเช่า ค่าไฟ เงินเดือน">
+          why="รายจ่ายที่ไม่ได้เป็นของงานหรือบิลไหน เช่น ค่าเช่า ค่าไฟ เงินเดือน ค่ารถที่ไม่ได้ระบุงาน">
           {data.expenses.breakdown.length === 0
             ? <p className="py-1 text-sm text-muted-foreground">ไม่มีค่าใช้จ่ายในช่วงนี้</p>
-            : data.expenses.breakdown.map((e) => <MoneyLine key={e.code} label={e.name} value={e.total} minus />)}
+            : data.expenses.breakdown.map((e) => <MoneyLine key={e.code} label={<>{e.name}{e.code === 'parts_delivery' && <> <HiddenTag /></>}</>} value={e.total} minus />)}
           {other > 0 && <MoneyLine label={`รายรับไม่มีบิล (${data.otherIncome!.count} รายการ)`} value={other} note="เงินรับเข้าลิ้นชักที่ไม่ได้ออกบิล — นับเป็นกำไรทั้งหมด" />}
           {data.expenses.breakdown.length > 1 && <MoneyLine label="รวมค่าใช้จ่าย" value={-data.expenses.total} total />}
         </SourceCard>
+        {hidden && hidden.total > 0 && (
+          <div className="rounded-2xl border-2 border-fuchsia-200 bg-fuchsia-50/70 p-4 dark:border-fuchsia-900 dark:bg-fuchsia-900/10">
+            <h3 className="font-bold">🔍 ต้นทุนแฝงช่วงนี้ <span className="text-xs font-normal text-muted-foreground">(หักไว้ในกล่องข้างบนแล้ว — ตรงนี้รวมให้ดู ไม่หักซ้ำ)</span></h3>
+            {hidden.freebies.total > 0 && (
+              <MoneyLine label={`🎁 ของแถม${hidden.freebies.sales > 0 && hidden.freebies.repairs > 0 ? ` (ขาย ${formatThaiMoney(hidden.freebies.sales)} + ซ่อม ${formatThaiMoney(hidden.freebies.repairs)})` : ''}`}
+                value={hidden.freebies.total}
+                note={hidden.freebies.items.slice(0, 4).map((x) => `${x.name} ${x.qty}`).join(' · ')} />
+            )}
+            {hidden.delivery.total > 0 && (
+              <MoneyLine label={`🚐 ค่ารถส่งอะไหล่ (${hidden.delivery.count} รอบ)`} value={hidden.delivery.total}
+                note={`ระบุงาน ${formatThaiMoney(hidden.delivery.jobs)} · ค่าใช้จ่ายร้าน ${formatThaiMoney(hidden.delivery.shop)}`} />
+            )}
+            <div className="mt-1.5 flex items-baseline justify-between border-t border-fuchsia-200 pt-2.5 text-base font-bold dark:border-fuchsia-900">
+              <span>รวมต้นทุนแฝง</span><span className="tabular-nums text-fuchsia-700 dark:text-fuchsia-300">{formatThaiMoney(hidden.total)}</span>
+            </div>
+            {net > 0 && <p className="mt-2 text-xs text-muted-foreground">= {Math.round((hidden.total / net) * 100)}% ของกำไร — ถ้าเยอะ ลองรวมรอบสั่งของ หรือบวกค่าส่งเข้าราคาซ่อม</p>}
+          </div>
+        )}
         {hasWarnings && (
           <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/20">
             <h3 className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200"><AlertTriangle className="h-4 w-4" /> ตัวเลขที่อาจทำให้กำไรผิด — ตรวจก่อน</h3>
@@ -286,7 +329,7 @@ export default function ProfitReportPage() {
           fmtTime(i.time),
           <span key="r" className="font-mono text-blue-700 font-bold">{i.receiptNumber}</span>,
           i.customer ?? 'ทั่วไป',
-          i.product,
+          i.isFreebie ? <span key="f">{i.product} <span className="rounded bg-fuchsia-100 px-1 text-[10px] font-bold text-fuchsia-700">แถม</span></span> : i.product,
           String(i.qty),
           formatThaiMoney(i.revenue),
           <span key="c" className="text-red-600">{formatThaiMoney(i.cogs)}</span>,
@@ -300,7 +343,7 @@ export default function ProfitReportPage() {
     const items = data?.repair.items ?? []
     return (
       <DrawerTable
-        head={['เวลา', 'เลขงาน', 'ลูกค้า', 'อุปกรณ์', 'รายได้', 'อะไหล่', 'แรงงาน', 'กำไร']}
+        head={['เวลา', 'เลขงาน', 'ลูกค้า', 'อุปกรณ์', 'รับเงิน', 'อะไหล่', 'ค่ารถ', 'ค่าแรง', 'กำไร']}
         rows={items.map((i) => [
           fmtTime(i.time),
           <span key="t" className="font-mono text-blue-700 font-bold">{i.ticketNumber}</span>,
@@ -308,6 +351,7 @@ export default function ProfitReportPage() {
           i.device,
           formatThaiMoney(i.revenue),
           <span key="p" className="text-red-600">{formatThaiMoney(i.partsCost)}</span>,
+          <span key="d" className="text-red-600">{i.deliveryCost ? formatThaiMoney(i.deliveryCost) : '—'}</span>,
           <span key="l" className="text-red-600">{formatThaiMoney(i.laborCost)}</span>,
           <span key="g" className={profitColor(i.profit)}>{formatThaiMoney(i.profit)}</span>,
         ])}
@@ -356,7 +400,7 @@ export default function ProfitReportPage() {
       })),
       ...data.repair.items.map((i) => ({
         time: i.time, type: 'ซ่อม', label: `${i.ticketNumber} · ${i.device}`,
-        revenue: i.revenue, cost: i.partsCost + i.laborCost, profit: i.profit,
+        revenue: i.revenue, cost: i.partsCost + (i.deliveryCost ?? 0) + i.laborCost, profit: i.profit,
       })),
       ...data.package.items.map((i) => ({
         time: i.time, type: 'ซิม', label: `${i.receiptNumber} · ${i.carrier}`,

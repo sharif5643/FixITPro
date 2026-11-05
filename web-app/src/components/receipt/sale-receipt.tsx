@@ -104,13 +104,17 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
       <div className="space-y-1.5 pb-1">
         {sale.items.map((item) => (
           <div key={item.id}>
-            <p className="truncate">{item.product?.name ?? 'สินค้า'}</p>
+            <p className="truncate">{item.product?.name ?? 'สินค้า'}{item.isFreebie ? ' (แถม)' : ''}</p>
             <div className="flex justify-between text-gray-900 pl-2">
-              <span>
-                {formatThaiMoney(Number(item.price))} × {item.quantity}
-                {Number(item.discount) > 0 && ` (ลด ${formatThaiMoney(Number(item.discount))})`}
-              </span>
-              <span className="tabular-nums">{formatThaiMoney(Number(item.total))}</span>
+              {item.isFreebie ? (
+                <span>× {item.quantity}{Number(item.freebieValue ?? 0) > 0 && ` · มูลค่า ${formatThaiMoney(Number(item.freebieValue) * item.quantity)}`}</span>
+              ) : (
+                <span>
+                  {formatThaiMoney(Number(item.price))} × {item.quantity}
+                  {Number(item.discount) > 0 && ` (ลด ${formatThaiMoney(Number(item.discount))})`}
+                </span>
+              )}
+              <span className="tabular-nums">{item.isFreebie ? 'ฟรี' : formatThaiMoney(Number(item.total))}</span>
             </div>
             {soldSerials(item).map((x) => (
               <p key={x.serial} className="pl-2 text-gray-700">

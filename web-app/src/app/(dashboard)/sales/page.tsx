@@ -10,7 +10,8 @@ import { LongShiftBanner } from '@/components/shift/long-shift-banner'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { useCartStore } from '@/store/cart.store'
+import { useCartStore, freebieLines } from '@/store/cart.store'
+import { useAutoFreebies } from '@/components/pos/freebies'
 import { ProductSearch, type ProductSearchHandle } from '@/components/pos/product-search'
 import { CartPanel } from '@/components/pos/cart-panel'
 import { PaymentPanel, type PaymentPanelHandle } from '@/components/pos/payment-panel'
@@ -78,12 +79,15 @@ export default function SalesPage() {
 
   const items          = useCartStore((s) => s.items)
   const discount       = useCartStore((s) => s.discount)
+  const freebies       = useCartStore((s) => s.freebies)
   const clearCart      = useCartStore((s) => s.clearCart)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
   const addItem        = useCartStore((s) => s.addItem)
   const setDiscount    = useCartStore((s) => s.setDiscount)
 
   const { branchId: effectiveBranch, isGlobalMode, isSunmi } = useBranchContext()
+  // Products sold with give-aways set on them bring those onto the bill
+  useAutoFreebies(effectiveBranch)
 
   const { data: currentShift, isLoading: shiftLoading } = useQuery<{ id: string } | null>({
     queryKey: ['shifts', 'current'],
@@ -299,7 +303,7 @@ export default function SalesPage() {
           price:     Number(i.product.price),
           discount:  (i.itemDiscount ?? 0) * i.quantity || undefined,
           serialIds: i.product.hasSerial ? (i.serialIds ?? []) : undefined,
-        })),
+        })).concat(freebieLines(freebies) as never[]),
         paymentMethod: opts.paymentMethod,
         amountPaid:    opts.amountPaid,
       })

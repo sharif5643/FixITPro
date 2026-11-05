@@ -1,5 +1,6 @@
 'use client'
 
+import { DeliveryFeeButton } from '@/components/shifts/delivery-fee'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -86,6 +87,8 @@ export function ShiftCashMovements({ shiftId, onChanged }: { shiftId: string; on
             >
               <ArrowUpCircle className="h-3.5 w-3.5" /> นำเงินออก
             </button>
+            <DeliveryFeeButton label="🚐 ค่ารถ"
+              className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 active:scale-95" />
           </div>
         )}
       </div>

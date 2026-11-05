@@ -30,6 +30,7 @@ export interface BackupCounts {
   repairImages: number;
   repairPaymentReversals: number;
   repairSignatures?: number;
+  repairExtraCosts?: number;
   repairAdditionalPayments: number;
   repairQcs: number;
   repairMessages: number;
