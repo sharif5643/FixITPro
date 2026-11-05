@@ -1,5 +1,7 @@
 'use client'
 
+import { AddFreebieButton, FreebieList } from '@/components/pos/freebies'
+import { useBranchContext } from '@/hooks/useBranchContext'
 import { useMemo, useState } from 'react'
 import { Minus, Plus, Trash2, ShoppingCart, AlertCircle, AlertTriangle, ScanBarcode, Tag, PauseCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -34,6 +36,8 @@ export function CartPanel({
   discountRef,
 }: CartPanelProps) {
   const { items, discount, removeItem, updateQuantity, setDiscount, setItemDiscount, clearCart } = useCartStore()
+  // The till's branch: the give-away list shows its stock
+  const { branchId: freebieBranch } = useBranchContext()
 
   const [editingQtyId, setEditingQtyId]   = useState<string | null>(null)
   const [editingQtyVal, setEditingQtyVal] = useState('')
@@ -284,6 +288,12 @@ export function CartPanel({
               </div>
             )
           })
+        )}
+        {items.length > 0 && (
+          <>
+            <FreebieList />
+            <AddFreebieButton branchId={freebieBranch} className="w-full" />
+          </>
         )}
       </div>
 

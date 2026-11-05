@@ -296,6 +296,12 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
         requestAnimationFrame(() => inputRef.current?.focus())
         return
       }
+      if (match.giveawayOnly) {
+        if (stockOf(match) < 1) { toast.error(`${match.name} — หมดสต็อก`); beepError(); return }
+        useCartStore.getState().addFreebie(match)
+        toast.success(`🎁 แถม ${match.name}`, { duration: 1200 }); beepSuccess(); haptic(40)
+        return
+      }
       if (Number(match.price) === 0) {
         toast.error(`${match.name} — ยังไม่ได้กำหนดราคา`, { duration: 2500 })
         beepError(); haptic(60)
@@ -320,7 +326,8 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
     // ── Category + filtered lists ───────────────────────────────────────────
 
     const categoryFiltered = useMemo(() => {
-      const active = products.filter((p) => p.isActive)
+      // Give-aways are never sold: they go on a bill with "เพิ่มของแถม"
+      const active = products.filter((p) => p.isActive && !p.giveawayOnly)
       if (!category || category === 'ALL') return active
       if (category === 'FAVORITES') return active.filter((p) => favorites.includes(p.id))
       return active.filter((p) => p.type === category)
@@ -365,6 +372,13 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
 
       if (!target) {
         if (isScannerBurst) { toast.error('ไม่พบสินค้าในสาขานี้', { duration: 2000 }); beepError(); haptic(60) }
+        return
+      }
+      if (target.giveawayOnly) {
+        if (stockOf(target) < 1) { toast.error(`${target.name} — หมดสต็อก`); beepError(); return }
+        useCartStore.getState().addFreebie(target)
+        toast.success(`🎁 แถม ${target.name}`, { duration: 1200 }); beepSuccess(); haptic(40)
+        setSearch('')
         return
       }
       if (Number(target.price) === 0) {

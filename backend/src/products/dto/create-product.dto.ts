@@ -1,5 +1,18 @@
 import { IsString, IsNumber, IsEnum, IsOptional, IsBoolean, IsInt, Max, MaxLength, Min, IsIn, IsArray, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ValidateNested } from 'class-validator';
+
+/** One give-away handed out every time a product is sold */
+export class ProductFreebieDto {
+  @IsString()
+  productId: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  quantity: number;
+}
 
 export class CreateProductDto {
   @IsString()
@@ -98,4 +111,17 @@ export class CreateProductDto {
   @ArrayMaxSize(500)
   @IsString({ each: true })
   initialSerials?: string[];
+
+  /** A give-away (กะละมัง, กระติก...): cost and stock, never sold — only added free to a bill */
+  @IsOptional()
+  @IsBoolean()
+  giveawayOnly?: boolean;
+
+  /** Given free every time this product is sold (the till adds them; removable) */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => ProductFreebieDto)
+  freebies?: ProductFreebieDto[];
 }

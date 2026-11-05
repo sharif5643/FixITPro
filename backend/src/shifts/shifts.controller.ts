@@ -12,6 +12,7 @@ import { ShiftsService } from './shifts.service';
 import { OpenShiftDto } from './dto/open-shift.dto';
 import { CloseShiftDto } from './dto/close-shift.dto';
 import { CashMovementDto } from './dto/cash-movement.dto';
+import { DeliveryFeeDto } from './dto/delivery-fee.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -119,6 +120,15 @@ export class ShiftsController {
     @CurrentUser() user: { id: string; name?: string; tenantId?: string | null },
   ) {
     return this.shiftsService.addCashMovement(dto, user);
+  }
+
+  /** A delivery fee for parts (ค่ารถส่งอะไหล่): a repair job's cost or a shop expense, from the drawer or the owner. */
+  @Post('delivery-fee')
+  addDeliveryFee(
+    @Body() dto: DeliveryFeeDto,
+    @CurrentUser() user: { id: string; name?: string; tenantId?: string | null; branchId?: string | null },
+  ) {
+    return this.shiftsService.addDeliveryFee(dto, user);
   }
 
   @Get(':id/cash-movements')

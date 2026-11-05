@@ -756,6 +756,7 @@ export function buildSaleReceiptThermalHtml(
     customer?: { name?: string | null; phone?: string | null } | null
     items: Array<{
       quantity: number; price: number | string; total: number | string; discount?: number | string | null
+      isFreebie?: boolean; freebieValue?: number | string | null
       product?: { name?: string | null } | null
       serialNumbers?: Array<{ serial: string; warrantyExpiresAt?: string | null }> | null
     }>
@@ -803,6 +804,11 @@ export function buildSaleReceiptThermalHtml(
   const items = sale.items.map((it) => {
     const disc = Number(it.discount ?? 0)
     const serials = soldSerials(it).map((x) => `<p class="gray" style="padding-left:${r(8)}px">IMEI: ${e(x.serial)}${x.warrantyUntil ? ` · ประกันถึง ${e(webReceiptDay(x.warrantyUntil))}` : ''}</p>`).join('\n')
+    if (it.isFreebie) {
+      const worth = Number(it.freebieValue ?? 0) * it.quantity
+      return `<p>${e(it.product?.name ?? 'สินค้า')} (แถม)</p>
+<div class="row" style="padding-left:${r(8)}px"><span>× ${it.quantity}${worth > 0 ? ` · มูลค่า ${money(worth)}` : ''}</span><span class="v">ฟรี</span></div>`
+    }
     return `<p>${e(it.product?.name ?? 'สินค้า')}</p>
 <div class="row" style="padding-left:${r(8)}px"><span>${money(it.price)} × ${it.quantity}${disc > 0 ? ` (ลด ${money(disc)})` : ''}</span><span class="v">${money(it.total)}</span></div>${serials ? `\n${serials}` : ''}`
   }).join('\n')

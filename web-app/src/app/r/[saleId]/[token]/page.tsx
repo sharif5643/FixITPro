@@ -17,7 +17,7 @@ interface PublicReceipt {
   createdAt: string
   customer?: { name: string } | null
   branchName?: string | null
-  items: { quantity: number; price: string | number; discount: string | number; product: { name: string }; serialNumbers?: { serial: string; warrantyExpiresAt?: string | null }[] }[]
+  items: { quantity: number; price: string | number; discount: string | number; isFreebie?: boolean; freebieValue?: string | number | null; product: { name: string }; serialNumbers?: { serial: string; warrantyExpiresAt?: string | null }[] }[]
   payments: { paymentMethod: string; amount: string | number }[]
   shop?: { shopName?: string | null; shopPhone?: string | null; shopAddress?: string | null; receiptFooter?: string | null; logoUrl?: string | null } | null
 }
@@ -92,8 +92,10 @@ export default function PublicReceiptPage() {
           {data.items.map((it, i) => (
             <li key={i} className="py-2">
               <div className="flex justify-between gap-3">
-                <span className="text-slate-800">{it.product.name} × {it.quantity}</span>
-                <span className="tabular-nums">{formatThaiMoney(Number(it.price) * it.quantity - Number(it.discount ?? 0))}</span>
+                <span className="text-slate-800">{it.product.name} × {it.quantity}{it.isFreebie ? ' (แถม)' : ''}</span>
+                <span className="tabular-nums">{it.isFreebie
+                  ? `ฟรี${Number(it.freebieValue ?? 0) > 0 ? ` (มูลค่า ${formatThaiMoney(Number(it.freebieValue) * it.quantity)})` : ''}`
+                  : formatThaiMoney(Number(it.price) * it.quantity - Number(it.discount ?? 0))}</span>
               </div>
               {(it.serialNumbers ?? []).map((s) => (
                 <p key={s.serial} className="text-xs text-slate-500">

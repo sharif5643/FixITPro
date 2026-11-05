@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   Matches,
   IsString,
   IsNumber,
@@ -40,6 +41,11 @@ export class SaleItemDto {
   @IsArray()
   @IsString({ each: true })
   serialIds?: string[];
+
+  /** Given free with the bill (ของแถม): priced 0, its cost counts against this bill */
+  @IsOptional()
+  @IsBoolean()
+  isFreebie?: boolean;
 }
 
 export class SalePaymentItemDto {

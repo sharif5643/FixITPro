@@ -1,5 +1,6 @@
 'use client'
 
+import { DeliveryFeeButton } from '@/components/shifts/delivery-fee'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/api'
@@ -29,7 +30,15 @@ export function QuickCashBar({ className, disabled }: { className?: string; disa
   const [repairOpen, setRepairOpen] = useState(false)
   const [pendingOpen, setPendingOpen] = useState(false)
 
-  if (!enabled) return null
+  // The parts' delivery fee is a cost every shop has: its button shows even without the module
+  if (!enabled) {
+    return (
+      <div className={cn('flex justify-end', className)}>
+        <DeliveryFeeButton disabled={disabled}
+          className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300" />
+      </div>
+    )
+  }
 
   const btn = 'flex-1 min-w-0 rounded-xl px-2 py-2 text-xs sm:text-sm font-bold transition-colors active:scale-[0.98] disabled:opacity-50 whitespace-nowrap'
   return (
@@ -44,6 +53,7 @@ export function QuickCashBar({ className, disabled }: { className?: string; disa
         <button type="button" disabled={disabled} onClick={() => setRepairOpen(true)} className={cn(btn, 'bg-blue-600 text-white hover:bg-blue-700')}>
           🔧 <span className="sm:hidden">ค่าซ่อม</span><span className="hidden sm:inline">รับเงินค่าซ่อม</span>
         </button>
+        <DeliveryFeeButton disabled={disabled} label="🚐 ค่ารถ" className={cn(btn, 'flex-none bg-amber-500 px-3 text-white hover:bg-amber-600')} />
         <button
           type="button"
           onClick={() => setPendingOpen(true)}

@@ -25,7 +25,7 @@ import api from '@/lib/api'
 import { useAuthStore } from '@/store/auth.store'
 import { ZeroBillPanel, type ZeroReason } from '@/components/pos/zero-bill-panel'
 import type { Sale, SerialNumber, PaymentMethod, ShopSettings } from '@/types'
-import type { CartItem } from '@/store/cart.store'
+import { useCartStore, freebieLines, type CartItem } from '@/store/cart.store'
 import { WriteOffDialog, toLocalInput } from '@/components/pos/write-off-dialog'
 
 const checkoutSchema = z.object({
@@ -258,6 +258,7 @@ export function CheckoutDialog({
   onWrittenOff,
 }: CheckoutDialogProps) {
   const queryClient = useQueryClient()
+  const freebieCount = (useCartStore((s) => s.freebies) ?? []).reduce((n, f) => n + f.quantity, 0)
 
   // Late entry (owner / manager): goods sold earlier, keyed in now at their real price
   const role = useAuthStore((s) => s.user?.role)
@@ -394,7 +395,7 @@ export function CheckoutDialog({
           // Line discount sent on its own (as SUNMI does) so the receipt shows "(ลด ฿x)"
           discount:  (i.itemDiscount ?? 0) * i.quantity || undefined,
           serialIds: i.product.hasSerial ? (serialAssignments[i.product.id] ?? []) : undefined,
-        })),
+        })).concat(freebieLines(useCartStore.getState().freebies) as never[]),
       }
 
       if (splitMode) {
@@ -466,6 +467,12 @@ export function CheckoutDialog({
                 <span>สินค้า {cartItems.length} รายการ ({cartItems.reduce((s, i) => s + i.quantity, 0)} ชิ้น)</span>
                 <span className="tabular-nums">{formatThaiMoney(subtotal)}</span>
               </div>
+              {freebieCount > 0 && (
+                <div className="flex justify-between text-fuchsia-700 dark:text-fuchsia-300">
+                  <span>🎁 ของแถม {freebieCount} ชิ้น</span>
+                  <span className="tabular-nums">ฟรี</span>
+                </div>
+              )}
               {discount > 0 && (
                 <div className="flex justify-between text-red-600 dark:text-red-400">
                   <span>ส่วนลด</span>

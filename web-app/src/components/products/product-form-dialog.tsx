@@ -48,6 +48,10 @@ export const productSchema = z.object({
   hasSerial: z.boolean().default(false),
   // New product sold by IMEI: the IMEIs of the opening units (their count is the opening stock)
   initialSerials: z.array(z.string()).optional(),
+  // A give-away (กะละมัง, กระติก...): cost and stock, never sold
+  giveawayOnly: z.boolean().default(false),
+  // Given free every time this product is sold
+  freebies: z.array(z.object({ productId: z.string(), quantity: z.coerce.number().int().min(1) })).optional(),
 })
 
 export type ProductFormData = z.infer<typeof productSchema>
@@ -87,6 +91,7 @@ const defaultValues: ProductFormData = {
   warrantyType: 'NO_WARRANTY',
   warrantyDays: undefined,
   hasSerial: false,
+  giveawayOnly: false,
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -137,6 +142,8 @@ export function ProductFormDialog({
   const selectedCategory = watch('categoryId')
   const selectedWarranty = watch('warrantyType')
   const hasSerial        = watch('hasSerial')
+  const giveawayOnly     = watch('giveawayOnly')
+  const freebies         = watch('freebies') ?? []
   const priceNum         = Number(watch('price')) || 0
   const costNum          = Number(watch('costPrice')) || 0
   // Opening IMEIs: only when creating a product with stock in one branch
@@ -221,6 +228,8 @@ export function ProductFormDialog({
         warrantyType: (product.warrantyType ?? 'NO_WARRANTY') as ProductFormData['warrantyType'],
         warrantyDays: product.warrantyDays ?? undefined,
         hasSerial:    product.hasSerial ?? false,
+        giveawayOnly: product.giveawayOnly ?? false,
+        freebies:     product.freebies ?? [],
       })
     } else {
       setSelectedCategoryTypeId('')
@@ -418,13 +427,24 @@ export function ProductFormDialog({
             </div>
           </div>
 
+          {/* A give-away has a cost and stock but no price */}
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-fuchsia-200 bg-fuchsia-50/60 px-3 py-2.5 dark:border-fuchsia-900 dark:bg-fuchsia-900/10">
+            <input type="checkbox" checked={!!giveawayOnly} disabled={isLoading}
+              onChange={(e) => { setValue('giveawayOnly', e.target.checked); if (e.target.checked) setValue('price', 0) }}
+              className="mt-0.5 h-4 w-4 accent-fuchsia-600" />
+            <span className="text-sm">
+              <span className="font-semibold">🎁 ของแถม ไม่ได้ขาย</span>
+              <span className="block text-xs text-muted-foreground">เช่น กะละมัง กระติกน้ำ — มีต้นทุนและสต็อก แต่ไม่มีราคาขาย ใช้ปุ่ม “เพิ่มของแถม” ตอนขาย</span>
+            </span>
+          </label>
+
           {/* Price + Cost Price */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>ราคาขาย (บาท) <span className="text-red-500">*</span></Label>
+              <Label>ราคาขาย (บาท) {!giveawayOnly && <span className="text-red-500">*</span>}</Label>
               <Input
-                type="number" step="1" min="0" placeholder="0"
-                disabled={isLoading}
+                type="number" step="1" min="0" placeholder={giveawayOnly ? 'ไม่ขาย' : '0'}
+                disabled={isLoading || !!giveawayOnly}
                 {...register('price')}
                 className={errors.price ? 'border-red-400' : ''}
               />
@@ -547,6 +567,11 @@ export function ProductFormDialog({
               </Label>
             </div>
 
+            {!giveawayOnly && (
+              <FreebiesField value={freebies} selfId={product?.id} disabled={isLoading}
+                onChange={(v) => setValue('freebies', v, { shouldDirty: true })} />
+            )}
+
             {openBySerial && (
               <div className="space-y-1.5">
                 <Label htmlFor="initial-imei">IMEI ของเครื่องที่มีอยู่ตอนนี้ (บรรทัดละ 1 เครื่อง — เว้นว่างถ้ายังไม่มีของ)</Label>
@@ -580,5 +605,45 @@ export function ProductFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** "ของแถมประจำรุ่นนี้": give-aways the till adds every time this product is sold */
+function FreebiesField({ value, onChange, selfId, disabled }: {
+  value: { productId: string; quantity: number }[]
+  onChange: (v: { productId: string; quantity: number }[]) => void
+  selfId?: string
+  disabled?: boolean
+}) {
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ['products', 'freebie-options'],
+    queryFn: async () => {
+      const res = await api.get('/products')
+      return Array.isArray(res.data) ? res.data : res.data?.items ?? []
+    },
+    staleTime: 60_000,
+  })
+  const name = (id: string) => products.find((p) => p.id === id)?.name ?? '…'
+  const options = products
+    .filter((p) => p.isActive && p.id !== selfId && !value.some((v) => v.productId === p.id) && p.type !== 'PHONE')
+    .sort((a, b) => Number(!!b.giveawayOnly) - Number(!!a.giveawayOnly) || a.name.localeCompare(b.name, 'th'))
+  return (
+    <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+      <Label>🎁 ของแถมประจำรุ่นนี้ <span className="font-normal text-muted-foreground">(ไม่บังคับ — ขายชิ้นนี้แล้วระบบใส่ของแถมให้เอง ลบออกได้)</span></Label>
+      {value.map((f) => (
+        <div key={f.productId} className="flex items-center gap-2 text-sm">
+          <span className="min-w-0 flex-1 truncate">{name(f.productId)}</span>
+          <Input type="number" min={1} value={f.quantity} disabled={disabled} className="h-8 w-16"
+            onChange={(e) => onChange(value.map((x) => x.productId === f.productId ? { ...x, quantity: Math.max(1, Number(e.target.value) || 1) } : x))} />
+          <button type="button" disabled={disabled} onClick={() => onChange(value.filter((x) => x.productId !== f.productId))}
+            className="rounded-lg px-2 py-1 text-xs text-red-600 hover:bg-red-50">ลบ</button>
+        </div>
+      ))}
+      <select value="" disabled={disabled} onChange={(e) => { if (e.target.value) onChange([...value, { productId: e.target.value, quantity: 1 }]) }}
+        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
+        <option value="">+ เลือกของแถม…</option>
+        {options.map((p) => <option key={p.id} value={p.id}>{p.giveawayOnly ? '🎁 ' : ''}{p.name}</option>)}
+      </select>
+    </div>
   )
 }

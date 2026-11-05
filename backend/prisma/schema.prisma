@@ -464,11 +464,11 @@ model User {
   passwordResetById     String?
   lastPasswordChangedAt DateTime?
 
-  googleId   String? @unique
-  lineUserId String? @unique
+  googleId       String? @unique
+  lineUserId     String? @unique
   /// This person's chat with FixITPro's LINE account (Messaging API id, not the LINE-login id):
   /// SIM / package sales they type there are recorded as theirs
-  lineChatId String? @unique
+  lineChatId     String? @unique
   // Staff app lock: the 6-digit PIN (bcrypt) and wrong tries since the last right one
   appPinHash     String?
   appPinFailures Int     @default(0)
@@ -634,6 +634,10 @@ model Product {
   description  String?
   imageUrl     String?
   isActive     Boolean      @default(true)
+  /// A give-away (กะละมัง, กระติก...): has a cost and stock but is never sold — only added free to a bill
+  giveawayOnly Boolean      @default(false)
+  /// Given free every time this product is sold: [{ productId, quantity }] (the till adds them; removable)
+  freebies     Json?
   warrantyType WarrantyType @default(NO_WARRANTY)
   warrantyDays Int?
   hasSerial    Boolean      @default(false)
@@ -815,13 +819,17 @@ model SalePayment {
 }
 
 model SaleItem {
-  id          String  @id @default(cuid())
-  quantity    Int
-  price       Decimal @db.Decimal(10, 2)
-  costPrice   Decimal @default(0) @db.Decimal(10, 2)
-  discount    Decimal @default(0) @db.Decimal(10, 2)
-  total       Decimal @db.Decimal(10, 2)
-  refundedQty Int     @default(0)
+  id           String   @id @default(cuid())
+  quantity     Int
+  price        Decimal  @db.Decimal(10, 2)
+  costPrice    Decimal  @default(0) @db.Decimal(10, 2)
+  discount     Decimal  @default(0) @db.Decimal(10, 2)
+  total        Decimal  @db.Decimal(10, 2)
+  refundedQty  Int      @default(0)
+  /// Given free with the bill: stock and cost count, the customer pays nothing; the receipt
+  /// shows it as a free item worth freebieValue (its normal price then)
+  isFreebie    Boolean  @default(false)
+  freebieValue Decimal? @db.Decimal(10, 2)
 
   saleId String
   sale   Sale   @relation(fields: [saleId], references: [id])
@@ -915,9 +923,9 @@ model Repair {
   paidDiscount       Decimal?     @db.Decimal(10, 2)
   paidDiscountById   String?
   /// Recorded in one step when the customer paid (no intake ticket at the time)
-  quickEntry         Boolean   @default(false)
+  quickEntry         Boolean      @default(false)
   /// Quick job whose parts have not been taken from stock yet (done in the evening)
-  partsPending       Boolean   @default(false)
+  partsPending       Boolean      @default(false)
   estimatedTotal     Decimal?     @db.Decimal(10, 2)
   actualLaborCost    Decimal?     @db.Decimal(10, 2)
   approvedAt         DateTime?
@@ -955,6 +963,7 @@ model Repair {
   parts              RepairPart[]
   images             RepairImage[]
   additionalPayments RepairAdditionalPayment[]
+  extraCosts         RepairExtraCost[]
   signatures         RepairSignature[]
   paymentReversals   RepairPaymentReversal[]
   claims             Claim[]
@@ -1017,52 +1026,52 @@ model RepairAdditionalPayment {
 }
 
 model ShopSettings {
-  id                      Int      @id @default(autoincrement())
-  shopName                String   @default("FixITPro")
-  shopSubtitle            String?
-  shopPhone               String?
-  shopAddress             String?
-  shopEmail               String?
-  taxId                   String?
-  logoUrl                 String?
-  receiptFooter           String?
-  paperWidth              String   @default("80mm")
-  vatPercent              Decimal  @default(0) @db.Decimal(5, 2)
-  defaultDeposit          Decimal  @default(0) @db.Decimal(10, 2)
-  autoGenerateSku         Boolean  @default(true)
-  autoGenerateBarcode     Boolean  @default(false)
-  autoPrint               Boolean  @default(false)
-  lowStockAlert           Int      @default(5)
+  id                        Int      @id @default(autoincrement())
+  shopName                  String   @default("FixITPro")
+  shopSubtitle              String?
+  shopPhone                 String?
+  shopAddress               String?
+  shopEmail                 String?
+  taxId                     String?
+  logoUrl                   String?
+  receiptFooter             String?
+  paperWidth                String   @default("80mm")
+  vatPercent                Decimal  @default(0) @db.Decimal(5, 2)
+  defaultDeposit            Decimal  @default(0) @db.Decimal(10, 2)
+  autoGenerateSku           Boolean  @default(true)
+  autoGenerateBarcode       Boolean  @default(false)
+  autoPrint                 Boolean  @default(false)
+  lowStockAlert             Int      @default(5)
   /// Most a non-owner may take off a repair bill at pickup, % of its price (null = no limit)
   staffDiscountLimitPercent Int?
   /// Optional module: quick money in/out buttons and one-step paid repairs on the sale screens
-  quickCashEnabled Boolean @default(false)
-  repairWarrantyText      String?
-  paymentQrUrl            String?
-  showTaxId               Boolean  @default(true)
-  showLogo                Boolean  @default(true)
+  quickCashEnabled          Boolean  @default(false)
+  repairWarrantyText        String?
+  paymentQrUrl              String?
+  showTaxId                 Boolean  @default(true)
+  showLogo                  Boolean  @default(true)
   // Formal A4 documents: the owner's legal name (instead of the shop brand) and the tax branch
-  legalName               String?
-  taxBranch               String?
+  legalName                 String?
+  taxBranch                 String?
   // The shop's look: theme set key (null / original = the product's own look) and light / dark / auto
-  themeKey                String?
-  themePreset             String?
-  lineChannelAccessToken  String?
-  lineNotifyEnabled       Boolean  @default(false)
-  promptpayId             String?
+  themeKey                  String?
+  themePreset               String?
+  lineChannelAccessToken    String?
+  lineNotifyEnabled         Boolean  @default(false)
+  promptpayId               String?
   // Platform row only: bank accounts shown to shops on the renewal page
-  renewalBankInfo         String?
+  renewalBankInfo           String?
   // Technician pay per repair for the commission report:
   // NONE | PERCENT_TOTAL (of the job price) | PERCENT_LABOR (of price minus parts) | FIXED (per job)
-  techCommissionType      String   @default("NONE")
-  techCommissionValue     Decimal  @default(0) @db.Decimal(10, 2)
+  techCommissionType        String   @default("NONE")
+  techCommissionValue       Decimal  @default(0) @db.Decimal(10, 2)
   // BY_TYPE: baht per repair type (issue tag), e.g. {"หน้าจอ": 150, "แบตเตอรี่": 80}
-  techCommissionTypeRates Json     @default("{}")
+  techCommissionTypeRates   Json     @default("{}")
   // Commission for selling products (phones by default), paid to the seller
-  saleCommissionType      String   @default("NONE")
-  saleCommissionValue     Decimal  @default(0) @db.Decimal(10, 2)
-  saleCommissionScope     String   @default("PHONE")
-  updatedAt               DateTime @updatedAt
+  saleCommissionType        String   @default("NONE")
+  saleCommissionValue       Decimal  @default(0) @db.Decimal(10, 2)
+  saleCommissionScope       String   @default("PHONE")
+  updatedAt                 DateTime @updatedAt
 
   tenantId String? @unique
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -2322,4 +2331,24 @@ model RepairSignature {
   createdAt   DateTime @default(now())
 
   @@unique([repairId, kind])
+}
+
+/// A cost of a repair job that is not a part, e.g. the delivery fee paid for the parts ordered
+/// for it (ค่ารถส่งอะไหล่). Counts in the job's cost when the job is paid for.
+model RepairExtraCost {
+  id          String   @id @default(cuid())
+  kind        String // 'DELIVERY'
+  amount      Decimal  @db.Decimal(10, 2)
+  note        String?
+  /// Paid from the shift's drawer (it leaves the drawer as a cash movement), else by the owner
+  fromDrawer  Boolean  @default(true)
+  shiftId     String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  repairId String
+  repair   Repair @relation(fields: [repairId], references: [id], onDelete: Cascade)
+
+  @@index([repairId])
+  @@index([createdAt])
 }

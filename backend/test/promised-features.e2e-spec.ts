@@ -20,6 +20,7 @@ describe('Promised features (e2e)', () => {
   let owner: string;
   const run = Date.now().toString(36).toUpperCase();
   let shiftOpened = false;
+  let shiftJoined = false;
 
   beforeAll(async () => {
     prisma = testPrisma();
@@ -28,8 +29,16 @@ describe('Promised features (e2e)', () => {
     owner = (await loginAs(app, CREDS.ownerA.email, CREDS.ownerA.password)).cookies;
     const cur = (await authGet(app, '/api/v1/shifts/current', owner).expect(200)).body;
     if (!cur?.id) {
-      await authPost(app, '/api/v1/shifts/open', owner, { openBalance: 0 }).expect(201);
-      shiftOpened = true;
+      // One shift per branch: another test may have left this branch's drawer open — work in it
+      const open = await authPost(app, '/api/v1/shifts/open', owner, { openBalance: 0 });
+      if (open.status === 409) {
+        const [joinable] = (await authGet(app, '/api/v1/shifts/joinable', owner).expect(200)).body;
+        await authPost(app, `/api/v1/shifts/${joinable.id}/join`, owner, {}).expect(201);
+        shiftJoined = true;
+      } else {
+        expect(open.status).toBe(201);
+        shiftOpened = true;
+      }
     }
   });
 
@@ -38,6 +47,7 @@ describe('Promised features (e2e)', () => {
       const cur = (await authGet(app, '/api/v1/shifts/current', owner)).body;
       if (cur?.id) await authPost(app, `/api/v1/shifts/${cur.id}/close`, owner, { closeBalance: 0, note: 'e2e' });
     }
+    if (shiftJoined) await authPost(app, '/api/v1/shifts/leave', owner, {});
     await app?.close();
     await prisma?.$disconnect();
   });

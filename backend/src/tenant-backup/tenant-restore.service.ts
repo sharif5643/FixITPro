@@ -279,7 +279,7 @@ export class TenantRestoreService {
       serialNumbers, saleRefundItems, warranties, claims, claimHistories,
       partnerRelationships, partnerTransfers, partnerTransferEvents,
       partnerQuotations, partnerQuotationEvents,
-      shiftCashMovements, repairPrices, repairSignatures,
+      shiftCashMovements, repairPrices, repairSignatures, repairExtraCosts,
     ] = await Promise.all([
       read('branches.json'),
       read('users.json'),
@@ -336,6 +336,7 @@ export class TenantRestoreService {
       read('repair_prices.json'),
       // Backups made before signatures existed have no such file: nothing to restore
       read('repair_signatures.json'),
+      read('repair_extra_costs.json'),
     ]);
 
     // Helper: parse dates in an object
@@ -410,6 +411,7 @@ export class TenantRestoreService {
       await tx.repairQc.deleteMany({ where: { repair: { branch: { tenantId } } } });
       await tx.repairPaymentReversal.deleteMany({ where: { repair: { branch: { tenantId } } } });
       await tx.repairAdditionalPayment.deleteMany({ where: { repair: { branch: { tenantId } } } });
+      await tx.repairExtraCost.deleteMany({ where: { repair: { branch: { tenantId } } } });
       await tx.repairImage.deleteMany({ where: { repair: { branch: { tenantId } } } });
       await tx.repairPart.deleteMany({ where: { repair: { branch: { tenantId } } } });
 
@@ -596,6 +598,9 @@ export class TenantRestoreService {
       }
       for (const rs of withDates(repairSignatures as Record<string, unknown>[])) {
         await tx.repairSignature.create({ data: rs as Parameters<typeof tx.repairSignature.create>[0]['data'] });
+      }
+      for (const rc of withDates(repairExtraCosts as Record<string, unknown>[])) {
+        await tx.repairExtraCost.create({ data: rc as Parameters<typeof tx.repairExtraCost.create>[0]['data'] });
       }
       for (const rqc of withDates(repairQcs as Record<string, unknown>[])) {
         await tx.repairQc.create({ data: rqc as Parameters<typeof tx.repairQc.create>[0]['data'] });

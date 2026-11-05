@@ -9,8 +9,20 @@ export interface CartItem {
   itemDiscount?: number  // per-item discount in baht (applied per unit)
 }
 
+/** A give-away on the bill (ของแถม): priced 0, its cost counts against the bill */
+export interface CartFreebie {
+  product: Product
+  quantity: number
+  /** added because the product sold comes with it (removed with it) */
+  auto?: string
+}
+
 interface CartStore {
   items: CartItem[]
+  freebies: CartFreebie[]
+  addFreebie: (product: Product, quantity?: number, auto?: string) => void
+  setFreebieQty: (productId: string, quantity: number) => void
+  removeFreebie: (productId: string) => void
   discount: number
   addItem: (product: Product, serialIds?: string[]) => void
   removeItem: (productId: string) => void
@@ -25,6 +37,24 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       discount: 0,
+      freebies: [],
+
+      addFreebie: (product, quantity = 1, auto) => {
+        const freebies = get().freebies ?? []
+        const existing = freebies.find((f) => f.product.id === product.id)
+        if (existing) {
+          set({ freebies: freebies.map((f) => f.product.id === product.id ? { ...f, quantity: f.quantity + quantity } : f) })
+        } else {
+          set({ freebies: [...freebies, { product, quantity, ...(auto ? { auto } : {}) }] })
+        }
+      },
+      setFreebieQty: (productId, quantity) =>
+        set({
+          freebies: quantity < 1
+            ? (get().freebies ?? []).filter((f) => f.product.id !== productId)
+            : (get().freebies ?? []).map((f) => f.product.id === productId ? { ...f, quantity } : f),
+        }),
+      removeFreebie: (productId) => set({ freebies: (get().freebies ?? []).filter((f) => f.product.id !== productId) }),
 
       addItem: (product, serialIds) => {
         const items = get().items
@@ -71,7 +101,11 @@ export const useCartStore = create<CartStore>()(
       },
 
       removeItem: (productId) =>
-        set({ items: get().items.filter((i) => i.product.id !== productId) }),
+        set({
+          items: get().items.filter((i) => i.product.id !== productId),
+          // the give-aways that came with it go too
+          freebies: (get().freebies ?? []).filter((f) => f.auto !== productId),
+        }),
 
       updateQuantity: (productId, quantity) => {
         if (quantity < 1) {
@@ -101,8 +135,13 @@ export const useCartStore = create<CartStore>()(
         }),
 
       setDiscount: (discount) => set({ discount: Math.max(0, discount) }),
-      clearCart: () => set({ items: [], discount: 0 }),
+      clearCart: () => set({ items: [], discount: 0, freebies: [] }),
     }),
     { name: 'fixitpro-cart' },
   ),
 )
+
+/** The bill's give-away lines as the API takes them */
+export function freebieLines(freebies: CartFreebie[] | undefined) {
+  return (freebies ?? []).map((f) => ({ productId: f.product.id, quantity: f.quantity, price: 0, isFreebie: true }))
+}

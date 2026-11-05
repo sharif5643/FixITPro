@@ -10,7 +10,7 @@ import { INCOME_CATEGORIES } from '../../shifts/shift-cash';
  *    items that came back in a refund.
  *  - Repairs: money actually received in the period — deposits taken at intake (repair not cancelled),
  *    payments at pickup (fully or partly paid) and later debt payments. Repair costs (parts +
- *    labour) count when the device is handed over and paid for.
+ *    labour + extra costs such as the parts' delivery fee) count when the device is paid for.
  *  - Money taken at the counter without a bill (quick money in for goods or a service): revenue,
  *    shown on its own as otherIncome.
  *  - SIM / packages: revenue is the shop's profit (commission); the face value is reported
@@ -99,6 +99,7 @@ export async function loadPeriodMoney(
       select: {
         paidAt: true, branchId: true, paidAmount: true, paymentMethod: true, actualLaborCost: true,
         parts: { where: { isVoided: false }, select: { costPrice: true, price: true, quantity: true } },
+        extraCosts: { select: { amount: true } },
       },
     }),
     prisma.repairAdditionalPayment.findMany({
@@ -163,7 +164,9 @@ export async function loadPeriodMoney(
       amount: Number(r.paidAmount ?? 0),
       method: r.paymentMethod ?? 'CASH',
       cost: Number(r.actualLaborCost ?? 0)
-        + r.parts.reduce((sum, p) => sum + Number(p.costPrice ?? p.price) * p.quantity, 0),
+        + r.parts.reduce((sum, p) => sum + Number(p.costPrice ?? p.price) * p.quantity, 0)
+        // e.g. the delivery fee for the parts ordered for this job
+        + r.extraCosts.reduce((sum, c) => sum + Number(c.amount), 0),
     })),
     debtPayments: debtPayments.map((p) => ({
       date: p.createdAt,

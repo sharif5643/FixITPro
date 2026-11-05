@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { loadPeriodMoney, summarizeMoney } from '../common/money/period-money';
+import { loadPeriodMoney, summarizeMoney, bangkokDay } from '../common/money/period-money';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 
@@ -175,17 +175,9 @@ export class ReportsService {
     const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
     const [
-      todaySalesAgg,
-      todaySalesByMethod,
-      todayRepairAgg,
-      todayRepairByMethod,
-      todayPackageSalesAgg,
       todayVoidedAgg,
       activeRepairsByStatus,
       overdueCount,
-      weeklySales,
-      weeklyRepairPmts,
-      weeklyPackageSales,
       topProductGroups,
       staffSaleGroups,
       staffRepairGroups,
@@ -197,34 +189,6 @@ export class ReportsService {
       overdueSupplierPoCount,
       apOutstandingAgg,
     ] = await Promise.all([
-      this.prisma.sale.aggregate({
-        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
-        _sum: { total: true },
-        _count: { id: true },
-      }),
-      this.prisma.sale.groupBy({
-        by: ['paymentMethod'],
-        where: { createdAt: { gte: todayStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
-        _sum: { total: true },
-      }),
-      this.prisma.repair.aggregate({
-        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
-        _sum: { paidAmount: true },
-        _count: { id: true },
-      }),
-      this.prisma.repair.groupBy({
-        by: ['paymentMethod'],
-        where: { paidAt: { gte: todayStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
-        _sum: { paidAmount: true },
-      }),
-      this.prisma.packageSale.aggregate({
-        where: {
-          createdAt: { gte: todayStart, lt: todayEnd },
-          ...(tenantId ? { createdBy: { tenantId } } : {}),
-        },
-        _sum: { packageAmount: true, profit: true },
-        _count: { id: true },
-      }),
       this.prisma.sale.aggregate({
         where: { voidedAt: { gte: todayStart, lt: todayEnd }, status: 'VOIDED', ...bFilter },
         _sum: { total: true },
@@ -241,21 +205,6 @@ export class ReportsService {
           status: { notIn: ['DELIVERED', 'CANCELLED', 'COMPLETED'] },
           ...bFilter,
         },
-      }),
-      this.prisma.sale.findMany({
-        where: { createdAt: { gte: weekAgoStart, lt: todayEnd }, status: { not: 'VOIDED' }, ...bFilter },
-        select: { total: true, createdAt: true },
-      }),
-      this.prisma.repair.findMany({
-        where: { paidAt: { gte: weekAgoStart, lt: todayEnd }, paymentStatus: 'PAID', ...bFilter },
-        select: { paidAmount: true, paidAt: true },
-      }),
-      this.prisma.packageSale.findMany({
-        where: {
-          createdAt: { gte: weekAgoStart, lt: todayEnd },
-          ...(tenantId ? { createdBy: { tenantId } } : {}),
-        },
-        select: { profit: true, createdAt: true },
       }),
       this.prisma.saleItem.groupBy({
         by: ['productId'],
@@ -317,22 +266,24 @@ export class ReportsService {
       }),
     ]);
 
-    // --- Today financials ---
-    const salesRevenue = Number(todaySalesAgg._sum.total ?? 0);
-    const repairRevenue = Number(todayRepairAgg._sum.paidAmount ?? 0);
-    const packageSaleRevenue = Number(todayPackageSalesAgg._sum.profit ?? 0);
-    const packageSaleAmount = Number(todayPackageSalesAgg._sum.packageAmount ?? 0);
-    const totalRevenue = salesRevenue + repairRevenue + packageSaleRevenue;
+    // --- Today financials: the same money as the dashboard, profit report and daily close
+    // (refunds taken off, repair deposits / partial and debt payments counted, split payments
+    // per method) ---
+    const moneyRows = await loadPeriodMoney(this.prisma, {
+      start: weekAgoStart, end: todayEnd, branchWhere: bFilter, branchId, tenantId,
+    });
+    const today = summarizeMoney(moneyRows, (r) => bangkokDay(r.date) === todayStr);
+    const salesRevenue = today.posRevenue;
+    const repairRevenue = today.repairRevenue;
+    const packageSaleRevenue = today.packageProfit;
+    const packageSaleAmount = today.packageAmount;
+    const totalRevenue = today.totalRevenue;
 
     const voidedCount = todayVoidedAgg._count.id;
     const voidedAmount = Number(todayVoidedAgg._sum.total ?? 0);
 
-    const cashIn =
-      Number(todaySalesByMethod.find((r) => r.paymentMethod === 'CASH')?._sum.total ?? 0) +
-      Number(todayRepairByMethod.find((r) => r.paymentMethod === 'CASH')?._sum.paidAmount ?? 0);
-    const transferIn =
-      Number(todaySalesByMethod.find((r) => r.paymentMethod === 'TRANSFER')?._sum.total ?? 0) +
-      Number(todayRepairByMethod.find((r) => r.paymentMethod === 'TRANSFER')?._sum.paidAmount ?? 0);
+    const cashIn = today.byMethod['CASH'] ?? 0;
+    const transferIn = today.byMethod['TRANSFER'] ?? 0;
 
     // --- Repair operations ---
     const statusMap = Object.fromEntries(
@@ -345,29 +296,10 @@ export class ReportsService {
       const d = new Date(weekAgoStart.getTime() + i * 24 * 60 * 60 * 1000);
       weeklyMap.set(toThaiDate(d), { sales: 0, repairs: 0, packages: 0 });
     }
-    weeklySales.forEach((s) => {
-      const key = toThaiDate(s.createdAt);
-      const entry = weeklyMap.get(key);
-      if (entry) entry.sales += Number(s.total);
+    const weeklyRevenue = Array.from(weeklyMap.keys()).map((date) => {
+      const day = summarizeMoney(moneyRows, (r) => bangkokDay(r.date) === date);
+      return { date, sales: day.posRevenue, repairs: day.repairRevenue, packages: day.packageProfit, total: day.totalRevenue };
     });
-    weeklyRepairPmts.forEach((r) => {
-      if (!r.paidAt) return;
-      const key = toThaiDate(r.paidAt);
-      const entry = weeklyMap.get(key);
-      if (entry) entry.repairs += Number(r.paidAmount ?? 0);
-    });
-    weeklyPackageSales.forEach((p) => {
-      const key = toThaiDate(p.createdAt);
-      const entry = weeklyMap.get(key);
-      if (entry) entry.packages += Number(p.profit);
-    });
-    const weeklyRevenue = Array.from(weeklyMap.entries()).map(([date, v]) => ({
-      date,
-      sales: v.sales,
-      repairs: v.repairs,
-      packages: v.packages,
-      total: v.sales + v.repairs + v.packages,
-    }));
 
     // --- Top products (need names) ---
     const productIds = topProductGroups.map((p) => p.productId);
@@ -436,10 +368,10 @@ export class ReportsService {
         repairRevenue,
         packageSaleRevenue,
         packageSaleAmount,
-        packageSaleCount: todayPackageSalesAgg._count.id,
+        packageSaleCount: today.packageCount,
         totalRevenue,
-        salesCount: todaySalesAgg._count.id,
-        repairPaymentsCount: todayRepairAgg._count.id,
+        salesCount: today.salesCount,
+        repairPaymentsCount: today.repairPaymentCount,
         cashIn,
         transferIn,
         voidedCount,
@@ -597,7 +529,7 @@ export class ReportsService {
         },
         select: {
           id: true, receiptNumber: true, carrier: true, packageAmount: true,
-          profit: true, paymentMethod: true, createdAt: true,
+          profit: true, paymentMethod: true, createdAt: true, creditAmount: true,
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'asc' },
@@ -657,18 +589,8 @@ export class ReportsService {
 
     // Revenue
     const posRevenue = sales.reduce((sum, s) => sum + Number(s.total), 0);
-    const posPaymentBreakdown = sales.reduce((acc, s) => {
-      acc[s.paymentMethod] = (acc[s.paymentMethod] || 0) + Number(s.total);
-      return acc;
-    }, {} as Record<string, number>);
 
     const repairRevenue = repairPayments.reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0);
-    const repairPaymentBreakdown = repairPayments.reduce((acc, r) => {
-      const m = r.paymentMethod ?? 'CASH';
-      acc[m] = (acc[m] || 0) + Number(r.paidAmount ?? 0);
-      return acc;
-    }, {} as Record<string, number>);
-
     const packageRevenue = packageSales.reduce((sum, p) => sum + Number(p.profit), 0);
     const packageAmount = packageSales.reduce((sum, p) => sum + Number(p.packageAmount), 0);
     const refundTotal = refunds.reduce((sum, r) => sum + Number(r.totalRefund), 0);
@@ -681,10 +603,22 @@ export class ReportsService {
     // Totals and the cash/transfer split use the shared money rules (common/money/period-money.ts):
     // refunds come off POS, repairs count deposits, partial and debt payments, split bills
     // count each payment leg. The lists below stay as detail.
-    const money = summarizeMoney(await loadPeriodMoney(this.prisma, {
+    const moneyRows = await loadPeriodMoney(this.prisma, {
       start, end, branchWhere: bFilter, branchId, tenantId,
-    }));
+    });
+    const money = summarizeMoney(moneyRows);
     const grandTotal = money.totalRevenue;
+    // Per payment method, adding up to the totals above: a split bill counts each leg, refunds
+    // come off the method they were paid back with, repairs include deposits and debt payments
+    const addTo = (acc: Record<string, number>, method: string, amount: number) => {
+      acc[method] = Math.round(((acc[method] ?? 0) + amount) * 100) / 100;
+      return acc;
+    };
+    const posPaymentBreakdown: Record<string, number> = {};
+    for (const s of moneyRows.sales) for (const l of s.legs) addTo(posPaymentBreakdown, l.method, l.amount);
+    for (const r of moneyRows.refunds) addTo(posPaymentBreakdown, r.method, -r.amount);
+    const repairPaymentBreakdown: Record<string, number> = {};
+    for (const r of [...moneyRows.deposits, ...moneyRows.pickups, ...moneyRows.debtPayments]) addTo(repairPaymentBreakdown, r.method, r.amount);
 
     // Repairs by status (current active state)
     const activeByStatus = await this.prisma.repair.groupBy({
@@ -818,7 +752,15 @@ export class ReportsService {
           total: money.repairRevenue, count: repairPayments.length, breakdown: repairPaymentBreakdown,
           deposits: money.repairDeposits, atPickup: money.repairPickup, debtPayments: money.repairDebtPayments,
         },
-        packages: { total: packageRevenue, amount: packageAmount, count: packageSales.length },
+        packages: {
+          total: packageRevenue, amount: packageAmount, count: packageSales.length,
+          // What customers paid at the counter per method (a credit sale brings in only its part)
+          byMethod: packageSales.reduce((acc, p) => {
+            const paid = Number(p.packageAmount) - Number(p.creditAmount ?? 0);
+            acc[p.paymentMethod] = Math.round(((acc[p.paymentMethod] ?? 0) + paid) * 100) / 100;
+            return acc;
+          }, {} as Record<string, number>),
+        },
         // money taken at the counter without a bill (quick money in for goods / a service)
         otherIncome: { total: money.otherIncome, count: money.otherIncomeCount },
         refunds: { total: refundTotal, count: refunds.length },
@@ -934,7 +876,8 @@ export class ReportsService {
           costPrice: true,
           discount: true,
           total: true,
-          product: { select: { id: true, name: true, sku: true } },
+          isFreebie: true,
+          product: { select: { id: true, name: true, sku: true, price: true } },
           sale: {
             select: {
               createdAt: true,
@@ -964,9 +907,11 @@ export class ReportsService {
               price:     true,
               costPrice: true,
               sellPrice: true,
-              product:   { select: { name: true } },
+              isFreebie: true,
+              product:   { select: { id: true, name: true, price: true } },
             },
           },
+          extraCosts: { select: { kind: true, amount: true } },
         },
       }),
 
@@ -1003,9 +948,10 @@ export class ReportsService {
 
     // Totals use the shared money rules (common/money/period-money.ts): bill discounts and
     // refunds come off POS revenue, repairs count deposits, partial and debt payments.
-    const money = summarizeMoney(await loadPeriodMoney(this.prisma, {
+    const moneyRows = await loadPeriodMoney(this.prisma, {
       start, end, branchWhere: bFilter, branchId, tenantId,
-    }));
+    });
+    const money = summarizeMoney(moneyRows);
     const lineTotal = saleItems.reduce((s, i) => s + Number(i.total), 0);
 
     // --- POS profit ---
@@ -1017,11 +963,14 @@ export class ReportsService {
     // costPrice = COGS (product cost snapshot at time of adding the part)
     // fallback to price for legacy parts created before the migration
     const repairRevenue   = money.repairRevenue;
-    const repairPartsCost = repaids.reduce(
-      (s, r) => s + r.parts.reduce((ps, p) => ps + Number((p as any).costPrice ?? p.price) * p.quantity, 0), 0,
-    );
+    const partCost = (p: { costPrice?: unknown; price: unknown; quantity: number }) => Number(p.costPrice ?? p.price) * p.quantity;
+    const repairPartsCost = repaids.reduce((s, r) => s + r.parts.filter((p) => !p.isFreebie).reduce((ps, p) => ps + partCost(p), 0), 0);
+    // Hidden costs of the jobs: parts given free, and the delivery fee of the parts ordered for them
+    const repairFreebieCost = repaids.reduce((s, r) => s + r.parts.filter((p) => p.isFreebie).reduce((ps, p) => ps + partCost(p), 0), 0);
+    const repairDeliveryCost = repaids.reduce((s, r) => s + r.extraCosts.reduce((cs, c) => cs + Number(c.amount), 0), 0);
+    const repairDeliveryCount = repaids.reduce((n, r) => n + r.extraCosts.length, 0);
     const repairLaborCost = repaids.reduce((s, r) => s + Number(r.actualLaborCost ?? 0), 0);
-    const repairProfit    = repairRevenue - repairPartsCost - repairLaborCost;
+    const repairProfit    = repairRevenue - repairPartsCost - repairFreebieCost - repairDeliveryCost - repairLaborCost;
 
     // --- Package profit ---
     const packageProfit  = packageSales.reduce((s, p) => s + Number(p.profit), 0);
@@ -1029,6 +978,27 @@ export class ReportsService {
 
     // --- Expenses ---
     const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+    const shopDelivery = expenses.filter((e) => e.category.code === 'parts_delivery');
+
+    // Hidden costs (ต้นทุนแฝง): already inside the figures above, gathered here to be seen
+    const freebieLines = saleItems.filter((i) => i.isFreebie);
+    const posFreebieCost = freebieLines.reduce((s, i) => s + Number(i.costPrice) * i.quantity, 0);
+    const freebieByName = new Map<string, number>();
+    for (const i of freebieLines) freebieByName.set(i.product.name, (freebieByName.get(i.product.name) ?? 0) + i.quantity);
+    for (const r of repaids) for (const p of r.parts) if (p.isFreebie && p.product) freebieByName.set(p.product.name, (freebieByName.get(p.product.name) ?? 0) + p.quantity);
+    const deliveryShop = shopDelivery.reduce((s, e) => s + Number(e.amount), 0);
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const hiddenCosts = {
+      freebies: {
+        total: r2(posFreebieCost + repairFreebieCost), sales: r2(posFreebieCost), repairs: r2(repairFreebieCost),
+        items: [...freebieByName.entries()].map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty),
+      },
+      delivery: {
+        total: r2(repairDeliveryCost + deliveryShop), jobs: r2(repairDeliveryCost), shop: r2(deliveryShop),
+        count: repairDeliveryCount + shopDelivery.length,
+      },
+      total: r2(posFreebieCost + repairFreebieCost + repairDeliveryCost + deliveryShop),
+    };
 
     // Expense breakdown by category
     const expByCat = new Map<string, { name: string; total: number }>();
@@ -1053,10 +1023,14 @@ export class ReportsService {
       period: { startDate, endDate },
       pos: {
         revenue: posRevenue,
+        billCount:    money.salesCount,
+        refundCount:  moneyRows.refunds.length,
         grossSales:   money.posGross,
         billDiscount: Math.round((lineTotal - money.posGross) * 100) / 100,
         refunds:      money.posRefunds,
         cogs:    posCOGS,
+        // of which: goods given free with the bills (ต้นทุนแฝง)
+        freebieCost: r2(posFreebieCost),
         profit:  posProfit,
         margin:  posRevenue > 0 ? (posProfit / posRevenue) * 100 : 0,
         items:   saleItems.map((i) => ({
@@ -1065,6 +1039,7 @@ export class ReportsService {
           customer:      i.sale.customer?.name ?? null,
           product:       i.product.name,
           qty:           i.quantity,
+          isFreebie:     i.isFreebie,
           revenue:       Number(i.total),
           cogs:          Number(i.costPrice) * i.quantity,
           profit:        Number(i.total) - Number(i.costPrice) * i.quantity,
@@ -1076,12 +1051,16 @@ export class ReportsService {
         atPickup:     money.repairPickup,
         debtPayments: money.repairDebtPayments,
         partsCost: repairPartsCost,
+        freebieCost: r2(repairFreebieCost),
+        deliveryCost: r2(repairDeliveryCost),
+        deliveryCount: repairDeliveryCount,
         laborCost: repairLaborCost,
         profit:    repairProfit,
         count:     repaids.length,
         margin:    repairRevenue > 0 ? (repairProfit / repairRevenue) * 100 : 0,
         items:     repaids.map((r) => {
-          const pc = r.parts.reduce((s, p) => s + Number((p as any).costPrice ?? p.price) * p.quantity, 0);
+          const pc = r.parts.reduce((s, p) => s + partCost(p), 0);
+          const dc = r.extraCosts.reduce((s, c) => s + Number(c.amount), 0);
           const lc = Number(r.actualLaborCost ?? 0);
           return {
             time:         (r.paidAt as Date).toISOString(),
@@ -1090,8 +1069,9 @@ export class ReportsService {
             device:       `${r.deviceBrand} ${r.deviceModel}`,
             revenue:      Number(r.paidAmount ?? 0),
             partsCost:    pc,
+            deliveryCost: dc,
             laborCost:    lc,
-            profit:       Number(r.paidAmount ?? 0) - pc - lc,
+            profit:       Number(r.paidAmount ?? 0) - pc - dc - lc,
           };
         }),
       },
@@ -1120,6 +1100,8 @@ export class ReportsService {
           amount:        Number(e.amount),
         })),
       },
+      costWarnings: costWarningsOf(saleItems.filter((i) => !i.isFreebie), repaids),
+      hiddenCosts,
       summary: {
         grossProfit,
         netProfit,
@@ -1203,4 +1185,33 @@ export class ReportsService {
 
     return { suppliers, totals };
   }
+}
+
+/**
+ * Costs that make the profit wrong: a product sold for less than it cost (often a typing slip in
+ * the cost, e.g. 150,000 for 15,000), or sold with no cost at all (all of it shows as profit).
+ * Only what was sold in the period, so the warning explains this report's numbers.
+ */
+export function costWarningsOf(
+  saleItems: { quantity: number; total: unknown; costPrice: unknown; product: { id: string; name: string; price: unknown } }[],
+  repairs: { parts: { quantity: number; costPrice?: unknown; price: unknown; product: { id: string; name: string; price: unknown } | null }[] }[],
+) {
+  const below = new Map<string, { productId: string; name: string; cost: number; soldAt: number }>();
+  const noCost = new Map<string, { productId: string; name: string; price: number }>();
+  for (const i of saleItems) {
+    const cost = Number(i.costPrice ?? 0);
+    const unit = i.quantity > 0 ? Number(i.total) / i.quantity : 0;
+    if (cost <= 0) noCost.set(i.product.id, { productId: i.product.id, name: i.product.name, price: Number(i.product.price ?? 0) });
+    else if (cost > unit && unit >= 0) below.set(i.product.id, { productId: i.product.id, name: i.product.name, cost, soldAt: Math.round(unit * 100) / 100 });
+  }
+  for (const r of repairs) for (const p of r.parts) {
+    if (!p.product) continue;
+    if (Number(p.costPrice ?? p.price ?? 0) <= 0) noCost.set(p.product.id, { productId: p.product.id, name: p.product.name, price: Number(p.product.price ?? 0) });
+  }
+  return {
+    belowCost: [...below.values()].sort((a, b) => (b.cost - b.soldAt) - (a.cost - a.soldAt)).slice(0, 10),
+    belowCostCount: below.size,
+    noCost: [...noCost.values()].slice(0, 10),
+    noCostCount: noCost.size,
+  };
 }

@@ -157,6 +157,8 @@ export class ProductsService {
           warrantyType: (dto.warrantyType as any) ?? 'NO_WARRANTY',
           warrantyDays: dto.warrantyDays ?? null,
           hasSerial:    dto.hasSerial ?? false,
+          giveawayOnly: dto.giveawayOnly ?? false,
+          ...(dto.freebies ? { freebies: await this.freebiesOf(dto.freebies, tenantId) } : {}),
           ...(tenantId ? { tenantId } : {}),
         },
         include: { category: { include: { categoryType: { select: { id: true, name: true } } } } },
@@ -417,6 +419,19 @@ export class ProductsService {
     return { ...product, branchQuantity: product.stock, stockCode: null };
   }
 
+  /** The shop's own products only, each once, never the product itself */
+  private async freebiesOf(list: { productId: string; quantity: number }[], tenantId?: string | null, selfId?: string) {
+    const ids = [...new Set(list.map((f) => f.productId))].filter((x) => x !== selfId);
+    const found = ids.length ? await this.prisma.product.findMany({
+      where: { id: { in: ids }, isActive: true, ...this.tenantSvc.scope(tenantId) }, select: { id: true },
+    }) : [];
+    const ok = new Set(found.map((p) => p.id));
+    if (ok.size !== ids.length) throw new BadRequestException('ของแถมบางรายการไม่พบในร้าน');
+    const qty = new Map<string, number>();
+    for (const f of list) if (ok.has(f.productId)) qty.set(f.productId, Math.max(qty.get(f.productId) ?? 0, f.quantity));
+    return [...qty.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  }
+
   async update(id: string, dto: UpdateProductDto, actorId?: string, actorName?: string, tenantId?: string | null) {
     await this.findOne(id, undefined, tenantId);
 
@@ -432,6 +447,8 @@ export class ProductsService {
         ...(dto.model !== undefined ? { model: cleanLabel(dto.model) } : {}),
         price: dto.price,
         costPrice: dto.costPrice,
+        ...(dto.giveawayOnly !== undefined ? { giveawayOnly: dto.giveawayOnly } : {}),
+        ...(dto.freebies !== undefined ? { freebies: await this.freebiesOf(dto.freebies, tenantId, id) } : {}),
         // Stock is NOT editable here: Product.stock is the sum of BranchStock and is changed
         // only via stock movements (/stock/adjust, sales, PO receive, transfers). Writing it
         // directly made the total disagree with branch quantities ("stock jumps" reports).
