@@ -1,6 +1,6 @@
 import { INCOME_CATEGORIES } from '../shifts/shift-cash';
 import { Injectable } from '@nestjs/common';
-import { loadPeriodMoney, summarizeMoney, bangkokDay } from '../common/money/period-money';
+import { loadPeriodMoney, summarizeMoney, bangkokDay, type MoneyRef, type PeriodMoneyRows } from '../common/money/period-money';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 
@@ -667,21 +667,21 @@ export class ReportsService {
     const [drawerExpenses, drawerMoves, cashSupplier] = await Promise.all([
       this.prisma.expense.findMany({
         where: { createdAt: { gte: start, lt: end }, voidedAt: null, paymentMethod: 'CASH', shiftId: { not: null }, paidByOwner: false, ...bFilter },
-        select: { amount: true },
+        select: { id: true, createdAt: true, description: true, amount: true, category: { select: { name: true } } },
       }),
       this.prisma.shiftCashMovement.findMany({
         where: {
           createdAt: { gte: start, lt: end }, kind: { in: ['MANUAL_IN', 'MANUAL_OUT'] }, paymentMethod: 'CASH',
           ...tenantOf, ...(branchId ? { branchId } : {}),
         },
-        select: { direction: true, category: true, amount: true },
+        select: { id: true, createdAt: true, shiftId: true, reason: true, referenceType: true, referenceId: true, direction: true, category: true, amount: true },
       }),
       this.prisma.supplierPayment.findMany({
         where: {
           paidAt: { gte: start, lt: end }, paymentMethod: 'CASH',
           purchaseOrder: { ...(tenantId ? { supplier: { tenantId } } : {}), ...(branchId ? { branchId } : {}) },
         },
-        select: { amount: true },
+        select: { id: true, paidAt: true, amount: true, purchaseOrder: { select: { id: true, poNumber: true, supplier: { select: { name: true } } } } },
       }),
     ]);
     const sumOf = (rows: { amount: unknown }[]) => Math.round(rows.reduce((t, r) => t + Number(r.amount), 0) * 100) / 100;
@@ -695,6 +695,26 @@ export class ReportsService {
     };
     const drawerIn = sumOf(drawerMoves.filter((m) => m.direction === 'IN' && !INCOME_CATEGORIES.includes(m.category ?? '')));
     const drawerOutTotal = Math.round(Object.values(drawerOut).reduce((a, b) => a + b, 0) * 100) / 100;
+    // Each line of the drawer, with what it was for: a delivery fee names its repair job
+    const feeIds = drawerMoves.filter((m) => m.referenceType === 'RepairExtraCost' && m.referenceId).map((m) => m.referenceId!);
+    const feeJob = new Map((feeIds.length ? await this.prisma.repairExtraCost.findMany({
+      where: { id: { in: feeIds } }, select: { id: true, repair: { select: { id: true, ticketNumber: true } } },
+    }) : []).map((c) => [c.id, c.repair]));
+    const drawerItems = {
+      expenses: drawerExpenses.map((e) => ({ id: e.id, time: e.createdAt.toISOString(), label: e.description, category: e.category.name, amount: Number(e.amount) })),
+      moves: drawerMoves.map((m) => {
+        const job = m.referenceId ? feeJob.get(m.referenceId) : undefined;
+        return {
+          id: m.id, time: m.createdAt.toISOString(), direction: m.direction, category: m.category, label: m.reason,
+          amount: Number(m.amount), shiftId: m.shiftId, income: m.direction === 'IN' && INCOME_CATEGORIES.includes(m.category ?? ''),
+          ...(job ? { repairId: job.id, ticketNumber: job.ticketNumber } : {}),
+        };
+      }),
+      suppliers: cashSupplier.map((p) => ({
+        id: p.id, time: (p.paidAt as Date).toISOString(), amount: Number(p.amount),
+        poId: p.purchaseOrder.id, label: `${p.purchaseOrder.poNumber} · ${p.purchaseOrder.supplier?.name ?? ''}`,
+      })),
+    };
 
     // Shift cash reconciliation
     const shiftsWithCash = await Promise.all(
@@ -810,7 +830,8 @@ export class ReportsService {
         card: money.byMethod['CARD'] ?? 0,
       },
       /** cash that left / entered the drawer that is not a sale, repair or income: drawer = cash in + in − out */
-      drawer: { out: drawerOut, outTotal: drawerOutTotal, in: drawerIn },
+      drawer: { out: drawerOut, outTotal: drawerOutTotal, in: drawerIn, items: drawerItems },
+      trail: moneyTrail(moneyRows),
       sales: { items: sales, count: sales.length },
       voidedSales: { items: voidedSales, count: voidedSales.length },
       refunds: { items: refunds, count: refunds.length },
@@ -919,6 +940,7 @@ export class ReportsService {
           product: { select: { id: true, name: true, sku: true, price: true } },
           sale: {
             select: {
+              id: true,
               createdAt: true,
               receiptNumber: true,
               customer: { select: { name: true } },
@@ -976,10 +998,12 @@ export class ReportsService {
           ...bFilter,
         },
         select: {
+          id: true,
           amount: true,
           expenseDate: true,
           description: true,
           paymentMethod: true,
+          paidByOwner: true,
           category: { select: { name: true, code: true } },
         },
       }),
@@ -1074,6 +1098,7 @@ export class ReportsService {
         margin:  posRevenue > 0 ? (posProfit / posRevenue) * 100 : 0,
         items:   saleItems.map((i) => ({
           time:          i.sale.createdAt.toISOString(),
+          saleId:        i.sale.id,
           receiptNumber: i.sale.receiptNumber,
           customer:      i.sale.customer?.name ?? null,
           product:       i.product.name,
@@ -1103,11 +1128,14 @@ export class ReportsService {
           const lc = Number(r.actualLaborCost ?? 0);
           return {
             time:         (r.paidAt as Date).toISOString(),
+            repairId:     r.id,
             ticketNumber: r.ticketNumber,
             customer:     r.customer?.name ?? null,
             device:       `${r.deviceBrand} ${r.deviceModel}`,
             revenue:      Number(r.paidAmount ?? 0),
             partsCost:    pc,
+            // of which: parts given free (ต้นทุนแฝง)
+            freebieCost:  r.parts.filter((p) => p.isFreebie).reduce((t, p) => t + partCost(p), 0),
             deliveryCost: dc,
             laborCost:    lc,
             profit:       Number(r.paidAmount ?? 0) - pc - dc - lc,
@@ -1122,6 +1150,7 @@ export class ReportsService {
         count:   packageSales.length,
         items:   packageSales.map((p) => ({
           time:          p.createdAt.toISOString(),
+          id:            p.id,
           receiptNumber: p.receiptNumber,
           carrier:       p.carrier,
           amount:        Number(p.packageAmount),
@@ -1133,6 +1162,9 @@ export class ReportsService {
         breakdown: expenseBreakdown,
         items:     expenses.map((e) => ({
           time:          (e.expenseDate as Date).toISOString(),
+          id:            e.id,
+          categoryCode:  e.category.code,
+          paidByOwner:   e.paidByOwner,
           category:      e.category.name,
           description:   e.description,
           paymentMethod: e.paymentMethod,
@@ -1141,6 +1173,9 @@ export class ReportsService {
       },
       costWarnings: costWarningsOf(saleItems.filter((i) => !i.isFreebie), repaids),
       hiddenCosts,
+      // Every row each total above is made of, with the document it links to: the lists add up
+      // to the totals exactly, because the totals are computed from these same rows
+      trail: moneyTrail(moneyRows),
       summary: {
         grossProfit,
         netProfit,
@@ -1231,6 +1266,24 @@ export class ReportsService {
  * the cost, e.g. 150,000 for 15,000), or sold with no cost at all (all of it shows as profit).
  * Only what was sold in the period, so the warning explains this report's numbers.
  */
+/** The money rows behind a period's totals, each with the document it came from */
+export function moneyTrail(rows: PeriodMoneyRows) {
+  const row = (r: { date: Date; ref?: MoneyRef; amount: number; method?: string; cost?: number }) => ({
+    time: r.date.toISOString(), ref: r.ref ?? null, amount: r.amount,
+    ...(r.method ? { method: r.method } : {}), ...(r.cost != null ? { cost: r.cost } : {}),
+  });
+  return {
+    // a bill paid two ways is one row per way, so each method's rows add up to its total
+    sales:       rows.sales.flatMap((r) => r.legs.map((l) => row({ ...r, amount: l.amount, method: l.method }))),
+    refunds:     rows.refunds.map(row),
+    deposits:    rows.deposits.map(row),
+    pickups:     rows.pickups.map(row),
+    debts:       rows.debtPayments.map(row),
+    packages:    rows.packages.map((r) => ({ ...row(r), profit: r.profit, paid: r.paid })),
+    otherIncome: rows.otherIncome.map(row),
+  };
+}
+
 export function costWarningsOf(
   saleItems: { quantity: number; total: unknown; costPrice: unknown; product: { id: string; name: string; price: unknown } }[],
   repairs: { parts: { quantity: number; costPrice?: unknown; price: unknown; product: { id: string; name: string; price: unknown } | null }[] }[],

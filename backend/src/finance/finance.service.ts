@@ -150,8 +150,9 @@ export class FinanceService {
       }),
     ]);
 
+    const docs = await this.docsOf(items.map((t) => t.referenceId).filter((x): x is string => !!x));
     return {
-      data: items.map(t => ({ ...t, amount: Number(t.amount) })),
+      data: items.map(t => ({ ...t, amount: Number(t.amount), doc: t.referenceId ? docs.get(t.referenceId) ?? null : null })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -258,4 +259,45 @@ export class FinanceService {
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
+  /**
+   * The document each ledger row came from (a bill, a repair job, an expense, a purchase order,
+   * a SIM sale or a shift), whatever record its reference points at: a payment leg, a refund,
+   * a cash movement… Unknown references are left out.
+   */
+  private async docsOf(ids: string[]) {
+    type Doc = { kind: 'SALE' | 'REPAIR' | 'PACKAGE' | 'SHIFT' | 'EXPENSE' | 'PO'; id: string; label: string };
+    const out = new Map<string, Doc>();
+    if (!ids.length) return out;
+    const id = { in: [...new Set(ids)] };
+    const [sales, legs, refunds, repairs, extras, expenses, packages, supplier, moves] = await Promise.all([
+      this.prisma.sale.findMany({ where: { id }, select: { id: true, receiptNumber: true } }),
+      this.prisma.salePayment.findMany({ where: { id }, select: { id: true, sale: { select: { id: true, receiptNumber: true } } } }),
+      this.prisma.saleRefund.findMany({ where: { id }, select: { id: true, sale: { select: { id: true, receiptNumber: true } } } }),
+      this.prisma.repair.findMany({ where: { id }, select: { id: true, ticketNumber: true } }),
+      this.prisma.repairAdditionalPayment.findMany({ where: { id }, select: { id: true, repair: { select: { id: true, ticketNumber: true } } } }),
+      this.prisma.expense.findMany({ where: { id }, select: { id: true, description: true } }),
+      this.prisma.packageSale.findMany({ where: { id }, select: { id: true, receiptNumber: true } }),
+      this.prisma.supplierPayment.findMany({ where: { id }, select: { id: true, purchaseOrder: { select: { id: true, poNumber: true } } } }),
+      this.prisma.shiftCashMovement.findMany({ where: { id }, select: { id: true, shiftId: true, referenceType: true, referenceId: true } }),
+    ]);
+    for (const x of sales)    out.set(x.id, { kind: 'SALE', id: x.id, label: x.receiptNumber });
+    for (const x of legs)     out.set(x.id, { kind: 'SALE', id: x.sale.id, label: x.sale.receiptNumber });
+    for (const x of refunds)  out.set(x.id, { kind: 'SALE', id: x.sale.id, label: x.sale.receiptNumber });
+    for (const x of repairs)  out.set(x.id, { kind: 'REPAIR', id: x.id, label: x.ticketNumber });
+    for (const x of extras)   out.set(x.id, { kind: 'REPAIR', id: x.repair.id, label: x.repair.ticketNumber });
+    for (const x of expenses) out.set(x.id, { kind: 'EXPENSE', id: x.id, label: x.description });
+    for (const x of packages) out.set(x.id, { kind: 'PACKAGE', id: x.id, label: x.receiptNumber });
+    for (const x of supplier) out.set(x.id, { kind: 'PO', id: x.purchaseOrder.id, label: x.purchaseOrder.poNumber });
+    // a delivery fee paid from the drawer belongs to its repair job; other cash movements to their shift
+    const feeIds = moves.filter((m) => m.referenceType === 'RepairExtraCost' && m.referenceId).map((m) => m.referenceId!);
+    const fees = feeIds.length
+      ? new Map((await this.prisma.repairExtraCost.findMany({ where: { id: { in: feeIds } }, select: { id: true, repair: { select: { id: true, ticketNumber: true } } } })).map((c) => [c.id, c.repair]))
+      : new Map<string, { id: string; ticketNumber: string }>();
+    for (const m of moves) {
+      const job = m.referenceId ? fees.get(m.referenceId) : undefined;
+      out.set(m.id, job ? { kind: 'REPAIR', id: job.id, label: job.ticketNumber } : { kind: 'SHIFT', id: m.shiftId, label: 'ดูกะ' });
+    }
+    return out;
+  }
+
 }

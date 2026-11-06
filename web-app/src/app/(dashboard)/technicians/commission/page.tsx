@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/page-header'
 import { cn, formatThaiMoney } from '@/lib/utils'
-import { ISSUE_TAG_OPTIONS } from '@/lib/repair-tags'
+import { ALL_ISSUE_TAGS as ISSUE_TAG_OPTIONS } from '@/lib/repair-tags'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 

@@ -174,4 +174,45 @@ describe('Books audit: drawer, cash ledger, books and reports agree (e2e)', () =
     expect(again.cashMovements).toBe(0);
     expect(again.stockMoves).toBe(0);
   });
+
+  it('AUDIT-03: every number can be traced: its rows add up to it and name their document', async () => {
+    const sum = (xs: { amount: number }[], sign = 1) => Math.round(xs.reduce((t, x) => t + sign * x.amount, 0) * 100) / 100;
+    const p = (await authGet(app, `/api/v1/reports/profit?${q}`, owner).expect(200)).body;
+    const t = p.trail;
+    // income = bills − refunds + repair money + SIM commission + money with no bill
+    const income = sum(t.sales) - sum(t.refunds) + sum(t.deposits) + sum(t.pickups) + sum(t.debts)
+      + t.packages.reduce((s: number, x: any) => s + x.profit, 0) + sum(t.otherIncome);
+    expect(Math.round(income * 100) / 100).toBe(p.summary.totalRevenue);
+    expect(sum(t.deposits) + sum(t.pickups) + sum(t.debts)).toBe(p.repair.revenue);
+    expect(sum(p.expenses.items)).toBe(p.expenses.total);
+    const parts = p.repair.items.reduce((s: number, j: any) => s + j.partsCost - (j.freebieCost ?? 0), 0);
+    expect(parts).toBe(p.repair.partsCost);
+    // every row names its document
+    for (const r of [...t.sales, ...t.pickups, ...t.otherIncome]) expect(r.ref?.id).toBeTruthy();
+    expect(p.repair.items.every((j: any) => j.repairId)).toBe(true);
+    expect(p.expenses.items.every((e: any) => e.id)).toBe(true);
+
+    const day = (await authGet(app, `/api/v1/reports/daily-closing?${q}`, owner).expect(200)).body;
+    const cashRows = [...day.trail.sales, ...day.trail.deposits, ...day.trail.pickups, ...day.trail.debts, ...day.trail.otherIncome]
+      .filter((r: any) => r.method === 'CASH');
+    const cashIn = sum(cashRows) - sum(day.trail.refunds.filter((r: any) => r.method === 'CASH'))
+      + day.trail.packages.filter((r: any) => r.method === 'CASH').reduce((s: number, x: any) => s + x.paid, 0);
+    expect(Math.round(cashIn * 100) / 100).toBe(day.revenue.cash + (day.revenue.packages.byMethod?.CASH ?? 0));
+    const it = day.drawer.items;
+    expect(sum(it.expenses)).toBe(day.drawer.out.expenses);
+    expect(sum(it.moves.filter((m: any) => m.direction === 'OUT' && m.category === 'DELIVERY'))).toBe(day.drawer.out.delivery);
+    expect(sum(it.moves.filter((m: any) => m.direction === 'OUT' && m.category === 'OWNER_DRAW'))).toBe(day.drawer.out.ownerDraw);
+    expect(it.moves.find((m: any) => m.category === 'DELIVERY')?.ticketNumber).toBeTruthy();   // a fee names its job
+
+    const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+    const led = (await authGet(app, `/api/v1/finance/transactions?startDate=${today}&endDate=${today}&limit=100`, owner).expect(200)).body.data;
+    const kinds = new Set(led.map((r: any) => r.doc?.kind).filter(Boolean));
+    for (const k of ['SALE', 'REPAIR', 'EXPENSE', 'SHIFT']) expect(kinds.has(k)).toBe(true);
+    const fee = led.find((r: any) => r.sourceType === 'DELIVERY_FEE');
+    expect(fee.doc.kind).toBe('REPAIR');
+
+    const job = (await authGet(app, `/api/v1/repairs/${p.repair.items[0].repairId}/profit`, owner).expect(200)).body;
+    expect(job.costs.total).toBe(job.costs.parts + job.costs.delivery + job.costs.labor);
+    expect(job.grossProfit).toBe(job.revenue.total - job.costs.total);
+  });
 });

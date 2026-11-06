@@ -1,6 +1,6 @@
 'use client'
 
-import { CONDITION_OPTIONS_LIST, ACCESSORY_OPTIONS, DEVICE_TYPE_OPTIONS, ISSUE_TAG_OPTIONS, SPECIAL_ISSUE_TAGS } from '@/lib/repair-tags'
+import { DEVICE_TYPE_OPTIONS, SPECIAL_ISSUE_TAGS, issueTagsFor, conditionsFor, accessoriesFor, withPicked } from '@/lib/repair-tags'
 import { AppBranchBar } from '@/components/app/app-branch-bar'
 import { useAppBranch } from '@/hooks/useAppBranch'
 import { useState, useEffect, useRef } from 'react'
@@ -36,15 +36,13 @@ import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
 import type { Customer, ShopSettings, User as UserType, Repair } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { localDay } from '@/lib/repair-batch'
-import { DEVICE_BRANDS, QUICK_MODELS } from '@/lib/device-models'
+import { brandsFor, modelsFor } from '@/lib/device-models'
 import { intakeWarnings, confirmIntake, issueTextOf } from '@/lib/intake-checks'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 // The same lists as the web form (lib/repair-tags)
-const CONDITION_ITEMS = CONDITION_OPTIONS_LIST
 
-const ACCESSORY_ITEMS = ACCESSORY_OPTIONS
 
 // ── Form schema ───────────────────────────────────────────────────────────────
 
@@ -296,7 +294,10 @@ function StepDevice({
   const brand        = watch('deviceBrand') as string
   const technicianId = watch('technicianId') as string
 
-  const brandInList = DEVICE_BRANDS.includes(brand)
+  const deviceType   = watch('deviceType') as string
+  const brandList    = brandsFor(deviceType)
+  const quickModels  = modelsFor(brand, deviceType)
+  const brandInList = brandList.includes(brand)
 
   function pickBrand(b: string) {
     setValue('deviceBrand', b, { shouldValidate: true })
@@ -322,7 +323,7 @@ function StepDevice({
       {/* Brand chips */}
       <Field label="ยี่ห้อ *" error={errors.deviceBrand?.message}>
         <div className="flex flex-wrap gap-2 mb-2">
-          {DEVICE_BRANDS.map((b) => (
+          {brandList.map((b) => (
             <button
               key={b}
               type="button"
@@ -346,11 +347,11 @@ function StepDevice({
       </Field>
 
       {/* Quick model chips — shown when a known brand is selected */}
-      {brand && QUICK_MODELS[brand] && (
+      {brand && quickModels.length > 0 && (
         <div className="space-y-2 -mt-2">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">รุ่นยอดนิยม — แตะเพื่อเลือก</p>
           <div className="flex flex-wrap gap-2">
-            {QUICK_MODELS[brand].map((m) => (
+            {quickModels.map((m) => (
               <button
                 key={m}
                 type="button"
@@ -449,7 +450,7 @@ function StepIssue({ register, errors, watch, setValue, pricedJobs, onPickPrice 
       {/* Job type tags — the web's, also used for technician commission */}
       <Field label="หมวดหมู่ปัญหา">
         <div className="flex flex-wrap gap-2">
-          {[...SPECIAL_ISSUE_TAGS, ...ISSUE_TAG_OPTIONS].map((t) => {
+          {[...SPECIAL_ISSUE_TAGS, ...withPicked(issueTagsFor(watch('deviceType')), ((watch('issueTags') ?? []) as string[]).filter((x) => !SPECIAL_ISSUE_TAGS.includes(x)))].map((t) => {
             const tags: string[] = watch('issueTags') ?? []
             const on = tags.includes(t)
             const special = SPECIAL_ISSUE_TAGS.includes(t)
@@ -487,7 +488,7 @@ function StepIssue({ register, errors, watch, setValue, pricedJobs, onPickPrice 
           )}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {CONDITION_ITEMS.map((item) => {
+          {withPicked(conditionsFor(watch('deviceType')), conditionIssues).map((item) => {
             const checked = conditionIssues.includes(item)
             return (
               <button
@@ -553,7 +554,7 @@ function StepDetails({
           )}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {ACCESSORY_ITEMS.map((item) => {
+          {withPicked(accessoriesFor(watch('deviceType')), accessories).map((item) => {
             const checked = accessories.includes(item)
             return (
               <button

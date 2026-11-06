@@ -2265,10 +2265,12 @@ export class RepairsService {
         paidAmount:     true,
         parts: {
           where: { isVoided: false },
-          select: { quantity: true, price: true, costPrice: true, productName: true },
+          select: { quantity: true, price: true, costPrice: true, productName: true, isFreebie: true },
         },
         additionalPayments: { select: { amount: true } },
         paymentReversals:   { select: { amount: true } },
+        extraCosts:         { select: { id: true, kind: true, amount: true, note: true, fromDrawer: true, createdAt: true } },
+        actualLaborCost:    true,
       },
     });
     if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
@@ -2284,7 +2286,11 @@ export class RepairsService {
       return s + unit * p.quantity;
     }, 0);
 
-    const grossProfit  = revenue - partsCost;
+    // Everything this job cost, as in the profit report: parts (free ones too), the delivery fee
+    // for its parts, the technician's labour
+    const deliveryCost = repair.extraCosts.reduce((s, c) => s + Number(c.amount), 0);
+    const laborCost    = Number(repair.actualLaborCost ?? 0);
+    const grossProfit  = revenue - partsCost - deliveryCost - laborCost;
     const marginPercent = revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0;
 
     return {
@@ -2300,8 +2306,16 @@ export class RepairsService {
         total:              revenue,
       },
       costs: {
-        parts: partsCost,
-        total: partsCost,
+        parts:    partsCost,
+        delivery: deliveryCost,
+        labor:    laborCost,
+        total:    partsCost + deliveryCost + laborCost,
+        partList: repair.parts.map((p) => ({
+          name: p.productName, qty: p.quantity, cost: Number(p.costPrice ?? p.price) * p.quantity, isFreebie: p.isFreebie,
+        })),
+        extraList: repair.extraCosts.map((c) => ({
+          id: c.id, kind: c.kind, amount: Number(c.amount), note: c.note, fromDrawer: c.fromDrawer, at: c.createdAt,
+        })),
       },
       grossProfit,
       marginPercent,
@@ -2330,4 +2344,33 @@ export class RepairsService {
     });
     return { success: true };
   }
+
+  /**
+   * Put the job under another customer (the right one picked after a duplicate was added by
+   * mistake). Not after the device went back: then merge the two customers instead.
+   */
+  async changeCustomer(id: string, customerId: string, actor: { id: string; name?: string }, tenantId: string | null) {
+    const where: any = { id };
+    if (tenantId) where.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({
+      where, select: { id: true, ticketNumber: true, status: true, customerId: true, customer: { select: { name: true, phone: true } } },
+    });
+    if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
+    if (repair.status === 'DELIVERED') {
+      throw new BadRequestException('คืนเครื่องแล้ว เปลี่ยนลูกค้าไม่ได้ — ใช้ “รวมลูกค้าซ้ำ” ที่หน้าลูกค้าแทน');
+    }
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, ...(tenantId ? { tenantId } : {}) }, select: { id: true, name: true, phone: true },
+    });
+    if (!customer) throw new NotFoundException('ไม่พบลูกค้า');
+    if (repair.customerId === customer.id) return { id: repair.id, customer };
+    await this.prisma.repair.update({ where: { id }, data: { customerId: customer.id } });
+    await this.auditLog.log({
+      actorId: actor.id, actorName: actor.name, action: 'REPAIR_CUSTOMER_CHANGED', entityType: 'Repair', entityId: id,
+      beforeData: { customerId: repair.customerId, name: repair.customer?.name ?? null, phone: repair.customer?.phone ?? null },
+      afterData: { customerId: customer.id, name: customer.name, phone: customer.phone, ticketNumber: repair.ticketNumber },
+    });
+    return { id: repair.id, customer };
+  }
+
 }

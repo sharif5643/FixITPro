@@ -9,8 +9,9 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { IsNumber, IsOptional, Min, Max } from 'class-validator';
+import { IsNumber, IsOptional, Min, Max, IsIn, MaxLength, IsString, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class AdjustPointsDto {
@@ -20,9 +21,15 @@ class AdjustPointsDto {
   @Max(100000)
   points: number;
 
+  // Without validation rules these were rejected ("property type should not exist"): adjusting
+  // points from the customer page always failed
+  @IsString()
+  @IsIn(['EARN_MANUAL', 'EARN_REPAIR', 'EARN_SALE', 'REDEEM', 'ADJUST', 'EXPIRE'])
   type: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(500)
   note?: string;
 }
 import { CustomersService } from './customers.service';
@@ -35,7 +42,12 @@ import { ModuleGuard } from '../common/guards/module.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { IsString, IsNotEmpty } from 'class-validator';
+
+class MergeCustomerDto {
+  @IsString()
+  @IsNotEmpty()
+  fromId: string;
+}
 
 class AddNoteDto {
   @IsString()
@@ -72,6 +84,31 @@ export class CustomersController {
   @RequirePermission('repair.close', 'reports.view')
   getDebtSummary(@CurrentUser('tenantId') tenantId: string) {
     return this.customersService.getDebtSummary(tenantId);
+  }
+
+  /** What merging another (duplicate) customer into this one would move */
+  @Get(':id/merge-preview')
+  @RequirePermission('sales.create')
+  mergePreview(
+    @Param('id') id: string,
+    @Query('fromId') fromId: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.customersService.mergePreview(id, fromId, tenantId);
+  }
+
+  /** Merge a duplicate customer into this one (owner only) */
+  @Post(':id/merge')
+  merge(
+    @Param('id') id: string,
+    @Body() body: MergeCustomerDto,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
+    @CurrentUser('role') role: string,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    if (role !== 'OWNER') throw new ForbiddenException('เฉพาะเจ้าของร้านรวมลูกค้าได้');
+    return this.customersService.merge(id, body.fromId, { id: actorId, name: actorName }, tenantId);
   }
 
   @Get(':id')

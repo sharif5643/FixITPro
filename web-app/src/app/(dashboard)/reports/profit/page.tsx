@@ -25,6 +25,8 @@ import type {
 import { SendPdfButton } from '@/components/reports/send-pdf-button'
 import { MoneyEquation, MoneyLine, SourceCard, SplitBar } from '@/components/reports/money-parts'
 import Link from 'next/link'
+import { TrailDrawer, entryRows, type Trail, type TrailRow } from '@/components/money/trail'
+import { DocLink, type DocRef } from '@/components/money/doc-peek'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -143,8 +145,80 @@ function HiddenTag() {
   return <span className="ml-1 rounded bg-fuchsia-100 px-1.5 py-0.5 text-[10px] font-bold text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300">แฝง</span>
 }
 
+
+// ── What each number is made of (tap a number → its rows, each linking to its document) ──
+
+type Doc = DocRef | null
+const saleDoc = (i: { saleId?: string; receiptNumber: string }): Doc => i.saleId ? { kind: 'SALE', id: i.saleId, label: i.receiptNumber } : null
+const jobDoc = (i: { repairId?: string; ticketNumber: string }): Doc => i.repairId ? { kind: 'REPAIR', id: i.repairId, label: i.ticketNumber } : null
+const expDoc = (i: { id?: string; description: string }): Doc => i.id ? { kind: 'EXPENSE', id: i.id, label: i.description } : null
+const pkgDoc = (i: { id?: string; receiptNumber: string }): Doc => i.id ? { kind: 'PACKAGE', id: i.id, label: i.receiptNumber } : null
+
+function profitTrails(d: ProfitReport) {
+  const t = d.trail
+  const posFreebie = d.pos.freebieCost ?? 0
+  const refunds = d.pos.refunds ?? 0
+  const sold = d.pos.grossSales ?? d.pos.revenue + refunds
+  const jobs = d.repair.items
+  const nz = (rows: TrailRow[]) => rows.filter((r) => Math.abs(r.amount) >= 0.005)
+  const posCost: TrailRow[] = [
+    ...d.pos.items.filter((i) => !i.isFreebie).map((i) => ({ time: i.time, doc: saleDoc(i), label: `${i.product} × ${i.qty}`, amount: -i.cogs })),
+    ...(t?.refunds ?? []).filter((r) => (r.cost ?? 0) > 0).map((r) => ({ time: r.time, doc: r.ref, label: 'ลูกค้าคืนของ — ทุนกลับเข้าร้าน', amount: r.cost! })),
+  ]
+  const posFree: TrailRow[] = d.pos.items.filter((i) => i.isFreebie).map((i) => ({ time: i.time, doc: saleDoc(i), label: `🎁 ${i.product} × ${i.qty}`, amount: -i.cogs }))
+  const repairIn: TrailRow[] = [
+    ...entryRows(t?.deposits).map((r) => ({ ...r, label: 'มัดจำ' })),
+    ...entryRows(t?.pickups).map((r) => ({ ...r, label: 'จ่ายตอนรับเครื่องคืน' })),
+    ...entryRows(t?.debts).map((r) => ({ ...r, label: 'จ่ายหนี้ค้าง' })),
+  ]
+  const parts = nz(jobs.map((j) => ({ time: j.time, doc: jobDoc(j), label: j.device, amount: -(j.partsCost - (j.freebieCost ?? 0)) })))
+  const repFree = nz(jobs.map((j) => ({ time: j.time, doc: jobDoc(j), label: `🎁 อะไหล่แถม · ${j.device}`, amount: -(j.freebieCost ?? 0) })))
+  const delivery = nz(jobs.map((j) => ({ time: j.time, doc: jobDoc(j), label: `🚐 ค่ารถ · ${j.device}`, amount: -(j.deliveryCost ?? 0) })))
+  const labor = nz(jobs.map((j) => ({ time: j.time, doc: jobDoc(j), label: `ค่าแรง · ${j.device}`, amount: -j.laborCost })))
+  const expRows = (code?: string) => d.expenses.items.filter((e) => !code || e.categoryCode === code)
+    .map((e) => ({ time: e.time, doc: expDoc(e), label: e.category, sub: e.paidByOwner ? 'เจ้าของจ่ายเอง' : PM_LABEL[e.paymentMethod] ?? e.paymentMethod, amount: -e.amount }))
+  const other = entryRows(t?.otherIncome).map((r) => ({ ...r, label: 'รับเงินไม่มีบิล' }))
+  const pkg = (t?.packages ?? []).map((p) => ({ time: p.time, doc: p.ref, amount: p.amount, profit: p.profit ?? 0 }))
+  const incomeRows: TrailRow[] = [
+    ...entryRows(t?.sales).map((r) => ({ ...r, label: 'ขายของ' })),
+    ...entryRows(t?.refunds, -1).map((r) => ({ ...r, label: 'คืนเงินลูกค้า' })),
+    ...repairIn,
+    ...pkg.map((p) => ({ time: p.time, doc: p.doc, label: 'ค่าคอมซิม', amount: p.profit })),
+    ...other,
+  ]
+  const costRows = [...posCost, ...posFree, ...parts, ...repFree, ...delivery, ...labor]
+  const cost = d.pos.cogs + d.repair.partsCost + (d.repair.freebieCost ?? 0) + (d.repair.deliveryCost ?? 0) + d.repair.laborCost
+  const noteIncome = 'นับเงินในวันที่ได้รับจริง — ซิมนับแค่ค่าคอมของร้าน'
+  return {
+    income:    { title: 'รับเงินมา — ทีละรายการ', expect: d.summary.totalRevenue, rows: incomeRows, note: noteIncome },
+    cost:      { title: 'ทุนของ / อะไหล่ — ทีละรายการ', expect: -cost, rows: costRows },
+    expenses:  { title: 'ค่าใช้จ่าย — ทีละรายการ', expect: -d.expenses.total, rows: expRows() },
+    sold:      { title: 'ขายได้ — ทีละบิล', expect: sold, rows: entryRows(t?.sales) },
+    refunds:   { title: 'คืนเงินลูกค้า', expect: -refunds, rows: entryRows(t?.refunds, -1) },
+    posCost:   { title: 'ทุนของที่ขายไป', expect: -(d.pos.cogs - posFreebie), rows: posCost, note: 'ทุนต่อชิ้น × จำนวน — ของที่ลูกค้าคืน ทุนกลับเข้าร้าน' },
+    posFree:   { title: 'ทุนของแถม (หน้าร้าน)', expect: -posFreebie, rows: posFree },
+    repairIn:  { title: 'รับเงินค่าซ่อม — ทีละครั้ง', expect: d.repair.revenue, rows: repairIn },
+    deposits:  { title: 'มัดจำตอนรับเครื่อง', expect: d.repair.deposits ?? 0, rows: entryRows(t?.deposits) },
+    pickups:   { title: 'จ่ายตอนรับเครื่องคืน', expect: d.repair.atPickup ?? 0, rows: entryRows(t?.pickups) },
+    debts:     { title: 'จ่ายหนี้ค้าง', expect: d.repair.debtPayments ?? 0, rows: entryRows(t?.debts) },
+    parts:     { title: 'ค่าอะไหล่ที่ใช้ — ทีละงาน', expect: -d.repair.partsCost, rows: parts },
+    repFree:   { title: 'อะไหล่แถม — ทีละงาน', expect: -(d.repair.freebieCost ?? 0), rows: repFree },
+    delivery:  { title: 'ค่ารถส่งอะไหล่ — ทีละงาน', expect: -(d.repair.deliveryCost ?? 0), rows: delivery },
+    labor:     { title: 'ค่าแรงช่าง — ทีละงาน', expect: -d.repair.laborCost, rows: labor },
+    pkgSold:   { title: 'ขายซิม / เติมเงิน', expect: d.package.revenue, rows: pkg.map((p) => ({ time: p.time, doc: p.doc, amount: p.amount })) },
+    pkgCarrier:{ title: 'ส่วนที่เป็นของค่าย', expect: -(d.package.revenue - d.package.profit), rows: pkg.map((p) => ({ time: p.time, doc: p.doc, amount: -(p.amount - p.profit) })) },
+    pkgComm:   { title: 'ค่าคอมที่ร้านได้', expect: d.package.profit, rows: pkg.map((p) => ({ time: p.time, doc: p.doc, amount: p.profit })) },
+    other:     { title: 'รับเงินไม่มีบิล', expect: d.otherIncome?.revenue ?? 0, rows: other, note: 'เงินรับเข้าลิ้นชักที่ไม่ได้ออกบิล — กดที่กะเพื่อดูว่าใครรับ' },
+    category:  (code: string, name: string, total: number): Trail => ({ title: `ค่าใช้จ่าย — ${name}`, expect: -total, rows: expRows(code) }),
+    hiddenFree:{ title: '🎁 ต้นทุนของแถม', expect: -(d.hiddenCosts?.freebies.total ?? 0), rows: [...posFree, ...repFree] },
+    hiddenDel: { title: '🚐 ค่ารถส่งอะไหล่ทั้งหมด', expect: -(d.hiddenCosts?.delivery.total ?? 0), rows: [...delivery, ...expRows('parts_delivery')] },
+  }
+}
+
 /** The report in plain Thai: one sentence for the profit, then where each part comes from */
-function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; periodLabel: string; onDetail: (k: DrawerKey) => void }) {
+function ProfitSummary({ data, periodLabel, onDetail, onTrail }: { data: ProfitReport; periodLabel: string; onDetail: (k: DrawerKey) => void; onTrail: (t: Trail) => void }) {
+  const T = profitTrails(data)
+  const go = (t: Trail) => () => onTrail(t)
   const posFreebie = data.pos.freebieCost ?? 0
   const repFreebie = data.repair.freebieCost ?? 0
   const delivery = data.repair.deliveryCost ?? 0
@@ -174,9 +248,9 @@ function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; pe
         </div>
         <div className="space-y-4">
           <MoneyEquation parts={[
-            { label: 'รับเงินมา', value: income, tone: 'in' },
-            { label: 'ทุนของ/อะไหล่', value: cost, tone: 'out' },
-            { label: 'ค่าใช้จ่าย', value: data.expenses.total, tone: 'out' },
+            { label: 'รับเงินมา', value: income, tone: 'in', onClick: go(T.income) },
+            { label: 'ทุนของ/อะไหล่', value: cost, tone: 'out', onClick: go(T.cost) },
+            { label: 'ค่าใช้จ่าย', value: data.expenses.total, tone: 'out', onClick: go(T.expenses) },
             { label: net >= 0 ? 'เหลือ' : 'ขาดทุน', value: net, tone: 'result', result: true },
           ]} />
           <SplitBar parts={[
@@ -198,7 +272,7 @@ function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; pe
           { label: '🔧 งานซ่อม', value: data.repair.profit, tone: 'in' },
           { label: '📶 ค่าคอมซิม', value: data.package.profit, tone: 'in' },
           ...(other > 0 ? [{ label: 'รับเงินไม่มีบิล', value: other, tone: 'in' as const }] : []),
-          { label: '🏠 ค่าใช้จ่ายร้าน', value: data.expenses.total, tone: 'out' },
+          { label: '🏠 ค่าใช้จ่ายร้าน', value: data.expenses.total, tone: 'out', onClick: go(T.expenses) },
           { label: net >= 0 ? 'กำไร' : 'ขาดทุน', value: net, tone: 'result', result: true },
         ]} />
       </div>
@@ -207,29 +281,29 @@ function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; pe
       <div className="grid gap-4 md:grid-cols-3">
         <SourceCard icon="🛒" title="ขายของหน้าร้าน" onDetail={() => onDetail('pos')} detailLabel="ดูทีละบิล"
           why="ราคาที่ขายจริงหลังส่วนลด · ของที่ลูกค้าคืน ทุนของชิ้นนั้นก็กลับเข้าร้าน">
-          <MoneyLine label={`ขายได้${data.pos.billCount != null ? ` (${data.pos.billCount} บิล)` : ''}`} value={sold} />
-          {refunds > 0 && <MoneyLine label={`คืนเงินลูกค้า${data.pos.refundCount ? ` (${data.pos.refundCount} ครั้ง)` : ''}`} value={refunds} minus />}
-          <MoneyLine label="ทุนของที่ขายไป" value={data.pos.cogs - posFreebie} minus />
-          {posFreebie > 0 && <MoneyLine label={<>ทุนของแถม <HiddenTag /></>} value={posFreebie} minus />}
+          <MoneyLine label={`ขายได้${data.pos.billCount != null ? ` (${data.pos.billCount} บิล)` : ''}`} value={sold} onClick={go(T.sold)} />
+          {refunds > 0 && <MoneyLine label={`คืนเงินลูกค้า${data.pos.refundCount ? ` (${data.pos.refundCount} ครั้ง)` : ''}`} value={refunds} minus onClick={go(T.refunds)} />}
+          <MoneyLine label="ทุนของที่ขายไป" value={data.pos.cogs - posFreebie} minus onClick={go(T.posCost)} />
+          {posFreebie > 0 && <MoneyLine label={<>ทุนของแถม <HiddenTag /></>} value={posFreebie} minus onClick={go(T.posFree)} />}
           <MoneyLine label="กำไร" value={data.pos.profit} total />
         </SourceCard>
         <SourceCard icon="🔧" title="งานซ่อม" onDetail={() => onDetail('repair')} detailLabel="ดูทีละงาน"
           why="นับเงินในวันที่ได้รับจริง — มัดจำนับวันรับเครื่อง ส่วนที่ยังค้างชำระยังไม่นับ">
-          <MoneyLine label={`รับเงินค่าซ่อม${data.repair.count ? ` (${data.repair.count} งาน)` : ''}`} value={data.repair.revenue} />
-          {(data.repair.deposits ?? 0) > 0 && <MoneyLine label="มัดจำตอนรับเครื่อง" value={data.repair.deposits!} muted />}
-          {(data.repair.atPickup ?? 0) > 0 && <MoneyLine label="จ่ายตอนรับเครื่องคืน" value={data.repair.atPickup!} muted />}
-          {(data.repair.debtPayments ?? 0) > 0 && <MoneyLine label="จ่ายหนี้ค้าง" value={data.repair.debtPayments!} muted />}
-          <MoneyLine label="ค่าอะไหล่ที่ใช้" value={data.repair.partsCost} minus />
-          {repFreebie > 0 && <MoneyLine label={<>อะไหล่แถม <HiddenTag /></>} value={repFreebie} minus />}
-          {delivery > 0 && <MoneyLine label={<>ค่ารถส่งอะไหล่ ({data.repair.deliveryCount ?? 0} รอบ) <HiddenTag /></>} value={delivery} minus />}
-          {data.repair.laborCost > 0 && <MoneyLine label="ค่าแรงช่าง" value={data.repair.laborCost} minus />}
+          <MoneyLine label={`รับเงินค่าซ่อม${data.repair.count ? ` (${data.repair.count} งาน)` : ''}`} value={data.repair.revenue} onClick={go(T.repairIn)} />
+          {(data.repair.deposits ?? 0) > 0 && <MoneyLine label="มัดจำตอนรับเครื่อง" value={data.repair.deposits!} muted onClick={go(T.deposits)} />}
+          {(data.repair.atPickup ?? 0) > 0 && <MoneyLine label="จ่ายตอนรับเครื่องคืน" value={data.repair.atPickup!} muted onClick={go(T.pickups)} />}
+          {(data.repair.debtPayments ?? 0) > 0 && <MoneyLine label="จ่ายหนี้ค้าง" value={data.repair.debtPayments!} muted onClick={go(T.debts)} />}
+          <MoneyLine label="ค่าอะไหล่ที่ใช้" value={data.repair.partsCost} minus onClick={go(T.parts)} />
+          {repFreebie > 0 && <MoneyLine label={<>อะไหล่แถม <HiddenTag /></>} value={repFreebie} minus onClick={go(T.repFree)} />}
+          {delivery > 0 && <MoneyLine label={<>ค่ารถส่งอะไหล่ ({data.repair.deliveryCount ?? 0} รอบ) <HiddenTag /></>} value={delivery} minus onClick={go(T.delivery)} />}
+          {data.repair.laborCost > 0 && <MoneyLine label="ค่าแรงช่าง" value={data.repair.laborCost} minus onClick={go(T.labor)} />}
           <MoneyLine label="กำไร" value={data.repair.profit} total />
         </SourceCard>
         <SourceCard icon="📶" title="ซิม / เติมเงิน" onDetail={data.package.count > 0 ? () => onDetail('package') : undefined}
           why="เงินซิมส่วนใหญ่เป็นของค่าย ร้านได้แค่ค่าคอม จึงนับเป็นกำไรเฉพาะค่าคอม">
-          <MoneyLine label={`ขายแพ็กเกจ${data.package.count ? ` (${data.package.count} รายการ)` : ''}`} value={data.package.revenue} />
-          <MoneyLine label="จ่ายค่าย" value={data.package.revenue - data.package.profit} minus />
-          <MoneyLine label="ค่าคอมที่ได้" value={data.package.profit} total />
+          <MoneyLine label={`ขายแพ็กเกจ${data.package.count ? ` (${data.package.count} รายการ)` : ''}`} value={data.package.revenue} onClick={go(T.pkgSold)} />
+          <MoneyLine label="จ่ายค่าย" value={data.package.revenue - data.package.profit} minus onClick={go(T.pkgCarrier)} />
+          <MoneyLine label="ค่าคอมที่ได้" value={data.package.profit} total onClick={go(T.pkgComm)} />
         </SourceCard>
       </div>
 
@@ -238,20 +312,20 @@ function ProfitSummary({ data, periodLabel, onDetail }: { data: ProfitReport; pe
           why="รายจ่ายที่ไม่ได้เป็นของงานหรือบิลไหน เช่น ค่าเช่า ค่าไฟ เงินเดือน ค่ารถที่ไม่ได้ระบุงาน">
           {data.expenses.breakdown.length === 0
             ? <p className="py-1 text-sm text-muted-foreground">ไม่มีค่าใช้จ่ายในช่วงนี้</p>
-            : data.expenses.breakdown.map((e) => <MoneyLine key={e.code} label={<>{e.name}{e.code === 'parts_delivery' && <> <HiddenTag /></>}</>} value={e.total} minus />)}
-          {other > 0 && <MoneyLine label={`รายรับไม่มีบิล (${data.otherIncome!.count} รายการ)`} value={other} note="เงินรับเข้าลิ้นชักที่ไม่ได้ออกบิล — นับเป็นกำไรทั้งหมด" />}
-          {data.expenses.breakdown.length > 1 && <MoneyLine label="รวมค่าใช้จ่าย" value={-data.expenses.total} total />}
+            : data.expenses.breakdown.map((e) => <MoneyLine key={e.code} label={<>{e.name}{e.code === 'parts_delivery' && <> <HiddenTag /></>}</>} value={e.total} minus onClick={go(T.category(e.code, e.name, e.total))} />)}
+          {other > 0 && <MoneyLine label={`รายรับไม่มีบิล (${data.otherIncome!.count} รายการ)`} value={other} note="เงินรับเข้าลิ้นชักที่ไม่ได้ออกบิล — นับเป็นกำไรทั้งหมด" onClick={go(T.other)} />}
+          {data.expenses.breakdown.length > 1 && <MoneyLine label="รวมค่าใช้จ่าย" value={-data.expenses.total} total onClick={go(T.expenses)} />}
         </SourceCard>
         {hidden && hidden.total > 0 && (
           <div className="rounded-2xl border-2 border-fuchsia-200 bg-fuchsia-50/70 p-4 dark:border-fuchsia-900 dark:bg-fuchsia-900/10">
             <h3 className="font-bold">🔍 ต้นทุนแฝงช่วงนี้ <span className="text-xs font-normal text-muted-foreground">(หักไว้ในกล่องข้างบนแล้ว — ตรงนี้รวมให้ดู ไม่หักซ้ำ)</span></h3>
             {hidden.freebies.total > 0 && (
               <MoneyLine label={`🎁 ของแถม${hidden.freebies.sales > 0 && hidden.freebies.repairs > 0 ? ` (ขาย ${formatThaiMoney(hidden.freebies.sales)} + ซ่อม ${formatThaiMoney(hidden.freebies.repairs)})` : ''}`}
-                value={hidden.freebies.total}
+                value={hidden.freebies.total} onClick={go(T.hiddenFree)}
                 note={hidden.freebies.items.slice(0, 4).map((x) => `${x.name} ${x.qty}`).join(' · ')} />
             )}
             {hidden.delivery.total > 0 && (
-              <MoneyLine label={`🚐 ค่ารถส่งอะไหล่ (${hidden.delivery.count} รอบ)`} value={hidden.delivery.total}
+              <MoneyLine label={`🚐 ค่ารถส่งอะไหล่ (${hidden.delivery.count} รอบ)`} value={hidden.delivery.total} onClick={go(T.hiddenDel)}
                 note={`ระบุงาน ${formatThaiMoney(hidden.delivery.jobs)} · ค่าใช้จ่ายร้าน ${formatThaiMoney(hidden.delivery.shop)}`} />
             )}
             <div className="mt-1.5 flex items-baseline justify-between border-t border-fuchsia-200 pt-2.5 text-base font-bold dark:border-fuchsia-900">
@@ -292,6 +366,7 @@ export default function ProfitReportPage() {
   const [customStart, setCustomStart] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [customEnd, setCustomEnd]   = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [drawer, setDrawer]         = useState<DrawerKey>(null)
+  const [trail, setTrail]           = useState<Trail | null>(null)
 
   const { startDate, endDate } = useMemo(() => {
     if (mode === 'custom') return { startDate: customStart, endDate: customEnd }
@@ -327,7 +402,7 @@ export default function ProfitReportPage() {
         head={['เวลา', 'ใบเสร็จ', 'ลูกค้า', 'สินค้า', 'จำนวน', 'ขายได้', 'ทุน', 'กำไร']}
         rows={items.map((i) => [
           fmtTime(i.time),
-          <span key="r" className="font-mono text-blue-700 font-bold">{i.receiptNumber}</span>,
+          saleDoc(i) ? <DocLink key="r" doc={saleDoc(i)} /> : <span key="r" className="font-mono text-blue-700 font-bold">{i.receiptNumber}</span>,
           i.customer ?? 'ทั่วไป',
           i.isFreebie ? <span key="f">{i.product} <span className="rounded bg-fuchsia-100 px-1 text-[10px] font-bold text-fuchsia-700">แถม</span></span> : i.product,
           String(i.qty),
@@ -346,7 +421,7 @@ export default function ProfitReportPage() {
         head={['เวลา', 'เลขงาน', 'ลูกค้า', 'อุปกรณ์', 'รับเงิน', 'อะไหล่', 'ค่ารถ', 'ค่าแรง', 'กำไร']}
         rows={items.map((i) => [
           fmtTime(i.time),
-          <span key="t" className="font-mono text-blue-700 font-bold">{i.ticketNumber}</span>,
+          jobDoc(i) ? <DocLink key="t" doc={jobDoc(i)} /> : <span key="t" className="font-mono text-blue-700 font-bold">{i.ticketNumber}</span>,
           i.customer ?? '-',
           i.device,
           formatThaiMoney(i.revenue),
@@ -366,7 +441,7 @@ export default function ProfitReportPage() {
         head={['เวลา', 'ใบเสร็จ', 'ค่าย', 'ยอด', 'กำไร']}
         rows={items.map((i) => [
           fmtTime(i.time),
-          <span key="r" className="font-mono text-blue-700 font-bold">{i.receiptNumber}</span>,
+          pkgDoc(i) ? <DocLink key="r" doc={pkgDoc(i)} /> : <span key="r" className="font-mono text-blue-700 font-bold">{i.receiptNumber}</span>,
           i.carrier,
           formatThaiMoney(i.amount),
           <span key="p" className={profitColor(i.profit)}>{formatThaiMoney(i.profit)}</span>,
@@ -382,7 +457,7 @@ export default function ProfitReportPage() {
         head={['เวลา', 'รายการ', 'หมวดหมู่', 'ช่องทาง', 'ยอด']}
         rows={items.map((i) => [
           fmtTime(i.time),
-          i.description,
+          expDoc(i) ? <DocLink key="d" doc={expDoc(i)} /> : i.description,
           i.category,
           PM_LABEL[i.paymentMethod] ?? i.paymentMethod,
           <span key="a" className="font-semibold text-red-600">{formatThaiMoney(i.amount)}</span>,
@@ -527,7 +602,8 @@ export default function ProfitReportPage() {
         {isLoading && <div className="flex items-center justify-center py-20 text-slate-400">กำลังโหลด...</div>}
         {isError  && <div className="flex items-center justify-center py-20 text-red-500">เกิดข้อผิดพลาด ลองใหม่อีกครั้ง</div>}
 
-        {data && <ProfitSummary data={data} periodLabel={periodLabel} onDetail={openDrawer} />}
+        {data && <ProfitSummary data={data} periodLabel={periodLabel} onDetail={openDrawer} onTrail={setTrail} />}
+        <TrailDrawer trail={trail} onClose={() => setTrail(null)} />
       </div>
 
       {/* Detail drawer */}

@@ -14,10 +14,12 @@ import { useAppShell } from '@/lib/app-shell'
 import { formatThaiMoney } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
+import type { MoneyTrail } from '@/types'
 
 interface DailyClosing {
   revenue: DailyRevenue & { grandTotal: number }
   drawer?: DailyDrawer
+  trail?: MoneyTrail
   repairSummary: { overdue: number; byStatus: Record<string, number> }
   lowStock: { count: number }
 }
@@ -122,6 +124,7 @@ export default function SunmiDailySummaryPage() {
             <DailyMoneySummary
               r={data.revenue}
               drawer={data.drawer}
+              trail={data.trail}
               dayLabel="วันนี้"
               compact
               onDetail={(what) => router.push(

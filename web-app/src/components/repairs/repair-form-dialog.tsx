@@ -8,7 +8,7 @@ import { z } from 'zod'
 import {
   Loader2, User, X, Wrench, ShoppingCart, Printer, FileText, CheckCircle2,
   Smartphone, Tablet, Laptop, Watch, HelpCircle, Tag, UserCog, Camera, ImagePlus,
-  ChevronDown, ChevronRight, CalendarDays, Plus,
+  ChevronDown, ChevronRight, CalendarDays, Plus, Monitor,
 } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -26,7 +26,8 @@ import {
 import { formatThaiMoney, cn } from '@/lib/utils'
 import { Platform } from '@/lib/platform'
 import api from '@/lib/api'
-import { ISSUE_TAG_OPTIONS, ACCESSORY_OPTIONS } from '@/lib/repair-tags'
+import { issueTagsFor, accessoriesFor, conditionsFor, withPicked } from '@/lib/repair-tags'
+import { brandsFor, modelsFor } from '@/lib/device-models'
 import { TechnicianAvatar } from '@/components/ui/technician-avatar'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { localDay } from '@/lib/repair-batch'
@@ -74,20 +75,26 @@ const DEVICE_TYPES = [
   { value: 'มือถือ',   icon: Smartphone },
   { value: 'แท็บเล็ต', icon: Tablet },
   { value: 'แล็ปท็อป', icon: Laptop },
+  { value: 'คอมพิวเตอร์ตั้งโต๊ะ', icon: Monitor },
+  { value: 'ปริ้นเตอร์', icon: Printer },
   { value: 'Smart Watch', icon: Watch },
   { value: 'อื่นๆ',    icon: HelpCircle },
 ]
 
-const ACCESSORIES_OPTIONS = ACCESSORY_OPTIONS
 
-const CONDITION_OPTIONS = [
-  { value: 'หน้าจอแตก',   color: 'bg-red-50 border-red-200 text-red-700 data-[active=true]:bg-red-500 data-[active=true]:text-white data-[active=true]:border-red-500' },
-  { value: 'ฝาหลังแตก',   color: 'bg-orange-50 border-orange-200 text-orange-700 data-[active=true]:bg-orange-500 data-[active=true]:text-white data-[active=true]:border-orange-500' },
-  { value: 'ขอบมีรอย',    color: 'bg-yellow-50 border-yellow-200 text-yellow-700 data-[active=true]:bg-yellow-500 data-[active=true]:text-white data-[active=true]:border-yellow-500' },
-  { value: 'มีรอยขีดข่วน', color: 'bg-amber-50 border-amber-200 text-amber-700 data-[active=true]:bg-amber-500 data-[active=true]:text-white data-[active=true]:border-amber-500' },
-  { value: 'ปกติ',         color: 'bg-green-50 border-green-200 text-green-700 data-[active=true]:bg-green-500 data-[active=true]:text-white data-[active=true]:border-green-500' },
-  { value: 'เปียกน้ำ',    color: 'bg-blue-50 border-blue-200 text-blue-700 data-[active=true]:bg-blue-500 data-[active=true]:text-white data-[active=true]:border-blue-500' },
-]
+const CONDITION_COLOR: Record<string, string> = {
+  'หน้าจอแตก':   'bg-red-50 border-red-200 text-red-700 data-[active=true]:bg-red-500 data-[active=true]:text-white data-[active=true]:border-red-500',
+  'ฝาหลังแตก':   'bg-orange-50 border-orange-200 text-orange-700 data-[active=true]:bg-orange-500 data-[active=true]:text-white data-[active=true]:border-orange-500',
+  'ขอบมีรอย':    'bg-yellow-50 border-yellow-200 text-yellow-700 data-[active=true]:bg-yellow-500 data-[active=true]:text-white data-[active=true]:border-yellow-500',
+  'มีรอยขีดข่วน': 'bg-amber-50 border-amber-200 text-amber-700 data-[active=true]:bg-amber-500 data-[active=true]:text-white data-[active=true]:border-amber-500',
+  'ปกติ':         'bg-green-50 border-green-200 text-green-700 data-[active=true]:bg-green-500 data-[active=true]:text-white data-[active=true]:border-green-500',
+  'เปียกน้ำ':    'bg-blue-50 border-blue-200 text-blue-700 data-[active=true]:bg-blue-500 data-[active=true]:text-white data-[active=true]:border-blue-500',
+}
+/** Anything broken is red, the rest amber (conditions of notebooks, printers…) */
+const conditionColor = (v: string) => CONDITION_COLOR[v]
+  ?? (/แตก|หัก|หาย|บุบ/.test(v)
+    ? CONDITION_COLOR['หน้าจอแตก']
+    : CONDITION_COLOR['มีรอยขีดข่วน'])
 
 const SPECIAL_TAGS = [
   { value: 'ด่วน',  activeClass: 'bg-red-600 text-white border-red-600',    baseClass: 'bg-red-50 text-red-700 border-red-200 hover:border-red-400' },
@@ -653,12 +660,12 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>ยี่ห้อ <span className="text-red-500">*</span></Label>
-                    <Input placeholder="เช่น Samsung, Apple" className="h-11" {...register('deviceBrand')} />
+                    <Input placeholder={`เช่น ${brandsFor(deviceType).slice(0, 2).join(', ')}`} className="h-11" {...register('deviceBrand')} />
                     {errors.deviceBrand && <p className="text-xs text-red-500">{errors.deviceBrand.message}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <Label>รุ่น <span className="text-red-500">*</span></Label>
-                    <Input placeholder="เช่น Galaxy S24" className="h-11" {...register('deviceModel')} />
+                    <Input placeholder={`เช่น ${modelsFor(brandsFor(deviceType)[0], deviceType)[0] ?? 'รุ่นเครื่อง'}`} className="h-11" {...register('deviceModel')} />
                     {errors.deviceModel && <p className="text-xs text-red-500">{errors.deviceModel.message}</p>}
                   </div>
                 </div>
@@ -693,7 +700,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                       </button>
                     ))}
                     <div className="w-px bg-slate-200 self-stretch mx-0.5" />
-                    {ISSUE_TAG_OPTIONS.map((tag) => (
+                    {withPicked(issueTagsFor(deviceType), issueTags.filter((t) => t !== 'ด่วน' && t !== 'เคลม')).map((tag) => (
                       <button key={tag} type="button"
                         onClick={() => toggleArr(issueTags, setIssueTags, tag)}
                         className={cn(
@@ -880,7 +887,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                   <div>
                     <Label className="mb-2 block">อุปกรณ์ที่รับมาด้วย</Label>
                     <div className="flex flex-wrap gap-1.5">
-                      {ACCESSORIES_OPTIONS.map((opt) => (
+                      {withPicked(accessoriesFor(deviceType), accessories).map((opt) => (
                         <button key={opt} type="button"
                           onClick={() => toggleArr(accessories, setAccessories, opt)}
                           className={cn(
@@ -899,7 +906,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                   <div>
                     <Label className="mb-2 block">สภาพอุปกรณ์ (เลือกได้หลายข้อ)</Label>
                     <div className="flex flex-wrap gap-1.5">
-                      {CONDITION_OPTIONS.map(({ value, color }) => (
+                      {withPicked(conditionsFor(deviceType), deviceConditions).map((value) => ({ value, color: conditionColor(value) })).map(({ value, color }) => (
                         <button key={value} type="button" data-active={deviceConditions.includes(value)}
                           onClick={() => toggleArr(deviceConditions, setDeviceConditions, value)}
                           className={cn('px-3 py-2 rounded-full border text-xs font-medium transition-all min-h-[36px]', color)}>
