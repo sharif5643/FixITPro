@@ -40,6 +40,13 @@ import { ModuleGuard } from '../common/guards/module.guard';
 import { RequireModule } from '../common/decorators/require-module.decorator';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { IsNotEmpty as IsNotEmptyCustomer, IsString as IsStringCustomer } from 'class-validator';
+
+class ChangeRepairCustomerDto {
+  @IsStringCustomer()
+  @IsNotEmptyCustomer()
+  customerId: string;
+}
 
 // Phase 9: Tenant-scoped upload paths. Fallback to legacy 'repairs/' for non-tenant contexts.
 const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
@@ -258,6 +265,20 @@ export class RepairsController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.repairsService.sign(id, dto, userId, tenantId);
+  }
+
+  /** Put the job under another (the right) customer */
+  @Patch(':id/customer')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.edit')
+  async changeCustomer(
+    @Param('id') id: string,
+    @Body() dto: ChangeRepairCustomerDto,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.changeCustomer(id, dto.customerId, { id: actorId, name: actorName }, tenantId);
   }
 
   @Patch(':id')

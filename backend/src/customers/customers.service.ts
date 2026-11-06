@@ -353,4 +353,80 @@ export class CustomersService {
 
     return tx;
   }
+
+  // ── Duplicate customers ─────────────────────────────────────────────────────
+
+  /** Everything that points at a customer: moved as a whole when two records are merged */
+  private static readonly OWNED = [
+    ['repairs', 'repair'], ['sales', 'sale'], ['saleRefunds', 'saleRefund'], ['claims', 'claim'],
+    ['packageSales', 'packageSale'], ['warranties', 'warranty'], ['notes', 'customerNote'],
+    ['loyalty', 'loyaltyTransaction'], ['documents', 'formalDocument'],
+  ] as const;
+
+  private async pairOf(keepId: string, fromId: string, tenantId?: string | null) {
+    if (!fromId || keepId === fromId) throw new BadRequestException('เลือกลูกค้าคนละรายการ');
+    const [keep, from] = await Promise.all([
+      this.prisma.customer.findFirst({ where: { id: keepId, ...this.tenantSvc.scope(tenantId) } }),
+      this.prisma.customer.findFirst({ where: { id: fromId, ...this.tenantSvc.scope(tenantId) } }),
+    ]);
+    if (!keep || !from) throw new NotFoundException('ไม่พบลูกค้า');
+    return { keep, from };
+  }
+
+  private async countsOf(customerId: string) {
+    const db = this.prisma as any;
+    const entries = await Promise.all(CustomersService.OWNED.map(async ([key, model]) =>
+      [key, await db[model].count({ where: { customerId } })] as const));
+    return Object.fromEntries(entries) as Record<(typeof CustomersService.OWNED)[number][0], number>;
+  }
+
+  /** What merging `fromId` into `keepId` would move, before doing it */
+  async mergePreview(keepId: string, fromId: string, tenantId?: string | null) {
+    const { keep, from } = await this.pairOf(keepId, fromId, tenantId);
+    const brief = (c: typeof keep) => ({ id: c.id, name: c.name, phone: c.phone, points: c.points, createdAt: c.createdAt });
+    return { keep: brief(keep), from: brief(from), moves: await this.countsOf(from.id) };
+  }
+
+  /**
+   * Two records for one person (added again by mistake): everything of `fromId` (repairs, bills,
+   * claims, SIM sales, warranties, notes, points) moves to `keepId`, blank details are filled from
+   * it, then the empty duplicate is removed. A snapshot of it stays in the audit log and a note on
+   * the customer says what was merged.
+   */
+  async merge(keepId: string, fromId: string, actor: { id: string; name?: string }, tenantId?: string | null) {
+    const { keep, from } = await this.pairOf(keepId, fromId, tenantId);
+    const moved = await this.countsOf(from.id);
+    const fill = <K extends 'phone' | 'email' | 'address' | 'lineUserId' | 'taxId' | 'taxBranch'>(k: K) =>
+      (keep[k] == null || keep[k] === '') && from[k] ? { [k]: from[k] } : {};
+    await this.prisma.$transaction(async (tx) => {
+      const t = tx as any;
+      for (const [, model] of CustomersService.OWNED) {
+        await t[model].updateMany({ where: { customerId: from.id }, data: { customerId: keep.id } });
+      }
+      // the duplicate goes first: its phone may move to the kept record (one phone per shop)
+      await tx.customer.delete({ where: { id: from.id } });
+      await tx.customer.update({
+        where: { id: keep.id },
+        data: {
+          ...fill('phone'), ...fill('email'), ...fill('address'), ...fill('lineUserId'), ...fill('taxId'), ...fill('taxBranch'),
+          points: keep.points + from.points,
+          tags: Array.from(new Set([...(keep.tags ?? []), ...(from.tags ?? [])])),
+          ...(from.note ? { note: [keep.note, from.note].filter(Boolean).join('\n') } : {}),
+        },
+      });
+      await tx.customerNote.create({
+        data: {
+          customerId: keep.id, createdById: actor.id, createdByName: actor.name ?? null,
+          note: `รวมลูกค้าซ้ำ: ${from.name}${from.phone ? ` (${from.phone})` : ''} — ย้ายงานซ่อม ${moved.repairs} · บิล ${moved.sales} · เคลม ${moved.claims} · ประกัน ${moved.warranties} · แต้ม ${from.points} มาไว้ที่นี่`,
+        },
+      });
+    });
+    await this.auditLog.log({
+      actorId: actor.id, actorName: actor.name, action: 'CUSTOMER_MERGED', entityType: 'Customer', entityId: keep.id,
+      beforeData: { merged: { id: from.id, name: from.name, phone: from.phone, email: from.email, address: from.address, points: from.points, tags: from.tags, createdAt: from.createdAt } },
+      afterData: { moved },
+    });
+    return { keepId: keep.id, moved };
+  }
+
 }

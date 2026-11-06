@@ -25,6 +25,8 @@ import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import type { Customer } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
+import { useAuthStore } from '@/store/auth.store'
+import { MergeCustomerButton } from '@/components/customers/merge-customer'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -189,6 +191,7 @@ export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [adjustOpen, setAdjustOpen] = useState(false)
+  const role = useAuthStore((st) => st.user?.role)
 
   const { data: customer, isLoading: loadingCustomer } = useQuery<CustomerDetail>({
     queryKey: ['customer', id],
@@ -252,6 +255,12 @@ export default function CustomerDetailPage() {
           label="เอกสาร A4 / PDF"
           className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent"
         />
+        {role === 'OWNER' && (
+          <MergeCustomerButton
+            customer={customer}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent"
+          />
+        )}
       </div>
 
       {/* Customer info */}
