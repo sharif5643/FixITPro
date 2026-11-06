@@ -48,10 +48,10 @@ export function thaiDayLabel(date: string): string {
   return `${TH_DAYS[dow]} ${d} ${TH_MONTHS[m - 1]}`
 }
 
-/** How many things wait for the owner, for the badge and the LINE heading */
+/** How many topics wait for the owner — the same count as the page's "ต้องจัดการ N เรื่อง" */
 export function actionCount(a: ActionItems): number {
   return (
-    a.longShifts.length +
+    (a.longShifts.length > 0 ? 1 : 0) +
     (a.overdueRepairs.count > 0 ? 1 : 0) +
     (a.waitingPickup.count > 0 ? 1 : 0) +
     (a.customerDebt.count > 0 ? 1 : 0) +
@@ -100,7 +100,7 @@ export function summaryText(t: OwnerToday, shopName: string, origin: string): st
   const todo = actionLines(t.actions)
   lines.push('')
   if (todo.length) {
-    lines.push(`⚠️ ต้องจัดการ ${todo.length} เรื่อง`)
+    lines.push(`⚠️ ต้องจัดการ ${actionCount(t.actions)} เรื่อง`)
     for (const l of todo) lines.push(`• ${l}`)
   } else {
     lines.push('✅ ไม่มีเรื่องค้างให้จัดการ')
