@@ -141,8 +141,9 @@ describe('Books audit: drawer, cash ledger, books and reports agree (e2e)', () =
     expect(bs.totalAssets).not.toBe(0);
     expect(Math.abs(bs.totalAssets - bs.totalLiabilities - bs.totalEquity)).toBeLessThan(0.01);   // it balances
     // Stock added on the product form is in the books: 20 phones (600) − 1 sold, 20 gifts (50) − 1
-    expect(bs.assets.find((a: any) => a.code === '1300').balance).toBe(19 * 600 + 19 * 50);
-    expect(bs.assets.find((a: any) => a.code === '1310').balance).toBe(19 * 200);
+    // (counted from this test's own entries: other test files put stock into the same shop)
+    expect(b.by['1300']).toBe(19 * 600 + 19 * 50);
+    expect(b.by['1310']).toBe(19 * 200);
     const money = (await authGet(app, `/api/v1/finance/summary?startDate=${today}&endDate=${today}`, owner).expect(200)).body;
     expect(money.bySource.OWNER_DRAW.out).toBe(300);
     expect(money.bySource.DELIVERY_FEE.out).toBe(80);
