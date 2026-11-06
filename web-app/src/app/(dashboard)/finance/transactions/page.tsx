@@ -16,6 +16,7 @@ import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
 import api from '@/lib/api'
 import { LEDGER_SOURCE } from '@/lib/cash-ledger-labels'
+import { DocLink, type DocRef } from '@/components/money/doc-peek'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ interface LedgerEntry {
   sessionId:     string | null
   actorUserId:   string | null
   branchId:      string | null
+  /** the bill, job, expense, PO or shift this money belongs to */
+  doc?:          DocRef | null
 }
 
 interface TransactionResponse {
@@ -173,11 +176,12 @@ export default function TransactionsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
                     {SOURCE_LABEL[e.sourceType ?? ''] ?? e.reason ?? e.type}
+                    {e.doc && <DocLink doc={e.doc} className="ml-2 align-middle" />}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {fmtDt(e.createdAt)}
                     {e.paymentMethod && <span className="ml-1">· {PAYMENT_LABEL[e.paymentMethod] ?? e.paymentMethod}</span>}
-                    {!e.sessionId && <span className="ml-1 text-amber-500">· ไม่มีเซสชัน</span>}
+                    
                   </p>
                 </div>
                 <div className={`shrink-0 text-sm font-semibold tabular-nums ${e.direction === 'IN' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>

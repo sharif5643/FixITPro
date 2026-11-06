@@ -1003,17 +1003,40 @@ export interface ProfitReportPosItem {
   time: string; receiptNumber: string; customer: string | null
   product: string; qty: number; revenue: number; cogs: number; profit: number
   isFreebie?: boolean
+  saleId?: string
 }
 export interface ProfitReportRepairItem {
   time: string; ticketNumber: string; customer: string | null
   device: string; revenue: number; partsCost: number; laborCost: number; profit: number
   deliveryCost?: number
+  /** of partsCost: parts given free */
+  freebieCost?: number
+  repairId?: string
 }
 export interface ProfitReportPackageItem {
   time: string; receiptNumber: string; carrier: string; amount: number; profit: number
+  id?: string
 }
 export interface ProfitReportExpenseItem {
   time: string; category: string; description: string; paymentMethod: string; amount: number
+  id?: string; categoryCode?: string; paidByOwner?: boolean
+}
+
+/** One row of money behind a report's totals, with the document it links to */
+export interface MoneyTrailEntry {
+  time: string
+  ref: { kind: 'SALE' | 'REPAIR' | 'PACKAGE' | 'SHIFT'; id: string; label: string } | null
+  amount: number
+  method?: string
+  cost?: number
+  profit?: number
+  /** SIM sale: what was paid at the counter */
+  paid?: number
+}
+export interface MoneyTrail {
+  sales: MoneyTrailEntry[]; refunds: MoneyTrailEntry[]
+  deposits: MoneyTrailEntry[]; pickups: MoneyTrailEntry[]; debts: MoneyTrailEntry[]
+  packages: MoneyTrailEntry[]; otherIncome: MoneyTrailEntry[]
 }
 
 export interface ProfitReport {
@@ -1061,6 +1084,7 @@ export interface ProfitReport {
   summary: {
     grossProfit: number; netProfit: number; totalRevenue: number; grossMargin: number; netMargin: number
   }
+  trail?: MoneyTrail
 }
 
 // ── Super Admin V2 types ──────────────────────────────────────────────────────

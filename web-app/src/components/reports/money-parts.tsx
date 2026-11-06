@@ -9,16 +9,20 @@ import { cn, formatThaiMoney } from '@/lib/utils'
  */
 
 /** One line of a money box: label, amount, and an optional note on how it was worked out */
-export function MoneyLine({ label, value, minus, total, muted, note }: {
+export function MoneyLine({ label, value, minus, total, muted, note, onClick }: {
   label: React.ReactNode
   value: number
   minus?: boolean
   total?: boolean
   muted?: boolean
   note?: string
+  /** tap to see what the number is made of */
+  onClick?: () => void
 }) {
+  const Tag = onClick ? 'button' : 'div'
   return (
-    <div className={cn(
+    <Tag {...(onClick ? { type: 'button' as const, onClick } : {})} className={cn(
+      onClick && 'group -mx-1.5 w-[calc(100%+0.75rem)] rounded-lg px-1.5 text-left hover:bg-blue-50/70 dark:hover:bg-blue-900/20',
       'flex items-baseline justify-between gap-3 py-1 text-sm',
       total && 'mt-1.5 border-t border-slate-200 pt-2.5 text-base font-bold dark:border-slate-700',
       muted && 'pl-3 text-xs text-muted-foreground',
@@ -34,8 +38,9 @@ export function MoneyLine({ label, value, minus, total, muted, note }: {
         total && (value < 0 || minus ? 'text-red-600 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'),
       )}>
         {minus || (total && value < 0) ? '− ' : ''}{formatThaiMoney(Math.abs(value))}
+        {onClick && <ChevronRight className="-mr-1 ml-0.5 inline h-3.5 w-3.5 text-slate-300 group-hover:text-blue-500 print:hidden" />}
       </span>
-    </div>
+    </Tag>
   )
 }
 
@@ -67,7 +72,7 @@ export function SourceCard({ icon, title, why, onDetail, detailLabel = 'ดู�
   )
 }
 
-export type Pill = { label: string; value: number; tone: 'in' | 'out' | 'result'; result?: boolean }
+export type Pill = { label: string; value: number; tone: 'in' | 'out' | 'result'; result?: boolean; onClick?: () => void }
 
 const PILL_TONE: Record<Pill['tone'], string> = {
   in:     'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
@@ -84,9 +89,15 @@ export function MoneyEquation({ parts, className }: { parts: Pill[]; className?:
         return (
           <span key={p.label} className="flex items-center gap-2">
             {op && <span className="text-lg font-bold text-slate-400">{op}</span>}
-            <span className={cn('rounded-xl px-3 py-1.5 text-sm font-bold tabular-nums', PILL_TONE[p.result && p.value < 0 ? 'out' : p.tone])}>
-              {p.label} {formatThaiMoney(Math.abs(p.value))}
-            </span>
+            {p.onClick ? (
+              <button type="button" onClick={p.onClick} className={cn('rounded-xl px-3 py-1.5 text-sm font-bold tabular-nums ring-blue-300 transition hover:ring-2', PILL_TONE[p.result && p.value < 0 ? 'out' : p.tone])}>
+                {p.label} {formatThaiMoney(Math.abs(p.value))}
+              </button>
+            ) : (
+              <span className={cn('rounded-xl px-3 py-1.5 text-sm font-bold tabular-nums', PILL_TONE[p.result && p.value < 0 ? 'out' : p.tone])}>
+                {p.label} {formatThaiMoney(Math.abs(p.value))}
+              </span>
+            )}
           </span>
         )
       })}

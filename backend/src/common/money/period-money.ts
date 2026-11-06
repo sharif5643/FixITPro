@@ -24,6 +24,14 @@ import { INCOME_CATEGORIES } from '../../shifts/shift-cash';
 export interface MoneyRow {
   date: Date;
   branchId: string | null;
+  /** what this money is: the document it links to (a bill, a repair job, a SIM sale, a shift) */
+  ref?: MoneyRef;
+}
+
+export interface MoneyRef {
+  kind: 'SALE' | 'REPAIR' | 'PACKAGE' | 'SHIFT';
+  id: string;
+  label: string;
 }
 
 export interface PeriodMoneyRows {
@@ -36,7 +44,8 @@ export interface PeriodMoneyRows {
   deposits: (MoneyRow & { amount: number; method: string })[];
   pickups: (MoneyRow & { amount: number; method: string; cost: number })[];
   debtPayments: (MoneyRow & { amount: number; method: string })[];
-  packages: (MoneyRow & { profit: number; amount: number })[];
+  /** paid: what was paid at the counter (a credit sale brings in only part), by method */
+  packages: (MoneyRow & { profit: number; amount: number; paid: number; method: string })[];
   otherIncome: (MoneyRow & { amount: number; method: string })[];
 }
 
@@ -77,7 +86,7 @@ export async function loadPeriodMoney(
     prisma.sale.findMany({
       where: { createdAt: inRange, status: { not: 'VOIDED' }, ...branchWhere },
       select: {
-        createdAt: true, branchId: true, total: true, paymentMethod: true,
+        id: true, receiptNumber: true, createdAt: true, branchId: true, total: true, paymentMethod: true,
         items: { select: { costPrice: true, quantity: true } },
         payments: { select: { paymentMethod: true, amount: true } },
       },
@@ -86,32 +95,32 @@ export async function loadPeriodMoney(
       where: { createdAt: inRange, sale: { status: { not: 'VOIDED' }, ...branchWhere } },
       select: {
         createdAt: true, totalRefund: true, paymentMethod: true,
-        sale: { select: { branchId: true } },
+        sale: { select: { id: true, receiptNumber: true, branchId: true } },
         items: { select: { quantity: true, saleItem: { select: { costPrice: true } } } },
       },
     }),
     prisma.repair.findMany({
       where: { receivedAt: inRange, deposit: { gt: 0 }, status: { not: 'CANCELLED' }, ...branchWhere },
-      select: { receivedAt: true, branchId: true, deposit: true, depositPaymentMethod: true },
+      select: { id: true, ticketNumber: true, receivedAt: true, branchId: true, deposit: true, depositPaymentMethod: true },
     }),
     prisma.repair.findMany({
       where: { paidAt: inRange, paymentStatus: { in: ['PAID', 'PARTIAL'] }, ...branchWhere },
       select: {
-        paidAt: true, branchId: true, paidAmount: true, paymentMethod: true, actualLaborCost: true,
+        id: true, ticketNumber: true, paidAt: true, branchId: true, paidAmount: true, paymentMethod: true, actualLaborCost: true,
         parts: { where: { isVoided: false }, select: { costPrice: true, price: true, quantity: true } },
         extraCosts: { select: { amount: true } },
       },
     }),
     prisma.repairAdditionalPayment.findMany({
       where: { createdAt: inRange, repair: branchWhere },
-      select: { createdAt: true, amount: true, paymentMethod: true, repair: { select: { branchId: true } } },
+      select: { createdAt: true, amount: true, paymentMethod: true, repair: { select: { id: true, ticketNumber: true, branchId: true } } },
     }),
     prisma.packageSale.findMany({
       where: {
         createdAt: inRange,
         ...(params.tenantId ? { createdBy: { tenantId: params.tenantId } } : {}),
       },
-      select: { createdAt: true, profit: true, packageAmount: true, shiftId: true },
+      select: { id: true, receiptNumber: true, createdAt: true, profit: true, packageAmount: true, creditAmount: true, paymentMethod: true, shiftId: true },
     }),
     prisma.shiftCashMovement.findMany({
       where: {
@@ -119,7 +128,7 @@ export async function loadPeriodMoney(
         ...(params.tenantId ? { tenantId: params.tenantId } : {}),
         ...(params.branchId ? { branchId: params.branchId } : {}),
       },
-      select: { createdAt: true, branchId: true, amount: true, paymentMethod: true },
+      select: { id: true, shiftId: true, reason: true, createdAt: true, branchId: true, amount: true, paymentMethod: true },
     }),
   ]);
 
@@ -139,6 +148,7 @@ export async function loadPeriodMoney(
     sales: sales.map((s) => ({
       date: s.createdAt,
       branchId: s.branchId,
+      ref: { kind: 'SALE' as const, id: s.id, label: s.receiptNumber },
       total: Number(s.total),
       cost: s.items.reduce((sum, i) => sum + Number(i.costPrice ?? 0) * i.quantity, 0),
       legs: s.payments.length > 0
@@ -148,6 +158,7 @@ export async function loadPeriodMoney(
     refunds: refunds.map((r) => ({
       date: r.createdAt,
       branchId: r.sale.branchId,
+      ref: { kind: 'SALE' as const, id: r.sale.id, label: r.sale.receiptNumber },
       amount: Number(r.totalRefund),
       method: r.paymentMethod,
       cost: r.items.reduce((sum, i) => sum + Number(i.saleItem.costPrice ?? 0) * i.quantity, 0),
@@ -155,12 +166,14 @@ export async function loadPeriodMoney(
     deposits: deposits.map((r) => ({
       date: r.receivedAt,
       branchId: r.branchId,
+      ref: { kind: 'REPAIR' as const, id: r.id, label: r.ticketNumber },
       amount: Number(r.deposit ?? 0),
       method: r.depositPaymentMethod ?? 'CASH',
     })),
     pickups: pickups.map((r) => ({
       date: r.paidAt as Date,
       branchId: r.branchId,
+      ref: { kind: 'REPAIR' as const, id: r.id, label: r.ticketNumber },
       amount: Number(r.paidAmount ?? 0),
       method: r.paymentMethod ?? 'CASH',
       cost: Number(r.actualLaborCost ?? 0)
@@ -171,18 +184,23 @@ export async function loadPeriodMoney(
     debtPayments: debtPayments.map((p) => ({
       date: p.createdAt,
       branchId: p.repair.branchId,
+      ref: { kind: 'REPAIR' as const, id: p.repair.id, label: p.repair.ticketNumber },
       amount: Number(p.amount),
       method: p.paymentMethod,
     })),
     packages: packageRows.map((p) => ({
       date: p.createdAt,
       branchId: p.branchId,
+      ref: { kind: 'PACKAGE' as const, id: p.id, label: p.receiptNumber },
       profit: Number(p.profit),
       amount: Number(p.packageAmount),
+      paid: Number(p.packageAmount) - Number(p.creditAmount ?? 0),
+      method: p.paymentMethod as string,
     })),
     otherIncome: otherIncome.map((m) => ({
       date: m.createdAt,
       branchId: m.branchId,
+      ref: { kind: 'SHIFT' as const, id: m.shiftId, label: m.reason || 'รับเงินไม่มีบิล' },
       amount: Number(m.amount),
       method: m.paymentMethod,
     })),

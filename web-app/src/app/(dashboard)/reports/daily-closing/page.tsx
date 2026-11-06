@@ -21,12 +21,14 @@ import api from '@/lib/api'
 import { DrillDrawer, MetricCard } from '@/components/reports/drill-drawer'
 import { repairPrice } from '@/lib/repair-price'
 import { SendPdfButton } from '@/components/reports/send-pdf-button'
+import type { MoneyTrail } from '@/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface DailyClosingReport {
   date: string
   drawer?: DailyDrawer
+  trail?: MoneyTrail
   revenue: {
     pos: { total: number; gross?: number; count: number; breakdown: Record<string, number> }
     repairs: { total: number; count: number; breakdown: Record<string, number>; deposits?: number; atPickup?: number; debtPayments?: number }
@@ -524,6 +526,7 @@ export default function DailyClosingReportPage() {
               <DailyMoneySummary
                 r={data.revenue}
                 drawer={data.drawer}
+                trail={data.trail}
                 dayLabel={dateStr === todayStr() ? 'วันนี้' : `วันที่ ${format(new Date(dateStr + 'T12:00:00'), 'd MMM', { locale: th })} `}
                 onDetail={(what) => {
                   if (what === 'sales') openDrawer('รายการขาย', salesDrawer)

@@ -50,6 +50,7 @@ import { TechOwnershipBar } from '@/components/repairs/tech-ownership'
 import { localDay } from '@/lib/repair-batch'
 import { STATUS_MOVES, NEXT_ACTION as SHARED_NEXT_ACTION, PATH_TO_DONE as SHARED_PATH_TO_DONE } from '@/lib/repair-status-flow'
 import { repairQuote } from '@/lib/repair-price'
+import { RepairMoneyBox, type RepairMoney } from '@/components/money/repair-money'
 
 const STATUS_LABEL: Record<RepairStatus, string> = {
   RECEIVED:         'รับงาน',
@@ -209,12 +210,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const canViewCost = hasPermission('products.view_cost')
   const canViewProfit = authUser?.role === 'OWNER' || authUser?.role === 'MANAGER'
 
-  const { data: profitData } = useQuery<{
-    revenue: { deposit: number; finalPayment: number; additionalPayments: number; reversals: number; total: number }
-    costs:   { parts: number; total: number }
-    grossProfit: number
-    marginPercent: number
-  }>({
+  const { data: profitData } = useQuery<RepairMoney>({
     queryKey: ['repairs', repairId, 'profit'],
     queryFn: async () => (await api.get(`/repairs/${repairId}/profit`)).data,
     enabled: !!repairId && canViewProfit,
@@ -1332,25 +1328,9 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 <div className="rounded-xl border border-emerald-100 dark:border-emerald-700/40 bg-emerald-50/40 dark:bg-emerald-900/10 p-4 space-y-2">
                   <p className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
                     <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                    กำไรเบื้องต้น
+                    เงินของงานนี้ — รับมาเท่าไร จ่ายอะไรไป
                   </p>
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">รายรับรวม</span>
-                      <span className="tabular-nums font-medium">{formatThaiMoney(profitData.revenue.total)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">ต้นทุนอะไหล่</span>
-                      <span className="tabular-nums text-red-600 dark:text-red-400">{formatThaiMoney(profitData.costs.parts)}</span>
-                    </div>
-                    <div className="flex justify-between font-semibold border-t border-emerald-100 dark:border-emerald-700/40 pt-1.5 mt-0.5">
-                      <span>กำไรขั้นต้น</span>
-                      <span className={`tabular-nums ${profitData.grossProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {formatThaiMoney(profitData.grossProfit)}
-                        <span className="text-xs font-normal ml-1 text-muted-foreground">({profitData.marginPercent.toFixed(1)}%)</span>
-                      </span>
-                    </div>
-                  </div>
+                  <RepairMoneyBox m={profitData} />
                 </div>
               )}
 

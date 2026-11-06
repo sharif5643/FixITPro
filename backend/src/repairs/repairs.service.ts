@@ -2265,10 +2265,12 @@ export class RepairsService {
         paidAmount:     true,
         parts: {
           where: { isVoided: false },
-          select: { quantity: true, price: true, costPrice: true, productName: true },
+          select: { quantity: true, price: true, costPrice: true, productName: true, isFreebie: true },
         },
         additionalPayments: { select: { amount: true } },
         paymentReversals:   { select: { amount: true } },
+        extraCosts:         { select: { id: true, kind: true, amount: true, note: true, fromDrawer: true, createdAt: true } },
+        actualLaborCost:    true,
       },
     });
     if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
@@ -2284,7 +2286,11 @@ export class RepairsService {
       return s + unit * p.quantity;
     }, 0);
 
-    const grossProfit  = revenue - partsCost;
+    // Everything this job cost, as in the profit report: parts (free ones too), the delivery fee
+    // for its parts, the technician's labour
+    const deliveryCost = repair.extraCosts.reduce((s, c) => s + Number(c.amount), 0);
+    const laborCost    = Number(repair.actualLaborCost ?? 0);
+    const grossProfit  = revenue - partsCost - deliveryCost - laborCost;
     const marginPercent = revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0;
 
     return {
@@ -2300,8 +2306,16 @@ export class RepairsService {
         total:              revenue,
       },
       costs: {
-        parts: partsCost,
-        total: partsCost,
+        parts:    partsCost,
+        delivery: deliveryCost,
+        labor:    laborCost,
+        total:    partsCost + deliveryCost + laborCost,
+        partList: repair.parts.map((p) => ({
+          name: p.productName, qty: p.quantity, cost: Number(p.costPrice ?? p.price) * p.quantity, isFreebie: p.isFreebie,
+        })),
+        extraList: repair.extraCosts.map((c) => ({
+          id: c.id, kind: c.kind, amount: Number(c.amount), note: c.note, fromDrawer: c.fromDrawer, at: c.createdAt,
+        })),
       },
       grossProfit,
       marginPercent,

@@ -10,6 +10,7 @@ import { ModuleGate } from '@/components/auth/module-gate'
 import { formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
 import { DailyMoneySummary, type DailyDrawer, type DailyRevenue } from '@/components/reports/daily-money-summary'
+import type { MoneyTrail } from '@/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ interface DailyReport {
   date: string
   revenue: DailyRevenue & { grandTotal: number }
   drawer?: DailyDrawer
+  trail?: MoneyTrail
   expenses: { totalAmount: number }
 }
 
@@ -168,7 +170,7 @@ export default function DailyClosePage() {
         ) : report ? (
           <>
             <div className="mb-5">
-              <DailyMoneySummary r={report.revenue} drawer={report.drawer} dayLabel={selectedDate === todayStr() ? 'วันนี้' : `วันที่ ${formatDate(selectedDate)} `} compact />
+              <DailyMoneySummary r={report.revenue} drawer={report.drawer} trail={report.trail} dayLabel={selectedDate === todayStr() ? 'วันนี้' : `วันที่ ${formatDate(selectedDate)} `} compact />
             </div>
 
             {/* Cash count */}
