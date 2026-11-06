@@ -28,4 +28,14 @@ describe('daily money in plain Thai', () => {
     render(<DailyMoneySummary r={{ ...day, cash: 3900 }} dayLabel="วันนี้" />)
     expect(screen.getByText(/ต่าง ฿40/)).toBeTruthy()
   })
+
+  it('shows what should be in the drawer after cash that left it', () => {
+    render(<DailyMoneySummary r={day} dayLabel="วันนี้" drawer={{
+      out: { expenses: 100, delivery: 80, ownerDraw: 300, suppliers: 0, other: 0 }, outTotal: 480, in: 50,
+    }} />)
+    expect(screen.getByText('ลิ้นชักควรมีเงินสด', { exact: false })).toBeTruthy()
+    expect(screen.getAllByText('฿3,610').length).toBeGreaterThan(0)   // 4,040 + 50 − 480
+    expect(screen.getByText(/ค่ารถส่งอะไหล่/)).toBeTruthy()
+    expect(screen.queryByText(/จ่ายซัพพลายเออร์/)).toBeNull()
+  })
 })

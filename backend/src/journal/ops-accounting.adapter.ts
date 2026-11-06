@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { JournalService, JOURNAL_SOURCE, JournalLineInput } from './journal.service';
 import { ModulesService } from '../modules/modules.service';
 import { ACCOUNT_CODES } from '../accounting-accounts/constants/account-codes';
+import { PrismaService } from '../database/prisma.service';
 
 /**
  * Double-entry journals for money that used to reach only the cash drawer, or nothing:
@@ -20,6 +21,7 @@ export class OpsAccountingAdapter {
   constructor(
     private readonly journal: JournalService,
     private readonly modules: ModulesService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private dec(v: Prisma.Decimal | number | string | null | undefined) {
@@ -239,4 +241,126 @@ export class OpsAccountingAdapter {
       this.logger.error(`OpsAccountingAdapter.reverseDrawerManual failed: tx=${p.originalTxId}`, err as Error);
     }
   }
+
+  // ── Quick money in / out at the till (shift) ────────────────────────────────
+
+  /**
+   * Cash put in or taken out at the counter in a shift. Money in with no bill
+   * (INCOME_PRODUCT / INCOME_SERVICE) is revenue, as in the profit report; everything else
+   * (change float, the owner taking or bringing money, buying things with drawer cash) is the
+   * owner's money moving, not profit. A shop expense from the drawer is an Expense instead.
+   */
+  async recordShiftCash(p: {
+    tenantId: string | null | undefined; branchId?: string | null; movementId: string;
+    direction: 'IN' | 'OUT'; category?: string | null; amount: number | Prisma.Decimal;
+    reason?: string | null; actorId?: string | null;
+  }) {
+    const amount = this.dec(p.amount);
+    if (!amount.gt(0)) return;
+    const out = p.direction === 'OUT';
+    const other = !out && p.category === 'INCOME_PRODUCT' ? ACCOUNT_CODES.SALES_REVENUE
+      : !out && p.category === 'INCOME_SERVICE' ? ACCOUNT_CODES.REPAIR_REVENUE
+      : ACCOUNT_CODES.OWNER_EQUITY;
+    await this.post(p.tenantId, 'recordShiftCash', {
+      branchId: p.branchId, actorId: p.actorId,
+      description: `${out ? 'เงินออกจากลิ้นชัก' : other === ACCOUNT_CODES.OWNER_EQUITY ? 'เงินเข้าลิ้นชัก' : 'รับเงินไม่มีบิล'}${p.reason ? ` — ${p.reason}` : ''}`,
+      sourceType: out ? JOURNAL_SOURCE.SHIFT_CASH_OUT : JOURNAL_SOURCE.SHIFT_CASH_IN, sourceId: p.movementId,
+      lines: out
+        ? [
+            { accountCode: other,              debit:  amount.toString() },
+            { accountCode: ACCOUNT_CODES.CASH, credit: amount.toString(), paymentMethod: 'CASH' },
+          ]
+        : [
+            { accountCode: ACCOUNT_CODES.CASH, debit:  amount.toString(), paymentMethod: 'CASH' },
+            { accountCode: other,              credit: amount.toString() },
+          ],
+    });
+  }
+
+  /**
+   * An extra cost of a repair job (the delivery fee for its parts): part of the job's cost.
+   * Paid from the drawer → cash goes down; paid by the owner → the owner put that money in.
+   */
+  async recordRepairExtraCost(p: {
+    tenantId: string | null | undefined; branchId?: string | null; costId: string; ticketNumber: string;
+    amount: number | Prisma.Decimal; fromDrawer: boolean; actorId?: string | null;
+  }) {
+    const amount = this.dec(p.amount);
+    if (!amount.gt(0)) return;
+    await this.post(p.tenantId, 'recordRepairExtraCost', {
+      branchId: p.branchId, actorId: p.actorId,
+      description: `ค่ารถส่งอะไหล่ — งาน ${p.ticketNumber}${p.fromDrawer ? '' : ' (เจ้าของจ่าย)'}`,
+      sourceType: JOURNAL_SOURCE.REPAIR_EXTRA_COST, sourceId: p.costId, sourceRef: p.ticketNumber,
+      lines: [
+        { accountCode: ACCOUNT_CODES.REPAIR_COGS, debit: amount.toString() },
+        p.fromDrawer
+          ? { accountCode: ACCOUNT_CODES.CASH, credit: amount.toString(), paymentMethod: 'CASH' }
+          : { accountCode: ACCOUNT_CODES.OWNER_EQUITY, credit: amount.toString() },
+      ],
+    });
+  }
+
+
+  // ── Stock in / out other than a purchase order, a sale or a repair ─────────
+
+  /**
+   * Goods put into stock without a purchase order (added on the product form, counted in,
+   * imported): the shop now owns them, brought in by the owner. Goods taken out by hand
+   * (damaged, lost, used in the shop) leave the books the same way. Valued at cost.
+   */
+  async recordStockChange(p: {
+    tenantId: string | null | undefined; branchId?: string | null; movementId: string;
+    productName: string; productType?: string | null; quantity: number;
+    unitCost: number | Prisma.Decimal | string | null | undefined; actorId?: string | null;
+  }) {
+    const amount = this.dec(p.unitCost).times(Math.abs(p.quantity)).toDecimalPlaces(2);
+    if (!amount.gt(0) || !p.quantity) return;
+    const stock = p.productType === 'PART' ? ACCOUNT_CODES.PARTS_INVENTORY : ACCOUNT_CODES.INVENTORY;
+    const into = p.quantity > 0;
+    await this.post(p.tenantId, 'recordStockChange', {
+      branchId: p.branchId, actorId: p.actorId,
+      description: `${into ? 'ของเข้าสต็อก' : 'ของออกจากสต็อก'} ${p.productName} × ${Math.abs(p.quantity)}`,
+      sourceType: JOURNAL_SOURCE.STOCK_ADJUST, sourceId: p.movementId,
+      lines: into
+        ? [
+            { accountCode: stock,                      debit:  amount.toString() },
+            { accountCode: ACCOUNT_CODES.OWNER_EQUITY, credit: amount.toString() },
+          ]
+        : [
+            { accountCode: ACCOUNT_CODES.OWNER_EQUITY, debit:  amount.toString() },
+            { accountCode: stock,                      credit: amount.toString() },
+          ],
+    });
+  }
+
+
+  /** Stock movements that come in / go out by hand reach the books (not PO, sale, repair, transfer) */
+  // (a movement with no reference is one made by hand: "not PURCHASE_ORDER" alone would drop NULLs in SQL)
+  static readonly HAND_STOCK = {
+    type: { in: ['IN', 'OUT', 'ADJUST'] },
+    OR: [{ referenceType: null }, { referenceType: { not: 'PURCHASE_ORDER' } }],
+  } as const;
+
+  /** Books one stock movement made by hand, by its id (after the stock change committed). */
+  async bookStockMovement(movementId: string, actorId?: string | null) {
+    try {
+      const m = await this.prisma.stockMovement.findFirst({
+        where: { id: movementId, ...OpsAccountingAdapter.HAND_STOCK } as any,
+        select: {
+          id: true, type: true, quantity: true, unitCost: true, branchId: true,
+          product: { select: { name: true, type: true, costPrice: true, tenantId: true } },
+        },
+      });
+      if (!m?.product?.tenantId) return;
+      await this.recordStockChange({
+        tenantId: m.product.tenantId, branchId: m.branchId, movementId: m.id, actorId,
+        productName: m.product.name, productType: m.product.type as string,
+        quantity: m.type === 'OUT' ? -Math.abs(m.quantity) : m.quantity,
+        unitCost: m.unitCost ?? m.product.costPrice,
+      });
+    } catch (err) {
+      this.logger.error(`OpsAccountingAdapter.bookStockMovement failed: movement=${movementId}`, err as Error);
+    }
+  }
+
 }

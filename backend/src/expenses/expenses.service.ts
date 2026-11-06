@@ -178,6 +178,7 @@ export class ExpensesService implements OnModuleInit {
           createdById:   userId,
           shiftId:       activeShift?.id ?? null,
           branchId:      branchId ?? null,
+          paidByOwner:   !inDrawer,
         },
         include: {
           category:  { select: { id: true, name: true, code: true } },
@@ -185,8 +186,8 @@ export class ExpensesService implements OnModuleInit {
         },
       });
 
-      // Record CASH expense in Cash Drawer ledger (OUT — cash leaves drawer)
-      if (branchId) {
+      // Record CASH expense in Cash Drawer ledger (OUT — cash leaves drawer); the owner's own money never was there
+      if (branchId && inDrawer) {
         const branchInfo = await tx.branch.findUnique({
           where:  { id: branchId },
           select: { tenantId: true },
@@ -217,6 +218,7 @@ export class ExpensesService implements OnModuleInit {
             description:   expense.description,
             amount:        expense.amount,
             paymentMethod: expense.paymentMethod as string,
+            paidByOwner:   expense.paidByOwner,
             branchId:      expense.branchId,
             category:      expense.category ? { code: expense.category.code } : null,
           },
@@ -339,7 +341,7 @@ export class ExpensesService implements OnModuleInit {
         },
       });
 
-      if (expense.branchId) {
+      if (expense.branchId && !expense.paidByOwner) {
         let reversalOfId: string | undefined;
         if (expense.paymentMethod === 'CASH') {
           const originalLedger = await (tx as any).cashDrawerTransaction.findFirst({
@@ -377,6 +379,7 @@ export class ExpensesService implements OnModuleInit {
           description:   voided.description,
           amount:        voided.amount,
           paymentMethod: voided.paymentMethod as string,
+          paidByOwner:   voided.paidByOwner,
           branchId:      voided.branchId,
           category:      voided.category ? { code: voided.category.code } : null,
         },

@@ -10,6 +10,7 @@ import { th } from 'date-fns/locale'
 import { Loader2, Printer, X } from 'lucide-react'
 import api from '@/lib/api'
 import type { ShopSettings } from '@/types'
+import { JOURNAL_SOURCE_LABEL, journalDescription } from '@/lib/journal-labels'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,22 +42,7 @@ interface JournalEntry {
 
 // ── Source label map ──────────────────────────────────────────────────────────
 
-const SOURCE_LABEL: Record<string, string> = {
-  REPAIR_DEPOSIT:            'มัดจำงานซ่อม',
-  REPAIR_FINAL_PAYMENT:      'รับเงินค่าซ่อม',
-  REPAIR_DEPOSIT_SETTLE:     'หักมัดจำ',
-  REPAIR_DEPOSIT_REFUND:     'คืนมัดจำ',
-  REPAIR_COGS:               'ต้นทุนซ่อม',
-  REPAIR_PAYMENT_REVERSAL:   'ยกเลิกรับเงินซ่อม',
-  REPAIR_COGS_REVERSAL:      'ยกเลิกต้นทุนซ่อม',
-  EXPENSE_PAYMENT:           'ค่าใช้จ่าย',
-  EXPENSE_REVERSAL:          'ยกเลิกค่าใช้จ่าย',
-  SALE_REVENUE:              'รายได้ขาย POS',
-  SALE_COGS:                 'ต้นทุนขาย POS',
-  SALE_EXCHANGE:             'แลกสินค้า',
-  JOURNAL_MANUAL:            'บันทึกรายการทั่วไป',
-  JOURNAL_REVERSAL:          'กลับรายการ',
-}
+const SOURCE_LABEL = JOURNAL_SOURCE_LABEL
 
 // ── Format helpers ────────────────────────────────────────────────────────────
 
@@ -184,7 +170,7 @@ export default function JournalPrintPage() {
           </div>
           <div className="flex gap-2 col-span-2">
             <span className="font-semibold w-28 shrink-0">คำอธิบาย:</span>
-            <span>{entry.description}</span>
+            <span>{journalDescription(entry.description)}</span>
           </div>
           <div className="flex gap-2">
             <span className="font-semibold w-28 shrink-0">ประเภท:</span>

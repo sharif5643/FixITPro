@@ -5,9 +5,11 @@ import { CarrierWalletModule } from '../carrier-wallet/carrier-wallet.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ExpensesModule } from '../expenses/expenses.module';
+import { AccountingModule } from '../accounting/accounting.module';
+import { JournalModule } from '../journal/journal.module';
 
 @Module({
-  imports:     [CarrierWalletModule, AuditLogModule, NotificationsModule, ExpensesModule],
+  imports:     [CarrierWalletModule, AuditLogModule, NotificationsModule, ExpensesModule, AccountingModule, JournalModule],
   controllers: [ShiftsController],
   providers:   [ShiftsService],
   exports:     [ShiftsService],

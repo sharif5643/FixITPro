@@ -9,20 +9,14 @@ import { PageHeader } from '@/components/ui/page-header'
 import { ModuleGate } from '@/components/auth/module-gate'
 import { formatThaiMoney } from '@/lib/utils'
 import api from '@/lib/api'
+import { DailyMoneySummary, type DailyDrawer, type DailyRevenue } from '@/components/reports/daily-money-summary'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface DailyReport {
   date: string
-  revenue: {
-    pos:      { total: number; count: number; breakdown: Record<string, number> }
-    repairs:  { total: number; count: number; breakdown: Record<string, number> }
-    packages: { total: number; count: number }
-    grandTotal: number
-    cash:     number
-    transfer: number
-    card:     number
-  }
+  revenue: DailyRevenue & { grandTotal: number }
+  drawer?: DailyDrawer
   expenses: { totalAmount: number }
 }
 
@@ -100,10 +94,15 @@ export default function DailyClosePage() {
     enabled:  showHistory,
   })
 
+  // What should be in the drawer: cash taken in (SIM money included), minus cash that left it
+  const expectedCash = report
+    ? report.revenue.cash + (report.revenue.packages.byMethod?.CASH ?? 0) + (report.drawer?.in ?? 0) - (report.drawer?.outTotal ?? 0)
+    : 0
+
   // Pre-fill actualCash from expected cash if field is empty
   useEffect(() => {
     if (report && actualCash === '') {
-      setActualCash(String(Math.round(report.revenue.cash)))
+      setActualCash(String(Math.round(expectedCash)))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [report?.date])
@@ -123,7 +122,7 @@ export default function DailyClosePage() {
         transferRevenue: report.revenue.transfer,
         cardRevenue:     report.revenue.card,
         actualCash:      cashNum,
-        cashDifference:  cashNum - report.revenue.cash,
+        cashDifference:  cashNum - expectedCash,
         notes:           notes.trim() || undefined,
       }
       return (await api.post('/finance/daily-close', body)).data
@@ -136,12 +135,12 @@ export default function DailyClosePage() {
   })
 
   const cashDiff = report
-    ? (parseFloat(actualCash) || 0) - report.revenue.cash
+    ? Math.round(((parseFloat(actualCash) || 0) - expectedCash) * 100) / 100
     : 0
 
   return (
     <ModuleGate module="finance">
-      <div className="max-w-2xl mx-auto pb-10 px-4">
+      <div className="max-w-3xl mx-auto pb-10 px-4">
         <PageHeader title="ปิดบัญชีประจำวัน" />
 
         {/* Date picker */}
@@ -168,34 +167,8 @@ export default function DailyClosePage() {
           </div>
         ) : report ? (
           <>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <SumCard label="ยอดขาย POS"   value={report.revenue.pos.total}      sub={`${report.revenue.pos.count} รายการ`} />
-              <SumCard label="รายรับซ่อม"   value={report.revenue.repairs.total}   sub={`${report.revenue.repairs.count} รายการ`} />
-              <SumCard label="ขายแพ็กเกจ"   value={report.revenue.packages.total}  sub={`${report.revenue.packages.count} รายการ`} />
-              <SumCard label="ค่าใช้จ่าย"   value={report.expenses.totalAmount} />
-            </div>
-
-            {/* Grand total bar */}
-            <div className="bg-emerald-600 text-white rounded-xl p-4 mb-5 flex items-center justify-between">
-              <span className="font-semibold">รายรับรวม</span>
-              <span className="text-2xl font-bold">{formatThaiMoney(report.revenue.grandTotal)}</span>
-            </div>
-
-            {/* Payment breakdown */}
-            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5">
-              <p className="text-sm font-semibold text-slate-700 mb-3">แยกตามช่องทางชำระ</p>
-              <div className="space-y-2">
-                {[
-                  { label: 'เงินสด',       value: report.revenue.cash },
-                  { label: 'โอนเงิน',      value: report.revenue.transfer },
-                  { label: 'บัตรเครดิต',   value: report.revenue.card },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-600">{label}</span>
-                    <span className="font-semibold text-slate-900">{formatThaiMoney(value)}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="mb-5">
+              <DailyMoneySummary r={report.revenue} drawer={report.drawer} dayLabel={selectedDate === todayStr() ? 'วันนี้' : `วันที่ ${formatDate(selectedDate)} `} compact />
             </div>
 
             {/* Cash count */}
@@ -204,6 +177,7 @@ export default function DailyClosePage() {
                 <Wallet className="h-4 w-4 text-slate-500" />
                 <p className="text-sm font-semibold text-slate-700">นับเงินสดจริง</p>
               </div>
+              <p className="mb-3 text-xs text-muted-foreground">ระบบคิดว่าควรมี <b className="text-slate-800">{formatThaiMoney(expectedCash)}</b> (ไม่รวมเงินทอนตั้งต้น) — นับแล้วใส่ยอดจริง</p>
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-sm text-slate-500 shrink-0">จำนวนเงิน (บาท)</span>
                 <input

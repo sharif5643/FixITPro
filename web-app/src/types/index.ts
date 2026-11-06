@@ -849,6 +849,8 @@ export interface Expense {
   amount: number
   description: string
   paymentMethod: 'CASH' | 'TRANSFER' | 'CARD'
+  /** paid by the owner from their own pocket (not the drawer) */
+  paidByOwner?: boolean
   referenceNo?: string
   note?: string
   voidedAt?: string | null

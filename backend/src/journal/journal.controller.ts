@@ -18,6 +18,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JournalService, JOURNAL_SOURCE } from './journal.service';
+import { dayEnd, dayStart } from './accounting-reports.controller';
 
 class ManualLineDto {
   @IsString() @IsNotEmpty()
@@ -76,8 +77,8 @@ export class JournalController {
     const tenantId = role === 'SUPER_ADMIN' && tenantIdParam ? tenantIdParam : callerTenantId;
     return this.journal.findMany({
       tenantId,
-      startDate:  startDate  ? new Date(startDate)  : undefined,
-      endDate:    endDate    ? new Date(endDate)    : undefined,
+      startDate:  startDate ? dayStart(startDate)  : undefined,
+      endDate:    endDate ? dayEnd(endDate)    : undefined,
       sourceType: sourceType ?? undefined,
       sourceId:   sourceId   ?? undefined,
       isVoided:   isVoided !== undefined ? isVoided === 'true' : undefined,

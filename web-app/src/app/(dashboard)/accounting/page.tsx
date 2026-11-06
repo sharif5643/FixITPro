@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dialog'
 import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
+import { JOURNAL_SOURCE_LABEL, journalDescription, journalSourceLabel } from '@/lib/journal-labels'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -278,7 +279,7 @@ function VoidDialog({ entry, onClose, onSuccess }: {
 
         <div className="space-y-4 mt-1">
           <p className="text-sm text-muted-foreground leading-relaxed">
-            ยกเลิกรายการ <span className="font-medium text-foreground">{entry?.description}</span>
+            ยกเลิกรายการ <span className="font-medium text-foreground">{journalDescription(entry?.description)}</span>
             <br />
             การดำเนินการนี้ไม่สามารถย้อนกลับได้
           </p>
@@ -352,34 +353,8 @@ interface JournalPage {
 
 // ── Source type label map ─────────────────────────────────────────────────────
 
-const SOURCE_LABEL: Record<string, string> = {
-  REPAIR_DEPOSIT:         'มัดจำซ่อม',
-  REPAIR_FINAL_PAYMENT:   'รับเงินซ่อม',
-  REPAIR_DEPOSIT_SETTLE:  'หักมัดจำ',
-  REPAIR_DEPOSIT_REFUND:  'คืนมัดจำ',
-  REPAIR_COGS:            'ต้นทุนซ่อม',
-  REPAIR_PAYMENT_REVERSAL:'ยกเลิกรับเงิน',
-  REPAIR_COGS_REVERSAL:   'ยกเลิกต้นทุน',
-  EXPENSE_PAYMENT:        'ค่าใช้จ่าย',
-  EXPENSE_REVERSAL:       'ยกเลิกค่าใช้จ่าย',
-  PO_RECEIVE:              'รับสินค้าเข้า (PO)',
-  PO_PAYMENT:              'จ่ายซัพพลายเออร์',
-  PACKAGE_SALE:            'ขายซิม/แพ็กเกจ',
-  WALLET_TOPUP:            'เติมเงินกระเป๋าค่าย',
-  DRAWER_WITHDRAWAL:       'เบิกเงินลิ้นชัก',
-  DRAWER_DEPOSIT:          'เติมเงินลิ้นชัก',
-  DRAWER_REVERSAL:         'ยกเลิกรายการลิ้นชัก',
-  SALE_REVENUE:           'รายได้ขาย',
-  SALE_COGS:              'ต้นทุนขาย',
-  SALE_EXCHANGE:          'แลกสินค้า',
-  JOURNAL_MANUAL:         'บันทึกทั่วไป',
-  JOURNAL_REVERSAL:       'กลับรายการ',
-}
-
-function sourceLabel(type?: string | null) {
-  if (!type) return '—'
-  return SOURCE_LABEL[type] ?? type
-}
+const SOURCE_LABEL = JOURNAL_SOURCE_LABEL
+const sourceLabel = journalSourceLabel
 
 // ── Journal detail row (expandable) ──────────────────────────────────────────
 
@@ -456,7 +431,7 @@ function JournalListContent() {
     if (filterType && je.sourceType !== filterType) return false
     if (searchText) {
       const q = searchText.toLowerCase()
-      if (!je.description.toLowerCase().includes(q) &&
+      if (!je.description.toLowerCase().includes(q) && !journalDescription(je.description).toLowerCase().includes(q) &&
           !(je.entryNumber ?? '').toLowerCase().includes(q)) return false
     }
     return true
@@ -481,7 +456,7 @@ function JournalListContent() {
         format(new Date(je.entryDate), 'dd/MM/yyyy'),
         je.entryNumber ?? '',
         sourceLabel(je.sourceType),
-        je.description,
+        journalDescription(je.description),
         Number(je.totalDebit ?? 0).toFixed(2),
         je.isVoided ? 'ยกเลิก' : 'ปกติ',
       ])
@@ -685,7 +660,7 @@ function JournalListContent() {
                     </DataTableCell>
                     <DataTableCell>
                       <p className={`text-sm truncate max-w-[220px] ${je.isVoided ? 'line-through text-slate-400' : 'text-slate-900 dark:text-slate-50'}`}>
-                        {je.description}
+                        {journalDescription(je.description)}
                       </p>
                       {je.isVoided && (
                         <p className="text-xs text-red-500 mt-0.5">ยกเลิก: {je.voidReason}</p>

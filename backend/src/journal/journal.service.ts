@@ -90,6 +90,12 @@ export const JOURNAL_SOURCE = {
   // Repair cancellation of DELIVERED repairs — reversals (Phase 4B.4L)
   REPAIR_COGS_REVERSAL:                 'REPAIR_COGS_REVERSAL',
   REPAIR_ADDITIONAL_PAYMENT_REVERSAL:   'REPAIR_ADDITIONAL_PAYMENT_REVERSAL',
+  // Quick money in / out at the till (ShiftCashMovement) and extra costs of a repair job
+  SHIFT_CASH_IN:                        'SHIFT_CASH_IN',
+  SHIFT_CASH_OUT:                       'SHIFT_CASH_OUT',
+  REPAIR_EXTRA_COST:                    'REPAIR_EXTRA_COST',
+  // Stock that came in or went out other than by a purchase order, a sale or a repair
+  STOCK_ADJUST:                         'STOCK_ADJUST',
 } as const;
 
 @Injectable()
@@ -414,7 +420,12 @@ export class JournalService {
       this.prisma.journalEntry.count({ where }),
     ]);
 
-    return { items, total, page, limit };
+    // Each entry's amount (its debit side = its credit side), shown in the list
+    const withTotals = items.map((e) => ({
+      ...e,
+      totalDebit: e.lines.reduce((t, l) => t.plus(l.debit), new Prisma.Decimal(0)).toNumber(),
+    }));
+    return { items: withTotals, total, page, limit };
   }
 
   // ── Void ──────────────────────────────────────────────────────────────────

@@ -15,6 +15,8 @@ export interface ExpenseForAccounting {
   description:   string;
   amount:        Prisma.Decimal | number | string;
   paymentMethod: string;   // CASH | TRANSFER | CARD
+  /** paid by the owner from their own pocket: not shop cash, the owner put that money in */
+  paidByOwner?:  boolean | null;
   branchId:      string | null;
   category:      ExpenseCategoryForAccounting | null;
 }
@@ -72,7 +74,8 @@ export class ExpenseAccountingAdapter {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private crAccount(paymentMethod: string): string {
+  private crAccount(paymentMethod: string, paidByOwner?: boolean | null): string {
+    if (paidByOwner) return ACCOUNT_CODES.OWNER_EQUITY;
     return paymentMethod === 'CASH' ? ACCOUNT_CODES.CASH : ACCOUNT_CODES.CLEARING;
   }
 
@@ -151,7 +154,7 @@ export class ExpenseAccountingAdapter {
     }
 
     const drAcct = expenseAccountCode(expense.category?.code);
-    const crAcct = this.crAccount(expense.paymentMethod);
+    const crAcct = this.crAccount(expense.paymentMethod, expense.paidByOwner);
 
     await this.journal.create({
       tenantId,
@@ -187,7 +190,7 @@ export class ExpenseAccountingAdapter {
 
     const amount  = this.toDecimal(expense.amount);
     const drAcct  = expenseAccountCode(expense.category?.code);
-    const crAcct  = this.crAccount(expense.paymentMethod);
+    const crAcct  = this.crAccount(expense.paymentMethod, expense.paidByOwner);
 
     await this.journal.create({
       tenantId,

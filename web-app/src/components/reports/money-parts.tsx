@@ -31,7 +31,7 @@ export function MoneyLine({ label, value, minus, total, muted, note }: {
         'shrink-0 tabular-nums',
         !muted && !total && 'font-semibold',
         minus && 'text-red-600 dark:text-red-400',
-        total && (value < 0 ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'),
+        total && (value < 0 || minus ? 'text-red-600 dark:text-red-400' : 'text-emerald-700 dark:text-emerald-400'),
       )}>
         {minus || (total && value < 0) ? '− ' : ''}{formatThaiMoney(Math.abs(value))}
       </span>

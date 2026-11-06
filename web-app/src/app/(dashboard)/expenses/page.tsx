@@ -464,7 +464,7 @@ export default function ExpensesPage() {
                   >
                     <DataTableCell muted>
                       <span className="text-xs whitespace-nowrap">
-                        {format(new Date(expense.expenseDate), 'dd MMM yy', { locale: th })}
+                        {new Date(expense.expenseDate).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: 'short', year: '2-digit' })}
                       </span>
                     </DataTableCell>
                     <DataTableCell hidden>
@@ -481,10 +481,16 @@ export default function ExpensesPage() {
                       )}
                     </DataTableCell>
                     <DataTableCell hidden>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${PM_COLOR[expense.paymentMethod]}`}>
-                        <PMIcon className="h-3 w-3" />
-                        {PM_LABEL[expense.paymentMethod]}
-                      </span>
+                      {expense.paidByOwner ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                          👤 เจ้าของจ่ายเอง
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${PM_COLOR[expense.paymentMethod]}`}>
+                          <PMIcon className="h-3 w-3" />
+                          {PM_LABEL[expense.paymentMethod]}
+                        </span>
+                      )}
                     </DataTableCell>
                     <DataTableCell hidden muted>
                       <span className="text-xs">{expense.referenceNo ?? '—'}</span>

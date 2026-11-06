@@ -150,6 +150,15 @@ export class AccountingReportsService {
       },
       include: { account: { select: { code: true, nameTh: true, type: true, sortOrder: true } } },
     });
+    // Profit earned so far belongs to the owner: without it the sheet never balances
+    const pl = await this.prisma.journalLine.findMany({
+      where: {
+        entry:   buildEntryWhere(tenantId, undefined, asOfDate, branchId),
+        account: { type: { in: ['REVENUE', 'EXPENSE'] } },
+      },
+      select: { debit: true, credit: true },
+    });
+    const earnings = pl.reduce((t, l) => t.plus(l.credit).minus(l.debit), new Prisma.Decimal(0)).toNumber();
 
     const map = new Map<string, {
       code: string; nameTh: string; type: string; sortOrder: number;
@@ -183,7 +192,8 @@ export class AccountingReportsService {
 
     const assets      = rows.filter(r => r.type === 'ASSET');
     const liabilities = rows.filter(r => r.type === 'LIABILITY');
-    const equity      = rows.filter(r => r.type === 'EQUITY');
+    const equity: { code: string; nameTh: string; type: string; balance: number }[] = rows.filter(r => r.type === 'EQUITY');
+    if (Math.abs(earnings) >= 0.005) equity.push({ code: '', nameTh: 'กำไร(ขาดทุน)สะสม', type: 'EQUITY', balance: earnings });
     const totalAssets      = assets.reduce((s, r) => s + r.balance, 0);
     const totalLiabilities = liabilities.reduce((s, r) => s + r.balance, 0);
     const totalEquity      = equity.reduce((s, r) => s + r.balance, 0);

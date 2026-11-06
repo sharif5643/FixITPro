@@ -5,9 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns'
 import { th } from 'date-fns/locale'
 import Link from 'next/link'
-import {
-  TrendingUp, TrendingDown, Wallet, ArrowRight, BarChart2, Receipt, Printer,
-} from 'lucide-react'
+import { Wallet, ArrowRight, BarChart2, Receipt, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { formatThaiMoney } from '@/lib/utils'
@@ -15,6 +13,9 @@ import { useBranchContext } from '@/hooks/useBranchContext'
 import { BranchContextBar } from '@/components/layout/branch-context-bar'
 import { ModuleGate } from '@/components/auth/module-gate'
 import api from '@/lib/api'
+import { cn } from '@/lib/utils'
+import { MoneyEquation, MoneyLine, SourceCard } from '@/components/reports/money-parts'
+import { LEDGER_SOURCE, ledgerLabel, type LedgerKind } from '@/lib/cash-ledger-labels'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,20 +30,6 @@ interface FinanceSummary {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const SOURCE_LABEL: Record<string, string> = {
-  SALE_PAYMENT:              'ยอดขาย POS',
-  REPAIR_FINAL_PAYMENT:      'ค่าซ่อม',
-  REPAIR_DEPOSIT:            'มัดจำงานซ่อม',
-  REPAIR_ADDITIONAL_PAYMENT: 'ค่าบริการเพิ่ม',
-  EXPENSE_PAYMENT:           'ค่าใช้จ่าย',
-  SUPPLIER_PAYMENT:          'จ่ายซัพพลายเออร์',
-  PACKAGE_SALE:              'ขายซิม/แพ็กเกจ',
-  SALE_REFUND:               'คืนเงิน POS',
-  CASH_WITHDRAWAL:           'เบิกเงิน',
-  CASH_DEPOSIT:              'เติมเงิน',
-  BANK_DEPOSIT:              'ฝากธนาคาร',
-  MANUAL:                    'รายการอื่น',
-}
 
 const PRESET_RANGES = [
   { label: 'วันนี้',      days: 0 },
@@ -52,20 +39,40 @@ const PRESET_RANGES = [
 
 function toDate(d: Date) { return format(d, 'yyyy-MM-dd') }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
+// ── Lines of money in / out, with how much of the total each is ─────────────
 
-function StatCard({ label, amount, icon: Icon, color }: {
-  label: string; amount: number; icon: React.ElementType; color: string
-}) {
+const KIND_NOTE: Record<LedgerKind, string> = {
+  income: '',
+  cost:   '',
+  refund: 'คืนลูกค้า',
+  owner:  'ไม่ใช่กำไร/ค่าใช้จ่าย',
+}
+
+function LedgerLines({ rows, total, tone }: { rows: { src: string; amount: number }[]; total: number; tone: 'in' | 'out' }) {
+  if (rows.length === 0) return <p className="py-2 text-sm text-muted-foreground">ไม่มีรายการ</p>
   return (
-    <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-700/60 p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
-        <div className={`p-2 rounded-xl ${color}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <span className="text-sm text-muted-foreground">{label}</span>
-      </div>
-      <p className="text-2xl font-bold tabular-nums">{formatThaiMoney(amount)}</p>
+    <div className="space-y-2.5">
+      {rows.map(({ src, amount }) => {
+        const meta = LEDGER_SOURCE[src]
+        const pct = total > 0 ? Math.round((amount / total) * 100) : 0
+        const note = meta ? KIND_NOTE[meta.kind] : ''
+        return (
+          <div key={src}>
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="min-w-0">
+                <span className="mr-1.5">{meta?.icon ?? '•'}</span>{ledgerLabel(src)}
+                {note && <span className="ml-1.5 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-300">{note}</span>}
+              </span>
+              <span className={cn('shrink-0 font-semibold tabular-nums', tone === 'out' && 'text-red-600 dark:text-red-400')}>
+                {tone === 'out' ? '− ' : ''}{formatThaiMoney(amount)}
+              </span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className={cn('h-full rounded-full', tone === 'in' ? 'bg-emerald-400' : meta?.kind === 'owner' ? 'bg-slate-300' : 'bg-red-300')} style={{ width: `${Math.max(pct, 2)}%` }} />
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -99,8 +106,18 @@ export default function FinancePage() {
     }
   }
 
-  const inItems  = Object.entries(data?.bySource ?? {}).filter(([, v]) => v.in > 0)
-  const outItems = Object.entries(data?.bySource ?? {}).filter(([, v]) => v.out > 0)
+  const entries = Object.entries(data?.bySource ?? {})
+  const inRows  = entries.filter(([, v]) => v.in > 0).map(([src, v]) => ({ src, amount: v.in })).sort((a, b) => b.amount - a.amount)
+  const kindOrder: Record<LedgerKind, number> = { cost: 0, refund: 1, owner: 2, income: 3 }
+  const outRows = entries.filter(([, v]) => v.out > 0).map(([src, v]) => ({ src, amount: v.out }))
+    .sort((a, b) => (kindOrder[LEDGER_SOURCE[a.src]?.kind ?? 'owner'] - kindOrder[LEDGER_SOURCE[b.src]?.kind ?? 'owner']) || b.amount - a.amount)
+  const totalIn  = data?.totalIn ?? 0
+  const totalOut = data?.totalOut ?? 0
+  const net      = data?.net ?? 0
+  const ownerOut = outRows.filter((r) => LEDGER_SOURCE[r.src]?.kind === 'owner').reduce((t, r) => t + r.amount, 0)
+  const rangeLabel = startDate === endDate
+    ? (startDate === toDate(today) ? 'วันนี้' : format(new Date(startDate + 'T12:00:00'), 'd MMM', { locale: th }))
+    : `${format(new Date(startDate + 'T12:00:00'), 'd MMM', { locale: th })} – ${format(new Date(endDate + 'T12:00:00'), 'd MMM', { locale: th })}`
 
   return (
     <ModuleGate module="repair">
@@ -108,7 +125,7 @@ export default function FinancePage() {
         <PageHeader
           title="การเงิน"
           icon={Wallet}
-          subtitle="ภาพรวมรายรับ-รายจ่ายจากลิ้นชัก"
+          subtitle="เงินเข้า-ออกร้าน: ได้มาจากไหน จ่ายไปไหน"
           secondaryActions={<BranchContextBar className="hidden sm:flex" />}
           primaryAction={
             <div className="flex items-center gap-2">
@@ -158,47 +175,40 @@ export default function FinancePage() {
           </div>
         ) : (
           <>
-            {/* KPI cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <StatCard label="รายรับรวม"   amount={data?.totalIn  ?? 0} icon={TrendingUp}   color="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" />
-              <StatCard label="รายจ่ายรวม"  amount={data?.totalOut ?? 0} icon={TrendingDown}  color="bg-red-100 dark:bg-red-900/30 text-red-600" />
-              <StatCard label="สุทธิ"        amount={data?.net       ?? 0} icon={BarChart2}    color="bg-blue-100 dark:bg-blue-900/30 text-blue-600" />
+            {/* Money in − money out = what is left, and a pointer to the real profit */}
+            <div className="grid gap-4 rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-blue-50/60 p-5 shadow-sm dark:border-slate-700/60 dark:from-[#1E293B] dark:to-blue-950/30 md:grid-cols-[minmax(0,280px)_1fr]">
+              <div>
+                <p className="text-sm text-muted-foreground">{rangeLabel} เงินเข้า − เงินออก เหลือ</p>
+                <p className={cn('text-5xl font-extrabold tabular-nums', net < 0 ? 'text-red-600' : 'text-blue-700 dark:text-blue-400')}>
+                  {net < 0 ? '− ' : ''}{formatThaiMoney(Math.abs(net))}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{data?.txnCount ?? 0} รายการ · เงินสด โอน และบัตร</p>
+              </div>
+              <div className="flex flex-col justify-center gap-3">
+                <MoneyEquation parts={[
+                  { label: 'เงินเข้า', value: totalIn, tone: 'in' },
+                  { label: 'เงินออก', value: totalOut, tone: 'out' },
+                  { label: 'เหลือ', value: net, tone: 'result', result: true },
+                ]} />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  หน้านี้คือ <b>เงินที่เข้า-ออกจริง</b> — ไม่ใช่กำไร (ยังไม่หักทุนของ และเงินที่เจ้าของเอาออกก็นับเป็นเงินออก)
+                  <Link href="/reports/profit" className="ml-1 inline-flex items-center font-semibold text-blue-600 hover:underline">
+                    ดูกำไรจริง <ArrowRight className="ml-0.5 h-3 w-3" />
+                  </Link>
+                </p>
+              </div>
             </div>
 
-            {/* Breakdown */}
-            {(inItems.length > 0 || outItems.length > 0) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Income breakdown */}
-                <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-700/60 p-5 shadow-sm">
-                  <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-3 flex items-center gap-1.5">
-                    <TrendingUp className="h-4 w-4" /> รายรับ
-                  </p>
-                  <div className="space-y-2">
-                    {inItems.map(([src, val]) => (
-                      <div key={src} className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{SOURCE_LABEL[src] ?? src}</span>
-                        <span className="tabular-nums font-medium">{formatThaiMoney(val.in)}</span>
-                      </div>
-                    ))}
-                    {inItems.length === 0 && <p className="text-xs text-muted-foreground">ไม่มีรายการ</p>}
-                  </div>
-                </div>
-
-                {/* Expense breakdown */}
-                <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-slate-200 dark:border-slate-700/60 p-5 shadow-sm">
-                  <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3 flex items-center gap-1.5">
-                    <TrendingDown className="h-4 w-4" /> รายจ่าย
-                  </p>
-                  <div className="space-y-2">
-                    {outItems.map(([src, val]) => (
-                      <div key={src} className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{SOURCE_LABEL[src] ?? src}</span>
-                        <span className="tabular-nums font-medium text-red-600 dark:text-red-400">{formatThaiMoney(val.out)}</span>
-                      </div>
-                    ))}
-                    {outItems.length === 0 && <p className="text-xs text-muted-foreground">ไม่มีรายการ</p>}
-                  </div>
-                </div>
+            {(inRows.length > 0 || outRows.length > 0) && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <SourceCard icon="💰" title="เงินเข้า" why="เงินที่ได้รับจากลูกค้า และเงินที่ใส่ลิ้นชัก">
+                  <LedgerLines rows={inRows} total={totalIn} tone="in" />
+                  <MoneyLine label="รวมเงินเข้า" value={totalIn} total />
+                </SourceCard>
+                <SourceCard icon="💸" title="เงินออก" why={ownerOut > 0 ? `ในนี้ ${formatThaiMoney(ownerOut)} เป็นเงินที่เจ้าของเอาออก/ย้ายเงิน — ไม่หักกำไร` : 'ค่าใช้จ่าย ค่ารถ จ่ายซัพพลายเออร์ และเงินที่คืนลูกค้า'}>
+                  <LedgerLines rows={outRows} total={totalOut} tone="out" />
+                  <MoneyLine label="รวมเงินออก" value={totalOut} total minus />
+                </SourceCard>
               </div>
             )}
 

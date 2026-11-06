@@ -8,7 +8,7 @@ import api from '@/lib/api'
 import { apiErrorMessage } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 
-interface CatchUp { enabled: boolean; repairs: number; sales: number; expenses: number; packageSales: number }
+interface CatchUp { enabled: boolean; repairs: number; sales: number; expenses: number; packageSales: number; cashMovements?: number; extraCosts?: number; stockMoves?: number }
 
 /**
  * Payments taken while the shop's books could not be written (no chart of accounts yet) are
@@ -38,6 +38,9 @@ export function BooksCatchUp() {
     data.sales && `บิลขาย ${data.sales} บิล`,
     data.expenses && `ค่าใช้จ่าย ${data.expenses} รายการ`,
     data.packageSales && `ขายซิม/เน็ต ${data.packageSales} รายการ`,
+    data.cashMovements && `เงินเข้า/ออกลิ้นชัก ${data.cashMovements} รายการ`,
+    data.extraCosts && `ค่ารถส่งอะไหล่ ${data.extraCosts} รายการ`,
+    data.stockMoves && `ของเข้า/ออกสต็อก ${data.stockMoves} รายการ`,
   ].filter(Boolean)
   if (!parts.length) return null
 
@@ -47,7 +50,7 @@ export function BooksCatchUp() {
         <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
         <div className="text-sm text-amber-800">
           <p className="font-semibold">มีรายการที่ยังไม่อยู่ในสมุดบัญชี</p>
-          <p className="text-amber-700">{parts.join(' · ')} — รับเงินแล้วแต่ระบบบัญชีบันทึกไม่ได้ในตอนนั้น กดเพื่อบันทึกเพิ่ม (ลงวันที่วันนี้)</p>
+          <p className="text-amber-700">{parts.join(' · ')} — เกิดขึ้นแล้วแต่ยังไม่ได้ลงบัญชี กดเพื่อบันทึกเพิ่ม (ลงวันที่วันนี้)</p>
         </div>
       </div>
       <Button size="sm" onClick={() => run.mutate()} disabled={run.isPending} className="shrink-0 bg-amber-600 hover:bg-amber-700">
