@@ -658,6 +658,7 @@ const MODULE_LABEL: Record<string, string> = {
   report:          'รายงาน',
   user_management: 'จัดการผู้ใช้',
   accounting:      'Accounting (บัญชี)',
+  owner_hub:       'ห้องเจ้าของร้าน',
 }
 
 function ModulesTab({ tenantId, shopName }: { tenantId: string; shopName: string }) {

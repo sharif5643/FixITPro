@@ -28,6 +28,7 @@ const MODULE_LABEL: Record<string, string> = {
   user_management: 'จัดการผู้ใช้',
   package_sales:   'ขายซิม / แพ็กเกจ',
   accounting:      'บัญชี',
+  owner_hub:       'ห้องเจ้าของร้าน',
 }
 
 const PLAN_ACCENT: Record<string, string> = {

@@ -469,6 +469,8 @@ model User {
   /// This person's chat with FixITPro's LINE account (Messaging API id, not the LINE-login id):
   /// SIM / package sales they type there are recorded as theirs
   lineChatId     String? @unique
+  /// An owner with the owner hub gets the day's summary on LINE at 21:00 unless this is off
+  ownerDailyLine Boolean @default(true)
   // Staff app lock: the 6-digit PIN (bcrypt) and wrong tries since the last right one
   appPinHash     String?
   appPinFailures Int     @default(0)

@@ -9,6 +9,7 @@ export const MODULE_KEYS = {
   USER_MANAGEMENT: 'user_management',
   ACCOUNTING:      'accounting',
   PACKAGE_SALES:   'package_sales',
+  OWNER_HUB:       'owner_hub',
 } as const
 
 export type ModuleKey = typeof MODULE_KEYS[keyof typeof MODULE_KEYS]

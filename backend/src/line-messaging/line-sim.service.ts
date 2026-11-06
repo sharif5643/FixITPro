@@ -83,7 +83,7 @@ export class LineSimService {
       await this.reply(replyToken, 'ลิงก์เชื่อมบัญชีหมดอายุหรือไม่ถูกต้อง กรุณากด "บันทึกผ่าน LINE" ในหน้าขายซิมอีกครั้ง');
       return;
     }
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true, isActive: true } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true, isActive: true, role: true } });
     if (!user?.isActive) {
       await this.reply(replyToken, 'บัญชีพนักงานนี้ถูกปิดใช้งาน');
       return;
@@ -93,7 +93,8 @@ export class LineSimService {
       this.prisma.user.updateMany({ where: { lineChatId: lineUserId, NOT: { id: userId } }, data: { lineChatId: null } }),
       this.prisma.user.update({ where: { id: userId }, data: { lineChatId: lineUserId } }),
     ]);
-    await this.reply(replyToken, `เชื่อม LINE กับบัญชี ${user.name} แล้ว ✅\n\n${HELP_TEXT}`);
+    const ownerNote = user.role === 'OWNER' ? '\n\nถ้าร้านเปิด "ห้องเจ้าของร้าน" ไว้ จะได้สรุปยอดร้านในแชตนี้ทุก 3 ทุ่ม' : '';
+    await this.reply(replyToken, `เชื่อม LINE กับบัญชี ${user.name} แล้ว ✅${ownerNote}\n\n${HELP_TEXT}`);
   }
 
   // ── Messages ───────────────────────────────────────────────────────────────

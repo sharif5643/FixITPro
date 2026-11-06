@@ -56,7 +56,8 @@ export const useAuthStore = create<AuthState>()(
           if (!user) return false
           // Accounting requires explicit tenant activation via TenantModule override.
           // The OWNER/SA role bypass does NOT apply — check enabledModules directly.
-          if (moduleKey === 'accounting') return enabledModules.includes(moduleKey)
+          // The owner hub likewise: switched on per shop by the super admin, not part of being owner.
+          if (moduleKey === 'accounting' || moduleKey === 'owner_hub') return enabledModules.includes(moduleKey)
           if (user.role === 'SUPER_ADMIN' || user.role === 'OWNER') return true
           return enabledModules.includes(moduleKey)
         },
