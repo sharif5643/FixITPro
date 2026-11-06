@@ -418,7 +418,8 @@ export const ProductSearch = forwardRef<ProductSearchHandle, ProductSearchProps>
       }
       setSearch('')
       requestAnimationFrame(() => inputRef.current?.focus())
-    }, [products, filtered, stockOf, addItem, recentSearches, setPendingSerialProduct])
+    // cartItems: the stock check must see the cart as it is now, or repeated scans pass the stock
+    }, [products, filtered, stockOf, addItem, recentSearches, setPendingSerialProduct, cartItems])
 
     function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
       const val = e.target.value

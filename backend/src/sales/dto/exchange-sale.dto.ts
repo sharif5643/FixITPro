@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, IsIn, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, IsIn, IsInt, Min, Max, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ExchangeReturnItemDto {
@@ -14,6 +14,13 @@ export class ExchangeReturnItemDto {
   @Min(0)
   @Max(1_000_000)
   refundPrice: number;
+
+  /** Sold by IMEI and only part of the line comes back: which phones (their IMEIs) */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  serials?: string[];
 }
 
 export class ExchangeNewItemDto {

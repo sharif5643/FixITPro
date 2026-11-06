@@ -4,6 +4,7 @@ import { PermissionGuard } from '../common/guards/permission.guard';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { ReconciliationService } from './reconciliation.service';
+import { bkkDayEnd, bkkDayStart } from '../common/dates/bangkok';
 
 @Controller('reconciliation')
 @UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard)
@@ -24,11 +25,9 @@ export class ReconciliationController {
     const user      = req.user as { branchId?: string; tenantId?: string };
     const branchId  = user.branchId ?? '';
     const tenantId  = user.tenantId ?? null;
-    const startDate = startDateStr ? new Date(startDateStr) : new Date(Date.now() - 30 * 86400_000);
-    const endDate   = endDateStr   ? new Date(endDateStr)   : new Date();
-
-    // Extend endDate to end of day
-    endDate.setHours(23, 59, 59, 999);
+    // Whole Bangkok days (the server runs in UTC: setHours would end the day at 07:00 Thai time)
+    const startDate = startDateStr ? bkkDayStart(startDateStr) : new Date(Date.now() - 30 * 86400_000);
+    const endDate   = endDateStr   ? bkkDayEnd(endDateStr)     : new Date();
 
     return this.reconciliation.runReport({ branchId, tenantId, startDate, endDate });
   }

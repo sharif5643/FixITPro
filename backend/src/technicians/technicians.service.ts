@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import { bangkokDate } from '../common/bangkok-date';
 import { CommissionService } from '../commission/commission.service';
 import { repairTechnicianWhere } from '../permissions/repair-technicians';
+import { bkkDayAfter, bkkDayStart } from '../common/dates/bangkok';
 
 export interface TechnicianKpi {
   totalRepairs: number;
@@ -87,12 +88,9 @@ export class TechniciansService {
   private buildDateWhere(startDate?: string, endDate?: string) {
     if (!startDate && !endDate) return undefined;
     const where: any = {};
-    if (startDate) where.gte = new Date(startDate);
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setDate(end.getDate() + 1);
-      where.lt = end;
-    }
+    // Bangkok days (the server runs in UTC)
+    if (startDate) where.gte = bkkDayStart(startDate);
+    if (endDate) where.lt = bkkDayAfter(endDate);
     return where;
   }
 

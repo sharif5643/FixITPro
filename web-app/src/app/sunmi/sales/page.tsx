@@ -780,7 +780,7 @@ export default function SunmiSalesPage() {
         setNameLoading(false)
       }
     }, 280)
-  }, [nameQuery])
+  }, [nameQuery, branch.canPick, branch.branchId])
 
   function setItemDiscount(productId: string, d: number) {
     setItemDiscounts((prev) => {
@@ -825,7 +825,8 @@ export default function SunmiSalesPage() {
     }
     setBarcodeInput('')
     setTimeout(() => inputRef.current?.focus(), 50)
-  }, [addItem, addFreebie])
+  // the branch: after switching branch, stock must come from the new one
+  }, [addItem, addFreebie, branch.canPick, branch.branchId])
 
   function handlePickProduct(product: Product) {
     if ((product.branchQuantity ?? 0) < 1) {
