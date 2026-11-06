@@ -1,6 +1,6 @@
 'use client'
 
-import { ISSUE_TAG_OPTIONS, SPECIAL_ISSUE_TAGS, CONDITION_OPTIONS_LIST, ACCESSORY_OPTIONS } from '@/lib/repair-tags'
+import { SPECIAL_ISSUE_TAGS, issueTagsFor, conditionsFor, accessoriesFor, withPicked } from '@/lib/repair-tags'
 import { useAppBranch } from '@/hooks/useAppBranch'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -8,7 +8,7 @@ import {
   ChevronLeft, Search, UserPlus, Smartphone, Tablet, Laptop,
   Watch, MoreHorizontal, Camera, X, Loader2, ScanLine,
   ChevronDown, Banknote, CreditCard, CalendarDays, FileText,
-  Tag,
+  Tag, Monitor, Printer,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
@@ -18,7 +18,7 @@ import { loadDraft, clearDraft, useDraftAutosave } from '@/lib/form-draft'
 import { DraftRestoredBanner } from '@/components/repairs/draft-restored-banner'
 import { RepairPriceChips } from '@/components/repair-prices/repair-price-chips'
 import { togglePricedJob, type RepairPrice } from '@/lib/repair-prices'
-import { DEVICE_BRANDS, QUICK_MODELS } from '@/lib/device-models'
+import { brandsFor, modelsFor } from '@/lib/device-models'
 import { intakeWarnings, confirmIntake } from '@/lib/intake-checks'
 import { IntakeSignatureField, saveIntakeSignature } from '@/components/repairs/repair-signatures'
 
@@ -28,16 +28,15 @@ const DEVICE_TYPES = [
   { value: 'มือถือ',      label: 'มือถือ',      icon: Smartphone   },
   { value: 'แท็บเล็ต',   label: 'แท็บเล็ต',   icon: Tablet       },
   { value: 'แล็ปท็อป',   label: 'แล็ปท็อป',   icon: Laptop       },
+  { value: 'คอมพิวเตอร์ตั้งโต๊ะ', label: 'คอมตั้งโต๊ะ', icon: Monitor },
+  { value: 'ปริ้นเตอร์', label: 'ปริ้นเตอร์', icon: Printer      },
   { value: 'Smart Watch', label: 'Smart Watch', icon: Watch        },  // same types as the web form
   { value: 'อื่นๆ',       label: 'อื่นๆ',       icon: MoreHorizontal },
 ]
 
 // The same lists as the web form (lib/repair-tags)
-const ISSUE_TAGS = [...SPECIAL_ISSUE_TAGS, ...ISSUE_TAG_OPTIONS]
 
-const CONDITIONS = CONDITION_OPTIONS_LIST
 
-const ACCESSORIES = ACCESSORY_OPTIONS
 
 const COLORS = [
   { label: 'ดำ',    hex: '#111111' },
@@ -254,7 +253,7 @@ export default function CreateRepairPage() {
     } catch { /* silent */ }
   }, [technicians.length])
 
-  const quickModels = QUICK_MODELS[brand] ?? []
+  const quickModels = modelsFor(brand, deviceType)
   // Nothing found for what was typed in the search: start a new customer from it
   const searchDigits = phoneSearch.replace(/\D/g, '')
   const searchIsPhone = searchDigits.length >= 6 && searchDigits.length >= phoneSearch.replace(/[\s-]/g, '').length
@@ -445,7 +444,7 @@ export default function CreateRepairPage() {
           <SectionHead num={2} title="ข้อมูลอุปกรณ์" />
 
           {/* Device type */}
-          <div className="mb-4 flex justify-between">
+          <div className="mb-4 grid grid-cols-4 gap-1.5">
             {DEVICE_TYPES.map(({ value, label, icon: Icon }) => (
               <button key={value} onClick={() => setDeviceType(value)}
                 className={`flex flex-col items-center gap-1 rounded-xl p-2.5 transition-all ${deviceType === value ? 'bg-[rgb(var(--brand-accent)/0.15)] ring-2 ring-[rgb(var(--brand-accent))]' : 'bg-[#F8F9FB]'}`}>
@@ -458,7 +457,7 @@ export default function CreateRepairPage() {
           {/* Brand: tap a chip or type any brand */}
           <p className="mb-2 text-[11px] font-semibold text-slate-500">ยี่ห้อ *</p>
           <div className="mb-2 flex flex-wrap gap-1.5">
-            {DEVICE_BRANDS.map((b) => (
+            {brandsFor(deviceType).map((b) => (
               <button key={b} type="button" onClick={() => { if (b !== brand) { setBrand(b); setModel('') } }}
                 className={`rounded-full px-3 py-1.5 text-[12px] font-semibold transition-all ${brand === b ? 'bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))]' : 'bg-[#F8F9FB] text-slate-500 ring-1 ring-[#E5E7EB]'}`}>
                 {b}
@@ -514,7 +513,7 @@ export default function CreateRepairPage() {
         <Card>
           <SectionHead num={3} title="อาการเสีย (เลือกได้หลายรายการ)" />
           <div className="flex flex-wrap gap-2 mb-3">
-            {ISSUE_TAGS.map((tag) => (
+            {[...SPECIAL_ISSUE_TAGS, ...withPicked(issueTagsFor(deviceType), issueTags.filter((t) => !SPECIAL_ISSUE_TAGS.includes(t)))].map((tag) => (
               <button key={tag} onClick={() => toggleChip(issueTags, setIssueTags, tag)}
                 className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${issueTags.includes(tag) ? 'bg-[#FFF8E7] text-[#F59E0B] ring-1 ring-[rgb(var(--brand-accent))]' : 'bg-[#F8F9FB] text-slate-500'}`}>
                 {issueTags.includes(tag) && <span className="text-[10px]">✓</span>}
@@ -531,7 +530,7 @@ export default function CreateRepairPage() {
         <Card>
           <SectionHead num={4} title="สภาพเครื่องก่อนซ่อม" />
           <div className="flex flex-wrap gap-2">
-            {CONDITIONS.map((c) => (
+            {withPicked(conditionsFor(deviceType), conditions).map((c) => (
               <button key={c} onClick={() => toggleChip(conditions, setConditions, c)}
                 className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-semibold transition-all ${conditions.includes(c) ? 'bg-[#FEF3C7] text-[#D97706] ring-1 ring-[rgb(var(--brand-accent))]' : 'bg-[#F8F9FB] text-slate-500'}`}>
                 {conditions.includes(c) && <span className="text-[10px]">✓</span>}
@@ -572,7 +571,7 @@ export default function CreateRepairPage() {
         <Card>
           <SectionHead num={6} title="อุปกรณ์ที่ฝาก" />
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
-            {ACCESSORIES.map((a) => (
+            {withPicked(accessoriesFor(deviceType), accessories.filter((a) => a !== 'เครื่อง')).map((a) => (
               <label key={a} className="flex items-center gap-2 cursor-pointer" onClick={() => toggleChip(accessories, setAccessories, a)}>
                 <div className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all shrink-0 ${accessories.includes(a) ? 'border-[rgb(var(--brand-accent))] bg-[rgb(var(--brand-accent))]' : 'border-[#E5E7EB] bg-white'}`}>
                   {accessories.includes(a) && (

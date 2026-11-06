@@ -27,3 +27,38 @@ export const QUICK_MODELS: Record<string, string[]> = {
   Tecno:   ['Tecno Spark 30', 'Tecno Pova 7', 'Tecno Camon 40'],
   Nokia:   ['Nokia G42', 'Nokia C32', 'Nokia 105'],
 }
+
+/** Notebooks / desktops and printers have their own makers */
+const COMPUTER_BRANDS = ['Asus', 'Acer', 'Lenovo', 'HP', 'Dell', 'MSI', 'Apple', 'Huawei', 'Samsung']
+const PRINTER_BRANDS = ['Canon', 'Epson', 'HP', 'Brother', 'Fuji Xerox', 'Samsung']
+
+export const QUICK_MODELS_EXTRA: Record<string, string[]> = {
+  Canon: ['PIXMA G2010', 'PIXMA G3010', 'PIXMA G3020', 'PIXMA G4010', 'PIXMA E410'],
+  Epson: ['L3210', 'L3250', 'L5290', 'L4260', 'L1210'],
+  Brother: ['DCP-T420W', 'DCP-T520W', 'DCP-T720DW', 'HL-L2370DN'],
+  Asus: ['Vivobook 15', 'Vivobook Go 14', 'TUF Gaming A15', 'ROG Strix G16', 'Zenbook 14'],
+  Acer: ['Aspire 3', 'Aspire 5', 'Aspire Lite', 'Nitro V 15', 'Swift Go 14'],
+  Lenovo: ['IdeaPad Slim 3', 'IdeaPad Slim 5', 'LOQ 15', 'Legion 5', 'ThinkPad E14'],
+  Dell: ['Inspiron 15', 'Vostro 14', 'Latitude 5440'],
+  MSI: ['Modern 14', 'Thin GF63', 'Katana 15'],
+}
+
+/** The brand chips for a kind of device (มือถือ by default) */
+export function brandsFor(deviceType?: string | null): string[] {
+  if (deviceType === 'แล็ปท็อป' || deviceType === 'คอมพิวเตอร์ตั้งโต๊ะ') return COMPUTER_BRANDS
+  if (deviceType === 'ปริ้นเตอร์') return PRINTER_BRANDS
+  return DEVICE_BRANDS
+}
+
+/** Popular models of a brand for a kind of device: an Apple notebook is not an iPhone */
+export function modelsFor(brand: string, deviceType?: string | null): string[] {
+  const computer = deviceType === 'แล็ปท็อป' || deviceType === 'คอมพิวเตอร์ตั้งโต๊ะ'
+  const printer = deviceType === 'ปริ้นเตอร์'
+  if (computer && brand === 'Apple') return ['MacBook Air M3', 'MacBook Air M2', 'MacBook Pro 14', 'iMac 24']
+  if (computer || printer) {
+    if (printer && brand === 'HP') return ['Smart Tank 515', 'Smart Tank 580', 'DeskJet 2336', 'LaserJet M211']
+    if (computer && brand === 'HP') return ['HP 15s', 'Victus 15', 'Pavilion 14', 'EliteBook 840']
+    return QUICK_MODELS_EXTRA[brand] ?? []
+  }
+  return QUICK_MODELS[brand] ?? []
+}
