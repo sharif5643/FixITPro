@@ -116,7 +116,11 @@ function makeExchangeTx(overrides: Record<string, any> = {}) {
       updateMany:  jest.fn().mockResolvedValue({ count: 1 }),
     },
     stockMovement: { create: jest.fn().mockResolvedValue({}) },
-    serialNumber:  { updateMany: jest.fn().mockResolvedValue({}) },
+    serialNumber:  {
+      updateMany: jest.fn().mockResolvedValue({}),
+      // the IMEIs sold on the line being returned
+      findMany: jest.fn().mockResolvedValue([{ id: 'sn-1', serial: 'IMEI-1' }, { id: 'sn-2', serial: 'IMEI-2' }]),
+    },
     auditLog:      { create: jest.fn() },
     ...overrides,
   });
@@ -762,17 +766,18 @@ describe('SalesService.exchangeSaleItems — Phase 4B.4T', () => {
                     paymentMethod: 'CASH', reason: 'test' };
       const tx = makeExchangeTx();
       (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      
+      tx.serialNumber.findMany.mockResolvedValue([{ id: 'sn-1', serial: 'IMEI-1' }]);
       await service.exchangeSaleItems(ORIG_SALE_ID, dto, ACTOR_ID, TENANT_ID);
-
       expect(tx.serialNumber.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { saleItemId: ORIG_SI_ID },
+          where: { id: { in: ['sn-1'] } },
           data:  { status: 'IN_STOCK', saleItemId: null, soldAt: null, warrantyExpiresAt: null },
         }),
       );
     });
 
-    it('U-SERIAL-2: partially returning serialized item → serialNumber NOT updated', async () => {
+    it('U-SERIAL-2: part of a line without saying which phone → refused (the IMEI would be lost)', async () => {
       const serialSale = {
         ...ORIG_SALE,
         items: [{
@@ -787,10 +792,27 @@ describe('SalesService.exchangeSaleItems — Phase 4B.4T', () => {
                     paymentMethod: 'CASH', reason: 'test' };
       const tx = makeExchangeTx();
       (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
-      await service.exchangeSaleItems(ORIG_SALE_ID, dto, ACTOR_ID, TENANT_ID);
-
-      // newRefundedQty=1 < quantity=2, so serial stays as-is
+      await expect(service.exchangeSaleItems(ORIG_SALE_ID, dto, ACTOR_ID, TENANT_ID)).rejects.toThrow(/IMEI/);
       expect(tx.serialNumber.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('U-SERIAL-3: part of a line with the phone picked → only that IMEI goes back in stock', async () => {
+      const serialSale = {
+        ...ORIG_SALE,
+        items: [{
+          id: ORIG_SI_ID, productId: ORIG_PROD_ID,
+          quantity: 2, refundedQty: 0, costPrice: 100,
+          product: { id: ORIG_PROD_ID, name: 'iPhone', hasSerial: true, costPrice: 100 },
+        }],
+      };
+      prisma.sale.findFirst.mockResolvedValue(serialSale);
+      const dto = { returnItems: [{ saleItemId: ORIG_SI_ID, quantity: 1, refundPrice: 500, serials: ['IMEI-2'] }],
+                    newItems:    [{ productId: NEW_PROD_ID, quantity: 1, price: 600 }],
+                    paymentMethod: 'CASH', reason: 'test' };
+      const tx = makeExchangeTx();
+      (prisma.$transaction as jest.Mock).mockImplementation((fn: any) => fn(tx));
+      await service.exchangeSaleItems(ORIG_SALE_ID, dto as any, ACTOR_ID, TENANT_ID);
+      expect(tx.serialNumber.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['sn-2'] } } }));
     });
   });
 

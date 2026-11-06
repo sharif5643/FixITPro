@@ -15,6 +15,7 @@ import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
 import type { Sale, PaymentMethod } from '@/types'
 import { refundUnitPrice } from '@/lib/refund'
+import { ImeiReturnPick, imeisOf } from '@/components/pos/imei-return-pick'
 
 export const PM_LABEL: Record<PaymentMethod, string> = {
   CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตร',
@@ -115,7 +116,7 @@ export function VoidConfirmSheet({
 
 // ── Refund sheet ─────────────────────────────────────────────────────────────
 
-type RefundItemState = { saleItemId: string; qty: number; refundPrice: number; maxQty: number; name: string }
+type RefundItemState = { saleItemId: string; qty: number; refundPrice: number; maxQty: number; name: string; serials: string[]; picked: string[] }
 
 export function RefundSheet({
   sale,
@@ -134,6 +135,8 @@ export function RefundSheet({
       refundPrice: refundUnitPrice(sale, i),
       maxQty: i.quantity - (i.refundedQty ?? 0),
       name: i.product.name,
+      serials: imeisOf(i),
+      picked: [],
     })),
   )
   const [reason, setReason] = useState('')
@@ -148,7 +151,7 @@ export function RefundSheet({
       api.post(`/sales/${sale.id}/refund`, {
         reason,
         paymentMethod: method,
-        items: selected.map((i) => ({ saleItemId: i.saleItemId, quantity: i.qty, refundPrice: i.refundPrice })),
+        items: selected.map((i) => ({ saleItemId: i.saleItemId, quantity: i.qty, refundPrice: i.refundPrice, ...(i.serials.length ? { serials: i.picked } : {}) })),
       }),
     onSuccess: () => {
       toast.success(`คืนเงินสำเร็จ ${formatThaiMoney(totalRefund)}`)
@@ -181,14 +184,15 @@ export function RefundSheet({
         <div className="space-y-2">
           <p className="text-sm font-semibold text-slate-700">เลือกสินค้าที่ต้องการคืน</p>
           {items.map((item, idx) => (
-            <div key={item.saleItemId} className="flex items-center gap-3 bg-slate-50 rounded-xl px-3 py-2.5">
+            <div key={item.saleItemId} className="bg-slate-50 rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-900 truncate">{item.name}</p>
                 <p className="text-xs text-slate-400">
                   คืนได้ {item.maxQty} ชิ้น · {formatThaiMoney(item.refundPrice)}/ชิ้น
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              {item.serials.length === 0 && <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => setItems((prev) => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(0, it.qty - 1) } : it))}
                   className="w-8 h-8 rounded-full border-2 border-slate-200 text-slate-600 font-bold flex items-center justify-center active:bg-slate-100"
@@ -198,7 +202,11 @@ export function RefundSheet({
                   onClick={() => setItems((prev) => prev.map((it, i) => i === idx ? { ...it, qty: Math.min(it.maxQty, it.qty + 1) } : it))}
                   className="w-8 h-8 rounded-full border-2 border-slate-200 text-slate-600 font-bold flex items-center justify-center active:bg-slate-100"
                 >+</button>
-              </div>
+              </div>}
+            </div>
+            {/* Phones by IMEI: tick the ones that came back */}
+            <ImeiReturnPick serials={item.serials} picked={item.picked}
+              onChange={(next) => setItems((prev) => prev.map((it, i) => i === idx ? { ...it, picked: next, qty: next.length } : it))} />
             </div>
           ))}
         </div>

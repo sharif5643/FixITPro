@@ -17,6 +17,7 @@ import { UpdateBranchDto } from './dto/update-branch.dto';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 import { SetBranchStockDto } from './dto/set-branch-stock.dto';
 import { bangkokYmd } from '../common/bangkok-date';
+import { bkkDayAfter, bkkDayStart } from '../common/dates/bangkok';
 
 @Injectable()
 export class BranchesService implements OnModuleInit {
@@ -550,12 +551,9 @@ export class BranchesService implements OnModuleInit {
     if (query.productId) where.productId = query.productId;
     if (query.startDate || query.endDate) {
       where.createdAt = {};
-      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) {
-        const end = new Date(query.endDate);
-        end.setDate(end.getDate() + 1);
-        where.createdAt.lt = end;
-      }
+      // Bangkok days (the server runs in UTC)
+      if (query.startDate) where.createdAt.gte = bkkDayStart(query.startDate);
+      if (query.endDate) where.createdAt.lt = bkkDayAfter(query.endDate);
     }
 
     return this.prisma.stockTransfer.findMany({

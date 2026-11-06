@@ -441,6 +441,20 @@ export class ProductsService {
   async update(id: string, dto: UpdateProductDto, actorId?: string, actorName?: string, tenantId?: string | null) {
     await this.findOne(id, undefined, tenantId);
 
+    // Switching to "sold by IMEI" while units are in stock with no IMEI would leave phones that
+    // cannot be sold (the till asks for an IMEI that does not exist)
+    if (dto.hasSerial === true) {
+      const current = await this.prisma.product.findUnique({ where: { id }, select: { hasSerial: true, stock: true } });
+      if (current && !current.hasSerial && current.stock > 0) {
+        const withImei = await this.prisma.serialNumber.count({ where: { productId: id, status: 'IN_STOCK' } });
+        if (withImei !== current.stock) {
+          throw new BadRequestException(
+            `มีของในสต็อก ${current.stock} ชิ้นที่ยังไม่มี IMEI — ตัดสต็อกออกให้เหลือ 0 แล้วรับเข้าใหม่พร้อม IMEI ก่อนเปิด “ขายด้วย IMEI”`,
+          );
+        }
+      }
+    }
+
     const product = await this.prisma.product.update({
       where: { id },
       data: {

@@ -18,6 +18,7 @@ import { CreateSaleDto } from './dto/create-sale.dto';
 import { RefundSaleDto } from './dto/refund-sale.dto';
 import { ExchangeSaleDto } from './dto/exchange-sale.dto';
 import { bangkokYmd } from '../common/bangkok-date';
+import { returnSerialsOfLine } from '../stock/serial-stock';
 
 @Injectable()
 export class SalesService {
@@ -549,7 +550,7 @@ export class SalesService {
     const findManyArgs: Parameters<typeof this.prisma.sale.findMany>[0] = {
       where,
       include: {
-        items: { include: { product: { select: { name: true, sku: true } } } },
+        items: { include: { product: { select: { name: true, sku: true, hasSerial: true } }, serialNumbers: { select: { serial: true } } } },  // which phones a refund can return
         customer: { select: { id: true, name: true, phone: true } },
         user: { select: { id: true, name: true } },
         payments: { orderBy: { sortOrder: 'asc' } },
@@ -833,13 +834,8 @@ export class SalesService {
           },
         });
 
-        if (saleItem.product.hasSerial && newRefundedQty === saleItem.quantity) {
-          await tx.serialNumber.updateMany({
-            where: { saleItemId: refundItem.saleItemId },
-            // Back in stock (quantity was restored above) → sellable again, same as void
-            data: { status: 'IN_STOCK', saleItemId: null, soldAt: null, warrantyExpiresAt: null },
-          });
-        }
+        // The returned phones' IMEIs go back in stock with them (part of a line: the ones picked)
+        await returnSerialsOfLine(tx, { ...saleItem, id: refundItem.saleItemId }, refundItem.quantity, newRefundedQty, refundItem.serials);
 
       }
 
@@ -1278,13 +1274,7 @@ export class SalesService {
           },
         });
 
-        if (saleItem.product.hasSerial && newRefundedQty === saleItem.quantity) {
-          await tx.serialNumber.updateMany({
-            where: { saleItemId: ri.saleItemId },
-            // Back in stock (quantity was restored above) → sellable again, same as void
-            data: { status: 'IN_STOCK', saleItemId: null, soldAt: null, warrantyExpiresAt: null },
-          });
-        }
+        await returnSerialsOfLine(tx, { ...saleItem, id: ri.saleItemId }, ri.quantity, newRefundedQty, ri.serials);
 
       }
 

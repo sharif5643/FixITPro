@@ -76,3 +76,39 @@ export async function takeSerialsOutOfStock(
   });
   return rows.map((r: { serial: string }) => r.serial);
 }
+
+/**
+ * Units of a sale line coming back (refund / exchange): their serials go back in stock with them.
+ * A whole line coming back brings all of its serials; part of a line needs to say which phones
+ * came back (`picked`), unless exactly that many serials are still out. Without it the count
+ * would go up with no serial to sell it by.
+ */
+export async function returnSerialsOfLine(
+  tx: any,
+  line: { id: string; quantity: number; product: { hasSerial?: boolean | null; name?: string } },
+  returnQty: number,
+  refundedAfter: number,
+  picked?: string[] | null,
+): Promise<void> {
+  if (!line.product.hasSerial) return;
+  const sold: { id: string; serial: string }[] = await tx.serialNumber.findMany({
+    where: { saleItemId: line.id }, select: { id: true, serial: true },
+  });
+  let back = sold;
+  const want = cleanSerials(picked ?? []);
+  if (want.length) {
+    if (want.length !== returnQty) {
+      throw new BadRequestException(`เลือก IMEI ${returnQty} เครื่องให้ตรงกับจำนวนที่คืน (เลือกมา ${want.length})`);
+    }
+    back = sold.filter((s) => want.includes(s.serial));
+    if (back.length !== want.length) throw new BadRequestException('IMEI ที่เลือกไม่ได้ขายไปในบิลนี้');
+  } else if (refundedAfter !== line.quantity && sold.length !== returnQty) {
+    throw new BadRequestException(`${line.product.name ?? 'สินค้านี้'} ใช้ IMEI — เลือก IMEI ของเครื่องที่ลูกค้าคืน`);
+  }
+  if (!back.length) return;
+  await tx.serialNumber.updateMany({
+    where: { id: { in: back.map((s) => s.id) } },
+    // Back in stock with the unit → sellable again, same as a void
+    data: { status: 'IN_STOCK', saleItemId: null, soldAt: null, warrantyExpiresAt: null },
+  });
+}

@@ -20,6 +20,7 @@ import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
 import type { Sale, PaymentMethod } from '@/types'
 import { refundUnitPrice } from '@/lib/refund'
+import { ImeiReturnPick, imeisOf } from '@/components/pos/imei-return-pick'
 
 const PM_LABEL: Record<PaymentMethod, string> = {
   CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตร',
@@ -101,7 +102,7 @@ function VoidDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () => v
 
 // ── Refund dialog ─────────────────────────────────────────────────────────────
 
-type RefundLineState = { selected: boolean; qty: number }
+type RefundLineState = { selected: boolean; qty: number; imeis?: string[] }
 
 function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () => void; onSuccess: () => void }) {
   const [reason, setReason]   = useState('')
@@ -114,7 +115,7 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
   )
 
   const [lines, setLines] = useState<Record<string, RefundLineState>>(() =>
-    Object.fromEntries(refundableItems.map((i) => [i.id, { selected: false, qty: i.quantity - i.refundedQty }])),
+    Object.fromEntries(refundableItems.map((i) => [i.id, { selected: false, qty: imeisOf(i).length || i.quantity - i.refundedQty, imeis: imeisOf(i) }])),
   )
 
   const selectedItems = refundableItems.filter((i) => lines[i.id]?.selected)
@@ -147,6 +148,7 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
         saleItemId: i.id,
         quantity:   lines[i.id].qty,
         refundPrice: refundUnitPrice(sale, i),
+        ...(imeisOf(i).length ? { serials: lines[i.id].imeis } : {}),
       })),
     }),
     onSuccess: () => {
@@ -206,8 +208,8 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
                       </p>
                     </div>
 
-                    {/* Qty control */}
-                    {line.selected && (
+                    {/* Qty control (phones by IMEI: the IMEIs ticked below) */}
+                    {line.selected && imeisOf(item).length === 0 && (
                       <div
                         className="flex items-center gap-1 flex-shrink-0"
                         onClick={(e) => e.stopPropagation()}
@@ -234,6 +236,10 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
                       <span className="text-xs text-slate-400 flex-shrink-0">คงเหลือ {remaining}</span>
                     )}
                   </div>
+                  {line.selected && (
+                    <ImeiReturnPick serials={imeisOf(item)} picked={line.imeis ?? []}
+                      onChange={(next) => setLines((prev) => ({ ...prev, [item.id]: { ...prev[item.id], imeis: next, qty: next.length, selected: next.length > 0 } }))} />
+                  )}
                 </div>
               )
             })}
@@ -351,8 +357,8 @@ function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () 
     [sale.items],
   )
 
-  const [returnLines, setReturnLines] = useState<Record<string, { selected: boolean; qty: number }>>(() =>
-    Object.fromEntries(refundableItems.map((i) => [i.id, { selected: false, qty: i.quantity - i.refundedQty }])),
+  const [returnLines, setReturnLines] = useState<Record<string, RefundLineState>>(() =>
+    Object.fromEntries(refundableItems.map((i) => [i.id, { selected: false, qty: imeisOf(i).length || i.quantity - i.refundedQty, imeis: imeisOf(i) }])),
   )
 
   const selectedReturnItems = refundableItems.filter((i) => returnLines[i.id]?.selected)
@@ -428,6 +434,7 @@ function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () 
         saleItemId: i.id,
         quantity: returnLines[i.id].qty,
         refundPrice: refundUnitPrice(sale, i),
+        ...(imeisOf(i).length ? { serials: returnLines[i.id].imeis } : {}),
       })),
       newItems: newItems.map((ni) => ({
         productId: ni.productId,
@@ -489,7 +496,7 @@ function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () 
                         <p className="text-xs font-semibold leading-tight truncate">{item.product?.name ?? 'สินค้า'}</p>
                         <p className="text-[10px] text-slate-400">{formatThaiMoney(unitPrice)}/ชิ้น</p>
                       </div>
-                      {line.selected && (
+                      {line.selected && imeisOf(item).length === 0 && (
                         <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                           <button
                             className="h-6 w-6 rounded border border-slate-200 flex items-center justify-center hover:bg-slate-100 disabled:opacity-40"
@@ -508,6 +515,10 @@ function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () 
                         <span className="text-[10px] text-slate-400 flex-shrink-0">×{remaining}</span>
                       )}
                     </div>
+                    {line.selected && (
+                      <ImeiReturnPick compact serials={imeisOf(item)} picked={line.imeis ?? []}
+                        onChange={(next) => setReturnLines((prev) => ({ ...prev, [item.id]: { ...prev[item.id], imeis: next, qty: next.length, selected: next.length > 0 } }))} />
+                    )}
                   </div>
                 )
               })}

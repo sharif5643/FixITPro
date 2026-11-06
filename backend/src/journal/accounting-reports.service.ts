@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { bkkMonthKey, bkkMonthStart } from '../common/dates/bangkok';
 
 // ── Input types ───────────────────────────────────────────────────────────────
 
@@ -355,9 +356,9 @@ export class AccountingReportsService {
   // lines — single query, month-bucketed in-process.
 
   async monthlyTrend({ tenantId, months = 12 }: { tenantId: string; months?: number }) {
-    const now       = new Date();
-    const startDate = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
-    const endDate   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    // Months as the shop sees them (Bangkok), not the server's UTC months
+    const startDate = bkkMonthStart(months - 1);
+    const endDate   = new Date(bkkMonthStart(-1).getTime() - 1);
 
     const lines = await this.prisma.journalLine.findMany({
       where: {
@@ -373,14 +374,12 @@ export class AccountingReportsService {
     // Initialise all month slots in chronological order
     const buckets: Record<string, { revenue: Prisma.Decimal; expense: Prisma.Decimal }> = {};
     for (let i = months - 1; i >= 0; i--) {
-      const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const key = bkkMonthKey(bkkMonthStart(i));
       buckets[key] = { revenue: new Prisma.Decimal(0), expense: new Prisma.Decimal(0) };
     }
 
     for (const l of lines) {
-      const d   = new Date(l.entry.entryDate);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const key = bkkMonthKey(new Date(l.entry.entryDate));
       if (!buckets[key]) continue;
       if (l.account.type === 'REVENUE') {
         buckets[key].revenue = buckets[key].revenue.add(l.credit).minus(l.debit);
