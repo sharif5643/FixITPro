@@ -10,7 +10,7 @@ import {
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
   BadgeCheck, Calculator, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Wifi,
   ListChecks, Handshake, Wallet, Scale, BookMarked, ArrowUpDown, LineChart, Landmark,
-  HardHat, History, ListOrdered, HandCoins, Coins, Star, PanelLeftClose, PanelLeftOpen, Hammer,
+  HardHat, History, ListOrdered, HandCoins, Coins, Star, PanelLeftClose, PanelLeftOpen, Hammer, Crown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
@@ -38,7 +38,11 @@ type NavSection = { key: string; label: string | null; open?: boolean; items: Na
 // owner-only rule, so a manager sees what their role allows.
 
 const SHOP_SECTIONS: NavSection[] = [
-  { key: 'home', label: null, items: [{ href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' }, { href: '/repairs/mine', icon: Hammer, label: 'งานซ่อมของฉัน', module: 'repair', repairWork: true }] },
+  { key: 'home', label: null, items: [
+    { href: '/dashboard', icon: LayoutDashboard, label: 'หน้าแรก' },
+    { href: '/owner', icon: Crown, label: 'ห้องเจ้าของร้าน', ownerOnly: true, module: 'owner_hub' },
+    { href: '/repairs/mine', icon: Hammer, label: 'งานซ่อมของฉัน', module: 'repair', repairWork: true },
+  ] },
   { key: 'repair', label: 'งานซ่อม', open: true, items: [
     { href: '/repairs',         icon: Wrench,       label: 'งานซ่อม',        permission: 'repair.create',       module: 'repair' },
     { href: '/reminders',       icon: CalendarDays, label: 'นัดหมาย',        permission: 'repair.create',       module: 'repair' },

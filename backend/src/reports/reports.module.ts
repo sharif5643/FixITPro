@@ -6,5 +6,6 @@ import { PermissionGuard } from '../common/guards/permission.guard';
 @Module({
   controllers: [ReportsController],
   providers: [ReportsService, PermissionGuard],
+  exports: [ReportsService],
 })
 export class ReportsModule {}
