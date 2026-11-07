@@ -709,6 +709,10 @@ function ModulesTab({ tenantId, shopName }: { tenantId: string; shopName: string
           {enabledCount} / {modules.length} เปิดใช้งาน
         </span>
       </div>
+      <p className="px-1 text-xs leading-relaxed text-slate-400">
+        ร้านใช้ได้เฉพาะโมดูลที่เปิดอยู่ — ทั้งพนักงานและ<span className="font-semibold text-slate-200">เจ้าของร้าน</span> โมดูลที่ปิดจะหายจากเมนูและเข้าใช้ไม่ได้
+        (ร้านขายอย่างเดียว: เปิดแค่ “ขายสินค้า (POS)” ก็ค้นสินค้าและเพิ่มลูกค้าตอนขายได้)
+      </p>
 
       {/* Module list */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">

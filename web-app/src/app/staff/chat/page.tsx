@@ -6,6 +6,7 @@ import { MessageCircle, ChevronRight, Loader2, Wrench } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { th } from 'date-fns/locale'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/auth.store'
 
 interface Repair {
   id: string
@@ -33,7 +34,9 @@ export default function StaffChatListPage() {
   const [repairs,  setRepairs]  = useState<Repair[]>([])
   const [loading,  setLoading]  = useState(true)
 
+  const hasRepair = useAuthStore((s) => s.hasModule('repair'))
   useEffect(() => {
+    if (!hasRepair) { setLoading(false); return }
     api.get('/repairs', { params: { limit: 30, sortBy: 'updatedAt', order: 'desc' } })
       .then((res) => {
         const rows: Repair[] = res.data?.data ?? res.data ?? []
@@ -41,7 +44,7 @@ export default function StaffChatListPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [hasRepair])
 
   return (
     <div className="min-h-screen bg-[#F8F9FB]">

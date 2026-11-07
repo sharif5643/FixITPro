@@ -16,6 +16,8 @@ import { bangkokDate } from '../common/bangkok-date';
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
+  // Basic for every shop that sells or repairs (end-of-day slip, today's figures), not only with reports
+  @RequireModule('report', 'pos', 'repair')
   @RequirePermission('reports.view')
   @Get('owner-dashboard')
   getOwnerDashboard(
@@ -66,6 +68,8 @@ export class ReportsController {
   }
 
   // Also for whoever closes the cash drawer (cashiers): the shift-close report is printed from it
+  // Basic for every shop that sells or repairs (end-of-day slip, today's figures), not only with reports
+  @RequireModule('report', 'pos', 'repair')
   @RequirePermission('reports.view', 'cash_drawer.close_session')
   @Get('daily-closing')
   async getDailyClosingReport(

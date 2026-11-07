@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { Banknote, Loader2 } from 'lucide-react'
 import api from '@/lib/api'
 import { cn, formatThaiMoney } from '@/lib/utils'
+import { useAuthStore } from '@/store/auth.store'
 
 type ShiftSale = {
   id: string
@@ -26,10 +27,13 @@ export const BIG_CASH_BILL = 3000
  */
 export function CashBillReview({ shiftId, className }: { shiftId: string; className?: string }) {
   const qc = useQueryClient()
+  // Bills come from the till: a shop without POS has none to review
+  const hasPos = useAuthStore((s) => s.hasModule('pos'))
   const { data } = useQuery<{ items: ShiftSale[] }>({
     queryKey: ['sales', 'shift-review', shiftId],
     queryFn: async () => (await api.get('/sales', { params: { shiftId, limit: 200 } })).data,
     staleTime: 0,
+    enabled: hasPos,
   })
   const bills = (data?.items ?? []).filter((s) =>
     s.status === 'COMPLETED'

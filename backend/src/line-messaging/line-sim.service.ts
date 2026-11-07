@@ -9,6 +9,8 @@ import { LineMessagingService } from './line-messaging.service';
 import { centralLine } from './line-central';
 import { HELP_TEXT, LINK_PREFIX, parseLineSim, type Carrier } from './line-sim-parse';
 import { SimSlipReader } from './sim-slip-reader';
+import { ModulesService } from '../modules/modules.service';
+import { MODULE_KEYS } from '../modules/modules.const';
 
 const LINK_TTL_MS = 30 * 60 * 1000;
 const baht = (n: number) => n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -31,6 +33,7 @@ export class LineSimService {
     private line: LineMessagingService,
     private wallet: CarrierWalletService,
     private notif: NotificationsService,
+    private modules: ModulesService,
   ) {}
 
   // ── Linking a LINE chat to a staff account ─────────────────────────────────
@@ -166,6 +169,9 @@ export class LineSimService {
       const tenant = await this.prisma.tenant.findUnique({ where: { id: staff.tenantId }, select: { expiryDate: true, status: true } });
       const block = tenantWriteBlock(tenant);
       if (block) return TENANT_BLOCK_MESSAGE[block];
+      // SIM sales are a module: off for the shop means off for everyone in it, the owner too
+      const on = await this.modules.getModulesFor(staff.role, staff.tenantId).catch(() => [] as string[]);
+      if (!on.includes(MODULE_KEYS.PACKAGE_SALES)) return 'ร้านนี้ยังไม่ได้เปิดระบบขายซิม / แพ็กเกจ';
     }
     if (staff.role === 'OWNER' || staff.role === 'SUPER_ADMIN') return null;
     const [roleRows, userRows] = await Promise.all([

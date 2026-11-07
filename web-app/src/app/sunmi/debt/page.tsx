@@ -486,10 +486,13 @@ export default function SunmiDebtPage() {
     enabled:  kind === 'sim',
   })
 
+  // A shop without repair jobs has no repair debts to load
+  const hasRepair = useAuthStore((st) => st.hasModule('repair'))
   const { data: repairs = [], isLoading } = useQuery<OutstandingRepair[]>({
     queryKey: ['repairs', 'outstanding'],
     queryFn:  async () => (await api.get('/repairs/outstanding')).data,
     staleTime: 30_000,
+    enabled:  hasRepair,
   })
 
   const groups = groupRepairs(repairs).filter((g) =>

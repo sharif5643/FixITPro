@@ -11,7 +11,7 @@ import type { LowStockItem } from './types'
 
 export function InventoryIntelligence() {
   const hasModule = useAuthStore(s => s.hasModule)
-  const enabled   = hasModule('inventory')
+  const enabled   = hasModule('stock')
 
   const { data, isLoading, isError, refetch } = useQuery<LowStockItem[]>({
     queryKey: ['stock', 'low-stock'],

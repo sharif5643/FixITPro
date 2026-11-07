@@ -43,6 +43,8 @@ export class ProductsController {
     return this.productsService.create(dto, actorId, actorName, userBranchId, userRole, tenantId);
   }
 
+  // Also for selling and repair work: the till and the job card look products up
+  @RequireModule('stock', 'pos', 'repair')
   @Get()
   findAll(
     @Query()
@@ -66,6 +68,8 @@ export class ProductsController {
     return this.productsService.findAll({ ...query, branchId: effectiveBranchId, role, tenantId });
   }
 
+  // Also for selling and repair work: the till and the job card look products up
+  @RequireModule('stock', 'pos', 'repair')
   @Get('brands')
   brands(@CurrentUser('tenantId') tenantId: string) {
     return this.productsService.brands(tenantId);
@@ -84,6 +88,8 @@ export class ProductsController {
     return this.productsService.generateBarcode();
   }
 
+  // Also for selling and repair work: the till and the job card look products up
+  @RequireModule('stock', 'pos', 'repair')
   @Get('catalog/search')
   catalogSearch(
     @Query('search') search?: string,
@@ -93,6 +99,8 @@ export class ProductsController {
     return this.productsService.catalogSearch(search, barcode, tenantId);
   }
 
+  // Also for selling and repair work: the till and the job card look products up
+  @RequireModule('stock', 'pos', 'repair')
   @Get('barcode/:barcode')
   findByBarcode(
     @Param('barcode') barcode: string,
@@ -101,6 +109,8 @@ export class ProductsController {
     return this.productsService.findByBarcode(barcode, undefined, tenantId);
   }
 
+  // Also for selling and repair work: the till and the job card look products up
+  @RequireModule('stock', 'pos', 'repair')
   @Get(':id/availability')
   getAvailability(
     @Param('id') id: string,
@@ -109,6 +119,8 @@ export class ProductsController {
     return this.productsService.getAvailability(id, tenantId);
   }
 
+  // Also for selling and repair work: the till and the job card look products up
+  @RequireModule('stock', 'pos', 'repair')
   @Get(':id')
   findOne(
     @Param('id') id: string,

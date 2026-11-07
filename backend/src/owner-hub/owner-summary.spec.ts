@@ -56,6 +56,6 @@ describe('owner summary', () => {
     ]);
     expect(actionCount(a)).toBe(4);
     const t = summaryText({ date: '2026-11-06', total: money(), branches: [], actions: a }, 'C', 'https://x');
-    expect(t).toContain('⚠️ ต้องจัดการ 5 เรื่อง');
+    expect(t).toContain('⚠️ ต้องจัดการ 4 เรื่อง'); // topics, as on the page — not lines
   });
 });

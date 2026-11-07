@@ -6,6 +6,7 @@ import { Loader2, Search, Truck, X } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
 import { apiErrorMessage, cn, formatThaiMoney } from '@/lib/utils'
+import { useAuthStore } from '@/store/auth.store'
 
 /**
  * "จ่ายค่ารถ": the fee paid to the driver who brings the parts (e.g. สองแถว ฿80, paid on arrival).
@@ -39,13 +40,14 @@ export function DeliveryFeeSheet({ onClose }: { onClose: () => void }) {
   const [job, setJob] = useState<RepairHit | null>(null)
   useEffect(() => { setAmount(String(lastFee())) }, [])
 
+  const hasRepair = useAuthStore((s) => s.hasModule('repair'))
   const { data: hits = [], isFetching } = useQuery<RepairHit[]>({
     queryKey: ['repairs', 'delivery-pick', q.trim()],
     queryFn: async () => {
       const res = await api.get('/repairs', { params: { search: q.trim(), limit: 6 } })
       return Array.isArray(res.data) ? res.data : res.data?.items ?? res.data?.data ?? []
     },
-    enabled: q.trim().length >= 2 && !job,
+    enabled: hasRepair && q.trim().length >= 2 && !job,
     staleTime: 15_000,
   })
 

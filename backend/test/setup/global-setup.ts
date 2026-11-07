@@ -161,6 +161,12 @@ export default async function globalSetup() {
       ],
       skipDuplicates: true,
     });
+    // PRO has no team module; the owners in these tests manage staff, as a shop the super admin
+    // switched it on for (owners follow the shop's modules like everyone in it)
+    await prisma.tenantModule.createMany({
+      data: E2E_TENANT_IDS.map((tenantId) => ({ tenantId, moduleKey: 'user_management', enabled: true })),
+      skipDuplicates: true,
+    });
 
     // ── 5. Seed branches ──────────────────────────────────────────────────────
     await prisma.branch.createMany({
