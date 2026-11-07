@@ -717,4 +717,41 @@ SELECT t.id, t.plan, t.status,
   (SELECT count(*) FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = t.id AND s."createdAt" > now() - INTERVAL '30 days') AS sales_30d
 FROM "Tenant" t ORDER BY 4 DESC, 5, 1;
 
+\echo '--- 31. Modules: what each shop has, and what its owner uses that the shop does not have ---'
+\echo 'An owner passes every module check today (except accounting / owner_hub). If owners followed the shop''s modules,'
+\echo 'these are the modules each shop would lose, with how much of each the shop used in the last 30 days.'
+WITH eff AS (
+  SELECT t.id AS tenant_id, m.key AS module,
+    ((EXISTS (SELECT 1 FROM "PackageModule" pm WHERE pm."packageKey" = t.plan::text AND pm."moduleKey" = m.key)
+      OR EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = m.key AND tm.enabled AND (tm."expiresAt" IS NULL OR tm."expiresAt" > now())))
+     AND NOT EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = m.key AND NOT tm.enabled AND (tm."expiresAt" IS NULL OR tm."expiresAt" > now()))) AS on_,
+    EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = m.key AND NOT tm.enabled) AS switched_off
+  FROM "Tenant" t CROSS JOIN "AppModule" m
+)
+SELECT e.tenant_id, t.plan, t.status, e.module,
+  CASE WHEN e.switched_off THEN 'super admin switched off' ELSE 'not in package' END AS why,
+  CASE e.module
+    WHEN 'pos'           THEN (SELECT count(*) FROM "Sale" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = e.tenant_id AND x."createdAt" > now() - INTERVAL '30 days')
+    WHEN 'repair'        THEN (SELECT count(*) FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = e.tenant_id AND x."receivedAt" > now() - INTERVAL '30 days')
+    WHEN 'package_sales' THEN (SELECT count(*) FROM "PackageSale" x WHERE x."tenantId" = e.tenant_id AND x."createdAt" > now() - INTERVAL '30 days')
+    WHEN 'finance'       THEN (SELECT count(*) FROM "Expense" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = e.tenant_id AND x."createdAt" > now() - INTERVAL '30 days')
+                            + (SELECT count(*) FROM "PurchaseOrder" x JOIN "Supplier" su ON su.id = x."supplierId" WHERE su."tenantId" = e.tenant_id AND x."createdAt" > now() - INTERVAL '30 days')
+    WHEN 'stock'         THEN (SELECT count(*) FROM "Product" x WHERE x."tenantId" = e.tenant_id AND x."createdAt" > now() - INTERVAL '30 days')
+    WHEN 'crm'           THEN (SELECT count(*) FROM "Customer" x WHERE x."tenantId" = e.tenant_id AND x."createdAt" > now() - INTERVAL '30 days')
+    ELSE NULL END AS used_30d
+FROM eff e JOIN "Tenant" t ON t.id = e.tenant_id
+WHERE NOT e.on_ AND e.module NOT IN ('accounting', 'owner_hub')
+ORDER BY t.status, e.tenant_id, e.module;
+
+\echo '31b. Shops and how many modules they have on'
+WITH eff AS (
+  SELECT t.id AS tenant_id, m.key AS module,
+    ((EXISTS (SELECT 1 FROM "PackageModule" pm WHERE pm."packageKey" = t.plan::text AND pm."moduleKey" = m.key)
+      OR EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = m.key AND tm.enabled AND (tm."expiresAt" IS NULL OR tm."expiresAt" > now())))
+     AND NOT EXISTS (SELECT 1 FROM "TenantModule" tm WHERE tm."tenantId" = t.id AND tm."moduleKey" = m.key AND NOT tm.enabled AND (tm."expiresAt" IS NULL OR tm."expiresAt" > now()))) AS on_
+  FROM "Tenant" t CROSS JOIN "AppModule" m
+)
+SELECT e.tenant_id, t.plan, t.status, count(*) FILTER (WHERE e.on_) AS modules_on, string_agg(e.module, ',' ORDER BY e.module) FILTER (WHERE e.on_) AS on_list
+FROM eff e JOIN "Tenant" t ON t.id = e.tenant_id GROUP BY 1, 2, 3 ORDER BY 3, 1;
+
 ROLLBACK;
