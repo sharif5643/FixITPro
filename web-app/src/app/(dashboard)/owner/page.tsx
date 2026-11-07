@@ -5,15 +5,17 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
-  ArrowDownRight, ArrowUpRight, Banknote, CheckCircle2, ChevronDown, ChevronRight, Clock, CreditCard,
-  Crown, Loader2, Lock, MessageCircle, Package, QrCode, Receipt, RefreshCw, Send, Smartphone, Store,
-  Truck, Wallet, Wrench,
+  AlertTriangle, CheckCircle2, ChevronRight, Crown, Loader2, Lock, MessageCircle, RefreshCw, Send,
 } from 'lucide-react'
 import api from '@/lib/api'
 import { apiErrorMessage, cn, formatThaiMoney } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import { useBranchContext } from '@/hooks/useBranchContext'
-import { actionsOf, thaiDayLabel, type Action, type BranchMoney, type OwnerToday } from '@/lib/owner-hub'
+import { PageHeader } from '@/components/ui/page-header'
+import { MoneyLine } from '@/components/reports/money-parts'
+import {
+  actionsOf, thaiDayLabel, type BranchMoney, type OwnerToday,
+} from '@/lib/owner-hub'
 
 /**
  * ห้องเจ้าของร้าน — today's money for every branch on one page, what is waiting for the owner, and
@@ -24,7 +26,7 @@ export default function OwnerHubPage() {
   const hasModule = useAuthStore((s) => s.hasModule)
   if (user?.role !== 'OWNER') return <Locked title="สำหรับเจ้าของร้านเท่านั้น" text="หน้านี้แสดงเงินและเรื่องที่ต้องจัดการของทั้งร้าน จึงเปิดได้เฉพาะบัญชีเจ้าของร้าน" />
   if (!hasModule('owner_hub')) return <Locked title="ห้องเจ้าของร้านยังไม่ได้เปิดใช้งาน" text="ติดต่อผู้ดูแลระบบ FixITPro เพื่อขอเปิดโมดูลนี้ให้ร้านของคุณ" />
-  return <OwnerHub name={user?.name ?? ''} />
+  return <OwnerHub />
 }
 
 function Locked({ title, text }: { title: string; text: string }) {
@@ -36,34 +38,13 @@ function Locked({ title, text }: { title: string; text: string }) {
         </div>
         <h2 className="text-xl font-bold">{title}</h2>
         <p className="text-sm text-muted-foreground">{text}</p>
-        <Link href="/dashboard" className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">กลับหน้าแรก</Link>
+        <Link href="/dashboard" className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">กลับหน้าแรก</Link>
       </div>
     </div>
   )
 }
 
-// ── Shared bits ──────────────────────────────────────────────────────────────
-
-const card = 'rounded-3xl border border-slate-100 bg-white shadow-[0_2px_10px_rgba(15,23,42,0.05)] dark:border-slate-700/60 dark:bg-[#1E293B]'
-const money = (n: number) => formatThaiMoney(Math.round(n))
-
-function greeting() {
-  const h = Number(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok', hour: 'numeric', hour12: false }))
-  return h < 12 ? 'สวัสดีตอนเช้า' : h < 17 ? 'สวัสดีตอนบ่าย' : 'สวัสดีตอนเย็น'
-}
-
-function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
-  return (
-    <div className="mb-3 flex items-center justify-between gap-2 px-1">
-      <h2 className="text-[15px] font-bold text-slate-800 dark:text-slate-100">{children}</h2>
-      {right}
-    </div>
-  )
-}
-
-// ── Page ─────────────────────────────────────────────────────────────────────
-
-function OwnerHub({ name }: { name: string }) {
+function OwnerHub() {
   const { branchId: globalBranch } = useBranchContext()
   const [picked, setPicked] = useState<string | undefined>(undefined)
   const branchId = picked ?? globalBranch
@@ -75,236 +56,169 @@ function OwnerHub({ name }: { name: string }) {
   })
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 pb-12">
-      {/* Greeting */}
-      <div className="flex items-center gap-3 px-1">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-500/20">
-          <Crown className="h-5 w-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs text-muted-foreground">{greeting()}{name ? ` คุณ${name}` : ''}</p>
-          <h1 className="truncate text-xl font-black tracking-tight">ห้องเจ้าของร้าน</h1>
-        </div>
-        <button type="button" onClick={() => refetch()} disabled={isFetching} aria-label="รีเฟรช"
-          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-[#1E293B] dark:text-slate-300">
-          <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-        </button>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-5 pb-10">
+      <PageHeader
+        title="ห้องเจ้าของร้าน"
+        icon={Crown}
+        subtitle={data ? `วันนี้ ${thaiDayLabel(data.date)} · ${data.total.name}` : 'เงินวันนี้และเรื่องที่ต้องจัดการ'}
+        primaryAction={
+          <button type="button" onClick={() => refetch()} disabled={isFetching}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800">
+            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />รีเฟรช
+          </button>
+        }
+      />
 
-      {isLoading && <div className={cn(card, 'flex h-48 items-center justify-center text-sm text-muted-foreground')}><Loader2 className="mr-2 h-4 w-4 animate-spin" />กำลังโหลด…</div>}
-      {isError && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{apiErrorMessage(error)}</p>}
+      {picked && (
+        <button type="button" onClick={() => setPicked(undefined)} className="text-sm font-semibold text-blue-600 hover:underline">
+          ← กลับไปดูทุกสาขา
+        </button>
+      )}
+
+      {isLoading && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />กำลังโหลด…</p>}
+      {isError && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">{apiErrorMessage(error)}</p>}
 
       {data && (
-        <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
-          <div className="space-y-5">
-            <Hero data={data} picked={!!picked} onAll={() => setPicked(undefined)} />
-            <Tiles m={data.total} />
-            <div className="lg:hidden"><ToDo data={data} /></div>
-            {data.branches.length > 1 && <Branches rows={data.branches} total={data.total.revenue} onPick={setPicked} />}
-          </div>
-          <div className="space-y-5">
-            <div className="hidden lg:block"><ToDo data={data} /></div>
-            <LineCard />
-            <p className="px-1 text-center text-[11px] text-muted-foreground">
-              อัปเดตเองทุก 1 นาที · ล่าสุด {new Date(dataUpdatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
-            </p>
-          </div>
-        </div>
+        <>
+          <TodayMoney m={data.total} />
+          {data.branches.length > 1 && <BranchTable rows={data.branches} onPick={setPicked} />}
+          <ToDo data={data} />
+          <p className="text-right text-[11px] text-muted-foreground">
+            อัปเดตเองทุก 1 นาที · ล่าสุด {new Date(dataUpdatedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        </>
       )}
+
+      <LineCard />
     </div>
   )
 }
 
-// ── Hero: today's money ──────────────────────────────────────────────────────
+// ── Today's money ─────────────────────────────────────────────────────────────
 
-function Hero({ data, picked, onAll }: { data: OwnerToday; picked: boolean; onAll: () => void }) {
-  const m = data.total
-  const parts = [
-    { key: 'cash', label: 'เงินสด', v: m.cash, icon: Banknote, bar: 'bg-emerald-300' },
-    { key: 'transfer', label: 'โอน / QR', v: m.transfer, icon: QrCode, bar: 'bg-sky-300' },
-    { key: 'card', label: 'บัตร', v: m.card, icon: CreditCard, bar: 'bg-violet-300' },
-  ]
-  const sum = parts.reduce((t, p) => t + p.v, 0)
+function Card({ title, icon, right, children, className }: { title: string; icon: string; right?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-5 text-white shadow-xl shadow-blue-900/20 sm:p-6">
-      <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-      <div className="pointer-events-none absolute -bottom-20 left-10 h-48 w-48 rounded-full bg-indigo-400/20 blur-2xl" />
-      <div className="relative">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-blue-100">
-          <span className="rounded-full bg-white/15 px-2.5 py-1 font-semibold">วันนี้ {thaiDayLabel(data.date)}</span>
-          <span className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 font-semibold"><Store className="h-3 w-3" />{m.name}</span>
-          {picked && <button type="button" onClick={onAll} className="rounded-full bg-white px-2.5 py-1 font-semibold text-blue-700">ดูทุกสาขา</button>}
-        </div>
-        <p className="mt-4 text-sm text-blue-100">รายรับวันนี้</p>
-        <p className="text-[40px] font-black leading-tight tabular-nums sm:text-5xl">{money(m.revenue)}</p>
+    <section className={cn('rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-[#1E293B] sm:p-5', className)}>
+      <div className="mb-3 flex items-center gap-2">
+        <span className="text-lg">{icon}</span>
+        <h2 className="flex-1 text-base font-bold">{title}</h2>
+        {right}
+      </div>
+      {children}
+    </section>
+  )
+}
 
-        <div className="mt-4 flex h-2.5 gap-1 overflow-hidden rounded-full bg-white/15">
-          {sum > 0 && parts.filter((p) => p.v > 0).map((p) => <div key={p.key} className={p.bar} style={{ flex: p.v }} />)}
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {parts.map((p) => (
-            <div key={p.key} className="rounded-2xl bg-white/10 px-3 py-2.5 backdrop-blur">
-              <p className="flex items-center gap-1.5 text-[11px] text-blue-100"><span className={cn('h-2 w-2 rounded-full', p.bar)} />{p.label}</p>
-              <p className="mt-0.5 text-[15px] font-bold tabular-nums sm:text-base">{money(p.v)}</p>
+function TodayMoney({ m }: { m: BranchMoney }) {
+  const loss = m.netProfit < 0
+  return (
+    <div className="grid gap-4 md:grid-cols-[1.2fr_1fr]">
+      <section className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white shadow-sm">
+        <p className="text-sm text-slate-300">รายรับวันนี้</p>
+        <p className="mt-1 text-4xl font-bold tabular-nums">{formatThaiMoney(m.revenue)}</p>
+        <p className="mt-1 text-xs text-slate-400">บิลขาย {m.bills} ใบ · รับเงินงานซ่อม {m.repairPayments} งาน</p>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          {[
+            { label: 'เงินสด', v: m.cash },
+            { label: 'โอน / QR', v: m.transfer },
+            { label: 'บัตร', v: m.card },
+          ].map((x) => (
+            <div key={x.label} className="rounded-xl bg-white/10 px-2 py-2">
+              <p className="text-[11px] text-slate-300">{x.label}</p>
+              <p className="text-sm font-bold tabular-nums">{formatThaiMoney(x.v)}</p>
             </div>
           ))}
         </div>
-      </div>
-    </section>
-  )
-}
+        <div className={cn('mt-4 rounded-xl px-3 py-2.5', loss ? 'bg-red-500/20' : 'bg-emerald-500/20')}>
+          <p className="text-xs text-slate-200">กำไรสุทธิวันนี้ (หักทุนและค่าใช้จ่ายแล้ว)</p>
+          <p className={cn('text-2xl font-bold tabular-nums', loss ? 'text-red-300' : 'text-emerald-300')}>
+            {loss ? '− ' : ''}{formatThaiMoney(Math.abs(m.netProfit))}
+          </p>
+        </div>
+      </section>
 
-// ── Three tiles under the hero ───────────────────────────────────────────────
-
-function Tile({ icon: Icon, tone, label, value, sub, href }: {
-  icon: React.ElementType; tone: 'green' | 'red' | 'slate'; label: string; value: string; sub: string; href: string
-}) {
-  const t = {
-    green: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
-    red: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
-    slate: 'bg-slate-100 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300',
-  }[tone]
-  return (
-    <Link href={href} className={cn(card, 'group block p-4 transition hover:-translate-y-0.5 hover:shadow-lg')}>
-      <div className="flex items-center justify-between">
-        <span className={cn('flex h-9 w-9 items-center justify-center rounded-xl', t)}><Icon className="h-[18px] w-[18px]" /></span>
-        <ChevronRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-blue-500" />
-      </div>
-      <p className="mt-3 text-xs font-medium text-muted-foreground">{label}</p>
-      <p className={cn('text-xl font-black tabular-nums', tone === 'green' && 'text-emerald-600 dark:text-emerald-400', tone === 'red' && 'text-rose-600 dark:text-rose-400')}>{value}</p>
-      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{sub}</p>
-    </Link>
-  )
-}
-
-function Tiles({ m }: { m: BranchMoney }) {
-  const loss = m.netProfit < 0
-  const margin = m.revenue > 0 ? Math.round((m.netProfit / m.revenue) * 100) : 0
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1">
-      <Tile icon={loss ? ArrowDownRight : ArrowUpRight} tone={loss ? 'red' : 'green'} label="กำไรสุทธิ"
-        value={`${loss ? '−' : ''}${money(Math.abs(m.netProfit))}`} sub={m.revenue > 0 ? `${margin}% ของรายรับ · หักทุนและค่าใช้จ่ายแล้ว` : 'หักทุนและค่าใช้จ่ายแล้ว'} href="/reports/profit" />
-      <Tile icon={Wallet} tone="red" label="เงินออกจากลิ้นชัก" value={money(m.drawerOut)}
-        sub={`ค่าใช้จ่ายทั้งวัน ${money(m.expenses)}`} href="/reports/daily-closing" />
-      <Tile icon={Receipt} tone="slate" label="รายการวันนี้" value={`${m.bills + m.repairPayments} รายการ`}
-        sub={`บิลขาย ${m.bills} · งานซ่อม ${m.repairPayments}`} href="/reports/daily-closing" />
+      <Card title="เงินออกวันนี้" icon="💸">
+        <MoneyLine label="จ่ายออกจากลิ้นชัก" value={m.drawerOut} minus note="ค่าใช้จ่ายเงินสด จ่ายร้านอะไหล่ เบิกเงินออก" />
+        <MoneyLine label="ค่าใช้จ่ายที่บันทึกวันนี้" value={m.expenses} minus note="ทุกช่องทาง รวมที่เจ้าของจ่ายเอง" />
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          <Link href="/reports/daily-closing" className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200">
+            ที่มาของเงินเข้า-ออก (ปิดวัน)<ChevronRight className="h-3 w-3" />
+          </Link>
+          <Link href="/reports/profit" className="inline-flex items-center gap-0.5 rounded-lg bg-slate-100 px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200">
+            ที่มาของกำไร<ChevronRight className="h-3 w-3" />
+          </Link>
+        </div>
+      </Card>
     </div>
   )
 }
 
-// ── Branches ─────────────────────────────────────────────────────────────────
-
-function Branches({ rows, total, onPick }: { rows: BranchMoney[]; total: number; onPick: (id: string) => void }) {
+function BranchTable({ rows, onPick }: { rows: BranchMoney[]; onPick: (id: string) => void }) {
+  const top = Math.max(1, ...rows.map((r) => r.revenue))
   return (
-    <section>
-      <SectionTitle right={<span className="text-[11px] text-muted-foreground">แตะเพื่อดูเฉพาะสาขา</span>}>แยกตามสาขา</SectionTitle>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {rows.map((b) => {
-          const share = total > 0 ? Math.round((b.revenue / total) * 100) : 0
-          return (
-            <button key={b.branchId ?? b.name} type="button" onClick={() => b.branchId && onPick(b.branchId)}
-              className={cn(card, 'group p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lg')}>
-              <div className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"><Store className="h-4 w-4" /></span>
-                <p className="min-w-0 flex-1 truncate text-sm font-bold">{b.name}</p>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">{share}%</span>
+    <Card title="แยกตามสาขา" icon="🏪" right={<span className="text-xs text-muted-foreground">กดสาขาเพื่อดูเฉพาะสาขานั้น</span>}>
+      <div className="divide-y divide-slate-100 dark:divide-slate-700/60">
+        {rows.map((b) => (
+          <button key={b.branchId ?? b.name} type="button" onClick={() => b.branchId && onPick(b.branchId)}
+            className="group flex w-full items-center gap-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{b.name}</p>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+                <div className="h-full rounded-full bg-blue-500" style={{ width: `${(b.revenue / top) * 100}%` }} />
               </div>
-              <div className="mt-3 flex items-end justify-between gap-2">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">รายรับ</p>
-                  <p className="text-lg font-black tabular-nums">{money(b.revenue)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[11px] text-muted-foreground">กำไร</p>
-                  <p className={cn('text-sm font-bold tabular-nums', b.netProfit < 0 ? 'text-rose-600' : 'text-emerald-600')}>{b.netProfit < 0 ? '−' : ''}{money(Math.abs(b.netProfit))}</p>
-                </div>
-              </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
-                <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" style={{ width: `${share}%` }} />
-              </div>
-            </button>
-          )
-        })}
+              <p className="mt-1 text-[11px] text-muted-foreground">สด {formatThaiMoney(b.cash)} · โอน {formatThaiMoney(b.transfer)}{b.card ? ` · บัตร ${formatThaiMoney(b.card)}` : ''}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-bold tabular-nums">{formatThaiMoney(b.revenue)}</p>
+              <p className={cn('text-xs tabular-nums', b.netProfit < 0 ? 'text-red-600' : 'text-emerald-600')}>
+                กำไร {b.netProfit < 0 ? '− ' : ''}{formatThaiMoney(Math.abs(b.netProfit))}
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-blue-500" />
+          </button>
+        ))}
       </div>
-    </section>
+    </Card>
   )
 }
 
 // ── What needs the owner ─────────────────────────────────────────────────────
 
-const ACTION_ICON: Record<string, React.ElementType> = {
-  shifts: Clock, po: Truck, overdue: Wrench, pickup: Smartphone, debt: Wallet, stock: Package,
-}
-
-function ActionRow({ a }: { a: Action }) {
-  const [open, setOpen] = useState(false)
-  const Icon = ACTION_ICON[a.key] ?? Receipt
-  const hasRows = !!a.rows?.length
+function ToDo({ data }: { data: OwnerToday }) {
+  const items = actionsOf(data.actions)
   return (
-    <li className="py-1">
-      <div className="flex items-start gap-3 rounded-2xl px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-        <span className={cn('relative mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-          a.urgent ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400')}>
-          <Icon className="h-[18px] w-[18px]" />
-          {a.urgent && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-[#1E293B]" />}
-        </span>
-        <Link href={a.href} className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-snug">{a.title}</p>
-          {a.hint && <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{a.hint}</p>}
-        </Link>
-        {hasRows ? (
-          <button type="button" onClick={() => setOpen((v) => !v)} aria-label={open ? 'ซ่อนรายการ' : 'ดูรายการ'}
-            className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700">
-            <ChevronDown className={cn('h-4 w-4 transition', open && 'rotate-180')} />
-          </button>
-        ) : (
-          <Link href={a.href} aria-label="ไปจัดการ" className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center text-slate-300"><ChevronRight className="h-4 w-4" /></Link>
-        )}
-      </div>
-      {open && hasRows && (
-        <ul className="mb-1 ml-14 mr-2 space-y-0.5 rounded-xl bg-slate-50 p-1.5 dark:bg-slate-800/60">
-          {a.rows!.map((r) => (
-            <li key={r.href + r.label}>
-              <Link href={r.href} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-white dark:hover:bg-slate-700">
-                <span className="min-w-0 flex-1 truncate">
-                  <span className={cn('font-semibold', r.code && 'font-mono text-[11px]')}>{r.label}</span>
-                  {r.sub && <span className="text-muted-foreground"> · {r.sub}</span>}
+    <Card title={items.length ? `ต้องจัดการ ${items.length} เรื่อง` : 'ต้องจัดการ'} icon={items.length ? '⚠️' : '✅'}>
+      {items.length === 0 ? (
+        <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-4 w-4" />ไม่มีเรื่องค้างให้จัดการ</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((it) => (
+            <li key={it.key} className={cn('rounded-xl border px-3 py-2.5', it.urgent ? 'border-red-200 bg-red-50/60 dark:border-red-900/50 dark:bg-red-900/10' : 'border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-900/10')}>
+              <Link href={it.href} className="group flex items-start gap-2">
+                <AlertTriangle className={cn('mt-0.5 h-4 w-4 shrink-0', it.urgent ? 'text-red-500' : 'text-amber-500')} />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold">{it.title}</span>
+                  {it.hint && <span className="block text-xs text-muted-foreground">{it.hint}</span>}
                 </span>
-                <span className="shrink-0 font-medium text-slate-500">{r.right}</span>
+                <ChevronRight className="mt-0.5 h-4 w-4 text-slate-300 group-hover:text-blue-500" />
               </Link>
+              {it.rows && it.rows.length > 0 && (
+                <ul className="mt-2 space-y-1 border-t border-black/5 pt-2 dark:border-white/10">
+                  {it.rows.map((r) => (
+                    <li key={r.href + r.label}>
+                      <Link href={r.href} className="flex items-baseline justify-between gap-2 text-xs hover:underline">
+                        <span className="truncate"><span className={cn('font-semibold', r.code && 'font-mono')}>{r.label}</span> {r.sub}</span>
+                        <span className="shrink-0 text-muted-foreground">{r.right}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>
       )}
-    </li>
-  )
-}
-
-function ToDo({ data }: { data: OwnerToday }) {
-  const items = actionsOf(data.actions)
-  const urgent = items.filter((a) => a.urgent).length
-  return (
-    <section className={cn(card, 'p-4')}>
-      <div className="mb-1 flex items-center gap-2 px-2">
-        <h2 className="flex-1 text-[15px] font-bold">ต้องจัดการ</h2>
-        {items.length > 0 && (
-          <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-bold', urgent ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300')}>
-            {items.length} เรื่อง{urgent ? ` · ด่วน ${urgent}` : ''}
-          </span>
-        )}
-      </div>
-      {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 py-8 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30"><CheckCircle2 className="h-6 w-6" /></span>
-          <p className="text-sm font-semibold">ไม่มีเรื่องค้าง</p>
-          <p className="text-xs text-muted-foreground">วันนี้ร้านเรียบร้อยดี</p>
-        </div>
-      ) : (
-        <ul className="divide-y divide-slate-100 dark:divide-slate-700/60">
-          {items.map((a) => <ActionRow key={a.key} a={a} />)}
-        </ul>
-      )}
-    </section>
+    </Card>
   )
 }
 
@@ -312,15 +226,6 @@ function ToDo({ data }: { data: OwnerToday }) {
 
 interface LineState { linked: boolean; dailySummary: boolean; preview: string }
 interface LinkInfo { ready: boolean; linked: boolean; url: string | null; oaId: string | null }
-
-function Switch({ on, disabled, onChange }: { on: boolean; disabled?: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button type="button" role="switch" aria-checked={on} disabled={disabled} onClick={() => onChange(!on)}
-      className={cn('relative h-7 w-12 shrink-0 rounded-full ring-1 ring-white/40 transition disabled:opacity-60', on ? 'bg-white/35' : 'bg-black/25')}>
-      <span className={cn('absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all', on ? 'left-[22px]' : 'left-0.5')} />
-    </button>
-  )
-}
 
 function LineCard() {
   const qc = useQueryClient()
@@ -347,65 +252,46 @@ function LineCard() {
   })
 
   const linked = !!(data?.linked || link?.linked)
-  const on = data?.dailySummary ?? true
   return (
-    <section className={cn(card, 'overflow-hidden')}>
-      <div className="flex items-center gap-3 bg-[#06C755] px-4 py-3 text-white">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20"><MessageCircle className="h-5 w-5" /></span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold">สรุปยอดเข้า LINE</p>
-          <p className="text-[11px] text-green-50">ทุกวัน 21:00 น. · เฉพาะเจ้าของร้าน</p>
+    <Card title="สรุปยอดเข้า LINE ทุก 3 ทุ่ม" icon="💬">
+      {link && !link.ready ? (
+        <p className="text-sm text-muted-foreground">ระบบ LINE ของ FixITPro ยังไม่พร้อมใช้งาน</p>
+      ) : !linked ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">เชื่อม LINE ของคุณครั้งเดียว แล้วทุก 3 ทุ่มระบบจะส่งยอดเงินวันนี้ กำไร และเรื่องที่ต้องจัดการ ไปให้ในแชต</p>
+          {link?.url && (
+            <a href={link.url} target="_blank" rel="noopener noreferrer"
+              onClick={() => setTimeout(() => { qc.invalidateQueries({ queryKey: ['line-staff-link'] }); qc.invalidateQueries({ queryKey: ['owner-hub-line'] }) }, 15_000)}
+              className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
+              <MessageCircle className="h-4 w-4" />เชื่อม LINE ของฉัน
+            </a>
+          )}
         </div>
-        {linked && <Switch on={on} disabled={toggle.isPending} onChange={(v) => toggle.mutate(v)} />}
-      </div>
-
-      <div className="space-y-3 p-4">
-        {link && !link.ready ? (
-          <p className="text-sm text-muted-foreground">ระบบ LINE ของ FixITPro ยังไม่พร้อมใช้งาน</p>
-        ) : !linked ? (
-          <>
-            <p className="text-sm text-muted-foreground">เชื่อม LINE ของคุณครั้งเดียว แล้วทุก 3 ทุ่มจะได้ยอดเงิน กำไร และเรื่องที่ต้องจัดการในแชต</p>
-            {link?.url && (
-              <a href={link.url} target="_blank" rel="noopener noreferrer"
-                onClick={() => setTimeout(() => { qc.invalidateQueries({ queryKey: ['line-staff-link'] }); qc.invalidateQueries({ queryKey: ['owner-hub-line'] }) }, 15_000)}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-[#06C755] py-2.5 text-sm font-bold text-white hover:brightness-95">
-                <MessageCircle className="h-4 w-4" />เชื่อม LINE ของฉัน
-              </a>
-            )}
-          </>
-        ) : (
-          <>
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <CheckCircle2 className="h-3.5 w-3.5 text-[#06C755]" />เชื่อมแล้ว{link?.oaId ? ` กับแชต ${link.oaId}` : ''}{on ? '' : ' · ปิดการส่งอยู่'}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => test.mutate()} disabled={test.isPending}
-                className="flex items-center justify-center gap-1.5 rounded-2xl bg-[#06C755] py-2.5 text-sm font-bold text-white hover:brightness-95 disabled:opacity-60">
-                {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}ส่งให้ดูตอนนี้
-              </button>
-              <button type="button" onClick={() => setShowPreview((v) => !v)}
-                className="rounded-2xl border border-slate-200 py-2.5 text-sm font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                {showPreview ? 'ซ่อนตัวอย่าง' : 'ดูตัวอย่าง'}
-              </button>
-            </div>
-          </>
-        )}
-
-        {(showPreview || !linked) && data?.preview && (
-          <div className="rounded-2xl bg-[#8CABD9]/25 p-3 dark:bg-slate-900/60">
-            <div className="flex items-start gap-2">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white">FIX</span>
-              <div className="min-w-0">
-                <p className="mb-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300">FixITPro</p>
-                <div className="whitespace-pre-wrap rounded-2xl rounded-tl-md bg-white px-3 py-2.5 text-[12px] leading-relaxed text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100">
-                  {data.preview}
-                </div>
-                <p className="mt-1 text-[10px] text-slate-500">21:00</p>
-              </div>
-            </div>
+      ) : (
+        <div className="space-y-3">
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800/60">
+            <span className="text-sm">
+              <span className="block font-semibold">ส่งสรุปทุกวันเวลา 21:00</span>
+              <span className="block text-xs text-muted-foreground">เชื่อม LINE แล้ว{link?.oaId ? ` (แชต ${link.oaId})` : ''}</span>
+            </span>
+            <input type="checkbox" className="h-5 w-5 accent-green-600" checked={data?.dailySummary ?? true}
+              disabled={toggle.isPending} onChange={(e) => toggle.mutate(e.target.checked)} />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => test.mutate()} disabled={test.isPending}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60">
+              {test.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}ส่งให้ดูตอนนี้
+            </button>
+            <button type="button" onClick={() => setShowPreview((v) => !v)}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+              {showPreview ? 'ซ่อนตัวอย่าง' : 'ดูตัวอย่างข้อความ'}
+            </button>
           </div>
-        )}
-      </div>
-    </section>
+        </div>
+      )}
+      {(showPreview || !linked) && data?.preview && (
+        <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-slate-900 p-3 font-sans text-xs leading-relaxed text-slate-100">{data.preview}</pre>
+      )}
+    </Card>
   )
 }
