@@ -60,7 +60,8 @@ class AddNoteDto {
 export class CustomersController {
   constructor(private customersService: CustomersService) {}
 
-  @RequireModule('crm')
+  // The till and repair intake add / fix a customer too, without the customer pages
+  @RequireModule('crm', 'pos', 'repair')
   @RequirePermission('sales.create')
   @Post()
   create(
@@ -119,7 +120,8 @@ export class CustomersController {
     return this.customersService.findOne(id, tenantId);
   }
 
-  @RequireModule('crm')
+  // The till and repair intake add / fix a customer too, without the customer pages
+  @RequireModule('crm', 'pos', 'repair')
   @RequirePermission('sales.create')
   @Put(':id')
   update(

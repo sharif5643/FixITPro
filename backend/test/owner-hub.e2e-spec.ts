@@ -66,8 +66,10 @@ describe('Owner hub (e2e)', () => {
     expect(hub.total.revenue).toBeCloseTo(profit.summary.totalRevenue, 2);
     expect(hub.total.netProfit).toBeCloseTo(profit.summary.netProfit, 2);
 
-    // shop A has two branches: one row each, and each row is that branch's own report
-    expect(hub.branches.map((b: any) => b.branchId).sort()).toEqual([IDS.branchA1, IDS.branchA2].sort());
+    // one row per active branch of shop A (other tests may add branches), each its own report
+    const active = await prisma.branch.count({ where: { tenantId: IDS.tenantA, isActive: true } });
+    expect(hub.branches).toHaveLength(active);
+    expect(hub.branches.map((b: any) => b.branchId)).toEqual(expect.arrayContaining([IDS.branchA1, IDS.branchA2]));
     const a1 = hub.branches.find((b: any) => b.branchId === IDS.branchA1);
     const p1 = (await authGet(app, `/api/v1/reports/profit?startDate=${date}&endDate=${date}&branchId=${IDS.branchA1}`, ownerA).expect(200)).body;
     expect(a1.revenue).toBeCloseTo(p1.summary.totalRevenue, 2);

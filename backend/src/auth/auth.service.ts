@@ -109,7 +109,7 @@ export class AuthService {
       tenantStatus = tenant?.status ?? null;
     }
 
-    const enabledModules = await this.modulesService.getEnabledModules(tenantId);
+    const enabledModules = await this.modulesService.getModulesFor(user.role, tenantId);
     const redirectTo = user.role === 'SUPER_ADMIN' ? '/super-admin/tenants' : '/dashboard';
 
     return {
@@ -319,7 +319,7 @@ export class AuthService {
       tenantStatus = tenant?.status ?? null;
     }
 
-    const enabledModules = await this.modulesService.getEnabledModules(user.tenantId ?? null);
+    const enabledModules = await this.modulesService.getModulesFor(user.role, user.tenantId ?? null);
 
     return {
       id: user.id,

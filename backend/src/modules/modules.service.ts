@@ -4,7 +4,9 @@ import { RedisService } from '../redis/redis.service';
 import { ALL_MODULE_KEYS, MODULE_KEYS } from './modules.const';
 
 const CACHE_TTL_SEC = 5 * 60; // 5 minutes
-const cacheKey = (tenantId: string) => `module_cache:${tenantId}`;
+// v2: { on, off } — the shop's modules, and those the super admin switched off for it
+const cacheKey = (tenantId: string) => `module_cache:v2:${tenantId}`;
+
 
 @Injectable()
 export class ModulesService {
@@ -16,9 +18,25 @@ export class ModulesService {
   async getEnabledModules(tenantId: string | null): Promise<string[]> {
     // No tenant (SUPER_ADMIN or standalone) → all modules
     if (!tenantId) return ALL_MODULE_KEYS;
+    return (await this.moduleState(tenantId)).on;
+  }
 
+  /**
+   * The modules a person may use: the shop's modules (its package, plus what the super admin
+   * switched on, minus what the super admin switched off) — for everyone in the shop, the owner
+   * included. Only the super admin, who belongs to no shop, gets every module.
+   */
+  async getModulesFor(role: string | null | undefined, tenantId: string | null): Promise<string[]> {
+    if (!tenantId || role === 'SUPER_ADMIN') return ALL_MODULE_KEYS;
+    return (await this.moduleState(tenantId)).on;
+  }
+
+  private async moduleState(tenantId: string): Promise<{ on: string[]; off: string[] }> {
     const raw = await this.redis.get(cacheKey(tenantId));
-    if (raw) return JSON.parse(raw) as string[];
+    if (raw) {
+      const v = JSON.parse(raw);
+      if (v && Array.isArray(v.on) && Array.isArray(v.off)) return v;
+    }
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
@@ -28,11 +46,16 @@ export class ModulesService {
       },
     });
 
-    if (!tenant) return [];
+    if (!tenant) return { on: [], off: [] };
 
-    const keys = await this.applyOverrides(tenant.plan, tenant.moduleOverrides);
-    await this.redis.set(cacheKey(tenantId), JSON.stringify(keys), CACHE_TTL_SEC);
-    return keys;
+    const on = await this.applyOverrides(tenant.plan, tenant.moduleOverrides);
+    const now = new Date();
+    const off = tenant.moduleOverrides
+      .filter((o) => !o.enabled && !(o.expiresAt && o.expiresAt < now))
+      .map((o) => o.moduleKey);
+    const state = { on, off };
+    await this.redis.set(cacheKey(tenantId), JSON.stringify(state), CACHE_TTL_SEC);
+    return state;
   }
 
   /**

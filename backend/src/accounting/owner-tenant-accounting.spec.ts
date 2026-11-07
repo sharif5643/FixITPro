@@ -146,7 +146,7 @@ describe('OT-MOD — Manual module toggle (owner tenant)', () => {
       where:  { tenantId_moduleKey: { tenantId: OWNER_TENANT_ID, moduleKey: 'accounting' } },
       create: expect.objectContaining({ tenantId: OWNER_TENANT_ID, enabled: true }),
     }));
-    expect(redis.del).toHaveBeenCalledWith(`module_cache:${OWNER_TENANT_ID}`);
+    expect(redis.del).toHaveBeenCalledWith(`module_cache:v2:${OWNER_TENANT_ID}`);
     expect(result.enabled).toBe(true);
   });
 

@@ -54,11 +54,10 @@ export const useAuthStore = create<AuthState>()(
         hasModule: (moduleKey: string) => {
           const { user, enabledModules } = get()
           if (!user) return false
-          // Accounting requires explicit tenant activation via TenantModule override.
-          // The OWNER/SA role bypass does NOT apply — check enabledModules directly.
-          // The owner hub likewise: switched on per shop by the super admin, not part of being owner.
-          if (moduleKey === 'accounting' || moduleKey === 'owner_hub') return enabledModules.includes(moduleKey)
-          if (user.role === 'SUPER_ADMIN' || user.role === 'OWNER') return true
+          // The owner follows the shop's modules like everyone in it: a module the super admin
+          // switched off (or not in the package) is off for the owner too. Only the super admin,
+          // who belongs to no shop, sees every module.
+          if (user.role === 'SUPER_ADMIN') return true
           return enabledModules.includes(moduleKey)
         },
         isSuperAdmin: () => get().user?.role === 'SUPER_ADMIN',

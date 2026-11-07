@@ -109,7 +109,7 @@ describe('ModulesService — accounting integration (Phase 4B.6D)', () => {
     expect(prisma.tenantModule.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ create: expect.objectContaining({ enabled: true, moduleKey: 'accounting' }) }),
     );
-    expect(redis.del).toHaveBeenCalledWith('module_cache:tenant-1');
+    expect(redis.del).toHaveBeenCalledWith('module_cache:v2:tenant-1');
     expect(result).toMatchObject({ enabled: true, moduleKey: 'accounting' });
   });
 
@@ -364,7 +364,7 @@ describe('ModulesService — accounting integration (Phase 4B.6D)', () => {
 
     await service.removeTenantModuleOverride('tenant-cache-test', 'accounting');
 
-    expect(redis.del).toHaveBeenCalledWith('module_cache:tenant-cache-test');
+    expect(redis.del).toHaveBeenCalledWith('module_cache:v2:tenant-cache-test');
   });
 
   // ── N8: Cross-tenant isolation ────────────────────────────────────────────
@@ -561,8 +561,8 @@ describe('ModulesService — getTenantModules + getAllModules + safety (Phase 4E
       }),
     );
     // Redis cache invalidated for owner-tenant only — NOT pilot
-    expect(redis.del).not.toHaveBeenCalledWith('module_cache:pilot-tenant');
-    expect(redis.del).toHaveBeenCalledWith('module_cache:owner-tenant');
+    expect(redis.del).not.toHaveBeenCalledWith('module_cache:v2:pilot-tenant');
+    expect(redis.del).toHaveBeenCalledWith('module_cache:v2:owner-tenant');
   });
 
   // ── P6: disabling accounting does not touch JE/JL models (journals preserved) ──

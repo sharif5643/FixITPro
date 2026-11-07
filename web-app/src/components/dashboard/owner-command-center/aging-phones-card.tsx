@@ -18,7 +18,7 @@ type AgingPhones = {
 /** Phones that have not sold for 60 days or more: money sitting on the shelf. Hidden when there are none. */
 export function AgingPhonesCard({ branchId }: { branchId?: string | null }) {
   const hasModule = useAuthStore((s) => s.hasModule)
-  const enabled = hasModule('inventory')
+  const enabled = hasModule('stock')
   const { data } = useQuery<AgingPhones>({
     queryKey: ['stock', 'aging-phones', branchId ?? 'all'],
     queryFn: () => api.get('/stock/aging-phones', { params: branchId ? { branchId } : undefined }).then((r) => r.data),
