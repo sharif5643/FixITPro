@@ -648,7 +648,7 @@ export default function DashboardPage() {
     }
   }, [role, router])
   const isOwnerOrManager = isOwner || role === 'MANAGER'
-  const showRepairs = role !== 'STOCK_STAFF'
+  const showRepairs = role !== 'STOCK_STAFF' && hasModule('repair')
   const { branchId: contextBranchId, isGlobalMode, isOwner: ctxIsOwner } = useBranchContext()
 
   const thaiNow = new Date(Date.now() + 7 * 60 * 60 * 1000)

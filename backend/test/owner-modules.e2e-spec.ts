@@ -58,6 +58,17 @@ describe('Owner follows the modules the super admin switched off (e2e)', () => {
     expect(me.enabledModules).not.toContain('crm');
   });
 
+  it('OM-05: without reports — the end-of-day slip and today\'s figures still work; deep reports do not', async () => {
+    await mods.setTenantModuleOverride(IDS.tenantA, 'report', false);
+    try {
+      await authGet(app, '/api/v1/reports/daily-closing', owner).expect(200);
+      await authGet(app, '/api/v1/reports/owner-dashboard', owner).expect(200);
+      await authGet(app, '/api/v1/reports/profit', owner).expect(403);
+    } finally {
+      await mods.removeTenantModuleOverride(IDS.tenantA, 'report');
+    }
+  });
+
   it('OM-04: switched back on — works again', async () => {
     for (const k of ['finance', 'stock', 'crm']) await mods.removeTenantModuleOverride(IDS.tenantA, k);
     await authGet(app, '/api/v1/expenses', owner).expect(200);

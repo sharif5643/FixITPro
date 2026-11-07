@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import api from '@/lib/api'
 import { formatThaiMoney } from '@/lib/utils'
 import type { Product } from '@/types'
+import { useAuthStore } from '@/store/auth.store'
 
 export type PartsPendingJob = {
   id: string
@@ -29,10 +30,12 @@ export type PartsPendingJob = {
 export const partsPendingKey = (branchId?: string) => ['repairs', 'parts-pending', branchId ?? 'all']
 
 export function usePartsPending(branchId?: string, enabled = true) {
+  // Only a shop with repair jobs has parts waiting to be paid
+  const hasRepair = useAuthStore((s) => s.hasModule('repair'))
   return useQuery<PartsPendingJob[]>({
     queryKey: partsPendingKey(branchId),
     queryFn: async () => (await api.get('/repairs/parts-pending', { params: branchId ? { branchId } : {} })).data,
-    enabled,
+    enabled: enabled && hasRepair,
     staleTime: 15_000,
   })
 }

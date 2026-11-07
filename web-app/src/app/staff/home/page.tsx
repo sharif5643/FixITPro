@@ -118,6 +118,7 @@ function KpiCard({ label, value, sub, iconBg, iconColor, icon, change, onClick }
 export default function HomePage() {
   const router = useRouter()
   const user   = useAuthStore((s) => s.user)
+  const hasRepair = useAuthStore((s) => s.hasModule('repair'))
 
   const role       = (user?.role ?? '') as string
   const isOwner    = role === 'OWNER'
@@ -145,7 +146,7 @@ export default function HomePage() {
       // (needs reports.view); everyone gets job and notification counts.
       const [oRes, rRes, nRes, cRes] = await Promise.allSettled([
         canSeeRev ? api.get('/dashboard/overview') : Promise.reject(new Error('no reports.view')),
-        api.get('/repairs?activeOnly=true'),
+        hasRepair ? api.get('/repairs?activeOnly=true') : Promise.reject(new Error('no repair module')),
         api.get('/notifications?limit=3&isRead=false'),
         api.get('/notifications/unread-count'),
       ])
@@ -191,7 +192,7 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [canSeeRev, isTech, user?.id])
+  }, [canSeeRev, hasRepair, isTech, user?.id])
 
   useEffect(() => { load() }, [load])
 
