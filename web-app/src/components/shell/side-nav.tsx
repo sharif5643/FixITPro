@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import {
-  X, ChevronDown, ChevronRight, LayoutDashboard, Package, ShoppingCart, Wrench,
+  X, ChevronDown, LayoutDashboard, Package, ShoppingCart, Wrench,
   Users, Clock, Smartphone, Tag, Barcode, Settings, CreditCard, Building2,
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
@@ -236,9 +236,11 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
     setOpenGroups(readJson('fi-nav-groups', {}))
     setPins(readJson(pinsKey, []))
   }, [pinsKey])
+  // Groups start folded, except the one holding the current page, so the menu stays short;
+  // a group the user opened or closed stays that way.
   function isOpen(section: NavSection) {
     if (!section.label) return true
-    return openGroups[section.key] ?? section.open ?? true
+    return openGroups[section.key] ?? section.items.filter(isVisible).some(isActive)
   }
   function toggleGroup(section: NavSection) {
     const next = { ...openGroups, [section.key]: !isOpen(section) }
@@ -264,20 +266,29 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
         <Link
           href={item.href}
           title={collapsed ? item.label : undefined}
+          aria-current={active ? 'page' : undefined}
           className={cn(
-            'flex items-center gap-3 rounded-xl transition-all duration-100 min-h-[40px] group',
-            collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
+            'relative flex items-center gap-3 rounded-2xl transition-colors duration-100 min-h-[46px] group',
+            collapsed ? 'justify-center px-0 py-1.5' : 'pl-2 pr-3 py-1.5',
             active
-              ? 'bg-[rgb(var(--brand))] text-[rgb(var(--brand-fg))] shadow-sm'
-              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/40 hover:text-slate-900 dark:hover:text-white',
+              ? 'bg-[rgb(var(--brand)/0.10)] dark:bg-[rgb(var(--brand)/0.22)]'
+              : 'hover:bg-slate-100/80 dark:hover:bg-slate-700/40',
           )}
         >
-          <Icon className={cn(
-            'h-4 w-4 flex-shrink-0 transition-colors',
-            active ? 'text-[rgb(var(--brand-fg))]' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300',
-          )} />
+          {active && !collapsed && <span className="absolute -left-2 top-2.5 bottom-2.5 w-1 rounded-r-full bg-[rgb(var(--brand))]" aria-hidden />}
+          <span className={cn(
+            'flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-xl transition-colors',
+            active
+              ? 'bg-[rgb(var(--brand))] text-[rgb(var(--brand-fg))] shadow-sm shadow-[rgb(var(--brand)/0.35)]'
+              : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200',
+          )}>
+            <Icon className="h-[19px] w-[19px]" />
+          </span>
           {!collapsed && (
-            <span className={cn('text-sm font-medium truncate pr-5', active ? 'text-[rgb(var(--brand-fg))]' : 'text-slate-700 dark:text-slate-300')}>
+            <span className={cn(
+              'text-[15px] leading-snug truncate pr-5',
+              active ? 'font-bold text-[rgb(var(--brand))] dark:text-white' : 'font-medium text-slate-700 dark:text-slate-300',
+            )}>
               {item.label}
             </span>
           )}
@@ -291,10 +302,10 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
             className={cn(
               'absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md transition-opacity',
               pinned ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-100 focus:opacity-100',
-              active ? 'text-[rgb(var(--brand-fg)/0.8)] hover:text-[rgb(var(--brand-fg))]' : 'text-slate-300 hover:text-amber-500',
+              'text-slate-300 hover:text-amber-500',
             )}
           >
-            <Star className={cn('h-3.5 w-3.5', pinned && !active && 'fill-amber-400 text-amber-400', pinned && active && 'fill-white')} />
+            <Star className={cn('h-4 w-4', pinned && 'fill-amber-400 text-amber-400')} />
           </button>
         )}
       </div>
@@ -313,37 +324,36 @@ function SideNavInner({ role, userId, hasPerm, hasModule, isOwner, collapsed }: 
             type="button"
             onClick={() => toggleGroup(section)}
             aria-expanded={open}
-            className="mx-3 mt-4 mb-1 flex w-[calc(100%-1.5rem)] items-center justify-between rounded-lg px-1 py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+            className="mx-2 mt-3 mb-0.5 flex w-[calc(100%-1rem)] items-center justify-between rounded-xl px-3 py-2 hover:bg-slate-100/80 dark:hover:bg-slate-800/60"
           >
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 select-none">
+            <span className="flex items-center gap-2 text-[13px] font-bold text-slate-500 dark:text-slate-400 select-none">
               {section.label}
-              {holdsActive && <span className="h-1.5 w-1.5 rounded-full bg-[rgb(var(--brand))]" aria-label="หน้าปัจจุบันอยู่ในกลุ่มนี้" />}
+              {holdsActive && <span className="h-2 w-2 rounded-full bg-[rgb(var(--brand))]" aria-label="หน้าปัจจุบันอยู่ในกลุ่มนี้" />}
+              {!open && <span className="rounded-full bg-slate-100 px-1.5 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">{visible.length}</span>}
             </span>
-            {open
-              ? <ChevronDown  className="h-3.5 w-3.5 text-slate-400" />
-              : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
+            <ChevronDown className={cn('h-4 w-4 text-slate-400 transition-transform', !open && '-rotate-90')} />
           </button>
         )}
         {section.label && collapsed && <div className="mx-3 my-2 border-t border-slate-100 dark:border-slate-700/60" />}
         {(open || collapsed) && (
-          <div className="px-2 space-y-0.5">{visible.map((item) => renderItem(item))}</div>
+          <div className="px-2 space-y-1">{visible.map((item) => renderItem(item))}</div>
         )}
       </div>
     )
   }
 
   return (
-    <nav className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none py-2">
+    <nav className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none py-3">
       {renderSection(sections[0])}
       {pinnedItems.length > 0 && (
         <div className="mb-0.5">
           {!collapsed && (
-            <p className="mx-4 mt-4 mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 select-none">
-              <Star className="h-3 w-3 fill-current" />ใช้บ่อย
+            <p className="mx-2 mt-3 mb-0.5 flex items-center gap-2 px-3 py-2 text-[13px] font-bold text-amber-600 dark:text-amber-400 select-none">
+              <Star className="h-3.5 w-3.5 fill-current" />ใช้บ่อย
             </p>
           )}
           {collapsed && <div className="mx-3 my-2 border-t border-slate-100 dark:border-slate-700/60" />}
-          <div className="px-2 space-y-0.5">{pinnedItems.map((item) => renderItem(item, 'pin-'))}</div>
+          <div className="px-2 space-y-1">{pinnedItems.map((item) => renderItem(item, 'pin-'))}</div>
         </div>
       )}
       {sections.slice(1).map(renderSection)}
@@ -395,34 +405,34 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
         'border-r border-slate-200 dark:border-slate-700/60',
         'overflow-hidden transition-[width] duration-150',
         'hidden md:flex md:relative',
-        collapsed ? 'md:w-16' : 'md:w-60',
-        open && 'fixed inset-y-0 left-0 z-[60] !flex !w-64 shadow-2xl',
+        collapsed ? 'md:w-[72px]' : 'md:w-[264px]',
+        open && 'fixed inset-y-0 left-0 z-[60] !flex !w-[min(300px,86vw)] shadow-2xl',
       )}>
         {/* Shop + branch */}
         <div className={cn(
-          'flex h-16 items-center flex-shrink-0 gap-3 [background:var(--brand-gradient)] text-white',
+          'flex h-[72px] items-center flex-shrink-0 gap-3 [background:var(--brand-gradient)] text-white',
           collapsed ? 'justify-center px-2' : 'px-4',
         )}>
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/20 shadow-sm border border-white/25 backdrop-blur-sm" title={collapsed ? shopName : undefined}>
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/20 shadow-sm border border-white/25 backdrop-blur-sm" title={collapsed ? shopName : undefined}>
             {shopLogo
               // eslint-disable-next-line @next/next/no-img-element
               ? <img src={shopLogo} alt="" className="h-full w-full bg-white object-contain" />
-              : <Smartphone className="h-4.5 w-4.5" />}
+              : <Smartphone className="h-5 w-5" />}
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold truncate leading-none">{shopName}</p>
-              <p className="text-[11px] opacity-80 mt-1 font-medium truncate flex items-center gap-1">
-                <Building2 className="h-3 w-3 shrink-0" />{branchName || roleLabel}
+              <p className="text-base font-bold truncate leading-tight">{shopName}</p>
+              <p className="text-[13px] opacity-85 mt-0.5 font-medium truncate flex items-center gap-1">
+                <Building2 className="h-3.5 w-3.5 shrink-0" />{branchName || roleLabel}
               </p>
             </div>
           )}
           <button
             onClick={onClose}
-            className="flex-shrink-0 h-7 w-7 flex items-center justify-center rounded-lg hover:bg-white/20 transition-colors md:hidden"
+            className="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl hover:bg-white/20 transition-colors md:hidden"
             aria-label="ปิดเมนู"
           >
-            <X className="h-4 w-4 opacity-80" />
+            <X className="h-5 w-5 opacity-90" />
           </button>
         </div>
 
@@ -441,23 +451,23 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
         {/* User + collapse */}
         <div className="flex-shrink-0 border-t border-slate-100 dark:border-slate-700/60 p-2">
           <div className={cn('flex items-center gap-2', collapsed && 'flex-col')}>
-            <div className={cn('flex items-center gap-3 rounded-xl px-2 py-2 min-w-0', !collapsed && 'flex-1')} title={collapsed ? user?.name : undefined}>
+            <div className={cn('flex items-center gap-3 rounded-2xl px-2 py-2 min-w-0', !collapsed && 'flex-1 bg-slate-50 dark:bg-slate-800/60')} title={collapsed ? user?.name : undefined}>
               <FiAvatar name={user?.name ?? 'U'} size="sm" status="online" />
               {!collapsed && (
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate leading-none">{user?.name}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">{roleLabel}</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white truncate leading-tight">{user?.name}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">{roleLabel}</p>
                 </div>
               )}
             </div>
             <button
               type="button"
               onClick={toggleCollapsed}
-              className="hidden md:flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700/40 dark:hover:text-slate-200"
+              className="hidden md:flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700/40 dark:hover:text-slate-200"
               aria-label={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
               title={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
             >
-              {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
             </button>
           </div>
         </div>
