@@ -877,4 +877,23 @@ SELECT j."tenantId", count(*) AS unbalanced, round(sum(abs(d - c)), 2) AS gap
 FROM (SELECT e.id, e."tenantId", sum(l.debit) d, sum(l.credit) c FROM "JournalEntry" e JOIN "JournalLine" l ON l."entryId" = e.id WHERE NOT e."isVoided" GROUP BY 1, 2) j
 WHERE d <> c GROUP BY 1 ORDER BY 1;
 
+\echo '33g. Those bill lines in detail (last 90 days): no cost or below cost — date, receipt, product, qty, price, cost, line total, bill note'
+SELECT b."tenantId", (s."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date AS day, s."receiptNumber", left(p.name, 40) AS product,
+  i.quantity, i.price, i."costPrice", i.total, s.total AS bill_total, left(coalesce(s.note, ''), 40) AS note
+FROM "SaleItem" i JOIN "Sale" s ON s.id = i."saleId" JOIN "Branch" b ON b.id = s."branchId" JOIN "Product" p ON p.id = i."productId"
+WHERE s."createdAt" > now() - interval '90 days' AND s.status <> 'VOIDED' AND NOT i."isFreebie"
+  AND (i."costPrice" = 0 OR i.total < i."costPrice" * i.quantity)
+ORDER BY 1, 2;
+
+\echo '33h. Products on sale now with no cost price, or cost above price: name, price, cost, stock'
+SELECT p."tenantId", left(p.name, 40) AS product, p.price, p."costPrice", p.stock
+FROM "Product" p WHERE p."isActive" AND NOT p."giveawayOnly" AND p.price > 0 AND (p."costPrice" = 0 OR p."costPrice" > p.price)
+ORDER BY 1, 2;
+
+\echo '33i. Expenses with no branch: when, amount, category, who (role), how many branches that shop has'
+SELECT u."tenantId", (e."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok') AS at_bkk, e.amount, c.code, u.role, e."shiftId" IS NOT NULL AS in_shift,
+  (SELECT count(*) FROM "Branch" b WHERE b."tenantId" = u."tenantId" AND b."isActive") AS shop_branches
+FROM "Expense" e JOIN "User" u ON u.id = e."createdById" JOIN "ExpenseCategory" c ON c.id = e."categoryId"
+WHERE e."branchId" IS NULL AND e."voidedAt" IS NULL ORDER BY 1, 2;
+
 ROLLBACK;
