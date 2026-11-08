@@ -132,17 +132,7 @@ export async function loadPeriodMoney(
     }),
   ]);
 
-  // PackageSale has no branch column; its shift says where it was sold.
-  const shiftIds = [...new Set(packages.map((p) => p.shiftId).filter((id): id is string => !!id))];
-  const shiftBranch = new Map(
-    shiftIds.length
-      ? (await prisma.shift.findMany({ where: { id: { in: shiftIds } }, select: { id: true, branchId: true } }))
-          .map((sh) => [sh.id, sh.branchId] as const)
-      : [],
-  );
-  const packageRows = packages
-    .map((p) => ({ ...p, branchId: p.shiftId ? shiftBranch.get(p.shiftId) ?? null : null }))
-    .filter((p) => !params.branchId || p.branchId === params.branchId);
+  const packageRows = await placePackageSales(prisma, packages, params.branchId);
 
   return {
     sales: sales.map((s) => ({
@@ -205,6 +195,27 @@ export async function loadPeriodMoney(
       method: m.paymentMethod,
     })),
   };
+}
+
+/**
+ * A SIM / package sale has no branch column; the shift it was sold in says where. Gives each sale
+ * its branch and, with a branch picked, keeps only that branch's sales.
+ */
+export async function placePackageSales<T extends { shiftId: string | null }>(
+  prisma: PrismaService,
+  packages: T[],
+  branchId?: string,
+): Promise<(T & { branchId: string | null })[]> {
+  const shiftIds = [...new Set(packages.map((p) => p.shiftId).filter((id): id is string => !!id))];
+  const shiftBranch = new Map(
+    shiftIds.length
+      ? (await prisma.shift.findMany({ where: { id: { in: shiftIds } }, select: { id: true, branchId: true } }))
+          .map((sh) => [sh.id, sh.branchId] as const)
+      : [],
+  );
+  return packages
+    .map((p) => ({ ...p, branchId: p.shiftId ? shiftBranch.get(p.shiftId) ?? null : null }))
+    .filter((p) => !branchId || p.branchId === branchId);
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;

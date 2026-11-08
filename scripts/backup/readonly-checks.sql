@@ -792,4 +792,89 @@ SELECT r.id,
   ) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok' AS newest_activity_bkk
 FROM ryu r;
 
+\echo '--- 33. Money health: is profit right? (ids only, numbers summed) ---'
+\echo '33a. Each shop, 1 Nov to now (Bangkok), close to the profit report: sales − refunds, cost of goods, repair money, repair cost, SIM profit, expenses → net'
+WITH bounds AS (SELECT (date_trunc('month', now() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok') AS s),
+sales AS (
+  SELECT b."tenantId" t, sum(s.total) amt,
+    sum((SELECT coalesce(sum(i."costPrice" * i.quantity), 0) FROM "SaleItem" i WHERE i."saleId" = s.id)) cost
+  FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId", bounds WHERE s."createdAt" >= bounds.s AND s.status <> 'VOIDED' GROUP BY 1),
+refunds AS (
+  SELECT b."tenantId" t, sum(r."totalRefund") amt,
+    sum((SELECT coalesce(sum(si."costPrice" * ri.quantity), 0) FROM "SaleRefundItem" ri JOIN "SaleItem" si ON si.id = ri."saleItemId" WHERE ri."refundId" = r.id)) cost
+  FROM "SaleRefund" r JOIN "Sale" s ON s.id = r."saleId" JOIN "Branch" b ON b.id = s."branchId", bounds
+  WHERE r."createdAt" >= bounds.s AND s.status <> 'VOIDED' GROUP BY 1),
+deposits AS (
+  SELECT b."tenantId" t, sum(x.deposit) amt FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId", bounds
+  WHERE x."receivedAt" >= bounds.s AND x.deposit > 0 AND x.status <> 'CANCELLED' GROUP BY 1),
+pickups AS (
+  SELECT b."tenantId" t, sum(coalesce(x."paidAmount", 0)) amt,
+    sum(coalesce(x."actualLaborCost", 0)
+      + (SELECT coalesce(sum(coalesce(p."costPrice", p.price) * p.quantity), 0) FROM "RepairPart" p WHERE p."repairId" = x.id AND NOT p."isVoided")
+      + (SELECT coalesce(sum(c.amount), 0) FROM "RepairExtraCost" c WHERE c."repairId" = x.id)) cost
+  FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId", bounds
+  WHERE x."paidAt" >= bounds.s AND x."paymentStatus" IN ('PAID', 'PARTIAL') GROUP BY 1),
+debts AS (
+  SELECT b."tenantId" t, sum(a.amount) amt FROM "RepairAdditionalPayment" a JOIN "Repair" x ON x.id = a."repairId" JOIN "Branch" b ON b.id = x."branchId", bounds
+  WHERE a."createdAt" >= bounds.s GROUP BY 1),
+sims AS (
+  SELECT u."tenantId" t, sum(p.profit) amt FROM "PackageSale" p JOIN "User" u ON u.id = p."createdById", bounds WHERE p."createdAt" >= bounds.s GROUP BY 1),
+other AS (
+  SELECT m."tenantId" t, sum(m.amount) amt FROM "ShiftCashMovement" m, bounds
+  WHERE m."createdAt" >= bounds.s AND m.kind = 'MANUAL_IN' AND m.category IN ('INCOME_PRODUCT', 'INCOME_SERVICE') GROUP BY 1),
+exps AS (
+  SELECT b."tenantId" t, sum(e.amount) amt FROM "Expense" e JOIN "Branch" b ON b.id = e."branchId", bounds
+  WHERE e."expenseDate" >= bounds.s AND e."voidedAt" IS NULL GROUP BY 1)
+SELECT t.id,
+  round(coalesce(sa.amt, 0) - coalesce(rf.amt, 0)) AS pos_revenue,
+  round(coalesce(sa.cost, 0) - coalesce(rf.cost, 0)) AS pos_cost,
+  round(coalesce(de.amt, 0) + coalesce(pk.amt, 0) + coalesce(db.amt, 0)) AS repair_money,
+  round(coalesce(pk.cost, 0)) AS repair_cost,
+  round(coalesce(si.amt, 0)) AS sim_profit,
+  round(coalesce(ot.amt, 0)) AS other_income,
+  round(coalesce(ex.amt, 0)) AS expenses,
+  round(coalesce(sa.amt, 0) - coalesce(rf.amt, 0) - coalesce(sa.cost, 0) + coalesce(rf.cost, 0)
+      + coalesce(de.amt, 0) + coalesce(pk.amt, 0) + coalesce(db.amt, 0) - coalesce(pk.cost, 0)
+      + coalesce(si.amt, 0) + coalesce(ot.amt, 0) - coalesce(ex.amt, 0)) AS net_profit
+FROM "Tenant" t
+LEFT JOIN sales sa ON sa.t = t.id LEFT JOIN refunds rf ON rf.t = t.id LEFT JOIN deposits de ON de.t = t.id
+LEFT JOIN pickups pk ON pk.t = t.id LEFT JOIN debts db ON db.t = t.id LEFT JOIN sims si ON si.t = t.id
+LEFT JOIN other ot ON ot.t = t.id LEFT JOIN exps ex ON ex.t = t.id
+WHERE coalesce(sa.amt, de.amt, pk.amt, db.amt, si.amt, ot.amt, ex.amt) IS NOT NULL
+ORDER BY 1;
+
+\echo '33b. Bills of the last 90 days: items sold with no cost (profit shows too high) and items sold below cost, per shop'
+SELECT b."tenantId",
+  count(*) FILTER (WHERE i."costPrice" = 0 AND NOT i."isFreebie") AS items_no_cost,
+  round(coalesce(sum(i.total) FILTER (WHERE i."costPrice" = 0 AND NOT i."isFreebie"), 0)) AS revenue_no_cost,
+  count(*) FILTER (WHERE i."costPrice" > 0 AND NOT i."isFreebie" AND i.total < i."costPrice" * i.quantity) AS items_below_cost,
+  round(coalesce(sum(i."costPrice" * i.quantity - i.total) FILTER (WHERE i."costPrice" > 0 AND NOT i."isFreebie" AND i.total < i."costPrice" * i.quantity), 0)) AS loss_below_cost,
+  count(*) AS items_all
+FROM "SaleItem" i JOIN "Sale" s ON s.id = i."saleId" JOIN "Branch" b ON b.id = s."branchId"
+WHERE s."createdAt" > now() - interval '90 days' AND s.status <> 'VOIDED'
+GROUP BY 1 ORDER BY 1;
+
+\echo '33c. Products on sale now with no cost price (every sale of them counts as all profit), per shop'
+SELECT p."tenantId", count(*) FILTER (WHERE p."costPrice" = 0 AND p.price > 0) AS no_cost, count(*) FILTER (WHERE p."costPrice" = 0 AND p.price > 0 AND p.stock > 0) AS no_cost_in_stock,
+  count(*) FILTER (WHERE p."costPrice" > p.price AND p.price > 0) AS cost_above_price, count(*) AS active
+FROM "Product" p WHERE p."isActive" AND NOT p."giveawayOnly" GROUP BY 1 ORDER BY 1;
+
+\echo '33d. Repair parts on jobs paid in the last 90 days with no cost, per shop'
+SELECT b."tenantId", count(*) FILTER (WHERE coalesce(p."costPrice", p.price) = 0 AND NOT p."isFreebie") AS parts_no_cost, count(*) AS parts_all
+FROM "RepairPart" p JOIN "Repair" x ON x.id = p."repairId" JOIN "Branch" b ON b.id = x."branchId"
+WHERE NOT p."isVoided" AND x."paidAt" > now() - interval '90 days' GROUP BY 1 ORDER BY 1;
+
+\echo '33e. Money that no branch report can see: expenses with no branch, SIM sales with no shift (per shop of whoever made them)'
+SELECT u."tenantId", 'expense no branch' AS what, count(*) AS n, round(sum(e.amount)) AS amount
+FROM "Expense" e JOIN "User" u ON u.id = e."createdById" WHERE e."branchId" IS NULL AND e."voidedAt" IS NULL GROUP BY 1
+UNION ALL
+SELECT u."tenantId", 'sim sale no shift', count(*), round(sum(p.profit))
+FROM "PackageSale" p JOIN "User" u ON u.id = p."createdById" WHERE p."shiftId" IS NULL GROUP BY 1
+ORDER BY 1, 2;
+
+\echo '33f. Books: journal entries whose debits and credits do not match, per shop (should be none)'
+SELECT j."tenantId", count(*) AS unbalanced, round(sum(abs(d - c)), 2) AS gap
+FROM (SELECT e.id, e."tenantId", sum(l.debit) d, sum(l.credit) c FROM "JournalEntry" e JOIN "JournalLine" l ON l."entryId" = e.id WHERE NOT e."isVoided" GROUP BY 1, 2) j
+WHERE d <> c GROUP BY 1 ORDER BY 1;
+
 ROLLBACK;
