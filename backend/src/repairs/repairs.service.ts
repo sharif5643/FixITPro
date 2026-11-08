@@ -650,6 +650,24 @@ export class RepairsService {
       );
     }
 
+    // Money on a job is changed only by the steps that also record the cash: intake (deposit),
+    // payment at pickup, debt payments, reversal and refund-and-cancel. Editing it here left the
+    // drawer, the shift and the books with the old figures: a cashier could erase a debt by
+    // raising the deposit on a delivered job, or invent a deposit that was never received.
+    const changed = (v: unknown, cur: unknown) => v !== undefined && Number(v ?? 0) !== Number(cur ?? 0);
+    if (changed(dto.deposit, repair.deposit)) {
+      throw new BadRequestException('แก้ยอดมัดจำย้อนหลังไม่ได้ — มัดจำรับตอนเปิดใบงาน ถ้าผิดให้ยกเลิกงานแล้วเปิดใหม่');
+    }
+    const settled = ['PAID', 'PARTIAL'].includes(String(repair.paymentStatus))
+      || ['DELIVERED', 'CANCELLED'].includes(String(repair.status));
+    if (settled && (
+      changed(dto.finalCost, repair.finalCost) || changed(dto.discount, repair.discount)
+      || changed(dto.estimatedTotal, repair.estimatedTotal) || changed(dto.estimateCost, repair.estimateCost)
+      || changed(dto.estimatedLaborCost, repair.estimatedLaborCost) || changed(dto.estimatedPartsCost, repair.estimatedPartsCost)
+    )) {
+      throw new BadRequestException('งานนี้รับเงินหรือปิดไปแล้ว แก้ราคาไม่ได้ — ถ้าราคาผิดให้ยกเลิกการชำระก่อน แล้วรับเงินใหม่');
+    }
+
     // Guard: cannot mark COMPLETED while waiting for approval
     if (dto.status === 'COMPLETED' && repair.status === 'WAITING_APPROVAL') {
       throw new BadRequestException('ต้องได้รับการอนุมัติราคาก่อนจึงจะซ่อมเสร็จได้');

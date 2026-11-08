@@ -7,7 +7,7 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { createTestApp } from './helpers/app.helper';
-import { loginAs, authPost } from './helpers/auth.helper';
+import { loginAs, authGet, authPost } from './helpers/auth.helper';
 import { CREDS, IDS, seedTestData, testPrisma } from './helpers/seed.helper';
 import { bangkokDate } from '../src/common/bangkok-date';
 
@@ -29,6 +29,9 @@ describe('Expense always has a branch (e2e)', () => {
     // an owner with no home branch (as on production), in a shop with two branches
     await prisma.user.update({ where: { id: IDS.userOwnerA }, data: { branchId: null } });
     owner = (await loginAs(app, CREDS.ownerA.email, CREDS.ownerA.password)).cookies;
+    // another test file may have left this owner's shift open; its branch would be used
+    const cur = await authGet(app, '/api/v1/shifts/current', owner);
+    if (cur.body?.id) await authPost(app, `/api/v1/shifts/${cur.body.id}/close`, owner, { closeBalance: 0, note: 'e2e cleanup' });
     cat = (await authPost(app, '/api/v1/expenses/categories', owner, { name: `Br ${run}`, code: `br_${run}`.replace(/[^a-z_]/g, 'x') }).expect(201)).body.id;
   });
 
