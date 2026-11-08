@@ -93,13 +93,17 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // Retry on network errors or 5xx (max 2 retries, exponential backoff)
+    // Retry on network errors or 5xx (max 2 retries, exponential backoff) — reads only.
+    // A POST/PUT/PATCH/DELETE that timed out or got a 5xx may already have been saved
+    // (the response was lost, or a step after the commit failed): sending it again made a
+    // second sale, refund or payment. Those fail once and the person decides.
     const MAX_RETRIES = 2
     const isNetworkError = !error.response
     const isServerError  = status !== undefined && status >= 500
+    const isRead = ['get', 'head', 'options'].includes((config?.method ?? 'get').toLowerCase())
 
     const isAuthEndpoint = isLoginOrRegister || isLogout || isRefresh || /\/auth\//.test(config?.url ?? '')
-    if ((isNetworkError || isServerError) && config && !isAuthEndpoint) {
+    if ((isNetworkError || isServerError) && config && isRead && !isAuthEndpoint) {
       config._retryCount = (config._retryCount ?? 0) + 1
       if (config._retryCount <= MAX_RETRIES) {
         const delay = Math.pow(2, config._retryCount) * 500
