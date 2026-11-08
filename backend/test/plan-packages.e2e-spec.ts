@@ -35,6 +35,16 @@ describe('Packages exist for every current plan (e2e)', () => {
     }
   });
 
+  it('PLAN-01b: a trial shop tries everything BUSINESS has, except accounting and the owner hub', async () => {
+    const of = async (k: string) => (await prisma.packageModule.findMany({ where: { packageKey: k }, select: { moduleKey: true } })).map((m) => m.moduleKey);
+    const trial = await of('TRIAL');
+    const business = (await of('BUSINESS')).filter((k) => k !== 'accounting' && k !== 'owner_hub');
+    expect(trial).toEqual(expect.arrayContaining(business));
+    expect(trial).not.toContain('accounting');
+    expect(trial).not.toContain('owner_hub');
+    expect(trial).toEqual(expect.arrayContaining(['pos', 'repair', 'stock', 'finance', 'crm', 'report', 'user_management']));
+  });
+
   it('PLAN-02: staff of a LITE or PRIVATE shop can use the POS without per-shop overrides', async () => {
     for (const plan of ['LITE', 'PRIVATE'] as const) {
       await prisma.tenant.update({ where: { id: IDS.tenantA }, data: { plan } });
