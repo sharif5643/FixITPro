@@ -754,4 +754,42 @@ WITH eff AS (
 SELECT e.tenant_id, t.plan, t.status, count(*) FILTER (WHERE e.on_) AS modules_on, string_agg(e.module, ',' ORDER BY e.module) FILTER (WHERE e.on_) AS on_list
 FROM eff e JOIN "Tenant" t ON t.id = e.tenant_id GROUP BY 1, 2, 3 ORDER BY 3, 1;
 
+\echo '--- 32. Shops whose name has ริว: is the shop set up and working? (ids only) ---'
+\echo '32a. Shop: status, plan, expiry, modules on, branches, people by role, products, customers'
+WITH ryu AS (SELECT id, plan, status, "expiryDate" FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%')
+SELECT r.id, r.plan, r.status, r."expiryDate"::date AS expires,
+  (SELECT string_agg(k, ',' ORDER BY k) FROM (
+     SELECT pm."moduleKey" AS k FROM "PackageModule" pm WHERE pm."packageKey" = r.plan::text
+     UNION SELECT tm."moduleKey" FROM "TenantModule" tm WHERE tm."tenantId" = r.id AND tm.enabled
+     EXCEPT SELECT tm."moduleKey" FROM "TenantModule" tm WHERE tm."tenantId" = r.id AND NOT tm.enabled) x) AS modules_on,
+  (SELECT count(*) FROM "Branch" b WHERE b."tenantId" = r.id) AS branches,
+  (SELECT string_agg(role::text || ':' || n, ',') FROM (SELECT u.role, count(*) n FROM "User" u WHERE u."tenantId" = r.id AND u."isActive" GROUP BY 1) y) AS people,
+  (SELECT count(*) FROM "Product" p WHERE p."tenantId" = r.id) AS products,
+  (SELECT count(*) FROM "Customer" c WHERE c."tenantId" = r.id) AS customers
+FROM ryu r;
+
+\echo '32b. Same shop, last 3 days (Bangkok): logins, sales, repairs taken in / paid, shifts opened / closed, expenses'
+WITH ryu AS (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%'),
+days AS (SELECT generate_series((now() AT TIME ZONE 'Asia/Bangkok')::date - 2, (now() AT TIME ZONE 'Asia/Bangkok')::date, '1 day')::date AS d)
+SELECT r.id, d.d AS day,
+  (SELECT count(*) FROM "User" u WHERE u."tenantId" = r.id AND (u."lastLoginAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS last_logins,
+  (SELECT count(*) FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = r.id AND (s."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS sales,
+  (SELECT count(*) FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = r.id AND (x."receivedAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS repairs_in,
+  (SELECT count(*) FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = r.id AND (x."paidAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS repairs_paid,
+  (SELECT count(*) FROM "Shift" sh JOIN "User" u ON u.id = sh."userId" WHERE u."tenantId" = r.id AND (sh."openedAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS shifts_opened,
+  (SELECT count(*) FROM "Shift" sh JOIN "User" u ON u.id = sh."userId" WHERE u."tenantId" = r.id AND (sh."closedAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS shifts_closed,
+  (SELECT count(*) FROM "Expense" e JOIN "Branch" b ON b.id = e."branchId" WHERE b."tenantId" = r.id AND (e."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS expenses
+FROM ryu r CROSS JOIN days d ORDER BY r.id, d.d;
+
+\echo '32c. Same shop: shifts open now, and the newest activity of any kind'
+WITH ryu AS (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%')
+SELECT r.id,
+  (SELECT count(*) FROM "Shift" sh JOIN "User" u ON u.id = sh."userId" WHERE u."tenantId" = r.id AND sh."isActive") AS shifts_open_now,
+  GREATEST(
+    (SELECT max(s."createdAt") FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = r.id),
+    (SELECT max(x."updatedAt") FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = r.id),
+    (SELECT max(u."lastLoginAt") FROM "User" u WHERE u."tenantId" = r.id)
+  ) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok' AS newest_activity_bkk
+FROM ryu r;
+
 ROLLBACK;
