@@ -754,4 +754,146 @@ WITH eff AS (
 SELECT e.tenant_id, t.plan, t.status, count(*) FILTER (WHERE e.on_) AS modules_on, string_agg(e.module, ',' ORDER BY e.module) FILTER (WHERE e.on_) AS on_list
 FROM eff e JOIN "Tenant" t ON t.id = e.tenant_id GROUP BY 1, 2, 3 ORDER BY 3, 1;
 
+\echo '--- 32. Shops whose name has ริว: is the shop set up and working? (ids only) ---'
+\echo '32a. Shop: status, plan, expiry, modules on, branches, people by role, products, customers'
+WITH ryu AS (SELECT id, plan, status, "expiryDate" FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%')
+SELECT r.id, r.plan, r.status, r."expiryDate"::date AS expires,
+  (SELECT string_agg(k, ',' ORDER BY k) FROM (
+     SELECT pm."moduleKey" AS k FROM "PackageModule" pm WHERE pm."packageKey" = r.plan::text
+     UNION SELECT tm."moduleKey" FROM "TenantModule" tm WHERE tm."tenantId" = r.id AND tm.enabled
+     EXCEPT SELECT tm."moduleKey" FROM "TenantModule" tm WHERE tm."tenantId" = r.id AND NOT tm.enabled) x) AS modules_on,
+  (SELECT count(*) FROM "Branch" b WHERE b."tenantId" = r.id) AS branches,
+  (SELECT string_agg(role::text || ':' || n, ',') FROM (SELECT u.role, count(*) n FROM "User" u WHERE u."tenantId" = r.id AND u."isActive" GROUP BY 1) y) AS people,
+  (SELECT count(*) FROM "Product" p WHERE p."tenantId" = r.id) AS products,
+  (SELECT count(*) FROM "Customer" c WHERE c."tenantId" = r.id) AS customers
+FROM ryu r;
+
+\echo '32b. Same shop, last 3 days (Bangkok): logins, sales, repairs taken in / paid, shifts opened / closed, expenses'
+WITH ryu AS (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%'),
+days AS (SELECT generate_series((now() AT TIME ZONE 'Asia/Bangkok')::date - 2, (now() AT TIME ZONE 'Asia/Bangkok')::date, '1 day')::date AS d)
+SELECT r.id, d.d AS day,
+  (SELECT count(*) FROM "User" u WHERE u."tenantId" = r.id AND (u."lastLoginAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS last_logins,
+  (SELECT count(*) FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = r.id AND (s."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS sales,
+  (SELECT count(*) FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = r.id AND (x."receivedAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS repairs_in,
+  (SELECT count(*) FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = r.id AND (x."paidAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS repairs_paid,
+  (SELECT count(*) FROM "Shift" sh JOIN "User" u ON u.id = sh."userId" WHERE u."tenantId" = r.id AND (sh."openedAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS shifts_opened,
+  (SELECT count(*) FROM "Shift" sh JOIN "User" u ON u.id = sh."userId" WHERE u."tenantId" = r.id AND (sh."closedAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS shifts_closed,
+  (SELECT count(*) FROM "Expense" e JOIN "Branch" b ON b.id = e."branchId" WHERE b."tenantId" = r.id AND (e."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date = d.d) AS expenses
+FROM ryu r CROSS JOIN days d ORDER BY r.id, d.d;
+
+\echo '32c. Same shop: shifts open now, and the newest activity of any kind'
+WITH ryu AS (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%')
+SELECT r.id,
+  (SELECT count(*) FROM "Shift" sh JOIN "User" u ON u.id = sh."userId" WHERE u."tenantId" = r.id AND sh."isActive") AS shifts_open_now,
+  GREATEST(
+    (SELECT max(s."createdAt") FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId" WHERE b."tenantId" = r.id),
+    (SELECT max(x."updatedAt") FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = r.id),
+    (SELECT max(u."lastLoginAt") FROM "User" u WHERE u."tenantId" = r.id)
+  ) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok' AS newest_activity_bkk
+FROM ryu r;
+
+\echo '--- 33. Money health: is profit right? (ids only, numbers summed) ---'
+\echo '33a. Each shop, 1 Nov to now (Bangkok), close to the profit report: sales − refunds, cost of goods, repair money, repair cost, SIM profit, expenses → net'
+WITH bounds AS (SELECT (date_trunc('month', now() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok') AS s),
+sales AS (
+  SELECT b."tenantId" t, sum(s.total) amt,
+    sum((SELECT coalesce(sum(i."costPrice" * i.quantity), 0) FROM "SaleItem" i WHERE i."saleId" = s.id)) cost
+  FROM "Sale" s JOIN "Branch" b ON b.id = s."branchId", bounds WHERE s."createdAt" >= bounds.s AND s.status <> 'VOIDED' GROUP BY 1),
+refunds AS (
+  SELECT b."tenantId" t, sum(r."totalRefund") amt,
+    sum((SELECT coalesce(sum(si."costPrice" * ri.quantity), 0) FROM "SaleRefundItem" ri JOIN "SaleItem" si ON si.id = ri."saleItemId" WHERE ri."refundId" = r.id)) cost
+  FROM "SaleRefund" r JOIN "Sale" s ON s.id = r."saleId" JOIN "Branch" b ON b.id = s."branchId", bounds
+  WHERE r."createdAt" >= bounds.s AND s.status <> 'VOIDED' GROUP BY 1),
+deposits AS (
+  SELECT b."tenantId" t, sum(x.deposit) amt FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId", bounds
+  WHERE x."receivedAt" >= bounds.s AND x.deposit > 0 AND x.status <> 'CANCELLED' GROUP BY 1),
+pickups AS (
+  SELECT b."tenantId" t, sum(coalesce(x."paidAmount", 0)) amt,
+    sum(coalesce(x."actualLaborCost", 0)
+      + (SELECT coalesce(sum(coalesce(p."costPrice", p.price) * p.quantity), 0) FROM "RepairPart" p WHERE p."repairId" = x.id AND NOT p."isVoided")
+      + (SELECT coalesce(sum(c.amount), 0) FROM "RepairExtraCost" c WHERE c."repairId" = x.id)) cost
+  FROM "Repair" x JOIN "Branch" b ON b.id = x."branchId", bounds
+  WHERE x."paidAt" >= bounds.s AND x."paymentStatus" IN ('PAID', 'PARTIAL') GROUP BY 1),
+debts AS (
+  SELECT b."tenantId" t, sum(a.amount) amt FROM "RepairAdditionalPayment" a JOIN "Repair" x ON x.id = a."repairId" JOIN "Branch" b ON b.id = x."branchId", bounds
+  WHERE a."createdAt" >= bounds.s GROUP BY 1),
+sims AS (
+  SELECT u."tenantId" t, sum(p.profit) amt FROM "PackageSale" p JOIN "User" u ON u.id = p."createdById", bounds WHERE p."createdAt" >= bounds.s GROUP BY 1),
+other AS (
+  SELECT m."tenantId" t, sum(m.amount) amt FROM "ShiftCashMovement" m, bounds
+  WHERE m."createdAt" >= bounds.s AND m.kind = 'MANUAL_IN' AND m.category IN ('INCOME_PRODUCT', 'INCOME_SERVICE') GROUP BY 1),
+exps AS (
+  SELECT b."tenantId" t, sum(e.amount) amt FROM "Expense" e JOIN "Branch" b ON b.id = e."branchId", bounds
+  WHERE e."expenseDate" >= bounds.s AND e."voidedAt" IS NULL GROUP BY 1)
+SELECT t.id,
+  round(coalesce(sa.amt, 0) - coalesce(rf.amt, 0)) AS pos_revenue,
+  round(coalesce(sa.cost, 0) - coalesce(rf.cost, 0)) AS pos_cost,
+  round(coalesce(de.amt, 0) + coalesce(pk.amt, 0) + coalesce(db.amt, 0)) AS repair_money,
+  round(coalesce(pk.cost, 0)) AS repair_cost,
+  round(coalesce(si.amt, 0)) AS sim_profit,
+  round(coalesce(ot.amt, 0)) AS other_income,
+  round(coalesce(ex.amt, 0)) AS expenses,
+  round(coalesce(sa.amt, 0) - coalesce(rf.amt, 0) - coalesce(sa.cost, 0) + coalesce(rf.cost, 0)
+      + coalesce(de.amt, 0) + coalesce(pk.amt, 0) + coalesce(db.amt, 0) - coalesce(pk.cost, 0)
+      + coalesce(si.amt, 0) + coalesce(ot.amt, 0) - coalesce(ex.amt, 0)) AS net_profit
+FROM "Tenant" t
+LEFT JOIN sales sa ON sa.t = t.id LEFT JOIN refunds rf ON rf.t = t.id LEFT JOIN deposits de ON de.t = t.id
+LEFT JOIN pickups pk ON pk.t = t.id LEFT JOIN debts db ON db.t = t.id LEFT JOIN sims si ON si.t = t.id
+LEFT JOIN other ot ON ot.t = t.id LEFT JOIN exps ex ON ex.t = t.id
+WHERE coalesce(sa.amt, de.amt, pk.amt, db.amt, si.amt, ot.amt, ex.amt) IS NOT NULL
+ORDER BY 1;
+
+\echo '33b. Bills of the last 90 days: items sold with no cost (profit shows too high) and items sold below cost, per shop'
+SELECT b."tenantId",
+  count(*) FILTER (WHERE i."costPrice" = 0 AND NOT i."isFreebie") AS items_no_cost,
+  round(coalesce(sum(i.total) FILTER (WHERE i."costPrice" = 0 AND NOT i."isFreebie"), 0)) AS revenue_no_cost,
+  count(*) FILTER (WHERE i."costPrice" > 0 AND NOT i."isFreebie" AND i.total < i."costPrice" * i.quantity) AS items_below_cost,
+  round(coalesce(sum(i."costPrice" * i.quantity - i.total) FILTER (WHERE i."costPrice" > 0 AND NOT i."isFreebie" AND i.total < i."costPrice" * i.quantity), 0)) AS loss_below_cost,
+  count(*) AS items_all
+FROM "SaleItem" i JOIN "Sale" s ON s.id = i."saleId" JOIN "Branch" b ON b.id = s."branchId"
+WHERE s."createdAt" > now() - interval '90 days' AND s.status <> 'VOIDED'
+GROUP BY 1 ORDER BY 1;
+
+\echo '33c. Products on sale now with no cost price (every sale of them counts as all profit), per shop'
+SELECT p."tenantId", count(*) FILTER (WHERE p."costPrice" = 0 AND p.price > 0) AS no_cost, count(*) FILTER (WHERE p."costPrice" = 0 AND p.price > 0 AND p.stock > 0) AS no_cost_in_stock,
+  count(*) FILTER (WHERE p."costPrice" > p.price AND p.price > 0) AS cost_above_price, count(*) AS active
+FROM "Product" p WHERE p."isActive" AND NOT p."giveawayOnly" GROUP BY 1 ORDER BY 1;
+
+\echo '33d. Repair parts on jobs paid in the last 90 days with no cost, per shop'
+SELECT b."tenantId", count(*) FILTER (WHERE coalesce(p."costPrice", p.price) = 0 AND NOT p."isFreebie") AS parts_no_cost, count(*) AS parts_all
+FROM "RepairPart" p JOIN "Repair" x ON x.id = p."repairId" JOIN "Branch" b ON b.id = x."branchId"
+WHERE NOT p."isVoided" AND x."paidAt" > now() - interval '90 days' GROUP BY 1 ORDER BY 1;
+
+\echo '33e. Money that no branch report can see: expenses with no branch, SIM sales with no shift (per shop of whoever made them)'
+SELECT u."tenantId", 'expense no branch' AS what, count(*) AS n, round(sum(e.amount)) AS amount
+FROM "Expense" e JOIN "User" u ON u.id = e."createdById" WHERE e."branchId" IS NULL AND e."voidedAt" IS NULL GROUP BY 1
+UNION ALL
+SELECT u."tenantId", 'sim sale no shift', count(*), round(sum(p.profit))
+FROM "PackageSale" p JOIN "User" u ON u.id = p."createdById" WHERE p."shiftId" IS NULL GROUP BY 1
+ORDER BY 1, 2;
+
+\echo '33f. Books: journal entries whose debits and credits do not match, per shop (should be none)'
+SELECT j."tenantId", count(*) AS unbalanced, round(sum(abs(d - c)), 2) AS gap
+FROM (SELECT e.id, e."tenantId", sum(l.debit) d, sum(l.credit) c FROM "JournalEntry" e JOIN "JournalLine" l ON l."entryId" = e.id WHERE NOT e."isVoided" GROUP BY 1, 2) j
+WHERE d <> c GROUP BY 1 ORDER BY 1;
+
+\echo '33g. Those bill lines in detail (last 90 days): no cost or below cost — date, receipt, product, qty, price, cost, line total, bill note'
+SELECT b."tenantId", (s."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date AS day, s."receiptNumber", left(p.name, 40) AS product,
+  i.quantity, i.price, i."costPrice", i.total, s.total AS bill_total, left(coalesce(s.note, ''), 40) AS note
+FROM "SaleItem" i JOIN "Sale" s ON s.id = i."saleId" JOIN "Branch" b ON b.id = s."branchId" JOIN "Product" p ON p.id = i."productId"
+WHERE s."createdAt" > now() - interval '90 days' AND s.status <> 'VOIDED' AND NOT i."isFreebie"
+  AND (i."costPrice" = 0 OR i.total < i."costPrice" * i.quantity)
+ORDER BY 1, 2;
+
+\echo '33h. Products on sale now with no cost price, or cost above price: name, price, cost, stock'
+SELECT p."tenantId", left(p.name, 40) AS product, p.price, p."costPrice", p.stock
+FROM "Product" p WHERE p."isActive" AND NOT p."giveawayOnly" AND p.price > 0 AND (p."costPrice" = 0 OR p."costPrice" > p.price)
+ORDER BY 1, 2;
+
+\echo '33i. Expenses with no branch: when, amount, category, who (role), how many branches that shop has'
+SELECT u."tenantId", (e."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok') AS at_bkk, e.amount, c.code, u.role, e."shiftId" IS NOT NULL AS in_shift,
+  (SELECT count(*) FROM "Branch" b WHERE b."tenantId" = u."tenantId" AND b."isActive") AS shop_branches
+FROM "Expense" e JOIN "User" u ON u.id = e."createdById" JOIN "ExpenseCategory" c ON c.id = e."categoryId"
+WHERE e."branchId" IS NULL AND e."voidedAt" IS NULL ORDER BY 1, 2;
+
 ROLLBACK;

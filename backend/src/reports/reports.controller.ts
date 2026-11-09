@@ -1,4 +1,6 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { CostFixService } from './cost-fix.service';
+import { FixCostDto } from './dto/fix-cost.dto';
 import { canViewCost, stripCost } from '../common/interceptors/hide-cost.interceptor';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -14,7 +16,37 @@ import { bangkokDate } from '../common/bangkok-date';
 @UseGuards(JwtAuthGuard, TenantActiveGuard, PermissionGuard, ModuleGuard)
 @Controller('reports')
 export class ReportsController {
-  constructor(private reportsService: ReportsService) {}
+  constructor(private reportsService: ReportsService, private costFix: CostFixService) {}
+
+  // ── Fixing a wrong cost (owner only): the product, and the bills sold with it ─────────────
+  private ownerOnly(role?: string, tenantId?: string | null): string {
+    if (role !== 'OWNER' || !tenantId) throw new ForbiddenException('เฉพาะเจ้าของร้านแก้ราคาทุนได้');
+    return tenantId;
+  }
+
+  @RequirePermission('reports.view')
+  @Get('fix-cost/preview')
+  previewCostFix(
+    @Query('productId') productId: string,
+    @Query('costPrice') costPrice?: string,
+    @CurrentUser('role') role?: string,
+    @CurrentUser('tenantId') tenantId?: string,
+  ) {
+    const cost = costPrice != null && costPrice !== '' ? Number(costPrice) : undefined;
+    return this.costFix.preview(productId, this.ownerOnly(role, tenantId), Number.isFinite(cost) ? cost : undefined);
+  }
+
+  @RequirePermission('reports.view')
+  @Post('fix-cost')
+  fixCost(
+    @Body() dto: FixCostDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('name') name?: string,
+    @CurrentUser('role') role?: string,
+    @CurrentUser('tenantId') tenantId?: string,
+  ) {
+    return this.costFix.fix(dto, { id: userId, name, tenantId: this.ownerOnly(role, tenantId) });
+  }
 
   // Basic for every shop that sells or repairs (end-of-day slip, today's figures), not only with reports
   @RequireModule('report', 'pos', 'repair')

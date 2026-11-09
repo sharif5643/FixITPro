@@ -62,7 +62,12 @@ function makeCreateTx(overrides: Record<string, any> = {}) {
 
 function makeVoidTx() {
   return {
-    sale:          { update: jest.fn().mockResolvedValue({ ...CREATED_CASH_SALE, status: 'VOIDED' }) },
+    sale:          {
+      update:            jest.fn().mockResolvedValue({ ...CREATED_CASH_SALE, status: 'VOIDED' }),
+      // the void now wins only if the bill is still voidable, then reads it back
+      updateMany:        jest.fn().mockResolvedValue({ count: 1 }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ ...CREATED_CASH_SALE, status: 'VOIDED' }),
+    },
     serialNumber:  { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
     branchStock: {
       upsert:    jest.fn().mockResolvedValue({}),
@@ -96,6 +101,7 @@ describe('SalesService — Workflow tests (RC1)', () => {
       product:      { findMany: jest.fn().mockResolvedValue([MOCK_PRODUCT]), findUnique: jest.fn().mockResolvedValue(MOCK_PRODUCT) },
       branchStock:  { findMany: jest.fn().mockResolvedValue([{ productId: 'prod-1', quantity: 10 }]) },
       sale:         { findFirst: jest.fn().mockResolvedValue(CREATED_CASH_SALE) },
+      saleRefund:   { count: jest.fn().mockResolvedValue(0) },  // no refund on these bills
       customer:     { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
       serialNumber: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn(),

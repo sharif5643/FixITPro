@@ -107,9 +107,29 @@ export class ExpensesService implements OnModuleInit {
 
   // ── Expenses ─────────────────────────────────────────────────────────────────
 
-  async create(dto: CreateExpenseDto, userId: string, role: string, branchId?: string) {
+  async create(dto: CreateExpenseDto, userId: string, role: string, branchId?: string, tenantId?: string | null) {
     this.requireRole(role);
-    return this.createRecorded(dto, userId, branchId);
+    return this.createRecorded(dto, userId, await this.expenseBranch(branchId, userId, tenantId));
+  }
+
+  /**
+   * The branch an expense belongs to. An expense with no branch is in no report (the shop's
+   * reports gather a shop's money through its branches), so a shop user's expense always gets
+   * one: the one picked, else the branch of the user's open shift, else the shop's only branch.
+   * A shop with several branches and none picked is asked to pick one.
+   */
+  private async expenseBranch(branchId: string | undefined, userId: string, tenantId?: string | null): Promise<string | undefined> {
+    if (!tenantId) return branchId; // super admin outside a shop
+    if (branchId) {
+      const b = await this.prisma.branch.findFirst({ where: { id: branchId, tenantId }, select: { id: true } });
+      if (!b) throw new BadRequestException('ไม่พบสาขานี้ในร้าน');
+      return b.id;
+    }
+    const shift = await this.prisma.shift.findFirst({ where: activeShiftWhere(userId), select: { branchId: true } });
+    if (shift?.branchId) return shift.branchId;
+    const branches = await this.prisma.branch.findMany({ where: { tenantId, isActive: true }, select: { id: true }, take: 2 });
+    if (branches.length === 1) return branches[0].id;
+    throw new BadRequestException('เลือกสาขาก่อนบันทึกค่าใช้จ่าย');
   }
 
   /**

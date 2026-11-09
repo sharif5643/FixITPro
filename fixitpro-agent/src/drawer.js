@@ -169,7 +169,11 @@ try {
  * Open drawer via COM port (Bluetooth virtual serial, USB virtual COM)
  */
 function openDrawerSerial(comPort, baudRate) {
-  baudRate = baudRate || 9600
+  baudRate = Number(baudRate) || 9600
+  // These go into a PowerShell script: never anything but a COM port name and a number
+  if (!/^COM\d{1,3}$/i.test(String(comPort)) || !Number.isInteger(baudRate)) {
+    return Promise.reject(new Error('Invalid COM port or baud rate'))
+  }
   return new Promise((resolve, reject) => {
     const script = `
 $ErrorActionPreference = 'Stop'

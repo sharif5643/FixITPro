@@ -33,6 +33,7 @@ class AdjustPointsDto {
   note?: string;
 }
 import { CustomersService } from './customers.service';
+import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateTagsDto } from './dto/update-tags.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -126,7 +127,7 @@ export class CustomersController {
   @Put(':id')
   update(
     @Param('id')             id: string,
-    @Body()                  dto: Partial<CreateCustomerDto>,
+    @Body()                  dto: UpdateCustomerDto,
     @CurrentUser('id')       actorId: string,
     @CurrentUser('name')     actorName: string,
     @CurrentUser('tenantId') tenantId: string,

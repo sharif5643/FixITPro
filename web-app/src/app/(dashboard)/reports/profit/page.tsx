@@ -27,6 +27,7 @@ import { MoneyEquation, MoneyLine, SourceCard, SplitBar } from '@/components/rep
 import Link from 'next/link'
 import { TrailDrawer, entryRows, type Trail, type TrailRow } from '@/components/money/trail'
 import { DocLink, type DocRef } from '@/components/money/doc-peek'
+import { FixCostDialog } from '@/components/reports/fix-cost-dialog'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -230,6 +231,12 @@ function ProfitSummary({ data, periodLabel, onDetail, onTrail }: { data: ProfitR
   const refunds = data.pos.refunds ?? 0
   const sold = data.pos.grossSales ?? data.pos.revenue + refunds
   const w = data.costWarnings
+  // the owner fixes a wrong cost right here (the product and, if chosen, the bills sold with it)
+  const isOwner = useAuthStore((st) => st.user?.role === 'OWNER')
+  const [fixing, setFixing] = useState<string | null>(null)
+  const fixBtn = (productId: string, name: string) => isOwner
+    ? <button type="button" onClick={() => setFixing(productId)} className="shrink-0 rounded-lg border border-amber-400 bg-white px-2.5 py-1 text-xs font-bold text-amber-900 print:hidden dark:bg-amber-950 dark:text-amber-200">แก้ทุน</button>
+    : <Link href={`/products?q=${encodeURIComponent(name)}`} className="shrink-0 rounded-lg border border-amber-400 bg-white px-2.5 py-1 text-xs font-bold text-amber-900 print:hidden">แก้ทุน</Link>
   const hasWarnings = !!w && (w.belowCostCount > 0 || w.noCostCount > 0)
   const other = data.otherIncome?.revenue ?? 0
   return (
@@ -342,19 +349,28 @@ function ProfitSummary({ data, periodLabel, onDetail, onTrail }: { data: ProfitR
                 <div key={x.productId} className="flex items-center justify-between gap-3 py-2">
                   <span className="min-w-0">{x.name} · ทุน <b className="text-red-700">{formatThaiMoney(x.cost)}</b> แต่ขาย {formatThaiMoney(x.soldAt)}
                     <span className="block text-xs text-amber-800/80">ขายต่ำกว่าทุน — ถ้าทุนพิมพ์ผิด กำไรจะติดลบเกินจริง</span></span>
-                  <Link href={`/products?q=${encodeURIComponent(x.name)}`} className="shrink-0 rounded-lg border border-amber-400 bg-white px-2.5 py-1 text-xs font-bold text-amber-900 print:hidden">แก้ทุน</Link>
+                  {fixBtn(x.productId, x.name)}
                 </div>
               ))}
               {w!.noCostCount > 0 && (
                 <div className="py-2">
                   สินค้าที่ไม่มีต้นทุน {w!.noCostCount} รายการ — กำไรของชิ้นเหล่านี้จะดูสูงเกินจริง
-                  <span className="block text-xs text-amber-800/80">{w!.noCost.map((x) => x.name).join(', ')}{w!.noCostCount > w!.noCost.length ? ' …' : ''}</span>
+                  <div className="mt-1 divide-y divide-amber-100 dark:divide-amber-900">
+                    {w!.noCost.map((x) => (
+                      <div key={x.productId} className="flex items-center justify-between gap-3 py-1.5">
+                        <span className="min-w-0">{x.name} <span className="text-xs text-amber-800/80">· ขาย {formatThaiMoney(x.price)} · ทุน <b className="text-red-700">0</b></span></span>
+                        {fixBtn(x.productId, x.name)}
+                      </div>
+                    ))}
+                  </div>
+                  {w!.noCostCount > w!.noCost.length && <span className="block text-xs text-amber-800/80">และอีก {w!.noCostCount - w!.noCost.length} รายการ</span>}
                 </div>
               )}
             </div>
           </div>
         )}
       </div>
+      <FixCostDialog productId={fixing} onClose={() => setFixing(null)} />
     </div>
   )
 }

@@ -6,7 +6,7 @@ const { isCertInstalled, isHelperPrinterInstalled, installCertElevated, installH
 const { openDrawerNetwork, openDrawerWindows, openDrawerSerial, listPrinters, listComPorts } = require('./drawer')
 
 const PORT = 7777
-const VERSION = '1.1.0'
+const VERSION = '1.2.0'
 
 const ALLOWED_ORIGINS = [
   'https://fixitpro.in.th',
@@ -98,8 +98,38 @@ function firstRunSetup() {
 
 const tls = firstRunSetup()
 
+// Only this PC may talk to the agent: the browser on this PC reaches it at localhost.
+// Anything from the shop's network (another phone or PC on the Wi-Fi) is refused.
+function isLoopback(addr) {
+  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1'
+}
+
+// Values that end up in a printer command: only the shapes a real device has
+const COM_PORT = /^COM\d{1,3}$/i
+const BAUD_RATES = [2400, 4800, 9600, 19200, 38400, 57600, 115200]
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+
+function checkDrawerInput({ method, ip, port, printer, comPort, baudRate }) {
+  if (method === 'serial') {
+    if (typeof comPort !== 'string' || !COM_PORT.test(comPort)) throw new Error('comPort must look like COM3')
+    if (baudRate != null && !BAUD_RATES.includes(Number(baudRate))) throw new Error('baudRate is not a standard rate')
+  }
+  if (method === 'network') {
+    const m = typeof ip === 'string' ? ip.match(IPV4) : null
+    if (!m || m.slice(1).some((n) => Number(n) > 255)) throw new Error('ip must be an IPv4 address')
+    if (port != null && !(Number.isInteger(Number(port)) && Number(port) > 0 && Number(port) < 65536)) throw new Error('port is not valid')
+  }
+  if (method === 'windows' && (typeof printer !== 'string' || printer.length > 200)) throw new Error('printer name is not valid')
+}
+
 const server = https.createServer({ key: tls.key, cert: tls.cert }, async (req, res) => {
   const origin = req.headers['origin'] || ''
+
+  if (!isLoopback(req.socket.remoteAddress)) {
+    res.writeHead(403, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: 'This agent only accepts requests from this computer' }))
+    return
+  }
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders(origin))
@@ -118,10 +148,21 @@ const server = https.createServer({ key: tls.key, cert: tls.cert }, async (req, 
   }
 
   if (req.url === '/open-drawer' && req.method === 'POST') {
+    // A web page can send a simple POST without a preflight: only FixITPro's own pages may
+    // open the drawer (a browser always sends Origin on these requests)
+    if (!ALLOWED_ORIGINS.includes(origin)) {
+      send(res, 403, { success: false, error: 'Origin not allowed' }, origin)
+      return
+    }
+    if (!/application\/json/i.test(req.headers['content-type'] || '')) {
+      send(res, 415, { success: false, error: 'Content-Type must be application/json' }, origin)
+      return
+    }
     const body = await readBody(req)
     const { method, ip, port, printer, comPort, baudRate } = body
 
     try {
+      checkDrawerInput(body)
       let result
       if (method === 'network') {
         if (!ip) throw new Error('ip is required for network method')
@@ -147,8 +188,8 @@ const server = https.createServer({ key: tls.key, cert: tls.cert }, async (req, 
   send(res, 404, { error: 'Not found' }, origin)
 })
 
-// Listen on all interfaces (IPv4 + IPv6) so both 127.0.0.1 and ::1 work.
-// CORS headers restrict browser access to allowed origins only.
+// Listen on all interfaces (IPv4 + IPv6) so both 127.0.0.1 and ::1 work; every request
+// that does not come from this computer is refused above.
 server.listen(PORT, () => {
   console.log(`พร้อมใช้งาน! https://localhost:${PORT}`)
   console.log(`เปิดหน้าต่างนี้ทิ้งไว้ (หรือ minimize ได้)`)

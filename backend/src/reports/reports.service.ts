@@ -1,6 +1,6 @@
 import { INCOME_CATEGORIES } from '../shifts/shift-cash';
 import { Injectable } from '@nestjs/common';
-import { loadPeriodMoney, summarizeMoney, bangkokDay, type MoneyRef, type PeriodMoneyRows } from '../common/money/period-money';
+import { loadPeriodMoney, placePackageSales, summarizeMoney, bangkokDay, type MoneyRef, type PeriodMoneyRows } from '../common/money/period-money';
 import { PrismaService } from '../database/prisma.service';
 import { TenantService } from '../tenant/tenant.service';
 
@@ -17,7 +17,7 @@ export class ReportsService {
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
     const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
-    const [sales, voidedSales, packageSales, repairs, stockIn, repairPayments, supplierPayments] = await Promise.all([
+    const [sales, voidedSales, allPackageSales, repairs, stockIn, repairPayments, supplierPayments] = await Promise.all([
       this.prisma.sale.findMany({
         where: { createdAt: { gte: start, lt: end }, status: { not: 'VOIDED' }, ...bFilter },
         include: {
@@ -45,7 +45,7 @@ export class ReportsService {
         },
         select: {
           id: true, receiptNumber: true, carrier: true, packageAmount: true,
-          walletDeduction: true, profit: true, paymentMethod: true,
+          walletDeduction: true, profit: true, paymentMethod: true, shiftId: true,
           createdAt: true, createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'asc' },
@@ -109,6 +109,8 @@ export class ReportsService {
       {} as Record<string, number>,
     );
 
+    // with one branch picked, only the SIM sales made in that branch's shifts
+    const packageSales = await placePackageSales(this.prisma, allPackageSales, branchId);
     const packageRevenue = packageSales.reduce((sum, p) => sum + Number(p.profit), 0);
     const packageTotal = packageSales.reduce((sum, p) => sum + Number(p.packageAmount), 0);
 
@@ -476,7 +478,7 @@ export class ReportsService {
       voidedSales,
       refunds,
       repairPayments,
-      packageSales,
+      allPackageSales,
       newRepairs,
       unpaidRepairs,
       shiftsToday,
@@ -530,7 +532,7 @@ export class ReportsService {
         },
         select: {
           id: true, receiptNumber: true, carrier: true, packageAmount: true,
-          profit: true, paymentMethod: true, createdAt: true, creditAmount: true,
+          profit: true, paymentMethod: true, createdAt: true, creditAmount: true, shiftId: true,
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: 'asc' },
@@ -592,6 +594,8 @@ export class ReportsService {
     const posRevenue = sales.reduce((sum, s) => sum + Number(s.total), 0);
 
     const repairRevenue = repairPayments.reduce((sum, r) => sum + Number(r.paidAmount ?? 0), 0);
+    // with one branch picked, only the SIM sales made in that branch's shifts
+    const packageSales = await placePackageSales(this.prisma, allPackageSales, branchId);
     const packageRevenue = packageSales.reduce((sum, p) => sum + Number(p.profit), 0);
     const packageAmount = packageSales.reduce((sum, p) => sum + Number(p.packageAmount), 0);
     const refundTotal = refunds.reduce((sum, r) => sum + Number(r.totalRefund), 0);
@@ -920,7 +924,7 @@ export class ReportsService {
     end.setTime(end.getTime() + 24 * 60 * 60 * 1000); // include end date fully
     const bFilter = branchId ? { branchId } : this.tenantSvc.branchScope(tenantId);
 
-    const [saleItems, repaids, packageSales, expenses] = await Promise.all([
+    const [saleItems, repaids, allPackageSales, expenses] = await Promise.all([
       // POS: sale items for non-voided sales in range
       this.prisma.saleItem.findMany({
         where: {
@@ -1015,6 +1019,10 @@ export class ReportsService {
       start, end, branchWhere: bFilter, branchId, tenantId,
     });
     const money = summarizeMoney(moneyRows);
+    // A SIM sale has no branch column; the money rows already placed each one by its shift's
+    // branch, so with one branch picked only that branch's SIM sales count here too
+    const keptPackages = new Set(moneyRows.packages.map((p) => p.ref?.id));
+    const packageSales = allPackageSales.filter((p) => keptPackages.has(p.id));
     const lineTotal = saleItems.reduce((s, i) => s + Number(i.total), 0);
 
     // --- POS profit ---

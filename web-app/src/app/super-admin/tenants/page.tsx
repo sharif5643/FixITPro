@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -38,7 +38,9 @@ function ChangePlanDialog({
   open: boolean; onClose: () => void; tenant: Tenant | null
 }) {
   const qc = useQueryClient()
-  const [plan, setPlan] = useState<TenantPlan>('BUSINESS')
+  // Starts from the shop's own plan, never a leftover choice from another shop
+  const [plan, setPlan] = useState<TenantPlan>(tenant?.plan ?? 'BUSINESS')
+  useEffect(() => { if (open && tenant) setPlan(tenant.plan) }, [open, tenant?.id, tenant?.plan]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const mutation = useMutation({
     mutationFn: () => api.patch(`/super-admin/tenants/${tenant?.id}/change-plan`, { plan }),
@@ -221,16 +223,25 @@ function PlanDialog({
   open: boolean; onClose: () => void; tenant: Tenant | null; action: PlanAction
 }) {
   const qc = useQueryClient()
-  const [plan, setPlan] = useState<TenantPlan>('BUSINESS')
+  // Starts from the shop's own plan each time a shop is opened: renewing only extends the
+  // date. (It used to start at BUSINESS and send it, so a renew switched LITE/PRO/PRIVATE
+  // shops to BUSINESS without anyone choosing it.)
+  const [plan, setPlan] = useState<TenantPlan>(tenant?.plan ?? 'BUSINESS')
   const [durationType, setDurationType] = useState<'preset' | 'custom'>('preset')
   const [duration, setDuration] = useState(30)
   const [customDate, setCustomDate] = useState('')
   const [note, setNote] = useState('')
+  useEffect(() => {
+    if (!open || !tenant) return
+    setPlan(tenant.plan)
+    setDurationType('preset'); setDuration(30); setCustomDate(''); setNote('')
+  }, [open, tenant?.id, tenant?.plan]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const mutation = useMutation({
     mutationFn: () =>
       api.patch(`/super-admin/tenants/${tenant?.id}/${action}`, {
-        plan,
+        // only when the admin picked another plan; otherwise the shop keeps its own
+        ...(tenant && plan !== tenant.plan ? { plan } : {}),
         ...(durationType === 'preset' ? { duration } : { customExpiryDate: customDate }),
         note: note || undefined,
       }),

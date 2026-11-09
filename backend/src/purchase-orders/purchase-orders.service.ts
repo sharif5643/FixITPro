@@ -65,6 +65,9 @@ export class PurchaseOrdersService {
     if (tenantId && supplier.tenantId !== tenantId) {
       throw new NotFoundException('ไม่พบ Supplier');
     }
+    // Every product and the branch must be this shop's: receiving the order later changes their
+    // stock and cost, so another shop's ids here would change another shop's stock
+    if (tenantId) await this.assertShopOwns(tenantId, dto.items.map((i) => i.productId), dto.branchId);
     const orderDate = new Date();
     const dueDate =
       supplier && supplier.creditDays > 0
@@ -201,6 +204,18 @@ export class PurchaseOrdersService {
     return updated;
   }
 
+  private async assertShopOwns(tenantId: string, productIds: string[], branchId?: string | null) {
+    const ids = [...new Set(productIds.filter(Boolean))];
+    if (ids.length) {
+      const mine = await this.prisma.product.count({ where: { id: { in: ids }, tenantId } });
+      if (mine !== ids.length) throw new NotFoundException('ไม่พบสินค้าบางรายการในร้านนี้');
+    }
+    if (branchId) {
+      const b = await this.prisma.branch.findFirst({ where: { id: branchId, tenantId }, select: { id: true } });
+      if (!b) throw new NotFoundException('ไม่พบสาขานี้ในร้าน');
+    }
+  }
+
   async receiveGoods(poId: string, dto: ReceiveGoodsDto, actorId?: string, tenantId?: string | null) {
     const po = await this.findOne(poId, tenantId);
 
@@ -209,6 +224,8 @@ export class PurchaseOrdersService {
         'สามารถรับสินค้าได้เฉพาะ PO ที่สถานะ ORDERED หรือ PARTIAL_RECEIVED',
       );
     }
+
+    if (tenantId && (dto as any).branchId) await this.assertShopOwns(tenantId, [], (dto as any).branchId);
 
     const itemsToReceive = dto.items.filter((i) => i.quantity > 0);
     if (itemsToReceive.length === 0) {
