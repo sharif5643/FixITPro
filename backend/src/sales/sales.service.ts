@@ -309,6 +309,13 @@ export class SalesService {
     if (change < 0) {
       throw new BadRequestException('Amount paid is less than total');
     }
+    // Change is handed back in cash: there must be that much cash in what was paid. A card or
+    // transfer above the bill used to show "change" on screen while nothing recorded the cash
+    // leaving the drawer (bill 1,000, card 1,200, 200 handed back → drawer 200 short).
+    const cashPaid = paymentLegs.filter((l) => l.paymentMethod === 'CASH').reduce((s, l) => s + l.amount, 0);
+    if (change > cashPaid + 0.005) {
+      throw new BadRequestException('บัตรหรือโอนต้องไม่เกินยอดบิล — เงินทอนต้องมาจากเงินสดที่ลูกค้าให้');
+    }
 
     // Stored payment legs = money the shop keeps. The amount tendered (Sale.amountPaid) and the
     // change stay on the Sale for the receipt, but change handed back must not count as cash

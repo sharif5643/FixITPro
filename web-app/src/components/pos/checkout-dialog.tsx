@@ -400,6 +400,8 @@ export function CheckoutDialog({
 
       if (splitMode) {
         if (leg1Amount <= 0) throw new Error('กรุณากรอกยอดชำระวิธีแรก')
+        // change is handed back in cash: a card or transfer cannot be more than the bill
+        if (splitChange > 0 && leg1Method !== 'CASH') throw new Error('บัตรหรือโอนต้องไม่เกินยอดบิล — ถ้าลูกค้าให้เงินสดเกิน ให้เลือกวิธีแรกเป็นเงินสด')
 
         const payments = [
           { paymentMethod: leg1Method, amount: leg1Amount },
@@ -625,9 +627,14 @@ export function CheckoutDialog({
                 )}
 
                 {/* Change (if leg1 overpays) */}
-                {splitChange > 0 && (
+                {splitChange > 0 && leg1Method !== 'CASH' && (
+                  <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/10 dark:text-red-300">
+                    {leg1Method === 'TRANSFER' ? 'โอน' : 'บัตร'}เกินยอดบิล {formatThaiMoney(splitChange)} — เงินทอนต้องมาจากเงินสด แก้ยอดให้ไม่เกิน {formatThaiMoney(total)}
+                  </p>
+                )}
+                {splitChange > 0 && leg1Method === 'CASH' && (
                   <div className="flex justify-between items-center rounded-xl px-4 py-3 border bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800">
-                    <span className="font-semibold text-green-800 dark:text-green-300">เงินทอน ({leg1Method === 'CASH' ? 'เงินสด' : leg1Method === 'TRANSFER' ? 'โอนเงิน' : 'บัตร'})</span>
+                    <span className="font-semibold text-green-800 dark:text-green-300">เงินทอน (เงินสด)</span>
                     <span className="text-2xl font-bold tabular-nums text-green-700 dark:text-green-300">
                       {formatThaiMoney(splitChange)}
                     </span>
