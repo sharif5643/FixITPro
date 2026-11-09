@@ -225,12 +225,21 @@ export class RepairsService {
     return `REP-${dateStr}-${suffix}`;
   }
 
+  /** A customer id sent by the client must be this shop's customer (else a bill or job could be
+   *  linked to another shop's customer, whose record then came back with it) */
+  private async ownCustomer(db: any, customerId: string, tenantId?: string | null): Promise<string> {
+    if (!tenantId) return customerId;
+    const c = await db.customer.findFirst({ where: { id: customerId, OR: [{ tenantId }, { tenantId: null }] }, select: { id: true } }); // old customers saved before shops existed have none
+    if (!c) throw new NotFoundException('ไม่พบลูกค้านี้ในร้าน');
+    return c.id;
+  }
+
   private async resolveCustomerIdInTx(
     tx: any,
     dto: CreateRepairDto,
     tenantId: string | null,
   ): Promise<string | undefined> {
-    if (dto.customerId) return dto.customerId;
+    if (dto.customerId) return this.ownCustomer(tx, dto.customerId, tenantId);
     if (!dto.customerName) return undefined;
 
     if (dto.customerPhone) {
@@ -1063,6 +1072,9 @@ export class RepairsService {
         },
       });
 
+      // A part charged to the customer goes onto the bill: the quote that payment uses grows by it
+      if (chargeToCustomer && sellPrice > 0) await this.moveBillBy(tx, repairId, sellPrice * dto.quantity);
+
       addedPartId = part.id;
     });
 
@@ -1090,6 +1102,18 @@ export class RepairsService {
       await this.repairAccounting.recordLatePartsCogsJournal(updated as any, shopId, actorId);
     }
     return updated;
+  }
+
+  /**
+   * A part marked "คิดเงินเพิ่ม" (charged to the customer) is added to the job's bill: payment
+   * prices the job from estimatedTotal, so it grows by the part's price, and shrinks again when
+   * the part is removed. Before this the price was stored on the part and never billed.
+   */
+  private async moveBillBy(tx: any, repairId: string, amount: number) {
+    const r = await tx.repair.findUnique({ where: { id: repairId }, select: { estimatedTotal: true, estimateCost: true } });
+    const base = Number(r?.estimatedTotal ?? r?.estimateCost ?? 0);
+    const next = Math.max(0, Math.round((base + amount) * 100) / 100);
+    await tx.repair.update({ where: { id: repairId }, data: { estimatedTotal: next } });
   }
 
   async removePart(repairId: string, partId: string, tenantId?: string | null, actorId?: string, actorName?: string) {
@@ -1126,6 +1150,10 @@ export class RepairsService {
         where: { id: partId },
         data: { isVoided: true, voidedAt: new Date() },
       });
+      // ...and its price comes off the bill it was added to
+      if ((part as any).chargeToCustomer && Number((part as any).sellPrice ?? 0) > 0) {
+        await this.moveBillBy(tx, repairId, -Number((part as any).sellPrice) * part.quantity);
+      }
 
       if (wasDeducted) {
         // Restore BranchStock
