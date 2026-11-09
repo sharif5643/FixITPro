@@ -96,7 +96,10 @@ export class ClaimsService {
     const customerId = serial.saleItem?.sale?.customerId ?? null;
     const claimNumber = await this.generateClaimNumber();
 
-    return this.prisma.$transaction(async (tx) => {
+    // Read the new claim back after the transaction commits: reading it inside (through
+    // this.prisma, another connection) could not see it yet, threw "ไม่พบเคลม" and rolled
+    // the whole claim back
+    const created = await this.prisma.$transaction(async (tx) => {
       const claim = await tx.claim.create({
         data: {
           claimNumber,
@@ -124,8 +127,9 @@ export class ClaimsService {
         data: { status: 'CLAIMED' },
       });
 
-      return this.findOne(claim.id);
+      return claim.id;
     });
+    return this.findOne(created);
   }
 
   // ─── Find all ────────────────────────────────────────────────────────────────
@@ -199,7 +203,7 @@ export class ClaimsService {
       throw new BadRequestException('ต้องระบุ Serial สินค้าทดแทนเมื่อเปลี่ยนสถานะเป็น REPLACED');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       // ── Serial status transitions ──────────────────────────────────────────
       if (dto.status === 'CANCELLED') {
         // Restore original serial to SOLD
@@ -274,9 +278,9 @@ export class ClaimsService {
           createdById: userId,
         },
       });
-
-      return this.findOne(claimId);
     });
+    // after the commit, so the claim comes back with its new status
+    return this.findOne(claimId);
   }
 
   // ─── Update cost / note ───────────────────────────────────────────────────────
