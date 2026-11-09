@@ -65,7 +65,9 @@ export function CashDrawerWidget() {
     )
   }
 
-  const expectedCash = Number(shift.openBalance) + Number(shift.totalSales) + Number(shift.repairRevenue ?? 0)
+  // The shift's own expected cash (cash in − cash out, the figure the close uses). Adding all
+  // sales and repair money counted transfers and cards as cash and left out expenses and refunds.
+  const expectedCash = Number(shift.expectedCashBalance ?? Number(shift.openBalance))
 
   const stats = [
     {
