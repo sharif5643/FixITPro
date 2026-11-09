@@ -345,7 +345,8 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
         issue:             issueTextOf(data.issue, issueTags),
         note:              data.note?.trim() || undefined,
         deposit:                data.deposit || 0,
-        depositPaymentMethod:   data.deposit ? (data.depositPaymentMethod ?? 'CASH') : undefined,
+        // a draft saved with the old QR choice is sent as a transfer
+        depositPaymentMethod:   data.deposit ? (data.depositPaymentMethod === 'QR' ? 'TRANSFER' : (data.depositPaymentMethod ?? 'CASH')) : undefined,
         estimateCost:      data.estimateCost || undefined,
         discount:          data.discount || undefined,
         dueDate:           data.dueDate || undefined,
@@ -771,8 +772,8 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="CASH">💵 เงินสด</SelectItem>
-                        <SelectItem value="TRANSFER">🏦 โอนเงิน</SelectItem>
-                        <SelectItem value="QR">📱 QR / พร้อมเพย์</SelectItem>
+                        {/* QR / พร้อมเพย์ is a transfer: the shop records it as โอน (a separate QR value was refused and the job was never created) */}
+                        <SelectItem value="TRANSFER">🏦 โอน / QR พร้อมเพย์</SelectItem>
                         <SelectItem value="CARD">💳 บัตรเครดิต</SelectItem>
                       </SelectContent>
                     </Select>

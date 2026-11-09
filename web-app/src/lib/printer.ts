@@ -231,6 +231,24 @@ function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
+/**
+ * Every text a shop or its staff typed (product, customer and shop names, notes, issues…) is
+ * escaped before it goes into a receipt's HTML. These builders used to paste it in as is, and the
+ * HTML is shown in a same-origin preview frame: a product named `<img src=x onerror=…>` ran its
+ * script in every cashier's session that previewed the receipt. paymentQrUrl stays raw because
+ * qrHtml escapes and encodes it itself.
+ */
+function safeOpts<T>(v: T, key = ''): T {
+  if (typeof v === 'string') return (key === 'paymentQrUrl' ? v : escHtml(v)) as unknown as T
+  if (Array.isArray(v)) return v.map((x) => safeOpts(x)) as unknown as T
+  if (v && typeof v === 'object' && !(v instanceof Date)) {
+    const out: Record<string, unknown> = {}
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = safeOpts(x, k)
+    return out as T
+  }
+  return v
+}
+
 function qrHtml(url: string, method: string): string {
   if (!url || method !== 'TRANSFER') return ''
   const encoded = encodeURIComponent(url)
@@ -246,7 +264,8 @@ function qrHtml(url: string, method: string): string {
 // ── Internal: single 58mm repair receipt block (with label + signature lines) ─
 
 function repairIntake58Block(opts: PrintRepairIntakeOptions, label: string): string {
-  const e = escHtml
+  // opts arrive already escaped (buildRepairIntakeHtml runs safeOpts): escaping again would print "&amp;"
+  const e = (x: string) => x
   return `
 ${shopHeaderHtml(opts)}
 <div class="hr"></div>
@@ -288,6 +307,7 @@ ${opts.technicianName ? `<p class="xs">ช่าง: ${opts.technicianName}</p>`
 // ── HTML builders ─────────────────────────────────────────────────────────────
 
 export function buildReceiptHtml(opts: PrintReceiptOptions): string {
+  opts = safeOpts(opts)
   const PM: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
   const px  = opts.paperWidth === '80mm' ? 576 : 384
   const css = makeReceiptThermalCss(px)
@@ -321,6 +341,7 @@ ${opts.customerName ? `<div class="hr"></div><p class="xs">ลูกค้า: $
 }
 
 export function buildRepairIntakeHtml(opts: PrintRepairIntakeOptions, copyType: RepairCopyType = 'customer'): string {
+  opts = safeOpts(opts)
   const px  = opts.paperWidth === '80mm' ? 576 : 384
   const css = makeReceiptThermalCss(px)
   const wrap = (style: string, body: string) =>
@@ -376,6 +397,7 @@ ${opts.technicianName ? `<p class="xs">ช่าง: ${opts.technicianName}</p>`
 }
 
 export function buildRepairDeliveryHtml(opts: PrintRepairDeliveryOptions): string {
+  opts = safeOpts(opts)
   const PM: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
   return `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
@@ -1197,6 +1219,7 @@ export function buildRepairDeliveryPreviewData(opts: PrintRepairDeliveryOptions)
 // ── SIM Sale receipt ──────────────────────────────────────────────────────────
 
 export function buildSimSaleHtml(opts: PrintSimSaleOptions): string {
+  opts = safeOpts(opts)
   const PM: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
   return `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
@@ -1290,6 +1313,7 @@ export async function shareSimSale(opts: PrintSimSaleOptions): Promise<void> {
 // ── Carrier Package Sale receipt ──────────────────────────────────────────────
 
 export function buildPackageSaleHtml(opts: PrintPackageSaleOptions): string {
+  opts = safeOpts(opts)
   const PM: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
   return `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
@@ -1401,6 +1425,7 @@ export interface PrintExpenseSlipOptions {
 }
 
 export function buildExpenseSlipHtml(opts: PrintExpenseSlipOptions): string {
+  opts = safeOpts(opts)
   const PM: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
   return `<!DOCTYPE html><html lang="th"><head>
 <meta charset="utf-8">
@@ -1693,6 +1718,7 @@ function staffSalesOf(opts: PrintDailyClosingOptions) {
 }
 
 export function buildDailyClosingHtml(opts: PrintDailyClosingOptions): string {
+  opts = safeOpts(opts)
   const diff = opts.difference
   const diffColor = diff < 0 ? 'color:#dc2626' : diff > 0 ? 'color:#16a34a' : 'color:#64748b'
   const diffSign  = diff >= 0 ? '+' : ''
