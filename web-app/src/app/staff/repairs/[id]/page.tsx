@@ -258,7 +258,8 @@ export default function RepairDetailPage() {
       const quoted = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0)
       // A discount promised when the job was taken in is offered here (it used to be dropped)
       const promised = Math.min(Number(repair.discount ?? 0), quoted)
-      const bal = Math.max(0, quoted - promised - Number(repair.deposit ?? 0))
+      const before = (repair.additionalPayments ?? []).reduce((s, p) => s + Number(p.amount), 0)
+      const bal = Math.max(0, quoted - promised - Number(repair.deposit ?? 0) - before)
       setPayMethod('CASH')
       setPayDiscount(promised > 0 ? String(promised) : '')
       setPayAmount(String(bal))
@@ -470,9 +471,9 @@ export default function RepairDetailPage() {
   const settled       = repair.paymentStatus !== 'PENDING' && repair.finalCost != null
   const repairTotal   = settled ? Number(repair.finalCost) : Math.max(0, payPrice - payDiscountNum)
   const repairDeposit = Number(repair.deposit ?? 0)
-  const paidSoFar     = settled
-    ? Number(repair.paidAmount ?? 0) + (repair.additionalPayments ?? []).reduce((s, p) => s + Number(p.amount), 0)
-    : 0
+  // before pickup this is money paid ahead (taken off at pickup); after, the payments so far
+  const paidSoFar     = (settled ? Number(repair.paidAmount ?? 0) : 0)
+    + (repair.additionalPayments ?? []).reduce((s, p) => s + Number(p.amount), 0)
   const repairBalance = Math.max(0, repairTotal - repairDeposit - paidSoFar)
   const payAmountNum  = Number(payAmount) || 0
   const payChange     = payAmountNum - repairBalance

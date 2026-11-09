@@ -487,7 +487,9 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const payDiscountNum = Math.max(0, Number(payDiscount) || 0)
   const repairTotal = Math.max(0, payFinalCostNum - payDiscountNum)
   const repairDeposit = repair ? Number(repair.deposit ?? 0) : 0
-  const repairBalance = Math.max(0, repairTotal - repairDeposit)
+  // paid before pickup (or kept after a reversal): pickup asks only for what is still owed
+  const repairPaidBefore = repair ? (repair.additionalPayments ?? []).reduce((s: number, p: any) => s + Number(p.amount), 0) : 0
+  const repairBalance = Math.max(0, repairTotal - repairDeposit - repairPaidBefore)
   const payAmountNum = Number(payAmount) || 0
   const payChange = payAmountNum - repairBalance
 
