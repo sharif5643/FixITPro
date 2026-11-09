@@ -46,23 +46,27 @@ export class FilesController {
     // Strip any leading slashes to prevent path.join treating it as absolute
     const relative = (filePath ?? '').replace(/^[/\\]+/, '');
 
+    // Resolve first, then check: the shop check must look at the path that is really served.
+    // Checking the first segment of the raw path let "<my-shop>/../<other-shop>/slips/x.jpg"
+    // (or "./<other-shop>/...") through to another shop's photos and payment slips.
+    const fullPath = resolve(join(this.uploadsBase, relative));
+
+    // Chroot check: resolved path must be a child of uploadsBase
+    if (!fullPath.startsWith(this.uploadsBase + sep)) {
+      throw new NotFoundException();
+    }
+
     // Phase 12: tenant path isolation — deny cross-tenant file access
+    const served = fullPath.slice(this.uploadsBase.length + 1).split(sep).join('/');
     const user = (req as any).user;
-    if (TENANT_PATH_RE.test(relative)) {
-      const pathTenantId = relative.split('/')[0];
+    if (TENANT_PATH_RE.test(served)) {
+      const pathTenantId = served.split('/')[0];
       const callerTenantId = user?.tenantId ?? null;
       const callerRole = user?.role ?? '';
       // SUPER_ADMIN can access all tenants; others must match their own tenantId
       if (callerRole !== 'SUPER_ADMIN' && pathTenantId !== callerTenantId) {
         throw new ForbiddenException();
       }
-    }
-
-    const fullPath = resolve(join(this.uploadsBase, relative));
-
-    // Chroot check: resolved path must be a child of uploadsBase
-    if (!fullPath.startsWith(this.uploadsBase + sep)) {
-      throw new NotFoundException();
     }
 
     // Extension whitelist: only serve image types that the upload filter allows

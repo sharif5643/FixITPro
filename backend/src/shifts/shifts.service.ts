@@ -1214,6 +1214,8 @@ export class ShiftsService {
     // Scope shifts to tenant: match branch.tenantId OR branchless shifts by user.tenantId
     if (query.branchId) {
       where.branchId = query.branchId;
+      // the branch picked must be this shop's: an owner could read another shop's shifts by id
+      if (query.tenantId) where.branch = { tenantId: query.tenantId };
     } else if (query.tenantId) {
       where.OR = [
         { branch: { tenantId: query.tenantId } },

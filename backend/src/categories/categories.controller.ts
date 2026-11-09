@@ -12,6 +12,7 @@ import {
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { CreateCategoryTypeDto } from './dto/create-category-type.dto';
+import { UpdateCategoryDto, UpdateCategoryTypeDto } from './dto/update-category.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -41,7 +42,7 @@ export class CategoriesController {
   @RequirePermission('products.create', 'products.edit')
   updateType(
     @Param('id') id: string,
-    @Body() dto: Partial<CreateCategoryTypeDto>,
+    @Body() dto: UpdateCategoryTypeDto,
     @CurrentUser('tenantId') tenantId: string | null,
     @CurrentUser('role') role: string,
   ) {
@@ -81,7 +82,7 @@ export class CategoriesController {
   @RequirePermission('products.create', 'products.edit')
   update(
     @Param('id') id: string,
-    @Body() dto: Partial<CreateCategoryDto>,
+    @Body() dto: UpdateCategoryDto,
     @CurrentUser('tenantId') tenantId: string,
   ) {
     return this.categoriesService.update(id, dto, tenantId);

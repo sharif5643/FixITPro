@@ -8,6 +8,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TenantService } from '../tenant/tenant.service';
+import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 
 export const HIGH_VALUE_CUSTOMER_THRESHOLD = 50_000;
@@ -166,7 +167,7 @@ export class CustomersService {
 
   async update(
     id: string,
-    dto: Partial<CreateCustomerDto>,
+    dto: UpdateCustomerDto,
     actorId?: string,
     actorName?: string,
     tenantId?: string | null,

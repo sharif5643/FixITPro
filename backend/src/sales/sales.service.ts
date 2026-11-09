@@ -61,8 +61,17 @@ export class SalesService {
     return `RCP-${dateStr}-${suffix}`;
   }
 
+  /** A customer id sent by the client must be this shop's customer (else a bill or job could be
+   *  linked to another shop's customer, whose record then came back with it) */
+  private async ownCustomer(db: any, customerId: string, tenantId?: string | null): Promise<string> {
+    if (!tenantId) return customerId;
+    const c = await db.customer.findFirst({ where: { id: customerId, OR: [{ tenantId }, { tenantId: null }] }, select: { id: true } }); // old customers saved before shops existed have none
+    if (!c) throw new NotFoundException('ไม่พบลูกค้านี้ในร้าน');
+    return c.id;
+  }
+
   private async resolveCustomerId(dto: CreateSaleDto, tenantId?: string | null): Promise<string | undefined> {
-    if (dto.customerId) return dto.customerId;
+    if (dto.customerId) return this.ownCustomer(this.prisma, dto.customerId, tenantId);
     if (!dto.customerName) return undefined;
 
     if (dto.customerPhone) {
@@ -80,7 +89,7 @@ export class SalesService {
 
   // P0-5 FIX: tx-aware version so customer creation is atomic with the sale.
   private async resolveCustomerIdInTx(tx: any, dto: CreateSaleDto, tenantId?: string | null): Promise<string | undefined> {
-    if (dto.customerId) return dto.customerId;
+    if (dto.customerId) return this.ownCustomer(tx, dto.customerId, tenantId);
     if (!dto.customerName) return undefined;
 
     if (dto.customerPhone) {
@@ -1008,6 +1017,12 @@ export class SalesService {
     if (sale.status === 'VOIDED') {
       throw new BadRequestException('บิลนี้ถูกยกเลิกไปแล้ว');
     }
+    // A bill with money already refunded cannot be voided: the void takes back every payment in
+    // full, on top of the refund (1,000 bill, 300 refunded, void → 1,300 out of the drawer)
+    if (['REFUNDED', 'PARTIAL_REFUND'].includes(String(sale.status))
+      || await this.prisma.saleRefund.count({ where: { saleId: id } }) > 0) {
+      throw new BadRequestException('บิลนี้คืนเงินไปแล้วบางส่วน ยกเลิกทั้งบิลไม่ได้ — ใช้ "คืนสินค้า" กับรายการที่เหลือแทน');
+    }
 
     if (sale.shiftId) {
       const shift = await this.prisma.shift.findUnique({
@@ -1020,8 +1035,9 @@ export class SalesService {
     }
 
     const voidResult = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.sale.update({
-        where: { id },
+      // Only the first of two voids at the same moment goes through (each one restocked the items)
+      const won = await tx.sale.updateMany({
+        where: { id, status: { notIn: ['VOIDED', 'REFUNDED', 'PARTIAL_REFUND'] } },
         data: {
           status:     'VOIDED',
           voidedById: userId,
@@ -1029,6 +1045,8 @@ export class SalesService {
           voidReason: reason,
         },
       });
+      if (won.count === 0) throw new BadRequestException('บิลนี้ถูกยกเลิกหรือคืนเงินไปแล้ว');
+      const updated = await tx.sale.findUniqueOrThrow({ where: { id } });
 
       const saleItemIds = sale.items.map((i) => i.id);
       await tx.serialNumber.updateMany({
