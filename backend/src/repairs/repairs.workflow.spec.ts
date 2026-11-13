@@ -38,6 +38,7 @@ function makePrisma() {
     shift:   { findFirst: jest.fn().mockResolvedValue({ id: 'shift-1' }) },
     branch:  { findUnique: jest.fn().mockResolvedValue({ tenantId: TENANT_ID }) },
     repairAdditionalPayment: { findUnique: jest.fn() },
+    partnerRepairTransfer:   { findFirst: jest.fn().mockResolvedValue(null) },
     repairPaymentReversal:   { findUnique: jest.fn() },
     $transaction: jest.fn(),
   };

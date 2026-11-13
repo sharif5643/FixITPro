@@ -27,6 +27,8 @@ export function mockPrisma(): jest.Mocked<PrismaService> {
       updateMany: jest.fn(),
     },
     repairAdditionalPayment: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }) },
+    // no device out at a partner shop unless a test says so
+    partnerRepairTransfer: { findFirst: jest.fn().mockResolvedValue(null) },
     carrierWalletMovement: { create: jest.fn() },
     packageSale: { create: jest.fn(), count: jest.fn(), findMany: jest.fn() },
     packageSaleDebtPayment: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }) },

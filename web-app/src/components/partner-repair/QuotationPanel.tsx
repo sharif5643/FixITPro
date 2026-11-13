@@ -342,6 +342,11 @@ export function QuotationPanel({ transferId, ownerTenantId, partnerTenantId, tra
         </div>
       )}
 
+      {/* No quotation yet, seen by the shop that sent the job */}
+      {!loadingActive && !active && !lastAccepted && isOwner && (
+        <p className="text-xs text-muted-foreground">ร้านพาร์ทเนอร์ยังไม่ได้เสนอราคา — เมื่อเสนอมา จะกดยอมรับหรือต่อราคาได้ที่นี่</p>
+      )}
+
       {/* No active quotation + Shop B can propose */}
       {!loadingActive && !active && canPropose && mode === 'idle' && (
         <div>

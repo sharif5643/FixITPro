@@ -75,7 +75,8 @@ function RepairsContent() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => parseFilter(searchParams.get('status')))
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [selectedRepairId, setSelectedRepairId] = useState<string | null>(null)
+  // ?open=<repairId> opens that job (links from other pages, e.g. partner transfers)
+  const [selectedRepairId, setSelectedRepairId] = useState<string | null>(() => searchParams.get('open'))
   const [qcRepairId, setQcRepairId] = useState<string | null>(null)
   const [printRepairId, setPrintRepairId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list')

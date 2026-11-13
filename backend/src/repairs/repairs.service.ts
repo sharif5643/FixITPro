@@ -1352,6 +1352,18 @@ export class RepairsService {
       throw new BadRequestException('งานซ่อมนี้ชำระเงินแล้ว');
     }
 
+    // The device is with a partner shop until this shop confirms it came back: handing it over
+    // (and closing the job) before that left the transfer open with the device still out
+    const atPartner = await this.prisma.partnerRepairTransfer.findFirst({
+      where: { repairId, status: { notIn: ['REJECTED', 'CANCELLED', 'RECALLED', 'OWNER_RECEIVED'] } },
+      select: { status: true },
+    });
+    if (atPartner) {
+      throw new BadRequestException(
+        'เครื่องยังอยู่ที่ร้านพาร์ทเนอร์ — รอร้านพาร์ทเนอร์ส่งคืน แล้วกด "รับเครื่องคืนแล้ว" ก่อนรับเงินและส่งมอบ',
+      );
+    }
+
     const price = dto.finalCost != null
       ? Number(dto.finalCost)
       : Number(repair.estimatedTotal ?? repair.finalCost ?? repair.estimateCost ?? 0);
