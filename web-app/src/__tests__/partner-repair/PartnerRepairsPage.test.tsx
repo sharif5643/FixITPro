@@ -5,7 +5,7 @@
  * UI-12 Customer tracking unchanged (no partner data in tracking routes)
  */
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
@@ -24,6 +24,14 @@ vi.mock('next/link', () => ({
   default: (props: any) => props.children ?? null,
 }))
 
+// Logged in as shop B: the repair shop the jobs were sent to
+vi.mock('@/store/auth.store', () => ({
+  useAuthStore: (sel?: (st: any) => unknown) => {
+    const st = { user: { tenantId: 'tenant-b' } }
+    return sel ? sel(st) : st
+  },
+}))
+
 import PartnerRepairsPage from '@/app/(dashboard)/partner-repairs/page'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -35,6 +43,9 @@ function makeTransfer(overrides: Record<string, unknown> = {}) {
   return {
     id:                 `tr-${Math.random().toString(36).slice(2)}`,
     status:             'PENDING_ACCEPTANCE',
+    ownerTenantId:      'tenant-a',
+    partnerTenantId:    'tenant-b',
+    repairId:           'repair-1',
     agreedPartnerPrice: null,
     pricingNote:        null,
     sentAt:             '2026-08-20T10:00:00Z',
@@ -63,6 +74,11 @@ function makeTransfer(overrides: Record<string, unknown> = {}) {
 function stubMutation() {
   mockUseMutation.mockReturnValue({ mutate: vi.fn(), isPending: false } as any)
 }
+
+// The page's transfer list gets the test data; other queries (the quote panel's) get nothing
+;(mockUseQuery as any).mockReturnValue = (v: any) =>
+  mockUseQuery.mockImplementation(((opts: any) =>
+    opts?.queryKey?.[0] === 'partner-transfers' ? v : { data: undefined, isLoading: false, error: null }) as any)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -145,7 +161,7 @@ describe('UI-10 — Shop B work queue sections', () => {
   it('shows empty state when no transfers exist', () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false, error: null } as any)
     render(<PartnerRepairsPage />)
-    expect(screen.getByText('ยังไม่มีงานซ่อมพาร์ทเนอร์')).toBeInTheDocument()
+    expect(screen.getByText('ยังไม่มีงานที่ร้านพาร์ทเนอร์ส่งมา')).toBeInTheDocument()
   })
 
   it('shows loading state', () => {
@@ -341,5 +357,45 @@ describe('UI-12 — customer tracking page has no partner data', () => {
     const text = container.textContent ?? ''
     expect(text).not.toContain('tenant-a-owner')
     expect(text).not.toContain('tenant-b-partner')
+  })
+})
+
+// ── Outgoing side: jobs this shop sent to a partner ──────────────────────────
+
+describe('UI-20 — jobs we sent out (tab "ส่งออกไป")', () => {
+  function renderOutgoing(status: string) {
+    mockUseQuery.mockReturnValue({
+      data: [makeTransfer({ status, ownerTenantId: 'tenant-b', partnerTenantId: 'tenant-c' })],
+      isLoading: false, error: null,
+    } as any)
+    render(<PartnerRepairsPage />)
+    fireEvent.click(screen.getByRole('tab', { name: /ส่งออกไป/ }))
+  }
+
+  it('is not listed under "รับเข้ามา"', () => {
+    mockUseQuery.mockReturnValue({
+      data: [makeTransfer({ ownerTenantId: 'tenant-b', partnerTenantId: 'tenant-c' })], isLoading: false, error: null,
+    } as any)
+    render(<PartnerRepairsPage />)
+    expect(screen.queryByText('รับงาน')).toBeNull()
+    expect(screen.getByText('ยังไม่มีงานที่ร้านพาร์ทเนอร์ส่งมา')).toBeInTheDocument()
+  })
+
+  it('waiting for the partner to accept: we can cancel, not accept', () => {
+    renderOutgoing('PENDING_ACCEPTANCE')
+    expect(screen.queryByText('รับงาน')).toBeNull()
+    expect(screen.getByRole('button', { name: /ยกเลิก/ })).toBeInTheDocument()
+  })
+
+  it('device returned by the partner: we confirm we got it back', () => {
+    renderOutgoing('DEVICE_RETURNED')
+    expect(screen.getByRole('button', { name: /รับเครื่องคืนแล้ว/ })).toBeInTheDocument()
+    expect(screen.queryByText('ส่งคืนเครื่องแล้ว')).toBeNull()
+  })
+
+  it('device at the partner: no partner work buttons on our side', () => {
+    renderOutgoing('IN_PROGRESS')
+    expect(screen.queryByText('ซ่อมเสร็จแล้ว')).toBeNull()
+    expect(screen.getByText(/เปิดใบงานของเรา/)).toBeInTheDocument()
   })
 })

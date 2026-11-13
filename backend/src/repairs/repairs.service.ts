@@ -1338,6 +1338,7 @@ export class RepairsService {
         id: true, status: true, paymentStatus: true,
         estimatedTotal: true, finalCost: true, estimateCost: true, deposit: true,
         branch: { select: { tenantId: true } },
+        additionalPayments: { select: { amount: true } },
       },
     });
 
@@ -1349,6 +1350,18 @@ export class RepairsService {
 
     if (repair.paymentStatus === 'PAID') {
       throw new BadRequestException('งานซ่อมนี้ชำระเงินแล้ว');
+    }
+
+    // The device is with a partner shop until this shop confirms it came back: handing it over
+    // (and closing the job) before that left the transfer open with the device still out
+    const atPartner = await this.prisma.partnerRepairTransfer.findFirst({
+      where: { repairId, status: { notIn: ['REJECTED', 'CANCELLED', 'RECALLED', 'OWNER_RECEIVED'] } },
+      select: { status: true },
+    });
+    if (atPartner) {
+      throw new BadRequestException(
+        'เครื่องยังอยู่ที่ร้านพาร์ทเนอร์ — รอร้านพาร์ทเนอร์ส่งคืน แล้วกด "รับเครื่องคืนแล้ว" ก่อนรับเงินและส่งมอบ',
+      );
     }
 
     const price = dto.finalCost != null
@@ -1370,7 +1383,17 @@ export class RepairsService {
     }
     const total = Math.round((price - discount) * 100) / 100;
     const deposit = Number(repair.deposit ?? 0);
-    const balance = Math.max(0, total - deposit);
+    // Money the customer already paid on this job besides the deposit: payments taken before
+    // pickup, or debt payments kept after a reversal. Pickup used to ask for total − deposit
+    // again, so the customer paid that part twice.
+    const paidBefore = Math.round((repair.additionalPayments ?? []).reduce((s, p) => s + Number(p.amount), 0) * 100) / 100;
+    if (deposit + paidBefore > total + 0.005) {
+      throw new BadRequestException(
+        `ราคานี้ (${total} บาท) ต่ำกว่าเงินที่ลูกค้าจ่ายมาแล้ว (${deposit + paidBefore} บาท) — ` +
+        'ระบบยังคืนเงินส่วนเกินอัตโนมัติไม่ได้ ให้ตั้งราคาไม่ต่ำกว่ายอดที่จ่ายมาแล้ว หรือยกเลิกงานแล้วคืนเงิน',
+      );
+    }
+    const balance = Math.max(0, Math.round((total - deposit - paidBefore) * 100) / 100);
 
     const isPartial = dto.allowPartial === true && dto.amountPaid < balance;
     // amountPaid from the UI is the money tendered (cash includes change). The shop keeps at most
@@ -1640,20 +1663,27 @@ export class RepairsService {
       select: {
         id: true, status: true, branchId: true, ticketNumber: true,
         paymentStatus: true, finalCost: true, deposit: true, paidAmount: true,
+        estimatedTotal: true, estimateCost: true,
         branch: { select: { tenantId: true } },
         additionalPayments: { select: { amount: true } },
       },
     });
 
     if (!repair) throw new NotFoundException('Repair not found');
-    if (!['COMPLETED', 'DELIVERED'].includes(repair.status)) {
+    if (!['COMPLETED', 'READY_PICKUP', 'DELIVERED'].includes(repair.status)) {
       throw new BadRequestException('สามารถเพิ่มการชำระเงินได้เฉพาะงานซ่อมที่เสร็จแล้วหรือส่งมอบแล้ว');
     }
+    if (repair.paymentStatus === 'PAID') {
+      throw new BadRequestException('งานนี้ชำระครบแล้ว ไม่มียอดให้รับเพิ่ม');
+    }
 
+    // Money taken here belongs in a shift's count like any other payment: without one, cash went
+    // into the drawer and no shift expected it
     const activeShift = await this.prisma.shift.findFirst({
       where: activeShiftWhere(userId),
       select: { id: true },
     });
+    if (!activeShift) throw new BadRequestException('กรุณาเปิดกะก่อนรับเงิน');
 
     const payment = await this.prisma.$transaction(async (tx) => {
       // Lock the repair and re-read balances so concurrent payments are checked one at a time
@@ -1666,13 +1696,16 @@ export class RepairsService {
       repair.paidAmount         = fresh.paidAmount;
       repair.additionalPayments = fresh.additionalPayments;
 
-      // Paying off a debt (PARTIAL): never accept more than what is still owed
-      if (repair.paymentStatus === 'PARTIAL' && repair.finalCost) {
-        const owed = Number(repair.finalCost) - Number(repair.deposit ?? 0) - Number(repair.paidAmount ?? 0)
-          - repair.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-        if (dto.amount > owed + 0.005) {
-          throw new BadRequestException(`ยอดชำระเกินยอดค้างชำระ (คงเหลือ ${Math.max(0, owed).toFixed(2)} บาท)`);
-        }
+      if (repair.paymentStatus === 'PAID') throw new BadRequestException('งานนี้ชำระครบแล้ว ไม่มียอดให้รับเพิ่ม');
+      // Never more than what is still owed: the debt after pickup (PARTIAL), or before pickup the
+      // quoted price less the deposit and what was already paid (pickup now deducts these)
+      const already = repair.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const price = repair.paymentStatus === 'PARTIAL' && repair.finalCost
+        ? Number(repair.finalCost)
+        : Number(repair.estimatedTotal ?? repair.finalCost ?? repair.estimateCost ?? 0);
+      const owed = price - Number(repair.deposit ?? 0) - Number(repair.paidAmount ?? 0) - already;
+      if (dto.amount > owed + 0.005) {
+        throw new BadRequestException(`ยอดชำระเกินยอดค้างชำระ (คงเหลือ ${Math.max(0, owed).toFixed(2)} บาท)`);
       }
 
       const created = await tx.repairAdditionalPayment.create({
@@ -1681,7 +1714,7 @@ export class RepairsService {
           amount:        dto.amount,
           paymentMethod: dto.paymentMethod as any,
           note:          dto.note,
-          shiftId:       activeShift?.id,
+          shiftId:       activeShift.id,
           createdById:   userId,
         },
       });

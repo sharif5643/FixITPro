@@ -127,12 +127,13 @@ export function PartnerTransferPanel({ repair }: Props) {
   if (!hasPartner && !transfer) return null
 
   // If repair is DELIVERED or CANCELLED, don't allow new transfers but still show existing ones
+  const isTerminal = transfer ? TERMINAL_STATUSES.includes(transfer.status) : false
+  // A job can be sent again once the last transfer ended (rejected, cancelled, recalled, or the
+  // device came back) — before, a rejection blocked the job from going to any other partner
   const canSend = hasPartner &&
-    !transfer &&
+    (!transfer || isTerminal) &&
     repair.status !== 'DELIVERED' &&
     repair.status !== 'CANCELLED'
-
-  const isTerminal = transfer ? TERMINAL_STATUSES.includes(transfer.status) : false
   const canCancel  = transfer?.status === 'PENDING_ACCEPTANCE'
   const canRecall  = isOwner && transfer?.status === 'ACCEPTED'
   const canOwnerRx = transfer?.status === 'DEVICE_RETURNED'
@@ -153,7 +154,7 @@ export function PartnerTransferPanel({ repair }: Props) {
               className="h-7 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700"
             >
               <Users className="h-3.5 w-3.5" />
-              ส่งต่องานให้ Partner
+              {transfer ? 'ส่งให้ Partner อีกครั้ง' : 'ส่งต่องานให้ Partner'}
             </Button>
           )}
         </div>

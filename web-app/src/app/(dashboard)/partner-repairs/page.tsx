@@ -7,6 +7,9 @@ import { Loader2, Users, Package, Wrench, CheckCircle2, Clock, RotateCcw, XCircl
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { apiErrorMessage } from '@/lib/utils'
+import Link from 'next/link'
+import { useAuthStore } from '@/store/auth.store'
+import { QuotationPanel } from '@/components/partner-repair/QuotationPanel'
 import {
   getAllTransfers,
   acceptTransfer,
@@ -15,6 +18,9 @@ import {
   startTransfer,
   completeTransfer,
   returnDeviceTransfer,
+  ownerReceivedTransfer,
+  cancelTransfer,
+  recallTransfer,
   TRANSFER_STATUS_LABEL,
   TERMINAL_STATUSES,
   type PartnerRepairTransfer,
@@ -41,8 +47,35 @@ const STATUS_COLOR: Record<PartnerTransferStatus, string> = {
   RECALLED:           'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
 }
 
-function TransferCard({ transfer }: { transfer: PartnerRepairTransfer }) {
+/**
+ * One transfer, seen from this shop's side: the shop that RECEIVED the job (partner) works it —
+ * accept, receive the device, repair, return it, and proposes the price; the shop that SENT it
+ * (owner) can cancel or recall it, accepts the price, and confirms the device came back.
+ * Before, every card showed the partner's buttons, so the sending shop pressed "รับงาน" on its
+ * own job and got an error, and nobody could confirm a returned device from this page.
+ */
+function TransferCard({ transfer, side }: { transfer: PartnerRepairTransfer; side: 'in' | 'out' }) {
   const queryClient = useQueryClient()
+  const [confirmStop, setConfirmStop] = useState(false)
+  const [stopNote, setStopNote] = useState('')
+  const done = (msg: string) => () => {
+    queryClient.invalidateQueries({ queryKey: ['partner-transfers'] })
+    queryClient.invalidateQueries({ queryKey: ['partner-transfer'] })
+    toast.success(msg)
+  }
+  const ownerRecvMut = useMutation({
+    mutationFn: () => ownerReceivedTransfer(transfer.id),
+    onSuccess:  done('รับเครื่องคืนแล้ว'),
+    onError:    (err: any) => toast.error(apiErrorMessage(err)),
+  })
+  // before the partner accepts: cancel; after (device not yet with them): recall
+  const stopMut = useMutation({
+    mutationFn: () => transfer.status === 'PENDING_ACCEPTANCE'
+      ? cancelTransfer(transfer.id, stopNote.trim() || undefined)
+      : recallTransfer(transfer.id, stopNote.trim() || undefined),
+    onSuccess:  () => { setConfirmStop(false); done(transfer.status === 'PENDING_ACCEPTANCE' ? 'ยกเลิกการส่งงานแล้ว' : 'เรียกงานคืนแล้ว')() },
+    onError:    (err: any) => toast.error(apiErrorMessage(err)),
+  })
   const [confirmReject,  setConfirmReject]  = useState(false)
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [rejectNote,     setRejectNote]     = useState('')
@@ -120,8 +153,64 @@ function TransferCard({ transfer }: { transfer: PartnerRepairTransfer }) {
         <p className="text-xs text-muted-foreground">หมายเหตุ: {transfer.partnerWorkNote}</p>
       )}
 
-      {/* Actions */}
-      {!isTerminal && !confirmReject && !confirmComplete && (
+      {side === 'out' && (
+        <Link href={`/repairs?open=${transfer.repairId}`} className="inline-block text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400">
+          เปิดใบงานของเรา →
+        </Link>
+      )}
+
+      {/* Price: the receiving shop proposes it, the sending shop accepts or counters */}
+      {!['PENDING_ACCEPTANCE', 'REJECTED', 'CANCELLED', 'RECALLED'].includes(transfer.status) && (
+        <QuotationPanel
+          transferId={transfer.id}
+          ownerTenantId={transfer.ownerTenantId ?? ''}
+          partnerTenantId={transfer.partnerTenantId}
+          transferStatus={transfer.status}
+        />
+      )}
+
+      {/* Actions of the shop that sent the job */}
+      {side === 'out' && !isTerminal && !confirmStop && (
+        <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100 dark:border-slate-700/40">
+          {transfer.status === 'DEVICE_RETURNED' && (
+            <Button size="sm" className="h-7 text-xs w-full bg-emerald-600 hover:bg-emerald-700 gap-1.5"
+              onClick={() => ownerRecvMut.mutate()} disabled={ownerRecvMut.isPending}>
+              {ownerRecvMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+              รับเครื่องคืนแล้ว
+            </Button>
+          )}
+          {(transfer.status === 'PENDING_ACCEPTANCE' || transfer.status === 'ACCEPTED') && (
+            <Button size="sm" variant="outline" className="h-7 text-xs w-full text-red-600 border-red-200 gap-1.5"
+              onClick={() => setConfirmStop(true)}>
+              <XCircle className="h-3 w-3" />
+              {transfer.status === 'PENDING_ACCEPTANCE' ? 'ยกเลิกการส่งงาน' : 'เรียกงานคืน'}
+            </Button>
+          )}
+          {['DEVICE_RECEIVED', 'IN_PROGRESS', 'COMPLETED'].includes(transfer.status) && (
+            <p className="text-xs text-muted-foreground w-full">เครื่องอยู่ที่ร้านพาร์ทเนอร์ — รอเขาซ่อมและส่งคืน</p>
+          )}
+        </div>
+      )}
+      {side === 'out' && confirmStop && (
+        <div className="rounded-lg border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/10 p-3 space-y-2">
+          <p className="text-xs font-medium text-red-700 dark:text-red-400">
+            {transfer.status === 'PENDING_ACCEPTANCE' ? 'ยืนยันยกเลิกการส่งงานนี้?' : 'ยืนยันเรียกงานคืน? ร้านพาร์ทเนอร์จะไม่ต้องรับเครื่องแล้ว'}
+          </p>
+          <textarea
+            className="w-full text-xs p-2 rounded border border-red-200 dark:border-red-700/60 bg-white dark:bg-[#1E293B] text-slate-900 dark:text-white resize-none focus:outline-none focus:ring-1 focus:ring-red-400"
+            rows={2} placeholder="เหตุผล (ไม่บังคับ)" value={stopNote} onChange={(e) => setStopNote(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => setConfirmStop(false)}>ไม่ใช่</Button>
+            <Button size="sm" className="h-7 text-xs flex-1 bg-red-600 hover:bg-red-700" onClick={() => stopMut.mutate()} disabled={stopMut.isPending}>
+              {stopMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : 'ยืนยัน'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Actions of the shop that received the job */}
+      {side === 'in' && !isTerminal && !confirmReject && !confirmComplete && (
         <div className="flex flex-wrap gap-2 pt-1 border-t border-slate-100 dark:border-slate-700/40">
           {transfer.status === 'PENDING_ACCEPTANCE' && (
             <>
@@ -227,7 +316,9 @@ const GROUPS: Group[] = [
 ]
 
 export default function PartnerRepairsPage() {
-  const { data: transfers = [], isLoading, error } = useQuery({
+  const myTenantId = useAuthStore((st) => st.user?.tenantId ?? null)
+  const [side, setSide] = useState<'in' | 'out'>('in')
+  const { data: all = [], isLoading, error } = useQuery({
     queryKey: ['partner-transfers'],
     queryFn:  getAllTransfers,
     refetchInterval: 30_000,
@@ -250,21 +341,37 @@ export default function PartnerRepairsPage() {
     )
   }
 
-  const totalActive = transfers.filter(t => !TERMINAL_STATUSES.includes(t.status)).length
+  // Jobs other shops sent us (we repair them) vs jobs we sent out (another shop repairs them)
+  const incoming = all.filter((t) => t.partnerTenantId === myTenantId)
+  const outgoing = all.filter((t) => t.partnerTenantId !== myTenantId)
+  const transfers = side === 'in' ? incoming : outgoing
+  const activeOf = (list: PartnerRepairTransfer[]) => list.filter((t) => !TERMINAL_STATUSES.includes(t.status)).length
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="งานซ่อมพาร์ทเนอร์"
-        subtitle="งานซ่อมที่ส่งมาจากร้านพาร์ทเนอร์"
+        subtitle="งานที่ร้านพาร์ทเนอร์ส่งมาให้เราซ่อม และงานที่เราส่งไปให้ร้านพาร์ทเนอร์"
         icon={Users}
       />
+
+      <div className="flex gap-2" role="tablist">
+        {([['in', 'รับเข้ามา', 'ร้านอื่นส่งมาให้เราซ่อม', incoming], ['out', 'ส่งออกไป', 'เราส่งไปให้ร้านอื่นซ่อม', outgoing]] as const).map(([key, label, hint, list]) => (
+          <button key={key} type="button" role="tab" aria-selected={side === key} onClick={() => setSide(key)}
+            className={`flex-1 rounded-xl border px-4 py-2.5 text-left transition-colors ${side === key
+              ? 'border-blue-600 bg-blue-50 text-blue-800 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-200'
+              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300'}`}>
+            <span className="block text-sm font-bold">{label}{activeOf(list) > 0 ? ` · ${activeOf(list)} งานค้าง` : ''}</span>
+            <span className="block text-xs opacity-75">{hint}</span>
+          </button>
+        ))}
+      </div>
 
       {transfers.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-12 text-center space-y-2">
           <Users className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-          <p className="text-sm text-muted-foreground">ยังไม่มีงานซ่อมพาร์ทเนอร์</p>
-          <p className="text-xs text-muted-foreground">เมื่อร้านพาร์ทเนอร์ส่งงานมา จะปรากฏที่นี่</p>
+          <p className="text-sm text-muted-foreground">{side === 'in' ? 'ยังไม่มีงานที่ร้านพาร์ทเนอร์ส่งมา' : 'ยังไม่ได้ส่งงานให้ร้านพาร์ทเนอร์'}</p>
+          <p className="text-xs text-muted-foreground">{side === 'in' ? 'เมื่อร้านพาร์ทเนอร์ส่งงานมา จะปรากฏที่นี่' : 'ส่งงานได้จากหน้ารายละเอียดงานซ่อม ปุ่ม "ส่งให้ร้านพาร์ทเนอร์"'}</p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -283,7 +390,7 @@ export default function PartnerRepairsPage() {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {items.map(t => <TransferCard key={t.id} transfer={t} />)}
+                  {items.map(t => <TransferCard key={t.id} transfer={t} side={side} />)}
                 </div>
               </section>
             )

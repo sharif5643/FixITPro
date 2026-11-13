@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -101,13 +101,8 @@ export default function DailyClosePage() {
     ? report.revenue.cash + (report.revenue.packages.byMethod?.CASH ?? 0) + (report.drawer?.in ?? 0) - (report.drawer?.outTotal ?? 0)
     : 0
 
-  // Pre-fill actualCash from expected cash if field is empty
-  useEffect(() => {
-    if (report && actualCash === '') {
-      setActualCash(String(Math.round(expectedCash)))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report?.date])
+  // The counted cash is typed by whoever counts the drawer. It used to be filled in with the
+  // expected amount, so a close could be saved without counting and always showed no difference.
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -187,7 +182,7 @@ export default function DailyClosePage() {
                   value={actualCash}
                   onChange={(e) => setActualCash(e.target.value)}
                   className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="0"
+                  placeholder="นับเงินในลิ้นชักแล้วใส่ยอด"
                   min="0"
                 />
               </div>
@@ -225,7 +220,7 @@ export default function DailyClosePage() {
             ) : (
               <button
                 onClick={() => saveMutation.mutate()}
-                disabled={saveMutation.isPending}
+                disabled={saveMutation.isPending || actualCash.trim() === ''}
                 className="w-full h-12 rounded-2xl bg-emerald-600 text-white font-bold text-sm flex items-center justify-center gap-2 mb-5 disabled:opacity-60"
               >
                 {saveMutation.isPending ? (

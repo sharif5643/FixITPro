@@ -150,7 +150,9 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const discountNum   = Math.max(0, Number(discount) || 0)
   const finalNum      = Math.max(0, priceNum - discountNum)
   const deposit       = repair.deposit ?? 0
-  const remaining     = Math.max(0, finalNum - deposit)
+  // paid before pickup (or kept after a reversal): pickup asks only for what is still owed
+  const paidBefore    = (repair.additionalPayments ?? []).reduce((s: number, x: any) => s + Number(x.amount), 0)
+  const remaining     = Math.max(0, finalNum - Number(deposit) - paidBefore)
   const paidNum       = Number(amountPaid) || 0
   const change        = Math.max(0, paidNum - remaining)
   // Pay later: what is paid today (any method, may be 0); otherwise cash tendered or the exact balance
