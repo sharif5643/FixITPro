@@ -5,6 +5,7 @@ import { th } from 'date-fns/locale'
 import { QRCodeSVG } from 'qrcode.react'
 import { formatThaiMoney } from '@/lib/utils'
 import type { Repair, ShopSettings } from '@/types'
+import { repairTaxInvoice, taxIdLine, vatMoney } from '@/lib/tax-invoice'
 
 interface RepairReceiptProps {
   repair: Repair
@@ -140,6 +141,17 @@ function ThermalReceipt({ repair, paperWidth, settings, trackingBaseUrl }: {
         {repair.dueDate && <Row label="นัดรับ" value={fmtDay(repair.dueDate)} />}
         <Row label="ราคาประเมิน" value={estimateCost > 0 ? formatThaiMoney(estimateCost) : '-'} />
         <Row label="ค่ามัดจำ"    value={deposit > 0 ? formatThaiMoney(deposit) : '-'} bold />
+        {(() => {
+          // A shop that charges VAT: the deposit has an abbreviated tax invoice
+          const ti = repairTaxInvoice(repair.taxInvoices, 'REPAIR_DEPOSIT')
+          return ti ? (
+            <div className="text-[9px] text-gray-700">
+              <p>ใบกำกับภาษีอย่างย่อ เลขที่ {ti.number}</p>
+              {settings?.taxId && <p>{taxIdLine(settings.taxId, settings.taxBranch)}</p>}
+              <p>มัดจำรวมภาษีมูลค่าเพิ่มแล้ว · มูลค่าก่อนภาษี {vatMoney(ti.vatBase)} · VAT {Number(ti.vatPercent)}% {vatMoney(ti.vatAmount)}</p>
+            </div>
+          ) : null
+        })()}
       </div>
       <Divider />
 
@@ -319,6 +331,18 @@ function RepairReceiptA4({ repair, settings, trackingBaseUrl }: {
                 {deposit > 0 ? formatThaiMoney(deposit) : '—'}
               </td>
             </tr>
+            {(() => {
+              const ti = repairTaxInvoice(repair.taxInvoices, 'REPAIR_DEPOSIT')
+              return ti ? (
+                <tr className="border-b border-gray-100 text-xs text-gray-600">
+                  <td className="py-2 px-4" colSpan={2}>
+                    ใบกำกับภาษีอย่างย่อ เลขที่ {ti.number}
+                    {settings?.taxId ? ` · ${taxIdLine(settings.taxId, settings.taxBranch)}` : ''}
+                    {` · รวมภาษีมูลค่าเพิ่มแล้ว (มูลค่าก่อนภาษี ${vatMoney(ti.vatBase)} · VAT ${Number(ti.vatPercent)}% ${vatMoney(ti.vatAmount)})`}
+                  </td>
+                </tr>
+              ) : null
+            })()}
           </tbody>
         </table>
       </div>

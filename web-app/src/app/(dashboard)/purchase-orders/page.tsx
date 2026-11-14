@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { SupplierTaxInvoiceForm } from '@/components/purchase/supplier-tax-invoice-form'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -753,6 +754,10 @@ export default function PurchaseOrdersPage() {
                     <div className="flex justify-between font-semibold text-red-600 dark:text-red-400"><span>ยอดค้างชำระ</span><span>฿{fmt(Math.max(0, Number(detail.total) - Number(detail.paidTotal)))}</span></div>
                   </>}
                 </div>
+
+                {Number(detail.vatAmount) > 0 && detail.status !== 'CANCELLED' && (
+                  <SupplierTaxInvoiceForm key={detail.id} po={detail as any} />
+                )}
 
                 {/* Payment history */}
                 {(detail.payments?.length ?? 0) > 0 && (

@@ -792,6 +792,22 @@ SELECT r.id,
   ) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok' AS newest_activity_bkk
 FROM ryu r;
 
+\echo '32d. Same shop, last 30 days (Bangkok): per day with any activity — bills, money, shifts opened, logins that day'
+WITH ryu AS (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%'),
+s AS (SELECT (x."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date AS d, count(*) AS bills, sum(x.total) AS money
+      FROM "Sale" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" IN (SELECT id FROM ryu) AND x.status <> 'VOIDED'
+        AND x."createdAt" > now() - interval '30 days' GROUP BY 1),
+sh AS (SELECT (x."openedAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date AS d, count(*) AS shifts
+      FROM "Shift" x JOIN "User" u ON u.id = x."userId" WHERE u."tenantId" IN (SELECT id FROM ryu) AND x."openedAt" > now() - interval '30 days' GROUP BY 1)
+SELECT COALESCE(s.d, sh.d) AS day, COALESCE(s.bills, 0) AS bills, COALESCE(s.money, 0) AS money, COALESCE(sh.shifts, 0) AS shifts_opened
+FROM s FULL JOIN sh ON sh.d = s.d ORDER BY 1;
+\echo '32e. Same shop: each person (role only) — last login, last bill made, active'
+WITH ryu AS (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%')
+SELECT u.role, u."isActive",
+  (u."lastLoginAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok') AS last_login_bkk,
+  (SELECT max(x."createdAt") FROM "Sale" x WHERE x."userId" = u.id) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok' AS last_bill_bkk
+FROM "User" u WHERE u."tenantId" IN (SELECT id FROM ryu) ORDER BY 1;
+
 \echo '--- 33. Money health: is profit right? (ids only, numbers summed) ---'
 \echo '33a. Each shop, 1 Nov to now (Bangkok), close to the profit report: sales − refunds, cost of goods, repair money, repair cost, SIM profit, expenses → net'
 WITH bounds AS (SELECT (date_trunc('month', now() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok') AS s),
@@ -895,5 +911,17 @@ SELECT u."tenantId", (e."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangko
   (SELECT count(*) FROM "Branch" b WHERE b."tenantId" = u."tenantId" AND b."isActive") AS shop_branches
 FROM "Expense" e JOIN "User" u ON u.id = e."createdById" JOIN "ExpenseCategory" c ON c.id = e."categoryId"
 WHERE e."branchId" IS NULL AND e."voidedAt" IS NULL ORDER BY 1, 2;
+
+\echo '--- 34. VAT: shops that charge VAT or have a tax id (ids only) ---'
+\echo '34a. Per shop: VAT % set, tax id filled, tax branch filled, sales and paid repairs in the last 30 days'
+SELECT s."tenantId", s."vatPercent", (s."taxId" IS NOT NULL AND s."taxId" <> '') AS has_tax_id,
+  (s."taxBranch" IS NOT NULL AND s."taxBranch" <> '') AS has_tax_branch,
+  (SELECT count(*) FROM "Sale" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = s."tenantId" AND x."createdAt" > now() - interval '30 days') AS sales_30d,
+  (SELECT count(*) FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId" WHERE b."tenantId" = s."tenantId" AND r."paidAt" > now() - interval '30 days') AS repairs_paid_30d,
+  (SELECT count(*) FROM "FormalDocument" f WHERE f."tenantId" = s."tenantId" AND f."vatPercent" > 0) AS formal_vat_docs
+FROM "ShopSettings" s WHERE s."tenantId" IS NOT NULL AND (s."vatPercent" > 0 OR (s."taxId" IS NOT NULL AND s."taxId" <> '')) ORDER BY 1;
+\echo '34b. Purchase orders with VAT, per shop'
+SELECT sp."tenantId", count(*) AS pos_with_vat, sum(po."vatAmount") AS input_vat
+FROM "PurchaseOrder" po JOIN "Supplier" sp ON sp.id = po."supplierId" WHERE po."vatAmount" > 0 GROUP BY 1 ORDER BY 1;
 
 ROLLBACK;

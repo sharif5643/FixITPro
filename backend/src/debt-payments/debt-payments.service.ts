@@ -1,12 +1,14 @@
 import { randomBytes } from 'crypto';
 import {
   Injectable,
+  Optional,
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { activeShiftWhere } from '../shifts/active-shift';
 import { PrismaService } from '../database/prisma.service';
+import { TaxInvoicesService } from '../tax-invoices/tax-invoices.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
@@ -22,6 +24,7 @@ export class DebtPaymentsService {
     private notif: NotificationsService,
     private accounting: AccountingService,
     private repairAccounting: RepairAccountingAdapter,
+    @Optional() private taxInvoices?: TaxInvoicesService,
   ) {}
 
   private generateReceiptNumber(): string {
@@ -125,6 +128,13 @@ export class DebtPaymentsService {
         data:  { paymentStatus: newPaymentStatus },
       });
 
+      // Shops that charge VAT: an abbreviated tax invoice for the money taken
+      await this.taxInvoices?.issue(tx, {
+        tenantId: repair.branch?.tenantId ?? tenantId, branchId: repair.branchId ?? null,
+        sourceType: 'REPAIR_ADDITIONAL', sourceId: pmt.id, total: Number(dto.amount),
+        reference: receiptNumber, customerName: repair.customer?.name ?? null, actorId: userId,
+      });
+
       await tx.auditLog.create({
         data: {
           actorId:    userId,
@@ -170,6 +180,7 @@ export class DebtPaymentsService {
         userId,
       );
     }
+    await this.taxInvoices?.bookVat(dpTenantId ?? tenantId);
 
     if (newPaymentStatus === 'PAID') {
       await this.notif.notify({

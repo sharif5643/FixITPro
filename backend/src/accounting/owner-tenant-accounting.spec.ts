@@ -85,8 +85,8 @@ function makeRedisMock() {
 
 describe('OT-COA — Chart of Accounts (17 accounts for owner tenant)', () => {
   it('OT-COA-01: COA template has exactly 17 accounts', () => {
-    expect(COA_TEMPLATE_COUNT).toBe(18);
-    expect(CHART_OF_ACCOUNTS_TEMPLATE).toHaveLength(18);
+    expect(COA_TEMPLATE_COUNT).toBe(20);
+    expect(CHART_OF_ACCOUNTS_TEMPLATE).toHaveLength(20);
   });
 
   it('OT-COA-02: all ACCOUNT_CODES values present in COA template', () => {
@@ -105,7 +105,7 @@ describe('OT-COA — Chart of Accounts (17 accounts for owner tenant)', () => {
       expect(seen.has(acct.code)).toBe(false);
       seen.add(acct.code);
     }
-    expect(seen.size).toBe(18);
+    expect(seen.size).toBe(20);
   });
 });
 

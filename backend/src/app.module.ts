@@ -16,6 +16,7 @@ import { CustomersModule } from './customers/customers.module';
 import { SalesModule } from './sales/sales.module';
 import { RepairsModule } from './repairs/repairs.module';
 import { FormalDocumentsModule } from './formal-documents/formal-documents.module';
+import { TaxInvoicesModule } from './tax-invoices/tax-invoices.module';
 import { ShiftsModule } from './shifts/shifts.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
@@ -103,6 +104,7 @@ import { OwnerHubModule } from './owner-hub/owner-hub.module';
     SalesModule,
     RepairsModule,
     FormalDocumentsModule,
+    TaxInvoicesModule,
     ShiftsModule,
     ReportsModule,
     OwnerHubModule,

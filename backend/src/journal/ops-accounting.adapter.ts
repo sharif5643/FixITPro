@@ -67,18 +67,27 @@ export class OpsAccountingAdapter {
     tenantId: string | null | undefined; branchId?: string | null; movementId: string;
     poNumber: string; productName: string; productType?: string | null; amount: number | Prisma.Decimal;
     actorId?: string | null;
+    /** VAT on the goods (input VAT), owed to the supplier with them; 0 when the PO has no VAT */
+    vatAmount?: number | Prisma.Decimal;
   }) {
     const amount = this.dec(p.amount);
     if (!amount.gt(0)) return;
+    const vat = this.dec(p.vatAmount ?? 0).toDecimalPlaces(2);
     const stock = p.productType === 'PART' ? ACCOUNT_CODES.PARTS_INVENTORY : ACCOUNT_CODES.INVENTORY;
     await this.post(p.tenantId, 'recordPurchaseReceipt', {
       branchId: p.branchId, actorId: p.actorId,
       description: `รับสินค้า ${p.productName} — ${p.poNumber}`,
       sourceType: JOURNAL_SOURCE.PO_RECEIVE, sourceId: p.movementId, sourceRef: p.poNumber,
-      lines: [
-        { accountCode: stock,             debit:  amount.toString() },
-        { accountCode: ACCOUNT_CODES.AP,  credit: amount.toString() },
-      ],
+      lines: vat.gt(0)
+        ? [
+            { accountCode: stock,                   debit:  amount.toString() },
+            { accountCode: ACCOUNT_CODES.INPUT_VAT, debit:  vat.toString() },
+            { accountCode: ACCOUNT_CODES.AP,        credit: amount.plus(vat).toString() },
+          ]
+        : [
+            { accountCode: stock,             debit:  amount.toString() },
+            { accountCode: ACCOUNT_CODES.AP,  credit: amount.toString() },
+          ],
     });
   }
 

@@ -14,12 +14,14 @@ export const CHART_OF_ACCOUNTS_TEMPLATE: readonly AccountTemplate[] = [
   { code: '1110', nameTh: 'เงินฝากธนาคาร',           name: 'Bank Deposit',             type: 'ASSET',     sortOrder: 20  },
   { code: '1120', nameTh: 'Transfer/Card Clearing', name: 'Transfer/Card Clearing',   type: 'ASSET',     sortOrder: 30  },
   { code: '1130', nameTh: 'เงินในกระเป๋าค่ายมือถือ',  name: 'Carrier Wallet Balance',   type: 'ASSET',     sortOrder: 35  },
+  { code: '1140', nameTh: 'ภาษีซื้อ',                 name: 'Input VAT',                type: 'ASSET',     sortOrder: 37  },
   { code: '1200', nameTh: 'ลูกหนี้งานซ่อม',           name: 'Repair Accounts Receivable', type: 'ASSET',  sortOrder: 40  },
   { code: '1210', nameTh: 'ลูกหนี้อื่น',              name: 'Other Accounts Receivable', type: 'ASSET',   sortOrder: 50  },
   { code: '1300', nameTh: 'สินค้าคงเหลือ',            name: 'Inventory',                type: 'ASSET',     sortOrder: 60  },
   { code: '1310', nameTh: 'อะไหล่คงเหลือ',            name: 'Repair Parts Inventory',  type: 'ASSET',     sortOrder: 70  },
   { code: '2100', nameTh: 'เจ้าหนี้การค้า',           name: 'Accounts Payable',         type: 'LIABILITY', sortOrder: 110 },
   { code: '2110', nameTh: 'เงินมัดจำลูกค้า',          name: 'Customer Deposit',         type: 'LIABILITY', sortOrder: 120 },
+  { code: '2120', nameTh: 'ภาษีขาย',                  name: 'Output VAT',               type: 'LIABILITY', sortOrder: 125 },
   { code: '3100', nameTh: 'ทุนเจ้าของ',               name: "Owner's Equity",           type: 'EQUITY',    sortOrder: 210 },
   { code: '4100', nameTh: 'รายได้จากการขาย',          name: 'Sales Revenue',            type: 'REVENUE',   sortOrder: 310 },
   { code: '4200', nameTh: 'รายได้จากงานซ่อม',         name: 'Repair Revenue',           type: 'REVENUE',   sortOrder: 320 },
@@ -30,4 +32,4 @@ export const CHART_OF_ACCOUNTS_TEMPLATE: readonly AccountTemplate[] = [
   { code: '6200', nameTh: 'ค่าใช้จ่ายอื่น',           name: 'Other Expenses',           type: 'EXPENSE',   sortOrder: 520 },
 ] as const;
 
-export const COA_TEMPLATE_COUNT = CHART_OF_ACCOUNTS_TEMPLATE.length; // 18
+export const COA_TEMPLATE_COUNT = CHART_OF_ACCOUNTS_TEMPLATE.length; // 20

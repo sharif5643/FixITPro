@@ -659,7 +659,8 @@ export default function SettingsPage() {
                   <div className="space-y-1.5">
                     <Label>VAT (%)</Label>
                     <Input type="number" min={0} max={100} step={0.5} placeholder="0" {...register('vatPercent')} />
-                    <p className="text-xs text-slate-400">0 = ไม่คิด VAT · 7 = VAT 7% — ถ้ามากกว่า 0 ใบเสร็จ A4 จะออกเป็นใบเสร็จรับเงิน/ใบกำกับภาษี</p>
+                    <p className="text-xs text-slate-400">0 = ไม่คิด VAT · 7 = VAT 7% (เฉพาะร้านที่จดทะเบียนภาษีมูลค่าเพิ่มแล้ว)</p>
+                    <p className="text-xs text-slate-400">เมื่อเปิด VAT: ทุกบิลขายและเงินที่รับจากงานซ่อมจะเป็นใบกำกับภาษีอย่างย่อ เลขที่เรียงต่อกัน · คืนเงินจะออกใบลดหนี้ · ใบเสร็จ A4 เป็นใบกำกับภาษีเต็มรูป · ดูรายงานภาษีที่เมนู รายงานภาษี (VAT) · ต้องใส่เลขประจำตัวผู้เสียภาษี 13 หลักในแท็บข้อมูลร้านก่อน</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label>ค่ามัดจำเริ่มต้น (฿)</Label>

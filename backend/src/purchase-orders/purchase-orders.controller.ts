@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { PurchaseOrdersService } from './purchase-orders.service';
 import { CreatePurchaseOrderDto } from './dto/create-po.dto';
-import { UpdatePurchaseOrderDto } from './dto/update-po.dto';
+import { UpdatePurchaseOrderDto, SupplierTaxInvoiceDto } from './dto/update-po.dto';
 import { ReceiveGoodsDto } from './dto/receive-goods.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -77,6 +77,18 @@ export class PurchaseOrdersController {
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
     return this.poService.update(id, dto, actorId, tenantId);
+  }
+
+  @Patch(':id/supplier-tax-invoice')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('purchase.create')
+  setSupplierTaxInvoice(
+    @Param('id') id: string,
+    @Body() dto: SupplierTaxInvoiceDto,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.poService.setSupplierTaxInvoice(id, dto, actorId, tenantId);
   }
 
   @Post(':id/receive')

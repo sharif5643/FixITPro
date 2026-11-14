@@ -1,6 +1,7 @@
 'use client'
 
 import { format } from 'date-fns'
+import { repairTaxInvoice, taxIdLine, vatMoney } from '@/lib/tax-invoice'
 import { th } from 'date-fns/locale'
 import { formatThaiMoney } from '@/lib/utils'
 import type { Repair, ShopSettings } from '@/types'
@@ -58,6 +59,8 @@ function ThermalDeliveryReceipt({ repair, paperWidth, settings, copyType }: {
   const { finalCost, deposit, remaining, paidAmount, change, chargedParts, freeParts, discount, price, isPartial, outstanding } = calcDelivery(repair)
   const payLabel = PM[repair.paymentMethod ?? ''] ?? repair.paymentMethod ?? ''
   const dateStr  = fmtDate(repair.paidAt ?? repair.deliveredAt ?? new Date().toISOString())
+  // A shop that charges VAT: the money taken at pickup has an abbreviated tax invoice
+  const ti = repairTaxInvoice(repair.taxInvoices, 'REPAIR_PAYMENT')
 
   const Divider = () => <div className="border-b border-dashed border-gray-400 my-1.5" />
   const Row = ({ label, value, bold }: { label: string; value: string; bold?: boolean }) => (
@@ -75,8 +78,10 @@ function ThermalDeliveryReceipt({ repair, paperWidth, settings, copyType }: {
       </div>
       <Divider />
       <p className="text-center font-bold text-[11px]">
-        {isPartial ? 'ใบรับชำระบางส่วน' : 'ใบเสร็จรับเงิน'}
+        {isPartial ? 'ใบรับชำระบางส่วน' : 'ใบเสร็จรับเงิน'}{ti ? ' / ใบกำกับภาษีอย่างย่อ' : ''}
       </p>
+      {ti && <p className="text-center text-[9px]">เลขที่ใบกำกับภาษี {ti.number}</p>}
+      {ti && settings?.taxId && <p className="text-center text-[9px]">{taxIdLine(settings.taxId, settings.taxBranch)}</p>}
       <p className="text-center text-[9px]">ส่งมอบอุปกรณ์</p>
       {copyType && (
         <p className="text-center text-[8px] text-gray-500 mt-0.5">
@@ -137,6 +142,14 @@ function ThermalDeliveryReceipt({ repair, paperWidth, settings, copyType }: {
       <Divider />
       <Row label={`รับ${isPartial ? 'ครั้งนี้' : ''} (${payLabel})`} value={`฿${paidAmount.toLocaleString('th-TH')}`} />
       {change > 0 && <Row label="เงินทอน" value={`฿${change.toLocaleString('th-TH')}`} />}
+      {ti && (
+        <>
+          <p className="text-[9px] text-gray-700">ราคานี้รวมภาษีมูลค่าเพิ่มแล้ว</p>
+          <Row label="มูลค่าก่อนภาษี" value={`฿${Number(ti.vatBase).toLocaleString('th-TH', { minimumFractionDigits: 2 })}`} />
+          <Row label={`ภาษีมูลค่าเพิ่ม ${Number(ti.vatPercent)}%`} value={`฿${Number(ti.vatAmount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}`} />
+          {ti.cancelledAt && <p className="text-[9px] text-gray-700">({ti.cancelReason ?? 'ยกเลิกแล้ว'})</p>}
+        </>
+      )}
 
       {isPartial && (
         <>
@@ -179,6 +192,7 @@ function A4DeliveryReceipt({ repair, settings, copyType }: {
   const { finalCost, deposit, remaining, paidAmount, change, chargedParts, freeParts, discount, price, isPartial, outstanding } = calcDelivery(repair)
   const payLabel = PM[repair.paymentMethod ?? ''] ?? repair.paymentMethod ?? ''
   const dateStr  = fmtDate(repair.paidAt ?? repair.deliveredAt ?? new Date().toISOString())
+  const ti = repairTaxInvoice(repair.taxInvoices, 'REPAIR_PAYMENT')
 
   return (
     <div className="bg-white p-8 max-w-[680px] mx-auto font-sans text-[13px] text-slate-800">
@@ -190,8 +204,10 @@ function A4DeliveryReceipt({ repair, settings, copyType }: {
         </div>
         <div className="text-right">
           <h2 className="text-xl font-bold text-slate-900">
-            {isPartial ? 'ใบรับชำระบางส่วน' : 'ใบเสร็จรับเงิน'}
+            {isPartial ? 'ใบรับชำระบางส่วน' : 'ใบเสร็จรับเงิน'}{ti ? ' / ใบกำกับภาษีอย่างย่อ' : ''}
           </h2>
+          {ti && <p className="text-slate-700 text-sm">เลขที่ใบกำกับภาษี {ti.number}</p>}
+          {ti && settings?.taxId && <p className="text-slate-500 text-xs">{taxIdLine(settings.taxId, settings.taxBranch)}</p>}
           <p className="text-slate-500 text-sm">ส่งมอบอุปกรณ์</p>
           {copyType && (
             <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-600">
@@ -311,6 +327,13 @@ function A4DeliveryReceipt({ repair, settings, copyType }: {
           <div className="flex justify-between text-slate-600">
             <span>เงินทอน</span>
             <span className="tabular-nums">{formatThaiMoney(change)}</span>
+          </div>
+        )}
+        {ti && (
+          <div className="border-t border-slate-100 pt-2 text-slate-600 space-y-0.5">
+            <p className="text-xs">ราคานี้รวมภาษีมูลค่าเพิ่มแล้ว</p>
+            <div className="flex justify-between"><span>มูลค่าก่อนภาษี</span><span className="tabular-nums">{vatMoney(ti.vatBase)}</span></div>
+            <div className="flex justify-between"><span>ภาษีมูลค่าเพิ่ม {Number(ti.vatPercent)}%</span><span className="tabular-nums">{vatMoney(ti.vatAmount)}</span></div>
           </div>
         )}
         {isPartial && (

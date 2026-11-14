@@ -9,7 +9,7 @@ import {
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
   BadgeCheck, Calculator, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Wifi,
-  ListChecks, Handshake, UserPlus, Wallet, Scale, BookMarked, ArrowUpDown, LineChart, Landmark,
+  ListChecks, Handshake, UserPlus, Percent, Wallet, Scale, BookMarked, ArrowUpDown, LineChart, Landmark,
   HardHat, History, ListOrdered, HandCoins, Coins, Star, PanelLeftClose, PanelLeftOpen, Hammer, Crown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -83,6 +83,7 @@ const SHOP_SECTIONS: NavSection[] = [
     { href: '/reconciliation',        icon: Scale,       label: 'กระทบยอดเงินสด',      permission: 'cash_drawer.view_balance', module: 'finance' },
     { href: '/expenses',              icon: Receipt,     label: 'ค่าใช้จ่าย',           permission: 'expenses.manage', module: 'finance' },
     { href: '/reports/payables',      icon: HandCoins,   label: 'รายงานเจ้าหนี้',      permission: 'reports.view',    module: 'finance' },
+    { href: '/reports/vat',           icon: Percent,     label: 'รายงานภาษี (VAT)',    permission: 'reports.view',    ownerOnly: true, module: 'report' },
   ]},
   { key: 'accounting', label: 'บัญชี', open: false, items: [
     { href: '/accounting',                  icon: BookMarked,      label: 'สมุดบัญชี',      ownerOnly: true, module: 'accounting' },
