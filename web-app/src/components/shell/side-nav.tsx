@@ -9,7 +9,7 @@ import {
   ClipboardList, ShieldCheck, FileWarning, UserCog, ShieldAlert, AlertCircle,
   BookOpen, Receipt, TrendingUp, FileSpreadsheet, ScrollText, Bell, Database,
   BadgeCheck, Calculator, BarChart2, FolderInput, GitBranch, ArrowRightLeft, CalendarDays, Wifi,
-  ListChecks, Handshake, Wallet, Scale, BookMarked, ArrowUpDown, LineChart, Landmark,
+  ListChecks, Handshake, UserPlus, Wallet, Scale, BookMarked, ArrowUpDown, LineChart, Landmark,
   HardHat, History, ListOrdered, HandCoins, Coins, Star, PanelLeftClose, PanelLeftOpen, Hammer, Crown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -48,6 +48,7 @@ const SHOP_SECTIONS: NavSection[] = [
     { href: '/reminders',       icon: CalendarDays, label: 'นัดหมาย',        permission: 'repair.create',       module: 'repair' },
     { href: '/repair-prices',   icon: Calculator,   label: 'ตารางราคาซ่อม',  permission: 'repair.create',       module: 'repair' },
     { href: '/partner-repairs', icon: Handshake,    label: 'งานพาร์ทเนอร์',  permission: 'partner_repair.work', module: 'repair' },
+    { href: '/settings/partners', icon: UserPlus,   label: 'ร้านพาร์ทเนอร์',  ownerOnly: true,                   module: 'repair' },
     { href: '/warranties',      icon: BadgeCheck,   label: 'การรับประกัน',   permission: 'warranty.view',       module: 'repair' },
     { href: '/claims',          icon: FileWarning,  label: 'จัดการเคลม',     permission: 'claims.manage',       module: 'repair' },
   ]},
