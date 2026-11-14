@@ -896,4 +896,16 @@ SELECT u."tenantId", (e."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangko
 FROM "Expense" e JOIN "User" u ON u.id = e."createdById" JOIN "ExpenseCategory" c ON c.id = e."categoryId"
 WHERE e."branchId" IS NULL AND e."voidedAt" IS NULL ORDER BY 1, 2;
 
+\echo '--- 34. VAT: shops that charge VAT or have a tax id (ids only) ---'
+\echo '34a. Per shop: VAT % set, tax id filled, tax branch filled, sales and paid repairs in the last 30 days'
+SELECT s."tenantId", s."vatPercent", (s."taxId" IS NOT NULL AND s."taxId" <> '') AS has_tax_id,
+  (s."taxBranch" IS NOT NULL AND s."taxBranch" <> '') AS has_tax_branch,
+  (SELECT count(*) FROM "Sale" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" = s."tenantId" AND x."createdAt" > now() - interval '30 days') AS sales_30d,
+  (SELECT count(*) FROM "Repair" r JOIN "Branch" b ON b.id = r."branchId" WHERE b."tenantId" = s."tenantId" AND r."paidAt" > now() - interval '30 days') AS repairs_paid_30d,
+  (SELECT count(*) FROM "FormalDocument" f WHERE f."tenantId" = s."tenantId" AND f."vatPercent" > 0) AS formal_vat_docs
+FROM "ShopSettings" s WHERE s."tenantId" IS NOT NULL AND (s."vatPercent" > 0 OR (s."taxId" IS NOT NULL AND s."taxId" <> '')) ORDER BY 1;
+\echo '34b. Purchase orders with VAT, per shop'
+SELECT sp."tenantId", count(*) AS pos_with_vat, sum(po."vatAmount") AS input_vat
+FROM "PurchaseOrder" po JOIN "Supplier" sp ON sp.id = po."supplierId" WHERE po."vatAmount" > 0 GROUP BY 1 ORDER BY 1;
+
 ROLLBACK;
