@@ -792,6 +792,22 @@ SELECT r.id,
   ) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok' AS newest_activity_bkk
 FROM ryu r;
 
+\echo '32d. Same shop, last 30 days (Bangkok): per day with any activity — bills, money, shifts opened, logins that day'
+WITH ryu AS (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%'),
+s AS (SELECT (x."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date AS d, count(*) AS bills, sum(x.total) AS money
+      FROM "Sale" x JOIN "Branch" b ON b.id = x."branchId" WHERE b."tenantId" IN (SELECT id FROM ryu) AND x.status <> 'VOIDED'
+        AND x."createdAt" > now() - interval '30 days' GROUP BY 1),
+sh AS (SELECT (x."openedAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok')::date AS d, count(*) AS shifts
+      FROM "Shift" x JOIN "User" u ON u.id = x."userId" WHERE u."tenantId" IN (SELECT id FROM ryu) AND x."openedAt" > now() - interval '30 days' GROUP BY 1)
+SELECT COALESCE(s.d, sh.d) AS day, COALESCE(s.bills, 0) AS bills, COALESCE(s.money, 0) AS money, COALESCE(sh.shifts, 0) AS shifts_opened
+FROM s FULL JOIN sh ON sh.d = s.d ORDER BY 1;
+\echo '32e. Same shop: each person (role only) — last login, last bill made, active'
+WITH ryu AS (SELECT id FROM "Tenant" WHERE "shopName" ILIKE '%ริว%' OR "shopName" ILIKE '%ryu%')
+SELECT u.role, u."isActive",
+  (u."lastLoginAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok') AS last_login_bkk,
+  (SELECT max(x."createdAt") FROM "Sale" x WHERE x."userId" = u.id) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok' AS last_bill_bkk
+FROM "User" u WHERE u."tenantId" IN (SELECT id FROM ryu) ORDER BY 1;
+
 \echo '--- 33. Money health: is profit right? (ids only, numbers summed) ---'
 \echo '33a. Each shop, 1 Nov to now (Bangkok), close to the profit report: sales − refunds, cost of goods, repair money, repair cost, SIM profit, expenses → net'
 WITH bounds AS (SELECT (date_trunc('month', now() AT TIME ZONE 'Asia/Bangkok') AT TIME ZONE 'Asia/Bangkok') AS s),
