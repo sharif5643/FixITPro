@@ -11,7 +11,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { applyAverageCost, CostChange } from '../common/money/average-cost';
 import { AccountingService, ACCOUNTING_SOURCE } from '../accounting/accounting.service';
 import { CreatePurchaseOrderDto } from './dto/create-po.dto';
-import { UpdatePurchaseOrderDto } from './dto/update-po.dto';
+import { UpdatePurchaseOrderDto, SupplierTaxInvoiceDto } from './dto/update-po.dto';
 import { ReceiveGoodsDto } from './dto/receive-goods.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { bangkokYmd } from '../common/bangkok-date';
@@ -169,6 +169,25 @@ export class PurchaseOrdersService {
     });
     if (!po) throw new NotFoundException('Purchase order not found');
     return po;
+  }
+
+  async setSupplierTaxInvoice(id: string, dto: SupplierTaxInvoiceDto, actorId?: string, tenantId?: string | null) {
+    const po = await this.findOne(id, tenantId);
+    if (po.status === 'CANCELLED') throw new BadRequestException('PO นี้ยกเลิกแล้ว');
+    const updated = await this.prisma.purchaseOrder.update({
+      where: { id },
+      data: {
+        supplierTaxInvoiceNo:   dto.supplierTaxInvoiceNo !== undefined ? (dto.supplierTaxInvoiceNo.trim() || null) : undefined,
+        supplierTaxInvoiceDate: dto.supplierTaxInvoiceDate !== undefined ? (dto.supplierTaxInvoiceDate ? new Date(dto.supplierTaxInvoiceDate) : null) : undefined,
+      },
+      include: PO_INCLUDE,
+    });
+    await this.auditLog.log({
+      actorId, action: 'PO_UPDATED', entityType: 'PurchaseOrder', entityId: id,
+      beforeData: { supplierTaxInvoiceNo: (po as any).supplierTaxInvoiceNo ?? null, supplierTaxInvoiceDate: (po as any).supplierTaxInvoiceDate ?? null },
+      afterData:  { supplierTaxInvoiceNo: updated.supplierTaxInvoiceNo, supplierTaxInvoiceDate: updated.supplierTaxInvoiceDate },
+    } as any);
+    return updated;
   }
 
   async update(id: string, dto: UpdatePurchaseOrderDto, actorId?: string, tenantId?: string | null) {
@@ -350,10 +369,13 @@ export class PurchaseOrdersService {
       });
     });
 
+    // VAT on the PO (after its discount) goes with the goods, in proportion to what came in
+    const vatRatio = Number(po.subtotal) > 0 ? Number(po.vatAmount ?? 0) / Number(po.subtotal) : 0;
     for (const r of received) {
       await this.opsAccounting?.recordPurchaseReceipt({
         tenantId, branchId: effectiveBranchId ?? null, movementId: r.movementId, poNumber: po.poNumber,
         productName: r.name, productType: r.type, amount: r.amount, actorId,
+        vatAmount: Math.round(r.amount * vatRatio * 100) / 100,
       });
     }
 

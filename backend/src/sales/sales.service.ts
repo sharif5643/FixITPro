@@ -19,6 +19,7 @@ import { RefundSaleDto } from './dto/refund-sale.dto';
 import { ExchangeSaleDto } from './dto/exchange-sale.dto';
 import { bangkokYmd } from '../common/bangkok-date';
 import { returnSerialsOfLine } from '../stock/serial-stock';
+import { TaxInvoicesService } from '../tax-invoices/tax-invoices.service';
 
 @Injectable()
 export class SalesService {
@@ -29,6 +30,7 @@ export class SalesService {
     private accounting: AccountingService,
     private salesAccounting?: SalesAccountingAdapter,
     @Optional() private lineMsg?: LineMessagingService,
+    @Optional() private taxInvoices?: TaxInvoicesService,
   ) {}
 
   private async syncProductShadowStock(productId: string, tx: any): Promise<void> {
@@ -507,7 +509,14 @@ export class SalesService {
         },
       });
 
-      return sale;
+      // A shop that charges VAT hands the customer an abbreviated tax invoice: its number is taken
+      // here, with the bill, so there is never a bill without one or a number without a bill
+      const taxInvoice = await this.taxInvoices?.issue(tx, {
+        tenantId, branchId: branchId ?? null, sourceType: 'SALE', sourceId: sale.id,
+        total: Number(sale.total), reference: sale.receiptNumber, actorId: userId,
+      }) ?? null;
+
+      return { ...sale, taxInvoice };
     });
 
     // Post-transaction: check low stock for each sold product
@@ -521,6 +530,7 @@ export class SalesService {
 
     // Post-transaction: accounting journal (ACCOUNTING_CORE_ENABLED gates this; never throws)
     await this.salesAccounting?.recordSaleJournal(sale as any, tenantId ?? '', userId);
+    await this.taxInvoices?.bookVat(tenantId);
 
     // The receipt printed right after the sale shows the IMEIs sold on each line and their warranty
     const sold = sale.items.length
@@ -603,6 +613,7 @@ export class SalesService {
         customer: true,
         user: { select: { id: true, name: true } },
         shift: true,
+        branch: { select: { tenantId: true } },
         payments: { orderBy: { sortOrder: 'asc' } },
         refunds: {
           include: {
@@ -615,8 +626,15 @@ export class SalesService {
     });
 
     if (!sale) throw new NotFoundException('Sale not found');
+    // The bill's tax invoice (shops that charge VAT) and the credit notes of its refunds
+    const taxDocs = this.taxInvoices
+      ? await this.taxInvoices.forSources(sale.branch?.tenantId ?? tenantId, 'SALE', [sale.id])
+      : [];
+    const creditNotes = this.taxInvoices && sale.refunds.length
+      ? await this.taxInvoices.forSources(sale.branch?.tenantId ?? tenantId, 'SALE_REFUND', sale.refunds.map((r) => r.id))
+      : [];
     // The online copy of the receipt: QR on the printout, link sent to the customer's LINE
-    return { ...sale, receiptPath: receiptPath(sale.id) };
+    return { ...sale, taxInvoice: taxDocs[taxDocs.length - 1] ?? null, creditNotes, receiptPath: receiptPath(sale.id) };
   }
 
   /** The receipt as the customer sees it online: no costs, no staff, no customer phone. */
@@ -755,7 +773,7 @@ export class SalesService {
           },
         },
         customer: { select: { id: true } },
-        branch:   { select: { id: true } },
+        branch:   { select: { id: true, tenantId: true } },
       },
     });
 
@@ -901,7 +919,15 @@ export class SalesService {
         });
       }
 
-      return { ...refund, saleStatus: newStatus };
+      // Shops that charge VAT: a credit note against the bill's tax invoice
+      const creditNote = await this.taxInvoices?.creditNote(tx, {
+        tenantId: (sale as any).branch?.tenantId ?? tenantId, branchId: sale.branchId ?? null,
+        sourceType: 'SALE_REFUND', sourceId: refund.id, total: totalRefund,
+        reference: refund.refundNumber, actorId: userId,
+        refSourceType: 'SALE', refSourceId: id,
+      }) ?? null;
+
+      return { ...refund, saleStatus: newStatus, creditNote };
     });
 
     // Post-transaction: refund accounting journal (ACCOUNTING_CORE_ENABLED gates; never throws)
@@ -917,6 +943,7 @@ export class SalesService {
       tenantId ?? '',
       userId,
     );
+    await this.taxInvoices?.bookVat((sale as any).branch?.tenantId ?? tenantId);
 
     return refundResult;
   }
@@ -1054,6 +1081,8 @@ export class SalesService {
       });
       if (won.count === 0) throw new BadRequestException('บิลนี้ถูกยกเลิกหรือคืนเงินไปแล้ว');
       const updated = await tx.sale.findUniqueOrThrow({ where: { id } });
+      // Its tax invoice (shops that charge VAT) is kept, marked cancelled — never deleted
+      await this.taxInvoices?.cancel(tx, 'SALE', id, reason);
 
       const saleItemIds = sale.items.map((i) => i.id);
       await tx.serialNumber.updateMany({
@@ -1156,6 +1185,7 @@ export class SalesService {
 
     // Post-transaction: reverse accounting journals (ACCOUNTING_CORE_ENABLED gates; never throws)
     await this.salesAccounting?.reverseSaleJournal(sale as any, tenantId ?? '', userId);
+    await this.taxInvoices?.bookVat((sale as any).branch?.tenantId ?? tenantId);
 
     return voidResult;
   }
@@ -1170,7 +1200,7 @@ export class SalesService {
         items: {
           include: { product: { select: { id: true, name: true, hasSerial: true, costPrice: true } } },
         },
-        branch: { select: { id: true } },
+        branch: { select: { id: true, tenantId: true } },
       },
     });
 
@@ -1450,6 +1480,17 @@ export class SalesService {
         },
       });
 
+      // Shops that charge VAT: a credit note for the goods taken back, a tax invoice for the new bill
+      const exTenant = (sale as any).branch?.tenantId ?? tenantId;
+      await this.taxInvoices?.creditNote(tx, {
+        tenantId: exTenant, branchId: sale.branchId ?? null, sourceType: 'SALE_REFUND', sourceId: refund.id,
+        total: refundTotal, reference: refundNumber, actorId: userId, refSourceType: 'SALE', refSourceId: id,
+      });
+      await this.taxInvoices?.issue(tx, {
+        tenantId: exTenant, branchId: newSale.branchId ?? null, sourceType: 'SALE', sourceId: newSale.id,
+        total: Number(newSale.total), reference: newReceiptNumber, actorId: userId,
+      });
+
       return {
         txData: {
           originalSaleStatus: newSaleStatus,
@@ -1480,6 +1521,7 @@ export class SalesService {
     );
     // Replacement leg: revenue + COGS per new SaleItem
     await this.salesAccounting?.recordSaleJournal(txResult.newSale as any, tenantId ?? '', userId);
+    await this.taxInvoices?.bookVat((sale as any).branch?.tenantId ?? tenantId);
 
     // FIX BUG-7: low-stock notifications for replacement products.
     // Wrapped in try/catch so notification failures never affect Exchange business result.

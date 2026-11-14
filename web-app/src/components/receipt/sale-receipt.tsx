@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { formatThaiMoney } from '@/lib/utils'
 import { receiptPaymentLegs, saleAfterSale, soldSerials } from '@/lib/sale-receipt-data'
 import type { Sale, ShopSettings } from '@/types'
+import { taxIdLine, vatMoney } from '@/lib/tax-invoice'
 
 const PAYMENT_LABEL: Record<string, string> = {
   CASH:     'เงินสด',
@@ -33,6 +34,8 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
   const saleDate = fmt(sale.createdAt)
   const after = saleAfterSale(sale)
   const paid = receiptPaymentLegs(sale)
+  // A shop that charges VAT: this bill is an abbreviated tax invoice (Revenue Code s.86/6)
+  const ti = sale.taxInvoice ?? null
 
   const Divider = () => (
     <div className="border-b border-dashed border-gray-400 my-2" />
@@ -69,13 +72,14 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
         <p className="font-bold text-sm tracking-widest">{shopName}</p>
         {shopPhone   && <p>โทร: {shopPhone}</p>}
         {shopAddress && <p>{shopAddress}</p>}
-        {taxId       && <p>เลขที่ผู้เสียภาษี: {taxId}</p>}
+        {taxId && (ti ? <p>{taxIdLine(taxId, settings?.taxBranch)}</p> : <p>เลขที่ผู้เสียภาษี: {taxId}</p>)}
       </div>
       <Divider />
 
       {/* ── Document info ── */}
       <div className="text-center space-y-0.5 pb-1">
-        <p className="font-bold">ใบเสร็จรับเงิน</p>
+        <p className="font-bold">{ti ? 'ใบเสร็จรับเงิน / ใบกำกับภาษีอย่างย่อ' : 'ใบเสร็จรับเงิน'}</p>
+        {ti && <p>เลขที่ใบกำกับภาษี: {ti.number}</p>}
         {after.voided && (
           <div className="my-1 border-2 border-black py-0.5">
             <p className="font-bold">*** บิลนี้ยกเลิกแล้ว ***</p>
@@ -136,6 +140,13 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
       <Divider />
       <div className="pb-1">
         <Row label="ยอดสุทธิ" value={formatThaiMoney(Number(sale.total))} bold />
+        {ti && (
+          <>
+            <p className="text-gray-700">ราคานี้รวมภาษีมูลค่าเพิ่มแล้ว</p>
+            <Row label="มูลค่าก่อนภาษี" value={vatMoney(ti.vatBase)} />
+            <Row label={`ภาษีมูลค่าเพิ่ม ${Number(ti.vatPercent)}%`} value={vatMoney(ti.vatAmount)} />
+          </>
+        )}
       </div>
       <Divider />
 
@@ -179,6 +190,9 @@ export function SaleReceipt({ sale, paperWidth = '80mm', settings }: SaleReceipt
                   </div>
                 ))}
               </div>
+            ))}
+            {(sale.creditNotes ?? []).map((cn) => (
+              <p key={cn.id} className="text-gray-700">ใบลดหนี้ {cn.number} · ภาษีลดลง {vatMoney(cn.vatAmount)}</p>
             ))}
             <Row label="คืนเงินรวม" value={`-${formatThaiMoney(after.refunded)}`} />
             <Row label="ยอดหลังคืนสินค้า" value={formatThaiMoney(after.netAfterRefunds)} bold />

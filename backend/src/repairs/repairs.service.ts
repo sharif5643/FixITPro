@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import {
+  Optional,
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -8,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { activeShiftWhere } from '../shifts/active-shift';
 import { REPAIR_MONEY, SHIFT_CASH_KIND } from '../shifts/shift-cash';
+import { TaxInvoicesService } from '../tax-invoices/tax-invoices.service';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { WarrantiesService } from '../warranties/warranties.service';
@@ -75,6 +77,7 @@ export class RepairsService {
     private accounting: AccountingService,
     private repairAccounting: RepairAccountingAdapter,
     private notifications: NotificationsService,
+    @Optional() private taxInvoices?: TaxInvoicesService,
   ) {}
 
   /**
@@ -367,11 +370,18 @@ export class RepairsService {
           actorUserId:   actorId ?? '',
           note:          newRepair.ticketNumber,
         }, tx);
+        // Shops that charge VAT: a deposit for a service is taxed when it is received
+        await this.taxInvoices?.issue(tx, {
+          tenantId, branchId: effectiveBranchId, sourceType: 'REPAIR_DEPOSIT', sourceId: newRepair.id,
+          total: Number(dto.deposit), reference: newRepair.ticketNumber,
+          customerName: (newRepair as any).customer?.name ?? null, actorId,
+        });
       }
 
       return newRepair;
     });
 
+    await this.taxInvoices?.bookVat(tenantId);
     // Post-commit: record deposit journal (AFTER $transaction — failure swallowed, business unaffected)
     if (tenantId && (dto.deposit ?? 0) > 0) {
       await this.repairAccounting.recordDepositJournal(
@@ -508,7 +518,12 @@ export class RepairsService {
     const signatures = all.filter((x) => x.kind !== STAFF_SIGNATURE);
     const kept = all.find((x) => x.kind === STAFF_SIGNATURE);
     const staffSignature = kept ? { name: kept.signerName ?? '', image: kept.image } : await this.intakeStaffSignature(id);
-    return { ...repair, signatures, staffSignature, ...(await this.moneyReceivedBy(repair)) };
+    // Tax invoices and credit notes on this job (shops that charge VAT), for the printed receipts
+    const taxInvoices = this.taxInvoices
+      ? await this.taxInvoices.forRepair((repair as any).branch?.tenantId ?? tenantId,
+          id, ((repair as any).additionalPayments ?? []).map((p: { id: string }) => p.id))
+      : [];
+    return { ...repair, signatures, staffSignature, taxInvoices, ...(await this.moneyReceivedBy(repair)) };
   }
 
   /**
@@ -818,6 +833,11 @@ export class RepairsService {
             actorUserId:   actorId ?? '',
             note:          repair.ticketNumber,
           }, tx);
+          await this.taxInvoices?.creditNote(tx, {
+            tenantId, branchId: repairBranchId, sourceType: 'REPAIR_REFUND', sourceId: `${repair.id}:deposit`,
+            total: deposit, reference: repair.ticketNumber, actorId,
+            refSourceType: 'REPAIR_DEPOSIT', refSourceId: repair.id,
+          });
         }
 
         updateData.status = 'CANCELLED';
@@ -834,6 +854,7 @@ export class RepairsService {
         return updatedRepair;
       });
 
+      await this.taxInvoices?.bookVat(tenantId);
       // Post-commit: deposit refund journal (failure swallowed — business transaction already committed)
       if (deposit > 0 && tenantId && depositPaymentMethod) {
         await this.repairAccounting.recordDepositRefundJournal(updated as any, tenantId, actorId);
@@ -1470,10 +1491,18 @@ export class RepairsService {
           actorUserId:   userId,
         }, tx);
       }
+      // Shops that charge VAT: the money taken at pickup gets an abbreviated tax invoice. Each
+      // payment round (after a reversal the job is paid again) has its own.
+      await this.taxInvoices?.issue(tx, {
+        tenantId: (repairRecord as any)?.branch?.tenantId ?? tenantId, branchId: repairRecord?.branchId ?? null,
+        sourceType: 'REPAIR_PAYMENT', sourceId: `${repairId}#${round}`, total: received,
+        reference: (repair as any).ticketNumber ?? null, actorId: userId,
+      });
 
       return tx.repair.findUniqueOrThrow({ where: { id: repairId }, include: REPAIR_INCLUDE });
     });
 
+    await this.taxInvoices?.bookVat(tenantId);
     // Post-commit: record final payment + COGS journals (AFTER $transaction — failure swallowed)
     if (tenantId) {
       await this.repairAccounting.recordFinalPaymentJournal(paid as any, tenantId, userId, round);
@@ -1589,6 +1618,14 @@ export class RepairsService {
         }],
       });
 
+      // Shops that charge VAT: a credit note against the tax invoice of the payment being reversed
+      await this.taxInvoices?.creditNote(tx, {
+        tenantId: (repair as any).branch?.tenantId ?? tenantId, branchId: repair.branchId,
+        sourceType: 'REPAIR_REFUND', sourceId: `${repairId}#${round}:reversal`,
+        total: Number(repair.paidAmount ?? 0), reference: repair.ticketNumber, actorId: userId,
+        refSourceType: 'REPAIR_PAYMENT', refSourceId: `${repairId}#${round}`,
+      });
+
       const updated = await tx.repair.update({
         where: { id: repairId },
         data: {
@@ -1639,6 +1676,7 @@ export class RepairsService {
       return updated;
     });
 
+    await this.taxInvoices?.bookVat((repair as any).branch?.tenantId ?? tenantId);
     // Post-commit: record payment reversal journals (AFTER $transaction — failure swallowed)
     const reverseTenantId = (repair as any).branch?.tenantId ?? tenantId ?? null;
     if (reverseTenantId) {
@@ -1756,11 +1794,16 @@ export class RepairsService {
           tenantId:      branchInfo?.tenantId ?? null,
           actorUserId:   userId,
         }, tx);
+        await this.taxInvoices?.issue(tx, {
+          tenantId: branchInfo?.tenantId ?? tenantId, branchId: repair.branchId, sourceType: 'REPAIR_ADDITIONAL',
+          sourceId: created.id, total: Number(dto.amount), reference: (repair as any).ticketNumber ?? null, actorId: userId,
+        });
       }
 
       return created;
     });
 
+    await this.taxInvoices?.bookVat(repair.branch?.tenantId ?? tenantId);
     // Post-commit: record additional payment journal (AFTER $transaction — failure swallowed)
     const addPayTenantId = repair.branch?.tenantId ?? null;
     if (repair.branchId && addPayTenantId) {
@@ -1997,6 +2040,20 @@ export class RepairsService {
         },
       });
 
+      // Shops that charge VAT: a credit note for each sum handed back, against its tax invoice
+      {
+        const t = (repair as any).branch?.tenantId ?? tenantId;
+        const common = { tenantId: t, branchId: repair.branchId, reference: (repair as any).ticketNumber ?? null, actorId: userId };
+        await this.taxInvoices?.creditNote(tx, { ...common, sourceType: 'REPAIR_REFUND', sourceId: `${repairId}#${round}:refund`,
+          total: Number(repair.paidAmount ?? 0), refSourceType: 'REPAIR_PAYMENT', refSourceId: `${repairId}#${round}` });
+        await this.taxInvoices?.creditNote(tx, { ...common, sourceType: 'REPAIR_REFUND', sourceId: `${repairId}:deposit`,
+          total: Number((repair as any).deposit ?? 0), refSourceType: 'REPAIR_DEPOSIT', refSourceId: repairId });
+        for (const p of ((repair as any).additionalPayments ?? [])) {
+          await this.taxInvoices?.creditNote(tx, { ...common, sourceType: 'REPAIR_REFUND', sourceId: `${p.id}:refund`,
+            total: Number(p.amount ?? 0), refSourceType: 'REPAIR_ADDITIONAL', refSourceId: p.id });
+        }
+      }
+
       // 6. Update repair to CANCELLED, clear payment fields
       const updatedRepair = await tx.repair.update({
         where: { id: repairId },
@@ -2030,6 +2087,7 @@ export class RepairsService {
     // The customer following this job on LINE hears it was cancelled (and stops following)
     this.lineMsg.notifyRepairStatus(repairId, 'CANCELLED', repairTenantId ?? null).catch(() => {});
 
+    await this.taxInvoices?.bookVat(repairTenantId ?? tenantId);
     // Post-commit accounting journals (all no-throw — business TX already committed)
     if (repairTenantId) {
       // 7. Reverse final payment JEs: REPAIR_PAYMENT_REVERSAL + REPAIR_DEPOSIT_SETTLE_REVERSAL

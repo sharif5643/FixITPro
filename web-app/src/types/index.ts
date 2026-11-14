@@ -556,6 +556,9 @@ export interface Sale {
   items: SaleItem[]
   payments?: SalePayment[]
   refunds?: SaleRefund[]
+  /** Shops that charge VAT: the bill's abbreviated tax invoice and its refunds' credit notes */
+  taxInvoice?: import('@/lib/tax-invoice').TaxInvoiceInfo | null
+  creditNotes?: import('@/lib/tax-invoice').TaxInvoiceInfo[]
   createdAt: string
   voidedById?: string | null
   voidedAt?: string | null
@@ -617,6 +620,8 @@ export interface RepairSignature {
 }
 
 export interface Repair {
+  /** Shops that charge VAT: tax invoices and credit notes for the money on this job */
+  taxInvoices?: import('@/lib/tax-invoice').TaxInvoiceInfo[]
   id: string
   ticketNumber: string
   deviceBrand: string

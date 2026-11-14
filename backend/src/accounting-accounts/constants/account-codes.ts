@@ -4,6 +4,7 @@ export const ACCOUNT_CODES = {
   BANK:           '1110',
   CLEARING:       '1120',
   CARRIER_WALLET: '1130',
+  INPUT_VAT:      '1140',
   REPAIR_AR:      '1200',
   OTHER_AR:       '1210',
   INVENTORY:      '1300',
@@ -11,6 +12,7 @@ export const ACCOUNT_CODES = {
   // Liabilities — 2xxx
   AP:             '2100',
   CUSTOMER_DEPOSIT: '2110',
+  OUTPUT_VAT:     '2120',
   // Equity — 3xxx
   OWNER_EQUITY:   '3100',
   // Revenue — 4xxx

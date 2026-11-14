@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { TaxInvoicesService } from '../tax-invoices/tax-invoices.service';
 import { PrismaService } from '../database/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { FormalDocType, FormalDocumentDraftDto } from './dto/issue-formal-document.dto';
@@ -54,6 +55,7 @@ export class FormalDocumentsService {
   constructor(
     private prisma: PrismaService,
     private auditLog: AuditLogService,
+    @Optional() private taxInvoices?: TaxInvoicesService,
   ) {}
 
   private async loadRepairs(ids: string[], tenantId: string) {
@@ -198,7 +200,7 @@ export class FormalDocumentsService {
       try {
         const doc = await this.prisma.$transaction(async (tx) => {
           const number = await this.nextNumber(tx, tenantId, dto.type);
-          return tx.formalDocument.create({
+          const created = await tx.formalDocument.create({
             data: {
               tenantId, branchId, customerId,
               type:       dto.type,
@@ -213,7 +215,18 @@ export class FormalDocumentsService {
               createdBy:   actorName,
             },
           });
+          // A full tax invoice replaces the abbreviated ones of these jobs (VAT counted once)
+          if (content.isTaxInvoice) {
+            await this.taxInvoices?.recordFull(tx, {
+              tenantId, branchId: branchId ?? null, docId: created.id, number, issuedAt: docDate,
+              repairIds: dto.repairIds, customerName: content.buyer?.name ?? null,
+              total: content.total, vatBase: content.vatBase, vatAmount: content.vatAmount,
+              vatPercent: content.vatPercent, actorId,
+            });
+          }
+          return created;
         });
+        if (content.isTaxInvoice) await this.taxInvoices?.bookVat(tenantId);
         await this.auditLog.log({
           actorId, actorName,
           action:     'FORMAL_DOCUMENT_ISSUED',

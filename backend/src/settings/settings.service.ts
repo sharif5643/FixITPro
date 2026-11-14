@@ -79,6 +79,16 @@ export class SettingsService {
       throw new BadRequestException('เปอร์เซ็นต์ค่าคอมช่างต้องไม่เกิน 100');
     }
 
+    // A shop that charges VAT prints its tax id on every tax invoice: it must be there first
+    if (dto.vatPercent !== undefined || dto.taxId !== undefined) {
+      const cur = await this.prisma.shopSettings.findUnique({ where: { tenantId }, select: { vatPercent: true, taxId: true } });
+      const vat   = Number(dto.vatPercent ?? cur?.vatPercent ?? 0);
+      const taxId = String((dto.taxId !== undefined ? dto.taxId : cur?.taxId) ?? '').replace(/[\s-]/g, '');
+      if (vat > 0 && !/^\d{13}$/.test(taxId)) {
+        throw new BadRequestException('ร้านที่เก็บ VAT ต้องใส่เลขประจำตัวผู้เสียภาษี 13 หลักก่อน (ใบกำกับภาษีทุกใบต้องมีเลขนี้)');
+      }
+    }
+
     // If the frontend echoes back a masked token (starts with ****), skip updating it
     const updateData = { ...dto };
     if (updateData.lineChannelAccessToken?.startsWith('****')) {

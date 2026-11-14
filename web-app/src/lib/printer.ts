@@ -612,6 +612,8 @@ export function buildRepairReceiptThermalHtml(
     estimatedTotal?: number | null
     deposit?: number | null
     branch?: { name: string } | null
+    /** Shops that charge VAT: tax invoices on this job (the deposit's is printed here) */
+    taxInvoices?: Array<{ kind: string; sourceType: string; number: string; vatBase: number | string; vatAmount: number | string; vatPercent: number | string }> | null
     /** Signed on the screen by the customer; staffSignature: who took the job in */
     signatures?: { kind: string; image: string; signerName?: string | null; createdAt: string }[] | null
     staffSignature?: { name: string; image: string } | null
@@ -738,6 +740,14 @@ ${conditions.length > 0 ? `<div class="hr"></div>
   ${dueDay ? `<div class="row"><span>นัดรับ</span><span class="v">${dueDay}</span></div>` : ''}
   <div class="row"><span>ราคาประเมิน</span><span class="v">${estimateCost > 0 ? `฿${fmtI(estimateCost)}` : '-'}</span></div>
   <div class="row b"><span>ค่ามัดจำ</span><span class="v">${deposit > 0 ? `฿${fmtI(deposit)}` : '-'}</span></div>
+  ${(() => {
+    const ti = [...(repair.taxInvoices ?? [])].reverse().find((t) => t.kind === 'ABB' && t.sourceType === 'REPAIR_DEPOSIT')
+    if (!ti) return ''
+    const m2 = (n: number | string) => Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return `<p class="gray">ใบกำกับภาษีอย่างย่อ เลขที่ ${e(ti.number)}</p>
+  ${(settings as any)?.taxId ? `<p class="gray">${e(`เลขประจำตัวผู้เสียภาษี ${(settings as any).taxId}${(settings as any).taxBranch ? ` (${(settings as any).taxBranch})` : ''}`)}</p>` : ''}
+  <p class="gray">มัดจำรวม VAT แล้ว · ก่อนภาษี ฿${m2(ti.vatBase)} · VAT ${e(String(Number(ti.vatPercent)))}% ฿${m2(ti.vatAmount)}</p>`
+  })()}
 </div>
 <div class="hr"></div>
 <div class="sig">
@@ -794,12 +804,16 @@ export function buildSaleReceiptThermalHtml(
     voidReason?: string | null
     voidedAt?: string | null
     refunds?: Parameters<typeof saleAfterSale>[0]['refunds']
+    /** Shops that charge VAT: the bill's abbreviated tax invoice and its refunds' credit notes */
+    taxInvoice?: { number: string; vatBase: number | string; vatAmount: number | string; vatPercent: number | string } | null
+    creditNotes?: Array<{ number: string; vatAmount: number | string }> | null
   },
   settings: {
     shopName?: string | null
     shopPhone?: string | null
     shopAddress?: string | null
     taxId?: string | null
+    taxBranch?: string | null
     logoUrl?: string | null
     receiptFooter?: string | null
   } | null | undefined,
@@ -811,8 +825,12 @@ export function buildSaleReceiptThermalHtml(
   const css = makeReceiptThermalCss(px)
   const r   = (webPx: number) => Math.round(webPx * px / 200)
   const money = (n: number | string) => `฿${fmtI(Number(n))}`
+  // Tax figures keep the satang
+  const money2 = (n: number | string) => `฿${Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   const PM_S: Record<string, string> = { CASH: 'เงินสด', TRANSFER: 'โอนเงิน', CARD: 'บัตรเครดิต' }
   const after = saleAfterSale(sale)
+  // A shop that charges VAT: this bill is an abbreviated tax invoice (Revenue Code s.86/6)
+  const ti = sale.taxInvoice ?? null
 
   const logoUrl = settings?.logoUrl ?? ''
   const header = [
@@ -820,7 +838,7 @@ export function buildSaleReceiptThermalHtml(
     `<p class="c shop-name">${e(settings?.shopName || 'FixITPro')}</p>`,
     settings?.shopPhone   ? `<p class="c">โทร: ${e(settings.shopPhone)}</p>` : '',
     settings?.shopAddress ? `<p class="c">${e(settings.shopAddress)}</p>` : '',
-    settings?.taxId       ? `<p class="c">เลขที่ผู้เสียภาษี: ${e(settings.taxId)}</p>` : '',
+    settings?.taxId       ? `<p class="c">${ti ? e(`เลขประจำตัวผู้เสียภาษี ${settings.taxId}${settings.taxBranch ? ` (${settings.taxBranch})` : ''}`) : `เลขที่ผู้เสียภาษี: ${e(settings.taxId)}`}</p>` : '',
   ].join('\n')
 
   const items = sale.items.map((it) => {
@@ -849,7 +867,8 @@ export function buildSaleReceiptThermalHtml(
   const body = `${header}
 <div class="hr"></div>
 <div class="c sec">
-<p class="b">ใบเสร็จรับเงิน</p>
+<p class="b">${ti ? 'ใบเสร็จรับเงิน / ใบกำกับภาษีอย่างย่อ' : 'ใบเสร็จรับเงิน'}</p>
+${ti ? `<p>เลขที่ใบกำกับภาษี: ${e(ti.number)}</p>` : ''}
 ${after.voided ? `<p class="b" style="border:2px solid #000;margin:${r(3)}px 0;padding:${r(2)}px">*** บิลนี้ยกเลิกแล้ว ***</p>${after.voidReason ? `<p>เหตุผล: ${e(after.voidReason)}</p>` : ''}${after.voidedAt ? `<p class="gray">ยกเลิกเมื่อ ${e(webReceiptDate(after.voidedAt))}</p>` : ''}` : ''}
 <p>เลขที่: ${e(sale.receiptNumber)}</p>
 <p class="gray">${e(webReceiptDate(sale.createdAt))}</p>
@@ -866,6 +885,9 @@ ${items}
 ${Number(sale.discount) > 0 ? `<div class="row"><span>ส่วนลด</span><span class="v">-${money(sale.discount)}</span></div>` : ''}
 <div class="hr"></div>
 <div class="row b"><span>ยอดสุทธิ</span><span class="v">${money(sale.total)}</span></div>
+${ti ? `<p class="gray">ราคานี้รวมภาษีมูลค่าเพิ่มแล้ว</p>
+<div class="row"><span>มูลค่าก่อนภาษี</span><span class="v">${money2(ti.vatBase)}</span></div>
+<div class="row"><span>ภาษีมูลค่าเพิ่ม ${e(String(Number(ti.vatPercent)))}%</span><span class="v">${money2(ti.vatAmount)}</span></div>` : ''}
 <div class="hr"></div>
 ${legs}
 ${Number(sale.change) > 0 ? `<div class="row b"><span>เงินทอน</span><span class="v">${money(sale.change)}</span></div>` : ''}
@@ -873,6 +895,7 @@ ${after.refunds.length ? `<div class="hr"></div>
 <p class="c b">*** มีการคืนสินค้า ***</p>
 ${after.refunds.map((rf) => `<p class="gray">${e(rf.number)} · ${e(webReceiptDate(rf.at))}</p>
 ${rf.items.map((i) => `<div class="row" style="padding-left:${r(8)}px"><span>${e(i.name)} ×${i.quantity}</span><span class="v">-${money(i.total)}</span></div>`).join('\n')}`).join('\n')}
+${(sale.creditNotes ?? []).map((cn) => `<p class="gray">ใบลดหนี้ ${e(cn.number)} · ภาษีลดลง ${money2(cn.vatAmount)}</p>`).join('\n')}
 <div class="row"><span>คืนเงินรวม</span><span class="v">-${money(after.refunded)}</span></div>
 <div class="row b"><span>ยอดหลังคืนสินค้า</span><span class="v">${money(after.netAfterRefunds)}</span></div>` : ''}
 ${sale.note ? `<div class="hr"></div><p class="gray">หมายเหตุ: ${e(sale.note)}</p>` : ''}
