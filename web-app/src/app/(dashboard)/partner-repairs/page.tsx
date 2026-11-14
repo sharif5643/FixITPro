@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Loader2, Users, Package, Wrench, CheckCircle2, Clock, RotateCcw, XCircle } from 'lucide-react'
+import { Loader2, Users, Package, Wrench, CheckCircle2, Clock, RotateCcw, XCircle, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { apiErrorMessage } from '@/lib/utils'
@@ -317,6 +317,7 @@ const GROUPS: Group[] = [
 
 export default function PartnerRepairsPage() {
   const myTenantId = useAuthStore((st) => st.user?.tenantId ?? null)
+  const isOwner = useAuthStore((st) => st.user?.role === 'OWNER')
   const [side, setSide] = useState<'in' | 'out'>('in')
   const { data: all = [], isLoading, error } = useQuery({
     queryKey: ['partner-transfers'],
@@ -353,6 +354,11 @@ export default function PartnerRepairsPage() {
         title="งานซ่อมพาร์ทเนอร์"
         subtitle="งานที่ร้านพาร์ทเนอร์ส่งมาให้เราซ่อม และงานที่เราส่งไปให้ร้านพาร์ทเนอร์"
         icon={Users}
+        primaryAction={isOwner ? (
+          <Button asChild>
+            <Link href="/settings/partners"><UserPlus className="h-4 w-4 mr-2" />เพิ่มร้านพาร์ทเนอร์</Link>
+          </Button>
+        ) : undefined}
       />
 
       <div className="flex gap-2" role="tablist">
@@ -371,7 +377,13 @@ export default function PartnerRepairsPage() {
         <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-12 text-center space-y-2">
           <Users className="h-10 w-10 text-muted-foreground/40 mx-auto" />
           <p className="text-sm text-muted-foreground">{side === 'in' ? 'ยังไม่มีงานที่ร้านพาร์ทเนอร์ส่งมา' : 'ยังไม่ได้ส่งงานให้ร้านพาร์ทเนอร์'}</p>
-          <p className="text-xs text-muted-foreground">{side === 'in' ? 'เมื่อร้านพาร์ทเนอร์ส่งงานมา จะปรากฏที่นี่' : 'ส่งงานได้จากหน้ารายละเอียดงานซ่อม ปุ่ม "ส่งให้ร้านพาร์ทเนอร์"'}</p>
+          <p className="text-xs text-muted-foreground">{side === 'in' ? 'เมื่อร้านพาร์ทเนอร์ส่งงานมา จะปรากฏที่นี่' : 'ส่งงานได้จากหน้ารายละเอียดงานซ่อม ปุ่ม "ส่งต่องานให้ Partner"'}</p>
+          {isOwner && (
+            <p className="text-xs text-muted-foreground">
+              ยังไม่ได้เชื่อมกับร้านไหน?{' '}
+              <Link href="/settings/partners" className="font-semibold text-blue-600 hover:underline dark:text-blue-400">เพิ่มร้านพาร์ทเนอร์ →</Link>
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-8">
