@@ -104,7 +104,7 @@ export default function SunmiExpensesPage() {
   const createMutation = useMutation({
     mutationFn: async (data: object) => {
       if (!online) {
-        await offlineQueue.enqueue('EXPENSE_CREATE', data)
+        await offlineQueue.enqueue('EXPENSE_CREATE', data, useAuthStore.getState().user)
         return { _queued: true as const }
       }
       return api.post('/expenses', data)

@@ -971,7 +971,7 @@ export default function RepairIntakePage() {
       }
 
       if (!online) {
-        await offlineQueue.enqueue('REPAIR_CREATE', payload)
+        await offlineQueue.enqueue('REPAIR_CREATE', payload, useAuthStore.getState().user)
         return { _queued: true as const }
       }
 
