@@ -72,6 +72,10 @@ describe('Books audit: drawer, cash ledger, books and reports agree (e2e)', () =
 
   it('AUDIT-01: every money event reaches every money screen', async () => {
     const before = await screens();
+    // Other test files may have moved money in this shop today: compare against where it stood
+    const day0 = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
+    const src0 = (await authGet(app, `/api/v1/finance/summary?startDate=${day0}&endDate=${day0}`, owner).expect(200)).body.bySource;
+    const was = (k: string, dir: 'in' | 'out') => Number(src0?.[k]?.[dir] ?? 0);
     t0 = new Date();
     const mk = async (name: string, price: number, costPrice: number, extra: object = {}) => {
       const b = (await authPost(app, '/api/v1/products', owner, {
@@ -145,10 +149,10 @@ describe('Books audit: drawer, cash ledger, books and reports agree (e2e)', () =
     expect(b.by['1300']).toBe(19 * 600 + 19 * 50);
     expect(b.by['1310']).toBe(19 * 200);
     const money = (await authGet(app, `/api/v1/finance/summary?startDate=${today}&endDate=${today}`, owner).expect(200)).body;
-    expect(money.bySource.OWNER_DRAW.out).toBe(300);
-    expect(money.bySource.DELIVERY_FEE.out).toBe(80);
-    expect(money.bySource.OTHER_INCOME.in).toBe(200);
-    expect(money.bySource.EXPENSE_PAYMENT.out).toBe(100);   // the owner-paid 70 never was in the drawer
+    expect(money.bySource.OWNER_DRAW.out - was('OWNER_DRAW', 'out')).toBe(300);
+    expect(money.bySource.DELIVERY_FEE.out - was('DELIVERY_FEE', 'out')).toBe(80);
+    expect(money.bySource.OTHER_INCOME.in - was('OTHER_INCOME', 'in')).toBe(200);
+    expect(money.bySource.EXPENSE_PAYMENT.out - was('EXPENSE_PAYMENT', 'out')).toBe(100);   // the owner-paid 70 never was in the drawer
   });
 
   it('AUDIT-02: money and stock moved while the books were off are booked by the catch-up', async () => {

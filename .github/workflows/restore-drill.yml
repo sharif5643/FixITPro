@@ -5,6 +5,10 @@ name: Backup restore drill
 # Restores the newest database backup into a temporary database on the server, compares
 # it with the live database and drops it again. Production data is only read.
 on:
+  # Every night at 03:45 Bangkok, after the server's 03:30 backup: read-only checks, the restore
+  # drill, and an encrypted copy of the newest backup kept by GitHub (inputs are all off)
+  schedule:
+    - cron: '45 20 * * *'
   workflow_dispatch:
     inputs:
       backup_first:
@@ -285,3 +289,42 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
             root@91.98.151.10 "bash /opt/fixitpro-backups/pg_restore_verify.sh"
+
+      - name: Off-site copy kept by GitHub (encrypted)
+        # Owner approved (2026-11-15): keep an encrypted copy of the newest backup in GitHub.
+        # The copy's checksum is checked, it is encrypted (AES-256, key from the OFFSITE_PASSPHRASE
+        # secret, or derived from DEPLOY_SSH_KEY when that is not set), checked again by
+        # decrypting it, and kept as a workflow artifact for 7 days. Nothing unencrypted is kept;
+        # keys are never printed.
+        id: offsite
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          PASSPHRASE: ${{ secrets.OFFSITE_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          SSH="ssh -i $HOME/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 root@91.98.151.10"
+          f=$($SSH 'ls -1t /opt/fixitpro-backups/db/fixitpro_*.sql.gz | head -1')
+          name=$(basename "$f")
+          mkdir -p offsite
+          $SSH "cat '$f'" > "offsite/$name"
+          want=$($SSH "cut -d' ' -f1 '$f.sha256'")
+          got=$(sha256sum "offsite/$name" | cut -d' ' -f1)
+          [ "$want" = "$got" ] || { echo "::error::checksum differs after copy"; exit 1; }
+          gzip -t "offsite/$name"
+          if [ -n "$PASSPHRASE" ]; then KEY="$PASSPHRASE"; src=OFFSITE_PASSPHRASE
+          else KEY=$(printf '%s' "$DEPLOY_KEY" | sha256sum | cut -d' ' -f1); src="DEPLOY_SSH_KEY (sha256)"; fi
+          export KEY
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:KEY -in "offsite/$name" -out "offsite/$name.enc"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:KEY -in "offsite/$name.enc" | sha256sum | cut -d' ' -f1 | grep -qx "$want"
+          printf '%s  %s\n' "$want" "$name" > "offsite/$name.sha256"
+          rm -f "offsite/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "Encrypted copy of $name ($(du -h "offsite/$name.enc" | cut -f1)) checked: decrypts to the same file. Key: $src"
+
+      - name: Keep the encrypted copy (7 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-${{ steps.offsite.outputs.name }}
+          path: offsite/
+          retention-days: 7
+          if-no-files-found: error

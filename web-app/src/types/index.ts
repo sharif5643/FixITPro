@@ -136,6 +136,8 @@ export interface TenantRenewal {
 export interface Tenant {
   id: string
   shopName: string
+  /** Super admin list: when the shop last sold, took a repair or opened a shift */
+  lastActivityAt?: string | null
   ownerName: string
   phone?: string
   email: string

@@ -135,6 +135,19 @@ const DURATION_OPTIONS = [
   { label: '365 วัน (1 ปี)', value: 365 },
 ]
 
+/** When the shop last sold, took a repair or opened a shift; red after 3 quiet days */
+function LastActivity({ at }: { at?: string | null }) {
+  if (!at) return <span className="text-slate-500 text-xs">ยังไม่เคยใช้</span>
+  const days = differenceInDays(new Date(), new Date(at))
+  const label = days <= 0 ? 'วันนี้' : `${days} วันก่อน`
+  return (
+    <span title={format(new Date(at), 'd MMM yyyy HH:mm', { locale: th })}
+      className={`text-xs ${days >= 3 ? 'font-semibold text-red-400' : 'text-slate-400'}`}>
+      {label}
+    </span>
+  )
+}
+
 function daysLeft(expiryDate?: string | null): number | null {
   if (!expiryDate) return null
   return differenceInDays(new Date(expiryDate), new Date())
@@ -607,6 +620,7 @@ export default function TenantsPage() {
                 <th className="text-left py-3 px-4 text-slate-400 font-medium">แพ็กเกจ</th>
                 <th className="text-left py-3 px-4 text-slate-400 font-medium">สถานะ</th>
                 <th className="text-left py-3 px-4 text-slate-400 font-medium">วันหมดอายุ</th>
+                <th className="text-left py-3 px-4 text-slate-400 font-medium">ใช้งานล่าสุด</th>
                 <th className="text-left py-3 px-4 text-slate-400 font-medium">ผู้ใช้งาน</th>
                 <th className="text-left py-3 px-4 text-slate-400 font-medium">สมัครเมื่อ</th>
                 <th className="py-3 px-4" />
@@ -649,6 +663,9 @@ export default function TenantsPage() {
                     <td className="py-3 px-4">
                       <ExpiryBadge expiryDate={tenant.expiryDate} status={tenant.status} />
                     </td>
+
+                    {/* Last used: a shop that stopped selling stands out */}
+                    <td className="py-3 px-4"><LastActivity at={tenant.lastActivityAt} /></td>
 
                     {/* Users */}
                     <td className="py-3 px-4">

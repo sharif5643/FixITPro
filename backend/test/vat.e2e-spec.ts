@@ -169,4 +169,35 @@ describe('VAT shop (e2e)', () => {
     expect(sale.taxInvoice).toBeNull();
     expect(await prisma.taxInvoice.count({ where: { tenantId: IDS.tenantB } })).toBe(0);
   });
+
+  it('VAT-06: a full tax invoice — only when paid, once per job, cancel then replace; a VAT shop cannot reset its data', async () => {
+    const job = (await authPost(app, '/api/v1/repairs', owner, {
+      deviceBrand: 'Dell', deviceModel: `VAT6 ${run}`, issue: 'board', estimateCost: 1070, branchId: IDS.branchA1,
+    }).expect(201)).body;
+    const issue = () => authPost(app, '/api/v1/formal-documents', owner, { type: 'RECEIPT', repairIds: [job.id], buyer: { name: 'หน่วยงานทดสอบ' } });
+    // not paid yet
+    expect(JSON.stringify((await issue().expect(400)).body)).toContain('รับเงินครบแล้ว');
+    for (const s of ['DIAGNOSING', 'IN_PROGRESS', 'COMPLETED']) await patchRepair(job.id, { status: s }).expect(200);
+    await authPost(app, `/api/v1/repairs/${job.id}/payment`, owner, { paymentMethod: 'CASH', amountPaid: 1070 }).expect(201);
+    const first = (await issue().expect(201)).body;
+    // a second one for the same job is refused
+    expect(JSON.stringify((await issue().expect(400)).body)).toContain(first.number);
+    // a date before the payment is refused
+    await authPost(app, '/api/v1/formal-documents', owner, { type: 'RECEIPT', repairIds: [job.id], docDate: '2020-01-01' }).expect(400);
+
+    // cancel: kept, marked, VAT off the report; a replacement names the old number
+    await authPost(app, `/api/v1/formal-documents/${first.id}/cancel`, owner, { reason: 'ชื่อผู้ซื้อผิด' }).expect(201);
+    const kept = await prisma.formalDocument.findUniqueOrThrow({ where: { id: first.id } });
+    expect(kept.cancelledAt).not.toBeNull();
+    expect((await prisma.taxInvoice.findFirstOrThrow({ where: { sourceId: first.id } })).cancelledAt).not.toBeNull();
+    const second = (await issue().expect(201)).body;
+    expect((second.content as any).replaces).toBe(first.number);
+
+    // the shop issued tax invoices: resetting its data is refused, nothing deleted
+    const before = await prisma.sale.count({ where: { branch: { tenantId: IDS.tenantA } } });
+    await authPost(app, '/api/v1/settings/reset-data', owner, { password: CREDS.ownerA.password })
+      .expect((r) => expect(r.status).toBeGreaterThanOrEqual(400));
+    expect(await prisma.sale.count({ where: { branch: { tenantId: IDS.tenantA } } })).toBe(before);
+  });
+
 });

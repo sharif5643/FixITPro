@@ -37,6 +37,8 @@ export interface FormalContent {
   note?: string | null;
   warrantyText?: string | null;
   quoteValidDays?: number;
+  /** A tax invoice issued in place of a cancelled one: the number it replaces */
+  replaces?: string | null;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -196,6 +198,7 @@ export class FormalDocumentsService {
 
   async issue(dto: FormalDocumentDraftDto, actorId: string, actorName: string, tenantId: string) {
     const { content, docDate, customerId, branchId } = await this.buildContent(dto, tenantId);
+    if (content.isTaxInvoice) await this.checkTaxInvoice(dto, docDate, content, tenantId);
     for (let attempt = 0; ; attempt++) {
       try {
         const doc = await this.prisma.$transaction(async (tx) => {
@@ -243,6 +246,56 @@ export class FormalDocumentsService {
     }
   }
 
+  /**
+   * A full tax invoice (Revenue Code s.86/4) is issued for money received, once per job, dated
+   * between the payment and today. One that replaces a cancelled paper says which.
+   */
+  private async checkTaxInvoice(dto: FormalDocumentDraftDto, docDate: Date, content: FormalContent, tenantId: string) {
+    if (!content.allPaid) {
+      throw new BadRequestException('ออกใบกำกับภาษีได้เมื่อรับเงินครบแล้ว — ถ้ายังไม่ได้รับเงิน ให้ออกใบส่งของ/ใบแจ้งหนี้ก่อน');
+    }
+    const docs = await this.prisma.formalDocument.findMany({
+      where:   { tenantId, type: 'RECEIPT', vatPercent: { gt: 0 }, repairIds: { hasSome: dto.repairIds } },
+      select:  { number: true, cancelledAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const active = docs.find((d) => !d.cancelledAt);
+    if (active) {
+      throw new BadRequestException(`งานนี้มีใบกำกับภาษีแล้ว เลขที่ ${active.number} — ถ้าต้องแก้ ให้ยกเลิกใบเดิมก่อนแล้วออกใหม่`);
+    }
+    const cancelled = docs.find((d) => d.cancelledAt);
+    if (cancelled) content.replaces = cancelled.number;
+    const paid = await this.prisma.repair.findMany({ where: { id: { in: dto.repairIds } }, select: { paidAt: true } });
+    const lastPaid = paid.map((r) => r.paidAt).filter(Boolean).sort((a, b) => b!.getTime() - a!.getTime())[0];
+    const day = (d: Date) => new Date(d.getTime() + 7 * 3600_000).toISOString().slice(0, 10);
+    if (day(docDate) > day(new Date())) throw new BadRequestException('วันที่ใบกำกับภาษีต้องไม่เกินวันนี้');
+    if (lastPaid && day(docDate) < day(lastPaid)) {
+      throw new BadRequestException(`วันที่ใบกำกับภาษีต้องไม่ก่อนวันรับเงิน (${day(lastPaid)})`);
+    }
+  }
+
+  /** Cancel a paper: it is kept, marked cancelled; a tax invoice's VAT comes off the report and the books */
+  async cancel(id: string, reason: string, actorId: string, actorName: string, tenantId: string) {
+    const why = (reason ?? '').trim();
+    if (why.length < 3) throw new BadRequestException('กรุณาระบุเหตุผลที่ยกเลิก');
+    const doc = await this.findOne(id, tenantId);
+    if (doc.cancelledAt) throw new BadRequestException('เอกสารนี้ถูกยกเลิกไปแล้ว');
+    await this.prisma.$transaction(async (tx) => {
+      const won = await tx.formalDocument.updateMany({
+        where: { id, tenantId, cancelledAt: null },
+        data:  { cancelledAt: new Date(), cancelReason: why.slice(0, 300), cancelledBy: actorName },
+      });
+      if (won.count === 0) throw new BadRequestException('เอกสารนี้ถูกยกเลิกไปแล้ว');
+      await this.taxInvoices?.cancel(tx, 'FORMAL_DOC', id, why);
+    });
+    await this.taxInvoices?.bookVat(tenantId);
+    await this.auditLog.log({
+      actorId, actorName, action: 'FORMAL_DOCUMENT_CANCELLED', entityType: 'FormalDocument', entityId: id,
+      afterData: { type: doc.type, number: doc.number, reason: why },
+    } as any);
+    return this.findOne(id, tenantId);
+  }
+
   async list(query: { repairId?: string; customerId?: string }, tenantId: string) {
     if (!query.repairId && !query.customerId) throw new BadRequestException('ต้องระบุงานซ่อมหรือลูกค้า');
     return this.prisma.formalDocument.findMany({
@@ -251,7 +304,8 @@ export class FormalDocumentsService {
         ...(query.repairId ? { repairIds: { has: query.repairId } } : {}),
         ...(query.customerId ? { customerId: query.customerId } : {}),
       },
-      select: { id: true, type: true, number: true, docDate: true, hideDate: true, total: true, createdBy: true, createdAt: true, repairIds: true },
+      select: { id: true, type: true, number: true, docDate: true, hideDate: true, total: true, createdBy: true, createdAt: true, repairIds: true,
+                vatPercent: true, cancelledAt: true, cancelReason: true },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
