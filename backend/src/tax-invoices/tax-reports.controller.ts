@@ -7,6 +7,7 @@ import { RequireModule } from '../common/decorators/require-module.decorator';
 import { RequirePermission } from '../common/decorators/permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { TaxReportsService } from './tax-reports.service';
+import { viewBranch } from '../common/branch-view';
 
 function shop(tenantId: string | null): string {
   if (!tenantId) throw new ForbiddenException('ต้องเข้าใช้งานในนามร้าน');
@@ -22,17 +23,20 @@ export class TaxReportsController {
   constructor(private readonly reports: TaxReportsService) {}
 
   @Get('sales')
-  sales(@Query('month') month: string, @Query('branchId') branchId: string | undefined, @CurrentUser('tenantId') tenantId: string | null) {
-    return this.reports.sales(shop(tenantId), month, branchId || undefined);
+  sales(@Query('month') month: string, @Query('branchId') branchId: string | undefined, @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string, @CurrentUser('branchId') userBranchId: string | null) {
+    return this.reports.sales(shop(tenantId), month, viewBranch(role, userBranchId, branchId));
   }
 
   @Get('purchases')
-  purchases(@Query('month') month: string, @Query('branchId') branchId: string | undefined, @CurrentUser('tenantId') tenantId: string | null) {
-    return this.reports.purchases(shop(tenantId), month, branchId || undefined);
+  purchases(@Query('month') month: string, @Query('branchId') branchId: string | undefined, @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string, @CurrentUser('branchId') userBranchId: string | null) {
+    return this.reports.purchases(shop(tenantId), month, viewBranch(role, userBranchId, branchId));
   }
 
   @Get('pp30')
-  pp30(@Query('month') month: string, @Query('branchId') branchId: string | undefined, @CurrentUser('tenantId') tenantId: string | null) {
-    return this.reports.pp30(shop(tenantId), month, branchId || undefined);
+  pp30(@Query('month') month: string, @Query('branchId') branchId: string | undefined, @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string, @CurrentUser('branchId') userBranchId: string | null) {
+    return this.reports.pp30(shop(tenantId), month, viewBranch(role, userBranchId, branchId));
   }
 }

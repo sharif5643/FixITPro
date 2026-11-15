@@ -404,7 +404,7 @@ export class DashboardService {
   }
 
   // ── Owner Summary ─────────────────────────────────────────────────────────────
-  async getOwnerSummary(tenantId?: string | null) {
+  async getOwnerSummary(tenantId?: string | null, branchId?: string) {
     const now      = new Date();
     const thaiNow  = new Date(now.getTime() + 7 * 60 * 60 * 1000);
     const todayStr = thaiNow.toISOString().slice(0, 10);
@@ -415,7 +415,7 @@ export class DashboardService {
     const monthStart   = new Date(`${monthStr}T00:00:00+07:00`);
     const weekAgoStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
 
-    const bScope = this.tenantSvc.branchScope(tenantId);
+    const bScope = branchId ? { branchId, ...this.tenantSvc.branchScope(tenantId) } : this.tenantSvc.branchScope(tenantId);
     const tScope = this.tenantSvc.scope(tenantId);
 
     const [
@@ -475,7 +475,7 @@ export class DashboardService {
     // Same money rules as getOverview / reports (common/money/period-money.ts)
     const moneyRows = await loadPeriodMoney(this.prisma, {
       start: new Date(Math.min(monthStart.getTime(), weekAgoStart.getTime())), end: todayEnd,
-      branchWhere: bScope, tenantId,
+      branchWhere: bScope, branchId, tenantId,
     });
     const today   = summarizeMoney(moneyRows, (r) => r.date >= todayStart && r.date < todayEnd);
     const monthly = summarizeMoney(moneyRows, (r) => r.date >= monthStart && r.date < todayEnd);

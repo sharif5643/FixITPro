@@ -1,4 +1,5 @@
 import { Controller, ForbiddenException, Get, Query, UseGuards } from '@nestjs/common';
+import { viewBranch } from '../common/branch-view';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionGuard } from '../common/guards/permission.guard';
@@ -57,10 +58,13 @@ export class DashboardController {
   getOwnerSummary(
     @CurrentUser('role')     role?: string,
     @CurrentUser('tenantId') tenantId?: string,
+    @CurrentUser('branchId') userBranchId?: string,
+    @Query('branchId')       branchId?: string,
   ) {
     if (!['OWNER', 'MANAGER', 'SUPER_ADMIN'].includes(role ?? '')) {
       throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลสรุปเจ้าของ');
     }
-    return this.dashboardService.getOwnerSummary(tenantId);
+    // a branch manager sees their branch's money, not the whole shop's
+    return this.dashboardService.getOwnerSummary(tenantId, viewBranch(role, userBranchId, branchId));
   }
 }
