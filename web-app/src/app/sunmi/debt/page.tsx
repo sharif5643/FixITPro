@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { apiErrorMessage } from '@/lib/utils'
+import { toast } from 'sonner'
 import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
@@ -111,6 +113,8 @@ function PaymentSheet({
     mutationFn: (body: { repairId: string; amount: number; paymentMethod: string; note?: string }) =>
       api.post('/debt-payments', body, { headers: mutationKey.headers() }).then((r) => r.data as PaymentResult),
     onSuccess: (result) => { mutationKey.renew(); return onSuccess(result) },
+    // say what went wrong: a silent failure made cashiers tap again
+    onError: (err) => toast.error(apiErrorMessage(err, 'รับชำระไม่สำเร็จ — ดูประวัติก่อนกดใหม่')),
   })
 
   const numAmount = parseFloat(amount) || 0
