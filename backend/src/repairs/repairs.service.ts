@@ -524,7 +524,9 @@ export class RepairsService {
       ? await this.taxInvoices.forRepair((repair as any).branch?.tenantId ?? tenantId,
           id, ((repair as any).additionalPayments ?? []).map((p: { id: string }) => p.id))
       : [];
-    return { ...repair, signatures, staffSignature, taxInvoices, ...(await this.moneyReceivedBy(repair)) };
+    // Tax a customer withheld on this job (a certificate): counts as paid, without cash
+    const withholdingTaxTotal = (await whtByRepair(this.prisma, [repair.id])).get(repair.id) ?? 0;
+    return { ...repair, signatures, staffSignature, taxInvoices, withholdingTaxTotal, ...(await this.moneyReceivedBy(repair)) };
   }
 
   /**

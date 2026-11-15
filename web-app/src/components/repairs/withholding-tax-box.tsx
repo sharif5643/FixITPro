@@ -65,6 +65,10 @@ export function WithholdingTaxBox({ repairId, outstanding, canRecord, canManage 
     qc.invalidateQueries({ queryKey: whtKey(repairId) })
     qc.invalidateQueries({ queryKey: ['repairs', repairId] })
     qc.invalidateQueries({ queryKey: ['repairs'] })
+    // the same job as the SUNMI and staff apps hold it
+    qc.invalidateQueries({ queryKey: ['repair-detail', repairId] })
+    qc.invalidateQueries({ queryKey: ['staff-repair', repairId] })
+    qc.invalidateQueries({ queryKey: ['staff-repairs'] })
   }
 
   const cancel = useMutation({

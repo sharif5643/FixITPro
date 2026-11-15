@@ -624,6 +624,8 @@ export interface RepairSignature {
 export interface Repair {
   /** Shops that charge VAT: tax invoices and credit notes for the money on this job */
   taxInvoices?: import('@/lib/tax-invoice').TaxInvoiceInfo[]
+  /** Tax a customer withheld on this job (certificates, not cancelled): counts as paid, no cash */
+  withholdingTaxTotal?: number
   id: string
   ticketNumber: string
   deviceBrand: string

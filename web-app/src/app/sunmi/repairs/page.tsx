@@ -16,6 +16,7 @@ import { RepairReceiptPrintFlow } from '@/components/sunmi/repair-receipt-print'
 import { RepairDeliveryPrintFlow } from '@/components/sunmi/repair-delivery-print'
 import { ConfirmActionDialog } from '@/components/ui/confirm-action-dialog'
 import { useAuthStore } from '@/store/auth.store'
+import { WithholdingTaxBox } from '@/components/repairs/withholding-tax-box'
 import { pushBackHandler } from '@/lib/back-stack'
 import { formatThaiMoney, getAssetUrl } from '@/lib/utils'
 import api from '@/lib/api'
@@ -162,6 +163,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   // Payment / handover is allowed from both (same as the API)
   const isReady       = repair.status === 'COMPLETED' || repair.status === 'READY_PICKUP'
   const canViewCost   = useAuthStore((st) => st.hasPermission)('products.view_cost')
+  const userRole      = useAuthStore((st) => st.user?.role)
+  const canManageWht  = userRole === 'OWNER' || userRole === 'MANAGER'
   const canQc         = useAuthStore((st) => st.hasPermission)('repairs.qc.perform')
   // The API undoes only a fully paid handover (a pay-later one is settled with more payments)
   const canReverse    = useAuthStore((st) => st.hasPermission)('repair.close') && repair.paymentStatus === 'PAID'
@@ -827,6 +830,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                     const src = (repairDetail ?? repair) as any
                     const got = Number(src.deposit ?? 0) + Number(src.paidAmount ?? 0)
                       + (src.additionalPayments ?? []).reduce((s: number, x: any) => s + Number(x.amount), 0)
+                      + Number(src.withholdingTaxTotal ?? 0)   // withholding tax certificate: paid, no cash
                     const owed = src.paymentStatus === 'PARTIAL' ? Math.max(0, Number(src.finalCost ?? 0) - got) : 0
                     return (
                       <p className="text-xs text-blue-600 mt-0.5">
@@ -836,6 +840,16 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
                     )
                   })()}
                 </div>
+
+                {/* The customer withheld tax (agency 1% / company 3%): owner or manager records the certificate */}
+                {(() => {
+                  const src = (repairDetail ?? repair) as any
+                  const got = Number(src.deposit ?? 0) + Number(src.paidAmount ?? 0)
+                    + (src.additionalPayments ?? []).reduce((s: number, x: any) => s + Number(x.amount), 0)
+                    + Number(src.withholdingTaxTotal ?? 0)
+                  const owed = src.paymentStatus === 'PARTIAL' ? Math.max(0, Math.round((Number(src.finalCost ?? 0) - got) * 100) / 100) : 0
+                  return <WithholdingTaxBox repairId={repair.id} outstanding={owed} canRecord={src.paymentStatus === 'PARTIAL'} canManage={canManageWht} />
+                })()}
 
                 <div className="space-y-1">
                   <label className="text-sm text-slate-600">ยอดรับเพิ่ม (บาท)</label>

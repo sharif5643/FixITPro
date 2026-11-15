@@ -70,6 +70,8 @@ describe('Withholding tax (e2e)', () => {
     const wht = (await authPost(app, `/api/v1/withholding-tax/repair/${job.id}`, owner, cert(300)).expect(201)).body;
     expect((await prisma.repair.findUniqueOrThrow({ where: { id: job.id } })).paymentStatus).toBe('PAID');
     expect(await expectedCash()).toBeCloseTo(cashBefore, 2);
+    // the job as every app reads it carries the amount (SUNMI / staff app work out what is owed)
+    expect((await authGet(app, `/api/v1/repairs/${job.id}`, owner).expect(200)).body.withholdingTaxTotal).toBe(300);
 
     // off the debt list; nothing more can be taken
     const outstanding = (await authGet(app, '/api/v1/repairs/outstanding', owner).expect(200)).body;
