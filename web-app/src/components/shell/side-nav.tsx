@@ -83,7 +83,7 @@ const SHOP_SECTIONS: NavSection[] = [
     { href: '/reconciliation',        icon: Scale,       label: 'กระทบยอดเงินสด',      permission: 'cash_drawer.view_balance', module: 'finance' },
     { href: '/expenses',              icon: Receipt,     label: 'ค่าใช้จ่าย',           permission: 'expenses.manage', module: 'finance' },
     { href: '/reports/payables',      icon: HandCoins,   label: 'รายงานเจ้าหนี้',      permission: 'reports.view',    module: 'finance' },
-    { href: '/reports/vat',           icon: Percent,     label: 'รายงานภาษี (VAT)',    permission: 'reports.view',    ownerOnly: true, module: 'report' },
+    { href: '/reports/vat',           icon: Percent,     label: 'รายงานภาษี',           permission: 'reports.view',    ownerOnly: true, module: 'report' },
   ]},
   { key: 'accounting', label: 'บัญชี', open: false, items: [
     { href: '/accounting',                  icon: BookMarked,      label: 'สมุดบัญชี',      ownerOnly: true, module: 'accounting' },

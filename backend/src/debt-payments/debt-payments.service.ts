@@ -1,3 +1,4 @@
+import { whtByRepair } from '../tax-invoices/withholding-tax.service';
 import { randomBytes } from 'crypto';
 import {
   Injectable,
@@ -98,8 +99,10 @@ export class DebtPaymentsService {
       const finalCost    = Number(fresh.finalCost ?? 0);
       const deposit      = Number(fresh.deposit ?? 0);
       // Paid so far = amount paid at handover (paidAmount) + earlier debt payments
+      // (a withholding tax certificate counts as paid: it settles part of the bill without cash)
       const previousPaid = Number(fresh.paidAmount ?? 0)
-        + fresh.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+        + fresh.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+        + ((await whtByRepair(tx, [dto.repairId])).get(dto.repairId) ?? 0);
       const remaining    = Math.round((finalCost - deposit - previousPaid) * 100) / 100;
 
       if (dto.amount > remaining + 0.005) {

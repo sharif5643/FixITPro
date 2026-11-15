@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { viewBranch } from '../common/branch-view';
 import { FinanceService } from './finance.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { TenantActiveGuard } from '../common/guards/tenant-active.guard';
@@ -36,17 +37,22 @@ export class FinanceController {
 
   @Get('branch-pnl')
   @RequirePermission('reports.view')
-  getBranchPnL(
+  async getBranchPnL(
     @Query('startDate') startDate: string,
     @Query('endDate')   endDate:   string,
     @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role')     role:     string,
+    @CurrentUser('branchId') jwtBranchId: string | null,
   ) {
     const today = bangkokDate();
-    return this.financeService.getBranchPnL({
+    const rows = await this.financeService.getBranchPnL({
       startDate: startDate ?? today,
       endDate:   endDate   ?? today,
       tenantId,
     });
+    // every branch side by side is the owner's view; someone tied to a branch sees their own
+    const own = viewBranch(role, jwtBranchId);
+    return own ? (rows as any[]).filter((r) => r.branchId === own) : rows;
   }
 
   @Get('transactions')

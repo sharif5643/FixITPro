@@ -426,23 +426,47 @@ function PreviewStep({
 }: PreviewStepProps) {
   const [sharing, setSharing] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  // the page the iframe is showing right now (it starts on previewUrl)
+  const shownUrlRef = useRef<string | undefined>(previewUrl)
+  // a new preview page (another copy picked) is what the iframe shows again
+  useEffect(() => { shownUrlRef.current = previewUrl }, [previewUrl])
+
+  /** Show `url` in the iframe and wait until that page (not the one before it) has loaded */
+  async function showInFrame(url: string) {
+    const iframe = iframeRef.current
+    if (!iframe || shownUrlRef.current === url) return
+    await new Promise<void>((resolve) => {
+      let finished = false
+      const done = () => { if (finished) return; finished = true; iframe.removeEventListener('load', done); resolve() }
+      iframe.addEventListener('load', done)
+      iframe.src = url
+      setTimeout(done, 15_000)
+    })
+    shownUrlRef.current = url
+  }
+
+  /** The iframe's document is the page asked for (same path and query) */
+  function isShowing(doc: Document, url: string) {
+    try {
+      const want = new URL(url, window.location.origin)
+      return doc.location.pathname === want.pathname && doc.location.search === want.search
+    } catch { return true }
+  }
 
   async function getHtmlForPrinting(urlOverride?: string): Promise<string> {
     const targetUrl = urlOverride ?? previewUrl
     if (!targetUrl || !iframeRef.current) return receiptHtml
-    const iframe = iframeRef.current
 
-    // Navigate to a different URL if needed (e.g. sequential "both" printing)
-    if (urlOverride && urlOverride !== previewUrl) {
-      iframe.src = urlOverride
-      await new Promise((r) => setTimeout(r, 400)) // allow navigation to start
-    }
+    // "Both" copies: each copy loads its own page first. (Before: the shop copy waited 400 ms and
+    // could print the customer page still marked ready; the customer copy never navigated back,
+    // so two shop copies came out and the customer got none.)
+    await showInFrame(targetUrl)
 
-    // Wait up to 15 s for the React page to finish fetching + rendering
+    // Wait up to 15 s for that page to finish fetching + rendering
     let ready = false
     for (let i = 0; i < 30; i++) {
       const doc = iframeRef.current?.contentDocument
-      if (doc?.documentElement.getAttribute('data-receipt-ready') === '1') { ready = true; break }
+      if (doc && isShowing(doc, targetUrl) && doc.documentElement.getAttribute('data-receipt-ready') === '1') { ready = true; break }
       await new Promise((r) => setTimeout(r, 500))
     }
     if (!ready) throw new Error('ใบเสร็จโหลดไม่เสร็จ กรุณาลองใหม่')

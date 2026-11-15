@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { registerOnUserChange } from '@/lib/sign-out-hooks'
 
 interface BranchState {
   selectedBranchId: string | null
@@ -15,3 +16,6 @@ export const useBranchStore = create<BranchState>()(
     { name: 'fixitpro-branch' },
   ),
 )
+
+// another person signing in on this device starts from their own branch
+registerOnUserChange(() => useBranchStore.getState().setSelectedBranch(null))

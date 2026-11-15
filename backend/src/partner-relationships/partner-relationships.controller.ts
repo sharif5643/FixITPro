@@ -143,4 +143,24 @@ export class PartnerRelationshipsController {
     assertOwner(user);
     return this.svc.cancel(id, user.tenantId, user.id, user.name);
   }
+
+  @Post(':id/suspend')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('partner_relationship.manage')
+  @HttpCode(HttpStatus.OK)
+  suspend(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    assertTenantUser(user);
+    assertOwner(user);
+    return this.svc.suspend(id, user.tenantId, user.id, user.name);
+  }
+
+  @Post(':id/resume')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('partner_relationship.manage')
+  @HttpCode(HttpStatus.OK)
+  resume(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    assertTenantUser(user);
+    assertOwner(user);
+    return this.svc.resume(id, user.tenantId, user.id, user.name);
+  }
 }

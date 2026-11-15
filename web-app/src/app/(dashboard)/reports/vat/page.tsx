@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/api'
+import { WhtYearReport } from '@/components/tax/wht-year-report'
 
-type Tab = 'sales' | 'purchases' | 'pp30'
+type Tab = 'sales' | 'purchases' | 'pp30' | 'wht'
 
 interface Shop { name: string; taxId: string | null; taxBranch: string; address: string | null; vatPercent: number }
 interface SalesLine {
@@ -91,18 +92,18 @@ export default function VatReportPage() {
     return null
   }
 
-  const loading = tab === 'sales' ? sales.isLoading : tab === 'purchases' ? purchases.isLoading : pp30.isLoading
+  const loading = tab === 'wht' ? false : tab === 'sales' ? sales.isLoading : tab === 'purchases' ? purchases.isLoading : pp30.isLoading
   const failed  = tab === 'sales' ? sales.error : tab === 'purchases' ? purchases.error : pp30.error
 
   return (
     <div className="space-y-5 max-w-6xl">
       <PageHeader
-        title="รายงานภาษีมูลค่าเพิ่ม"
-        subtitle="รายงานภาษีขาย รายงานภาษีซื้อ และยอดสำหรับยื่น ภ.พ.30 รายเดือน"
+        title="รายงานภาษี"
+        subtitle="ภาษีขาย ภาษีซื้อ ยอดยื่น ภ.พ.30 รายเดือน และภาษีที่ลูกค้าหัก ณ ที่จ่ายรายปี"
         icon={Receipt}
       />
 
-      {shop && !(shop.vatPercent > 0) && (
+      {tab !== 'wht' && shop && !(shop.vatPercent > 0) && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-200">
           <AlertTriangle className="h-5 w-5 shrink-0" />
           <div>
@@ -113,13 +114,13 @@ export default function VatReportPage() {
       )}
 
       <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <input
+        {tab !== 'wht' && <input
           type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)}
           className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
           aria-label="เดือน"
-        />
+        />}
         <div className="flex rounded-lg border border-slate-200 p-0.5 dark:border-slate-700" role="tablist">
-          {([['sales', 'ภาษีขาย'], ['purchases', 'ภาษีซื้อ'], ['pp30', 'สรุป ภ.พ.30']] as const).map(([k, label]) => (
+          {([['sales', 'ภาษีขาย'], ['purchases', 'ภาษีซื้อ'], ['pp30', 'สรุป ภ.พ.30'], ['wht', 'ถูกหัก ณ ที่จ่าย']] as const).map(([k, label]) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
               className={cn('rounded-md px-3 py-1.5 text-sm font-medium', tab === k ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800')}>
               {label}
@@ -127,12 +128,14 @@ export default function VatReportPage() {
           ))}
         </div>
         <div className="ml-auto flex gap-2">
-          {tab !== 'pp30' && <Button variant="outline" size="sm" onClick={csv}><Download className="mr-1.5 h-4 w-4" />Excel (CSV)</Button>}
+          {tab !== 'pp30' && tab !== 'wht' && <Button variant="outline" size="sm" onClick={csv}><Download className="mr-1.5 h-4 w-4" />Excel (CSV)</Button>}
           <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="mr-1.5 h-4 w-4" />พิมพ์</Button>
         </div>
       </div>
 
-      {shop && (
+      {tab === 'wht' && <WhtYearReport />}
+
+      {tab !== 'wht' && shop && (
         <div className="text-sm text-slate-700 dark:text-slate-300">
           <p className="font-semibold">{tab === 'sales' ? 'รายงานภาษีขาย' : tab === 'purchases' ? 'รายงานภาษีซื้อ' : 'สรุปภาษีมูลค่าเพิ่ม (ภ.พ.30)'} เดือน {sales.data?.month ?? pp30.data?.month}</p>
           <p>ชื่อผู้ประกอบการ {shop.name} · เลขประจำตัวผู้เสียภาษี {shop.taxId ?? '—'} · {shop.taxBranch}</p>
@@ -140,8 +143,8 @@ export default function VatReportPage() {
         </div>
       )}
 
-      {loading && <p className="text-sm text-slate-500">กำลังโหลด...</p>}
-      {failed && <p className="text-sm text-red-600">โหลดรายงานไม่ได้</p>}
+      {tab !== 'wht' && loading && <p className="text-sm text-slate-500">กำลังโหลด...</p>}
+      {tab !== 'wht' && failed && <p className="text-sm text-red-600">โหลดรายงานไม่ได้</p>}
 
       {tab === 'sales' && sales.data && (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">

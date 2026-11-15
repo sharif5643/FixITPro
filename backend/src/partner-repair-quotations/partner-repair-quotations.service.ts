@@ -69,6 +69,21 @@ function validateAmount(amount: number): void {
   }
 }
 
+/** No new price while the partnership is suspended */
+function assertPartnershipActive(transfer: { relationship?: { status: string } | null }): void {
+  if (transfer.relationship && transfer.relationship.status !== 'ACCEPTED') {
+    throw new ForbiddenException('การเป็นพาร์ทเนอร์ถูกระงับอยู่ — ตกลงราคาใหม่ไม่ได้');
+  }
+}
+
+/** The other shop sees which shop acted, never the name of its staff */
+function hideOtherStaff<T extends { tenantId?: string | null; actorId?: string | null; actorName?: string | null }>(
+  ev: T, callerTenantId: string, ownerTenantId: string,
+): T {
+  if (!ev.tenantId || ev.tenantId === callerTenantId) return ev;
+  return { ...ev, actorId: null, actorName: ev.tenantId === ownerTenantId ? 'ร้านต้นทาง' : 'ร้านพาร์ทเนอร์' };
+}
+
 @Injectable()
 export class PartnerRepairQuotationsService {
   constructor(
@@ -87,6 +102,7 @@ export class PartnerRepairQuotationsService {
         status:         true,
         ownerTenantId:  true,
         partnerTenantId: true,
+        relationship:   { select: { status: true } },
       },
     });
     if (!transfer) throw new NotFoundException('ไม่พบรายการโอนงานพาร์ทเนอร์');
@@ -110,6 +126,7 @@ export class PartnerRepairQuotationsService {
             status:          true,
             ownerTenantId:   true,
             partnerTenantId: true,
+            relationship:    { select: { status: true } },
           },
         },
       },
@@ -117,6 +134,7 @@ export class PartnerRepairQuotationsService {
     if (!quotation) throw new NotFoundException('ไม่พบใบเสนอราคา');
 
     const transfer = quotation.transfer;
+    assertPartnershipActive(transfer);
     const isInvolved =
       transfer.ownerTenantId   === actorTenantId ||
       transfer.partnerTenantId === actorTenantId;
@@ -168,6 +186,7 @@ export class PartnerRepairQuotationsService {
     validateAmount(dto.amount);
 
     const transfer = await this.loadTransferForQuotation(transferId, actor.tenantId);
+    assertPartnershipActive(transfer);
 
     // Only Shop B (partnerTenantId) can create the initial quotation
     if (transfer.partnerTenantId !== actor.tenantId) {
@@ -242,21 +261,29 @@ export class PartnerRepairQuotationsService {
     const { quotation, transfer } = await this.loadQuotationForResponse(quotationId, actor.tenantId);
 
     // Accept: update quotation + update transfer.agreedPartnerPrice
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.partnerRepairQuotation.update({
-        where: { id: quotationId },
-        data:  {
-          status:           'ACCEPTED',
-          respondedByUserId: actor.id,
-          respondedAt:       new Date(),
-        },
-        select: QUOTATION_SELECT,
-      }),
-      this.prisma.partnerRepairTransfer.update({
-        where: { id: transfer.id },
-        data:  { agreedPartnerPrice: quotation.proposedAmount },
-      }),
-    ]);
+    // Only while still PENDING: two accepts (or accept and counter at once) cannot both win
+    let updated;
+    try {
+      [updated] = await this.prisma.$transaction([
+        this.prisma.partnerRepairQuotation.update({
+          where: { id: quotationId, status: 'PENDING' },
+          data:  {
+            status:           'ACCEPTED',
+            respondedByUserId: actor.id,
+            respondedAt:       new Date(),
+          },
+          select: QUOTATION_SELECT,
+        }),
+        this.prisma.partnerRepairTransfer.update({
+          where: { id: transfer.id },
+          data:  { agreedPartnerPrice: quotation.proposedAmount },
+        }),
+      ]);
+    } catch (e) {
+      // Only while still PENDING: two accepts (or accept and counter at once) cannot both win
+      if ((e as { code?: string })?.code === 'P2025') throw new ConflictException('ใบเสนอราคานี้ถูกตอบไปแล้ว — รีเฟรชหน้าแล้วลองใหม่');
+      throw e;
+    }
 
     await this.createEvent(quotationId, 'ACCEPTED', Number(quotation.proposedAmount), null, actor);
 
@@ -428,11 +455,13 @@ export class PartnerRepairQuotationsService {
   async getQuotations(transferId: string, actorTenantId: string) {
     await this.loadTransferForQuotation(transferId, actorTenantId);
 
-    return this.prisma.partnerRepairQuotation.findMany({
+    const rows = await this.prisma.partnerRepairQuotation.findMany({
       where:   { transferId },
       select:  QUOTATION_SELECT,
       orderBy: { version: 'asc' },
     });
+    // the other shop's staff are not named (ids are of no use to it)
+    return rows.map((q) => q.proposedByTenantId === actorTenantId ? q : { ...q, proposedByUserId: null, respondedByUserId: null });
   }
 
   async getActiveQuotation(transferId: string, actorTenantId: string) {
@@ -462,9 +491,10 @@ export class PartnerRepairQuotationsService {
       throw new ForbiddenException('คุณไม่มีสิทธิ์เข้าถึงใบเสนอราคานี้');
     }
 
-    return this.prisma.partnerRepairQuotationEvent.findMany({
+    const events = await this.prisma.partnerRepairQuotationEvent.findMany({
       where:   { quotationId },
       orderBy: { createdAt: 'asc' },
     });
+    return events.map((e) => hideOtherStaff(e, actorTenantId, ownerTenantId));
   }
 }

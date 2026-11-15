@@ -1,4 +1,5 @@
 import { Body, Controller, ForbiddenException, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { viewBranch } from '../common/branch-view';
 import { CostFixService } from './cost-fix.service';
 import { FixCostDto } from './dto/fix-cost.dto';
 import { canViewCost, stripCost } from '../common/interceptors/hide-cost.interceptor';
@@ -55,8 +56,10 @@ export class ReportsController {
   getOwnerDashboard(
     @Query('branchId') branchId?: string,
     @CurrentUser('tenantId') tenantId?: string,
+    @CurrentUser('role')     role?: string,
+    @CurrentUser('branchId') userBranchId?: string,
   ) {
-    return this.reportsService.getOwnerDashboard(branchId, tenantId);
+    return this.reportsService.getOwnerDashboard(viewBranch(role, userBranchId, branchId), tenantId);
   }
 
   @RequirePermission('reports.view')
@@ -94,9 +97,11 @@ export class ReportsController {
     @Query('date') date: string,
     @Query('branchId') branchId?: string,
     @CurrentUser('tenantId') tenantId?: string,
+    @CurrentUser('role')     role?: string,
+    @CurrentUser('branchId') userBranchId?: string,
   ) {
     const reportDate = date || bangkokDate();
-    return this.reportsService.getVoidLog(reportDate, branchId, tenantId);
+    return this.reportsService.getVoidLog(reportDate, viewBranch(role, userBranchId, branchId), tenantId);
   }
 
   // Also for whoever closes the cash drawer (cashiers): the shift-close report is printed from it

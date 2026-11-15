@@ -119,7 +119,9 @@ describe('Promised features (e2e)', () => {
     expect(text).not.toContain('costPrice');
     expect(text).not.toContain('0812345678');
 
-    await request(app.getHttpServer()).get(`/api/v1/public/receipts/${id}/${token.slice(0, -1)}x`).expect(404);
+    // a token one character off (never the same character: about 1 token in 64 already ends in "x")
+    const tampered = token.slice(0, -1) + (token.endsWith('x') ? 'y' : 'x');
+    await request(app.getHttpServer()).get(`/api/v1/public/receipts/${id}/${tampered}`).expect(404);
     await request(app.getHttpServer()).get(`/api/v1/public/receipts/${id}/short`).expect(404);
 
     // Same link from the sale itself (reprints)

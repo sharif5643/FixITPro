@@ -20,7 +20,7 @@
  * CT-05b: accept after cancel — CANCELLED→ACCEPTED not in VALID_TRANSITIONS → ConflictException
  * CT-05c: cancel first wins, accept is then blocked (sequential race resolution)
  *
- * CT-06a: returnDevice when transfer is IN_PROGRESS — IN_PROGRESS→DEVICE_RETURNED invalid
+ * CT-06a: returnDevice when transfer is IN_PROGRESS — allowed (send back unrepaired); from ACCEPTED still invalid
  * CT-06b: complete when already COMPLETED — COMPLETED→COMPLETED invalid
  *
  * DUP-01a: createTransfer P2002 → ConflictException (DB constraint is the last safety net)
@@ -411,9 +411,14 @@ describe('CT-06: Complete vs Return Race', () => {
     svc    = makeTransferSvc(prisma);
   });
 
-  it('CT-06a: returnDevice on IN_PROGRESS (not yet completed) → assertTransition → ConflictException', async () => {
+  it('CT-06a: returnDevice on IN_PROGRESS is allowed (sent back unrepaired); before the device arrived it is not', async () => {
     prisma.partnerRepairTransfer.findUnique.mockResolvedValue(
       makeTransfer({ status: 'IN_PROGRESS', partnerTenantId: TENANT_B }),
+    );
+    prisma.partnerRepairTransfer.update.mockResolvedValue(makeTransfer({ status: 'DEVICE_RETURNED', partnerTenantId: TENANT_B }));
+    await expect(svc.returnDevice(TRANSFER_ID, actorB())).resolves.toMatchObject({ status: 'DEVICE_RETURNED' });
+    prisma.partnerRepairTransfer.findUnique.mockResolvedValue(
+      makeTransfer({ status: 'ACCEPTED', partnerTenantId: TENANT_B }),
     );
     await expect(svc.returnDevice(TRANSFER_ID, actorB())).rejects.toThrow(ConflictException);
   });
@@ -528,13 +533,22 @@ describe('RETRY-01: Retry Safety', () => {
 
   it('RETRY-01c: retry updatePrice (idempotent) succeeds without conflict', async () => {
     tPrisma.partnerRepairTransfer.findUnique.mockResolvedValue(
-      makeTransfer({ status: 'ACCEPTED' }),
+      makeTransfer({ status: 'PENDING_ACCEPTANCE' }),
     );
     tPrisma.partnerRepairTransfer.update.mockResolvedValue(
-      makeTransfer({ status: 'ACCEPTED', agreedPartnerPrice: 500 }),
+      makeTransfer({ status: 'PENDING_ACCEPTANCE', agreedPartnerPrice: 500 }),
     );
     const result = await tSvc.updatePrice(TRANSFER_ID, 500, undefined, actorA());
     expect(result).toMatchObject({ agreedPartnerPrice: 500 });
+  });
+
+  it('RETRY-01d: once the partner accepted, the sender cannot change the agreed price alone', async () => {
+    for (const status of ['ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'DEVICE_RETURNED'] as const) {
+      tPrisma.partnerRepairTransfer.findUnique.mockResolvedValue(makeTransfer({ status }));
+      tPrisma.partnerRepairTransfer.update.mockClear();
+      await expect(tSvc.updatePrice(TRANSFER_ID, 999, undefined, actorA())).rejects.toBeInstanceOf(ConflictException);
+      expect(tPrisma.partnerRepairTransfer.update).not.toHaveBeenCalled();
+    }
   });
 });
 

@@ -15,8 +15,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 const VALID_TRANSITIONS: Partial<Record<PartnerRepairTransferStatus, PartnerRepairTransferStatus[]>> = {
   PENDING_ACCEPTANCE: ['ACCEPTED', 'REJECTED', 'CANCELLED'],
   ACCEPTED:           ['DEVICE_RECEIVED', 'RECALLED'],
-  DEVICE_RECEIVED:    ['IN_PROGRESS'],
-  IN_PROGRESS:        ['COMPLETED'],
+  // The partner can send the device back before it is fixed (no parts, cannot fix, or the
+  // partnership was suspended): it must never be stuck at the other shop
+  DEVICE_RECEIVED:    ['IN_PROGRESS', 'DEVICE_RETURNED'],
+  IN_PROGRESS:        ['COMPLETED', 'DEVICE_RETURNED'],
   COMPLETED:          ['DEVICE_RETURNED'],
   DEVICE_RETURNED:    ['OWNER_RECEIVED'],
 };
@@ -298,9 +300,14 @@ export class PartnerRepairTransfersService {
     if (transfer.ownerTenantId !== tenantId && transfer.partnerTenantId !== tenantId) {
       return null;
     }
-    return this.prisma.partnerRepairTransferEvent.findMany({
+    const events = await this.prisma.partnerRepairTransferEvent.findMany({
       where:   { transferId: id },
       orderBy: { createdAt: 'asc' },
+    });
+    // The other shop sees which shop acted, never the name of its staff
+    return events.map((e) => (!e.tenantId || e.tenantId === tenantId) ? e : {
+      ...e, actorId: null, actorRole: null,
+      actorName: e.tenantId === transfer.ownerTenantId ? 'ร้านต้นทาง' : 'ร้านพาร์ทเนอร์',
     });
   }
 
@@ -308,12 +315,9 @@ export class PartnerRepairTransfersService {
 
   async accept(id: string, actor: Actor) {
     const transfer = await this.requireTransferForPartner(id, actor.tenantId);
+    this.assertPartnershipActive(transfer);
     assertTransition(transfer.status, 'ACCEPTED');
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  { status: 'ACCEPTED', acceptedAt: new Date(), acceptedById: actor.id },
-      select: TRANSFER_BASE_SELECT,
-    });
+    const updated = await this.move(id, transfer.status, { status: 'ACCEPTED', acceptedAt: new Date(), acceptedById: actor.id });
     await this.createEvent(id, 'ACCEPTED', null, actor, actor.tenantId);
     this.notif.notify({
       type: 'PARTNER_REPAIR_ACCEPTED', title: 'พาร์ทเนอร์ยืนยันรับงานซ่อม',
@@ -328,11 +332,7 @@ export class PartnerRepairTransfersService {
   async reject(id: string, rejectionNote: string | undefined, actor: Actor) {
     const transfer = await this.requireTransferForPartner(id, actor.tenantId);
     assertTransition(transfer.status, 'REJECTED');
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  { status: 'REJECTED', rejectedAt: new Date(), rejectedById: actor.id, rejectionNote: rejectionNote ?? null },
-      select: TRANSFER_BASE_SELECT,
-    });
+    const updated = await this.move(id, transfer.status, { status: 'REJECTED', rejectedAt: new Date(), rejectedById: actor.id, rejectionNote: rejectionNote ?? null });
     await this.createEvent(id, 'REJECTED', rejectionNote, actor, actor.tenantId);
     this.notif.notify({
       type: 'PARTNER_REPAIR_REJECTED', title: 'พาร์ทเนอร์ปฏิเสธงานซ่อม',
@@ -346,12 +346,9 @@ export class PartnerRepairTransfersService {
 
   async deviceReceived(id: string, actor: Actor) {
     const transfer = await this.requireTransferForPartner(id, actor.tenantId);
+    this.assertPartnershipActive(transfer);
     assertTransition(transfer.status, 'DEVICE_RECEIVED');
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  { status: 'DEVICE_RECEIVED', deviceReceivedAt: new Date(), receivedById: actor.id },
-      select: TRANSFER_BASE_SELECT,
-    });
+    const updated = await this.move(id, transfer.status, { status: 'DEVICE_RECEIVED', deviceReceivedAt: new Date(), receivedById: actor.id });
     await this.createEvent(id, 'DEVICE_RECEIVED', null, actor, actor.tenantId);
     this.notif.notify({
       type: 'PARTNER_DEVICE_RECEIVED', title: 'พาร์ทเนอร์รับอุปกรณ์แล้ว',
@@ -365,12 +362,9 @@ export class PartnerRepairTransfersService {
 
   async start(id: string, actor: Actor) {
     const transfer = await this.requireTransferForPartner(id, actor.tenantId);
+    this.assertPartnershipActive(transfer);
     assertTransition(transfer.status, 'IN_PROGRESS');
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  { status: 'IN_PROGRESS', partnerStartedAt: new Date(), partnerStartedById: actor.id },
-      select: TRANSFER_BASE_SELECT,
-    });
+    const updated = await this.move(id, transfer.status, { status: 'IN_PROGRESS', partnerStartedAt: new Date(), partnerStartedById: actor.id });
     await this.createEvent(id, 'IN_PROGRESS', null, actor, actor.tenantId);
     this.notif.notify({
       type: 'PARTNER_REPAIR_STARTED', title: 'พาร์ทเนอร์เริ่มซ่อมแล้ว',
@@ -384,15 +378,12 @@ export class PartnerRepairTransfersService {
 
   async complete(id: string, completionNote: string | undefined, actor: Actor) {
     const transfer = await this.requireTransferForPartner(id, actor.tenantId);
+    this.assertPartnershipActive(transfer);
     assertTransition(transfer.status, 'COMPLETED');
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  {
+    const updated = await this.move(id, transfer.status, {
         status: 'COMPLETED', completedAt: new Date(), completedById: actor.id,
         completionNote: completionNote ?? null,
-      },
-      select: TRANSFER_BASE_SELECT,
-    });
+      });
     await this.createEvent(id, 'COMPLETED', completionNote, actor, actor.tenantId);
     this.notif.notify({
       type: 'PARTNER_REPAIR_COMPLETED', title: 'พาร์ทเนอร์ซ่อมเสร็จแล้ว',
@@ -407,11 +398,7 @@ export class PartnerRepairTransfersService {
   async returnDevice(id: string, actor: Actor) {
     const transfer = await this.requireTransferForPartner(id, actor.tenantId);
     assertTransition(transfer.status, 'DEVICE_RETURNED');
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  { status: 'DEVICE_RETURNED', returnedAt: new Date(), returnedById: actor.id },
-      select: TRANSFER_BASE_SELECT,
-    });
+    const updated = await this.move(id, transfer.status, { status: 'DEVICE_RETURNED', returnedAt: new Date(), returnedById: actor.id });
     await this.createEvent(id, 'DEVICE_RETURNED', null, actor, actor.tenantId);
     this.notif.notify({
       type: 'PARTNER_DEVICE_RETURNED', title: 'พาร์ทเนอร์คืนอุปกรณ์แล้ว',
@@ -428,11 +415,7 @@ export class PartnerRepairTransfersService {
   async ownerReceived(id: string, actor: Actor) {
     const transfer = await this.requireTransferForOwner(id, actor.tenantId);
     assertTransition(transfer.status, 'OWNER_RECEIVED');
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  { status: 'OWNER_RECEIVED', ownerReceivedAt: new Date(), ownerReceivedById: actor.id },
-      select: TRANSFER_BASE_SELECT,
-    });
+    const updated = await this.move(id, transfer.status, { status: 'OWNER_RECEIVED', ownerReceivedAt: new Date(), ownerReceivedById: actor.id });
     await this.createEvent(id, 'OWNER_RECEIVED', null, actor, actor.tenantId);
     this.notif.notify({
       type: 'PARTNER_OWNER_RECEIVED', title: 'ร้านหลักรับอุปกรณ์คืนแล้ว',
@@ -447,14 +430,10 @@ export class PartnerRepairTransfersService {
   async cancel(id: string, cancellationNote: string | undefined, actor: Actor) {
     const transfer = await this.requireTransferForOwner(id, actor.tenantId);
     assertTransition(transfer.status, 'CANCELLED');
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  {
+    const updated = await this.move(id, transfer.status, {
         status: 'CANCELLED', cancelledAt: new Date(), cancelledById: actor.id,
         cancellationNote: cancellationNote ?? null,
-      },
-      select: TRANSFER_BASE_SELECT,
-    });
+      });
     await this.createEvent(id, 'CANCELLED', cancellationNote, actor, actor.tenantId);
     this.notif.notify({
       type: 'PARTNER_REPAIR_CANCELLED', title: 'ยกเลิกคำขอโอนงานซ่อม',
@@ -472,14 +451,10 @@ export class PartnerRepairTransfersService {
     }
     const transfer = await this.requireTransferForOwner(id, actor.tenantId);
     assertTransition(transfer.status, 'RECALLED');
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  {
+    const updated = await this.move(id, transfer.status, {
         status: 'RECALLED', recalledAt: new Date(), recalledById: actor.id,
         recallNote: recallNote ?? null,
-      },
-      select: TRANSFER_BASE_SELECT,
-    });
+      });
     await this.createEvent(id, 'RECALLED', recallNote, actor, actor.tenantId);
     this.notif.notify({
       type: 'PARTNER_REPAIR_RECALLED', title: 'ร้านหลักเรียกคืนงานซ่อม',
@@ -503,16 +478,14 @@ export class PartnerRepairTransfersService {
       throw new ForbiddenException('เฉพาะ OWNER เท่านั้นที่สามารถแก้ไขราคาได้');
     }
     const transfer = await this.requireTransferForOwner(id, actor.tenantId);
-    if (TERMINAL_STATUSES.includes(transfer.status)) {
-      throw new ConflictException('ไม่สามารถแก้ไขราคาของการโอนที่สิ้นสุดแล้ว');
+    // The price is the sending shop's offer only until the partner accepts the job; after that it
+    // is what both agreed, and changes only through a quotation the other side accepts
+    if (transfer.status !== 'PENDING_ACCEPTANCE') {
+      throw new ConflictException('ร้านพาร์ทเนอร์รับงานแล้ว ราคาที่ตกลงแก้ฝ่ายเดียวไม่ได้ — ให้ร้านพาร์ทเนอร์ส่งใบเสนอราคาใหม่');
     }
-    const updated = await this.prisma.partnerRepairTransfer.update({
-      where: { id },
-      data:  {
-        agreedPartnerPrice: agreedPartnerPrice ?? null,
-        pricingNote:        pricingNote ?? null,
-      },
-      select: TRANSFER_BASE_SELECT,
+    const updated = await this.move(id, 'PENDING_ACCEPTANCE', {
+      agreedPartnerPrice: agreedPartnerPrice ?? null,
+      pricingNote:        pricingNote ?? null,
     });
     await this.createEvent(id, 'PRICE_UPDATED', pricingNote, actor, actor.tenantId);
     this.auditTransition(id, actor, 'PRICE_UPDATE');
@@ -524,7 +497,7 @@ export class PartnerRepairTransfersService {
   private async requireTransferForOwner(id: string, tenantId: string) {
     const transfer = await this.prisma.partnerRepairTransfer.findUnique({
       where:  { id },
-      select: { id: true, status: true, ownerTenantId: true, partnerTenantId: true },
+      select: { id: true, status: true, ownerTenantId: true, partnerTenantId: true, relationship: { select: { status: true } } },
     });
     if (!transfer || transfer.ownerTenantId !== tenantId) {
       throw new NotFoundException('ไม่พบข้อมูลการโอนงานซ่อม');
@@ -535,12 +508,40 @@ export class PartnerRepairTransfersService {
   private async requireTransferForPartner(id: string, tenantId: string) {
     const transfer = await this.prisma.partnerRepairTransfer.findUnique({
       where:  { id },
-      select: { id: true, status: true, ownerTenantId: true, partnerTenantId: true },
+      select: { id: true, status: true, ownerTenantId: true, partnerTenantId: true, relationship: { select: { status: true } } },
     });
     if (!transfer || transfer.partnerTenantId !== tenantId) {
       throw new NotFoundException('ไม่พบข้อมูลการโอนงานซ่อม');
     }
     return transfer;
+  }
+
+  /**
+   * Work cannot move forward while the partnership is suspended. Getting the device back home
+   * (reject, return, receive back, cancel, recall) is always allowed.
+   */
+  private assertPartnershipActive(transfer: { relationship?: { status: string } | null }) {
+    if (transfer.relationship && transfer.relationship.status !== 'ACCEPTED') {
+      throw new ForbiddenException('การเป็นพาร์ทเนอร์ถูกระงับอยู่ — ทำงานต่อไม่ได้ ส่งเครื่องคืนได้อย่างเดียว');
+    }
+  }
+
+  /**
+   * One status move at a time: the row changes only if it is still in the status it was read in,
+   * so two clicks (or the two shops at once) cannot both move it
+   */
+  private async move(id: string, from: PartnerRepairTransferStatus, data: Record<string, unknown>) {
+    try {
+      // one UPDATE … WHERE id AND status: no row when the status already moved on
+      return await this.prisma.partnerRepairTransfer.update({
+        where: { id, status: from }, data: data as any, select: TRANSFER_BASE_SELECT,
+      });
+    } catch (e) {
+      if ((e as { code?: string })?.code === 'P2025') {
+        throw new ConflictException('สถานะงานเปลี่ยนไปแล้ว — รีเฟรชหน้าแล้วลองใหม่');
+      }
+      throw e;
+    }
   }
 
   private applyPrivacy(transfer: Record<string, any>, callerTenantId: string) {

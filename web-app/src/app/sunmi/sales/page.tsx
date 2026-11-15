@@ -1,6 +1,7 @@
 'use client'
 
 import { AddFreebieButton, FreebieList, useAutoFreebies } from '@/components/pos/freebies'
+import { effectiveLineDiscounts } from '@/lib/line-discounts'
 import Link from 'next/link'
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -731,10 +732,22 @@ export default function SunmiSalesPage() {
   const [lastSaleQr, setLastSaleQr]         = useState<string | undefined>(undefined)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Per-item discounts that still apply: only lines still in the cart, never more than the line
+  // (an item removed with "-" left its discount in the total: the screen asked for less than the
+  // bill, and change was handed out from the drawer)
+  const lineDiscounts = useMemo(() => effectiveLineDiscounts(items, itemDiscounts), [items, itemDiscounts])
+  // forget the discount of a line that left the cart, so adding the item again starts clean
+  useEffect(() => {
+    const ids = new Set(items.map((i) => i.product.id))
+    if (Array.from(itemDiscounts.keys()).some((k) => !ids.has(k))) {
+      setItemDiscounts((prev) => new Map(Array.from(prev).filter(([k]) => ids.has(k))))
+    }
+  }, [items, itemDiscounts])
+
   // Totals
   const itemDiscountsTotal = useMemo(
-    () => Array.from(itemDiscounts.values()).reduce((s, d) => s + d, 0),
-    [itemDiscounts],
+    () => Array.from(lineDiscounts.values()).reduce((s, d) => s + d, 0),
+    [lineDiscounts],
   )
   const subtotal = useMemo(
     () => items.reduce((s, i) => s + Number(i.product.price) * i.quantity, 0),
@@ -743,10 +756,10 @@ export default function SunmiSalesPage() {
   const totalDiscount = itemDiscountsTotal + discount
   const total = Math.max(0, subtotal - totalDiscount)
   const loss = useMemo(() => billLoss(items.map((i) => ({
-    unitNet: i.quantity > 0 ? Number(i.product.price) - (itemDiscounts.get(i.product.id) ?? 0) / i.quantity : 0,
+    unitNet: i.quantity > 0 ? Number(i.product.price) - (lineDiscounts.get(i.product.id) ?? 0) / i.quantity : 0,
     quantity: i.quantity,
     costPrice: i.product.costPrice,
-  })), discount), [items, itemDiscounts, discount])
+  })), discount), [items, lineDiscounts, discount])
   const totalQty = items.reduce((s, i) => s + i.quantity, 0)
 
   const { data: currentShift } = useQuery<{ id: string } | null>({
@@ -1169,7 +1182,7 @@ export default function SunmiSalesPage() {
                   key={item.product.id}
                   product={item.product}
                   quantity={item.quantity}
-                  itemDiscount={itemDiscounts.get(item.product.id) ?? 0}
+                  itemDiscount={lineDiscounts.get(item.product.id) ?? 0}
                   onInc={() => updateQty(item.product.id, item.quantity + 1)}
                   onDec={() => updateQty(item.product.id, item.quantity - 1)}
                   onRemove={() => {
@@ -1224,7 +1237,7 @@ export default function SunmiSalesPage() {
           subtotal={subtotal}
           totalDiscount={totalDiscount}
           total={total}
-          itemDiscounts={itemDiscounts}
+          itemDiscounts={lineDiscounts}
           shiftId={currentShift?.id}
           onClose={() => setCheckoutOpen(false)}
           onSuccess={handleSuccess}

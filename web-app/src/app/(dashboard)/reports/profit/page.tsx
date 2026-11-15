@@ -171,6 +171,11 @@ function profitTrails(d: ProfitReport) {
     ...entryRows(t?.deposits).map((r) => ({ ...r, label: 'มัดจำ' })),
     ...entryRows(t?.pickups).map((r) => ({ ...r, label: 'จ่ายตอนรับเครื่องคืน' })),
     ...entryRows(t?.debts).map((r) => ({ ...r, label: 'จ่ายหนี้ค้าง' })),
+    // the part a customer withheld as tax: a certificate, not cash, still the shop's income
+    ...(d.repair.withholdingTaxItems ?? []).map((w) => ({
+      time: w.time, doc: w.ticketNumber ? jobDoc({ repairId: w.repairId, ticketNumber: w.ticketNumber }) : null,
+      label: 'ลูกค้าหักภาษี ณ ที่จ่าย', sub: w.payerName, amount: w.amount,
+    })),
   ]
   const parts = nz(jobs.map((j) => ({ time: j.time, doc: jobDoc(j), label: j.device, amount: -(j.partsCost - (j.freebieCost ?? 0)) })))
   const repFree = nz(jobs.map((j) => ({ time: j.time, doc: jobDoc(j), label: `🎁 อะไหล่แถม · ${j.device}`, amount: -(j.freebieCost ?? 0) })))
@@ -300,6 +305,7 @@ function ProfitSummary({ data, periodLabel, onDetail, onTrail }: { data: ProfitR
           {(data.repair.deposits ?? 0) > 0 && <MoneyLine label="มัดจำตอนรับเครื่อง" value={data.repair.deposits!} muted onClick={go(T.deposits)} />}
           {(data.repair.atPickup ?? 0) > 0 && <MoneyLine label="จ่ายตอนรับเครื่องคืน" value={data.repair.atPickup!} muted onClick={go(T.pickups)} />}
           {(data.repair.debtPayments ?? 0) > 0 && <MoneyLine label="จ่ายหนี้ค้าง" value={data.repair.debtPayments!} muted onClick={go(T.debts)} />}
+          {(data.repair.withholdingTax ?? 0) > 0 && <MoneyLine label={`ลูกค้าหักภาษี ณ ที่จ่าย${data.repair.withholdingTaxCount ? ` (${data.repair.withholdingTaxCount} ใบ)` : ''} — ไม่ใช่เงินสด`} value={data.repair.withholdingTax!} muted onClick={go(T.repairIn)} />}
           <MoneyLine label="ค่าอะไหล่ที่ใช้" value={data.repair.partsCost} minus onClick={go(T.parts)} />
           {repFreebie > 0 && <MoneyLine label={<>อะไหล่แถม <HiddenTag /></>} value={repFreebie} minus onClick={go(T.repFree)} />}
           {delivery > 0 && <MoneyLine label={<>ค่ารถส่งอะไหล่ ({data.repair.deliveryCount ?? 0} รอบ) <HiddenTag /></>} value={delivery} minus onClick={go(T.delivery)} />}

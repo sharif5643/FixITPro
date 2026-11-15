@@ -12,6 +12,9 @@ export interface QueueItem {
   status: QueueItemStatus
   retries: number
   lastError?: string
+  /** Who did it offline: only that person's sign-in sends it (their shift, their name) */
+  userId?: string
+  userName?: string
 }
 
 // ── Storage interface (allows test injection) ─────────────────────────────────
@@ -125,7 +128,7 @@ class IDBQueueStorage implements QueueStorage {
 export class OfflineQueue {
   constructor(private storage: QueueStorage) {}
 
-  async enqueue(type: QueueItemType, payload: unknown): Promise<QueueItem> {
+  async enqueue(type: QueueItemType, payload: unknown, by?: { id: string; name?: string } | null): Promise<QueueItem> {
     const item: QueueItem = {
       id:        `offline_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       type,
@@ -133,6 +136,7 @@ export class OfflineQueue {
       createdAt: Date.now(),
       status:    'PENDING',
       retries:   0,
+      ...(by?.id ? { userId: by.id, userName: by.name } : {}),
     }
     await this.storage.put(item)
     return item

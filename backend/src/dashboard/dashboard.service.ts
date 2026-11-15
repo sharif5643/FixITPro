@@ -1,3 +1,4 @@
+import { whtByRepair } from '../tax-invoices/withholding-tax.service';
 import { Injectable } from '@nestjs/common';
 import { unreadSince } from '../notifications/notifications.service';
 import { loadPeriodMoney, summarizeMoney, bangkokDay, MoneyRow } from '../common/money/period-money';
@@ -106,7 +107,7 @@ export class DashboardService {
       this.prisma.repair.findMany({
         where: { status: 'DELIVERED', paymentStatus: { in: ['PENDING', 'PARTIAL'] }, ...bFilter },
         select: {
-          finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
+          id: true, finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
           additionalPayments: { select: { amount: true } },
         },
       }),
@@ -233,10 +234,11 @@ export class DashboardService {
     const transferIn     = money.byMethod['TRANSFER'] ?? 0;
 
     // ── Unpaid debt ────────────────────────────────────────────────────────────
+    const debtWht = await whtByRepair(this.prisma, unpaidDebtRepairs.map((r) => r.id));
     const debtRemaining = unpaidDebtRepairs.map((r) => {
       const cost = Number(r.finalCost ?? r.estimateCost ?? 0);
       const paid = Number(r.deposit ?? 0) + Number(r.paidAmount ?? 0)
-        + r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0);
+        + r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0) + (debtWht.get(r.id) ?? 0);
       return Math.max(0, cost - paid);
     }).filter((owed) => owed > 0);
     const unpaidDebtTotal = debtRemaining.reduce((sum, owed) => sum + owed, 0);
@@ -402,7 +404,7 @@ export class DashboardService {
   }
 
   // ── Owner Summary ─────────────────────────────────────────────────────────────
-  async getOwnerSummary(tenantId?: string | null) {
+  async getOwnerSummary(tenantId?: string | null, branchId?: string) {
     const now      = new Date();
     const thaiNow  = new Date(now.getTime() + 7 * 60 * 60 * 1000);
     const todayStr = thaiNow.toISOString().slice(0, 10);
@@ -413,7 +415,7 @@ export class DashboardService {
     const monthStart   = new Date(`${monthStr}T00:00:00+07:00`);
     const weekAgoStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
 
-    const bScope = this.tenantSvc.branchScope(tenantId);
+    const bScope = branchId ? { branchId, ...this.tenantSvc.branchScope(tenantId) } : this.tenantSvc.branchScope(tenantId);
     const tScope = this.tenantSvc.scope(tenantId);
 
     const [
@@ -444,7 +446,7 @@ export class DashboardService {
       this.prisma.repair.findMany({
         where: { status: 'DELIVERED', paymentStatus: { in: ['PENDING', 'PARTIAL'] }, ...bScope },
         select: {
-          finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
+          id: true, finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
           additionalPayments: { select: { amount: true } },
         },
       }),
@@ -473,7 +475,7 @@ export class DashboardService {
     // Same money rules as getOverview / reports (common/money/period-money.ts)
     const moneyRows = await loadPeriodMoney(this.prisma, {
       start: new Date(Math.min(monthStart.getTime(), weekAgoStart.getTime())), end: todayEnd,
-      branchWhere: bScope, tenantId,
+      branchWhere: bScope, branchId, tenantId,
     });
     const today   = summarizeMoney(moneyRows, (r) => r.date >= todayStart && r.date < todayEnd);
     const monthly = summarizeMoney(moneyRows, (r) => r.date >= monthStart && r.date < todayEnd);
@@ -484,9 +486,10 @@ export class DashboardService {
     const todayExpenses      = Number(todayExpensesAgg._sum.amount ?? 0);
     const monthlyExpenses    = Number(monthlyExpensesAgg._sum.amount ?? 0);
 
+    const debtWht = await whtByRepair(this.prisma, unpaidDebtRepairs.map((r) => r.id));
     const unpaidDebtCount = unpaidDebtRepairs.filter((r) =>
       Number(r.finalCost ?? r.estimateCost ?? 0) - Number(r.deposit ?? 0) - Number(r.paidAmount ?? 0)
-        - r.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0) > 0,
+        - r.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0) - (debtWht.get(r.id) ?? 0) > 0,
     ).length;
     const lowStockCount   = Number((lowStockResult as [{ count: bigint }])[0]?.count ?? 0);
 

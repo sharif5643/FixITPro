@@ -246,6 +246,15 @@ function TransferCard({ transfer, side }: { transfer: PartnerRepairTransfer; sid
               ซ่อมเสร็จแล้ว
             </Button>
           )}
+          {/* Cannot fix it, no parts, or the partnership was suspended: the device goes home unrepaired */}
+          {(transfer.status === 'DEVICE_RECEIVED' || transfer.status === 'IN_PROGRESS') && (
+            <Button size="sm" variant="outline" className="h-7 text-xs w-full gap-1.5"
+              disabled={returnMut.isPending}
+              onClick={() => { if (window.confirm('ส่งเครื่องคืนร้านต้นทางโดยไม่ซ่อม?')) returnMut.mutate() }}>
+              <RotateCcw className="h-3 w-3" />
+              ส่งเครื่องคืน (ไม่ซ่อม)
+            </Button>
+          )}
           {transfer.status === 'COMPLETED' && (
             <Button size="sm" className="h-7 text-xs w-full bg-indigo-600 hover:bg-indigo-700 gap-1.5"
               onClick={() => returnMut.mutate()} disabled={returnMut.isPending}>

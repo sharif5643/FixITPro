@@ -30,6 +30,11 @@ export class SettingsService {
     if (taxDocs > 0) {
       throw new BadRequestException(`ร้านนี้ออกใบกำกับภาษีไปแล้ว ${taxDocs} ฉบับ — กฎหมายให้เก็บบิลและเอกสารไว้อย่างน้อย 5 ปี จึงรีเซ็ตข้อมูลไม่ได้ — ยังไม่ได้ลบข้อมูลใดๆ`);
     }
+    // Withholding tax certificates are the shop's tax documents too (claimed on its yearly tax)
+    const whtDocs = await (this.prisma as any).withholdingTax?.count?.({ where: { tenantId: user.tenantId } });
+    if (Number(whtDocs ?? 0) > 0) {
+      throw new BadRequestException(`ร้านนี้มีหนังสือรับรองการหักภาษี ณ ที่จ่าย ${whtDocs} ใบ — ต้องเก็บไว้ใช้ยื่นภาษี จึงรีเซ็ตข้อมูลไม่ได้ — ยังไม่ได้ลบข้อมูลใดๆ`);
+    }
     const backup = await this.backups.backupTenantNow(user.tenantId, user.id, user.name ?? '');
     await this.resetTenantData(user.tenantId, { actorId: user.id, actorName: user.name, backupId: backup.id });
     return backup;

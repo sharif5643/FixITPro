@@ -33,6 +33,7 @@ import { RepairSignatures } from '@/components/repairs/repair-signatures'
 import { RepairDeliveryPrintFlow } from '@/components/sunmi/repair-delivery-print'
 import { CrossBranchAvailabilityDialog } from '@/components/products/cross-branch-availability-dialog'
 import { useAuthStore } from '@/store/auth.store'
+import { WithholdingTaxBox } from '@/components/repairs/withholding-tax-box'
 import type { Repair, Product, ShopSettings } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
@@ -474,6 +475,7 @@ export default function RepairDetailPage() {
   // before pickup this is money paid ahead (taken off at pickup); after, the payments so far
   const paidSoFar     = (settled ? Number(repair.paidAmount ?? 0) : 0)
     + (repair.additionalPayments ?? []).reduce((s, p) => s + Number(p.amount), 0)
+    + Number(repair.withholdingTaxTotal ?? 0)   // a withholding tax certificate settles part, no cash
   const repairBalance = Math.max(0, repairTotal - repairDeposit - paidSoFar)
   const payAmountNum  = Number(payAmount) || 0
   const payChange     = payAmountNum - repairBalance
@@ -1288,6 +1290,14 @@ export default function RepairDetailPage() {
                         <span className="font-medium tabular-nums">+{fmtMoney(Number(ap.amount))}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Withholding tax certificates (owner / manager record or cancel them) */}
+                {repair.status === 'DELIVERED' && (
+                  <div className="mt-3">
+                    <WithholdingTaxBox repairId={repair.id} outstanding={repairBalance}
+                      canRecord={isPartPaid} canManage={authUser?.role === 'OWNER' || authUser?.role === 'MANAGER'} />
                   </div>
                 )}
 

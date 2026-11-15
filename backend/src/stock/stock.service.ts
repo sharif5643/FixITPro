@@ -67,6 +67,9 @@ export class StockService {
     if (!dto.branchId) {
       throw new BadRequestException('กรุณาระบุสาขา (branchId is required)');
     }
+    if (dto.type === 'ADJUST' && dto.countedQuantity != null) {
+      return this.setCountedStock(dto as AdjustStockDto & { branchId: string; countedQuantity: number }, actorId, actorName, tenantId);
+    }
 
     // C-2: IN and OUT must have positive quantity; ADJUST allows negative (manual count)
     if (dto.type !== 'ADJUST' && dto.quantity <= 0) {
@@ -224,6 +227,67 @@ export class StockService {
    * the shop, damaged. Recorded as stock going out with the reason, never as a 0-baht sale, so
    * sales and profit stay true. Everything is checked first, then each line goes out.
    */
+  /**
+   * "Set to what was counted": the change is worked out inside the transaction from the stock
+   * row, locked. A screen that had not finished loading the current figure (or a sale in between)
+   * can no longer add the whole count on top of what is there.
+   */
+  private async setCountedStock(
+    dto: AdjustStockDto & { branchId: string; countedQuantity: number },
+    actorId?: string, actorName?: string, tenantId?: string,
+  ) {
+    const counted = Math.trunc(dto.countedQuantity);
+    await this.assertBranchActive(dto.branchId);
+    if (tenantId) {
+      const branch = await this.prisma.branch.findUnique({ where: { id: dto.branchId }, select: { tenantId: true } });
+      if (!branch || branch.tenantId !== tenantId) throw new NotFoundException('ไม่พบสาขา');
+    }
+    const product = await this.prisma.product.findUnique({ where: { id: dto.productId, ...(tenantId ? { tenantId } : {}) } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.hasSerial) {
+      throw new BadRequestException('สินค้านี้ใช้ IMEI — ปรับด้วย "รับเข้า" พร้อม IMEI หรือ "ตัดออก" โดยเลือก IMEI แทนการตั้งยอด');
+    }
+
+    let before = 0;
+    let movementId: string | null = null;
+    await this.prisma.$transaction(async (tx) => {
+      const exists = await tx.branchStock.findUnique({
+        where: { branchId_productId: { branchId: dto.branchId, productId: dto.productId } }, select: { id: true },
+      });
+      if (!exists) {
+        const stockCode = await this.generateStockCode(dto.branchId, tx);
+        await tx.branchStock.upsert({
+          where:  { branchId_productId: { branchId: dto.branchId, productId: dto.productId } },
+          create: { branchId: dto.branchId, productId: dto.productId, quantity: 0, minStock: 0, ...(stockCode ? { stockCode } : {}) },
+          update: {},
+        });
+      }
+      const rows = await tx.$queryRaw<{ quantity: number }[]>`
+        SELECT quantity FROM "BranchStock" WHERE "branchId" = ${dto.branchId} AND "productId" = ${dto.productId} FOR UPDATE`;
+      before = Number(rows[0]?.quantity ?? 0);
+      const delta = counted - before;
+      if (delta === 0) return;
+      await tx.branchStock.update({
+        where: { branchId_productId: { branchId: dto.branchId, productId: dto.productId } },
+        data:  { quantity: counted },
+      });
+      movementId = (await tx.stockMovement.create({
+        data: {
+          productId: dto.productId, type: 'ADJUST' as any, quantity: delta, branchId: dto.branchId,
+          note: dto.note?.trim() || `ตั้งยอดตามนับจริง (ระบบ ${before} → นับได้ ${counted})`,
+        },
+      })).id;
+      await this.syncProductShadowStock(dto.productId, tx);
+    });
+
+    this.auditLog.log({
+      actorId, actorName, action: 'STOCK_ADJUSTED', entityType: 'Product', entityId: dto.productId,
+      afterData: { type: 'ADJUST', counted, before, quantity: counted - before, branchId: dto.branchId, note: dto.note },
+    }).catch((err) => this.logger.error('[setCountedStock] audit log failed', err));
+    if (movementId) await this.books?.bookStockMovement(movementId, actorId);
+    return { success: true, productId: dto.productId, branchId: dto.branchId, before, counted };
+  }
+
   async writeOff(dto: WriteOffDto, actorId?: string, actorName?: string, tenantId?: string) {
     if (!dto.branchId) throw new BadRequestException('กรุณาเลือกสาขาก่อนตัดสต๊อก');
     const label = WRITE_OFF_REASONS[dto.reason];

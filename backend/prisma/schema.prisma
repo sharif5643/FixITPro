@@ -459,6 +459,31 @@ model TaxInvoice {
   @@index([sourceType, sourceId])
 }
 
+// Withholding tax (ภาษีหัก ณ ที่จ่าย) a customer (agency / company) kept back from a repair bill and
+// certified (50 ทวิ). It settles that part of the job without cash: never in the drawer; it is
+// the shop's tax credit (account 1150) and counts as paid on the job. Kept, never deleted.
+model WithholdingTax {
+  id              String    @id @default(cuid())
+  tenantId        String
+  branchId        String?
+  repairId        String
+  amount          Decimal   @db.Decimal(12, 2)
+  ratePercent     Decimal   @db.Decimal(5, 2)
+  baseAmount      Decimal   @db.Decimal(12, 2)
+  payerName       String
+  payerTaxId      String?
+  certificateNo   String?
+  certificateDate DateTime
+  note            String?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  cancelledAt     DateTime?
+  cancelReason    String?
+
+  @@index([tenantId, certificateDate])
+  @@index([repairId])
+}
+
 // Running number per shop, branch, kind and Buddhist year (branchKey '' = no branch)
 model TaxInvoiceCounter {
   tenantId  String
@@ -2084,12 +2109,15 @@ enum PartnerRelationshipStatus {
 }
 
 model PartnerRelationship {
-  id          String                    @id @default(cuid())
-  status      PartnerRelationshipStatus @default(PENDING)
-  note        String?
-  createdAt   DateTime                  @default(now())
-  updatedAt   DateTime                  @updatedAt
-  respondedAt DateTime?
+  id                  String                    @id @default(cuid())
+  status              PartnerRelationshipStatus @default(PENDING)
+  note                String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  respondedAt         DateTime?
+  /// Either shop can suspend an accepted partnership; only the shop that suspended it can resume
+  suspendedAt         DateTime?
+  suspendedByTenantId String?
 
   initiatorTenantId String
   initiatorTenant   Tenant @relation("InitiatorRelationships", fields: [initiatorTenantId], references: [id])

@@ -8,6 +8,7 @@ import { ThemeProvider } from '@/components/providers/theme-provider'
 import { BrandTheme } from '@/components/providers/brand-theme'
 import { useAuthStore } from '@/store/auth.store'
 import { AppLockGate } from '@/components/app/app-lock-gate'
+import { registerOnSignOut } from '@/lib/sign-out-hooks'
 
 function PermissionRefresher() {
   const refreshPermissions = useAuthStore((s) => s.refreshPermissions)
@@ -47,6 +48,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }),
   )
+  // Signing out drops everything fetched for that person (the next person must not see it)
+  useEffect(() => {
+    registerOnSignOut(() => queryClient.clear())
+  }, [queryClient])
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>

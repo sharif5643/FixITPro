@@ -150,12 +150,15 @@ export function AddStockDialog({
     mutationFn: (): Promise<unknown> => {
       if (mode === 'count') {
         const counted = Number(qty)
+        // the server works out the change from the stock it holds right now (the figure on screen
+        // may still be loading, or a sale may have happened since)
         return api.post('/stock/adjust', {
-          productId: activeProduct!.id,
-          type:      'ADJUST',
-          quantity:  counted - currentQty,
-          branchId:  effectiveBranchId,
-          note:      note.trim() || `ตั้งยอดตามนับจริง (ระบบ ${currentQty} → นับได้ ${counted})`,
+          productId:       activeProduct!.id,
+          type:            'ADJUST',
+          quantity:        counted - currentQty,
+          countedQuantity: counted,
+          branchId:        effectiveBranchId,
+          note:            note.trim() || undefined,
         })
       }
       if (mode === 'out') {

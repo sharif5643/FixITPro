@@ -368,6 +368,8 @@ export class TenantsService {
         passwordResetById: adminId,
       },
     });
+    // Signed out everywhere: a stolen or shared sign-in cannot keep renewing itself
+    await this.prisma.refreshToken.updateMany({ where: { userId: owner.id, revokedAt: null }, data: { revokedAt: new Date() } });
 
     return { tempPassword, userName: owner.name };
   }

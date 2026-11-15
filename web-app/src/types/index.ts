@@ -624,6 +624,8 @@ export interface RepairSignature {
 export interface Repair {
   /** Shops that charge VAT: tax invoices and credit notes for the money on this job */
   taxInvoices?: import('@/lib/tax-invoice').TaxInvoiceInfo[]
+  /** Tax a customer withheld on this job (certificates, not cancelled): counts as paid, no cash */
+  withholdingTaxTotal?: number
   id: string
   ticketNumber: string
   deviceBrand: string
@@ -754,7 +756,7 @@ export interface PurchaseOrderItem {
   discount: number
   total: number
   productId: string
-  product: Pick<Product, 'id' | 'name' | 'sku' | 'stock'>
+  product: Pick<Product, 'id' | 'name' | 'sku' | 'stock'> & { hasSerial?: boolean }
 }
 
 export interface PurchaseOrder {
@@ -1060,6 +1062,9 @@ export interface ProfitReport {
   repair: {
     revenue: number; partsCost: number; laborCost: number; profit: number; count: number; margin: number
     deposits?: number; atPickup?: number; debtPayments?: number
+    /** Tax a customer withheld (certificate, no cash) — still the shop's income */
+    withholdingTax?: number; withholdingTaxCount?: number
+    withholdingTaxItems?: { time: string; repairId: string; ticketNumber: string | null; payerName: string; amount: number }[]
     /** hidden costs of the jobs: parts given free, delivery fees of their parts */
     freebieCost?: number; deliveryCost?: number; deliveryCount?: number
     items: ProfitReportRepairItem[]
