@@ -1393,19 +1393,26 @@ export class RepairsService {
       : Number(repair.estimatedTotal ?? repair.finalCost ?? repair.estimateCost ?? 0);
     // A deal agreed at pickup comes off the price; finalCost (what is owed) is after it
     const discount = Math.round(Number(dto.discount ?? 0) * 100) / 100;
-    if (discount > 0) {
-      if (discount > price) throw new BadRequestException('ส่วนลดมากกว่าราคาซ่อม');
-      if (role !== 'OWNER' && role !== 'SUPER_ADMIN') {
+    if (discount > price) throw new BadRequestException('ส่วนลดมากกว่าราคาซ่อม');
+    const total = Math.round((price - discount) * 100) / 100;
+    // Staff limit counts everything taken off the quoted price: a discount, or the price itself
+    // typed lower at pickup (3,000 quoted typed as 1,000 used to skip the limit). A higher price
+    // (more work or parts) is not a discount.
+    if (role !== 'OWNER' && role !== 'SUPER_ADMIN') {
+      const quoted = Number(repair.estimatedTotal ?? repair.estimateCost ?? 0);
+      const base = Math.max(quoted, price);
+      const off = Math.round((base - total) * 100) / 100;
+      if (off > 0.005) {
         const shopId = repair.branch?.tenantId ?? tenantId ?? null;
         const limit = shopId
           ? (await this.prisma.shopSettings.findFirst({ where: { tenantId: shopId }, select: { staffDiscountLimitPercent: true } }))?.staffDiscountLimitPercent
           : null;
-        if (limit != null && discount > Math.floor(price * limit) / 100) {
-          throw new BadRequestException(`ลดได้ไม่เกิน ${limit}% ของราคา (${Math.floor(price * limit) / 100} บาท) — ให้เจ้าของร้านเป็นคนรับเงิน`);
+        const allowed = limit != null ? Math.floor(base * limit) / 100 : null;
+        if (allowed != null && off > allowed + 0.005) {
+          throw new BadRequestException(`ลดจากราคาที่เสนอได้ไม่เกิน ${limit}% (${allowed.toLocaleString('th-TH')} บาท) — ราคาที่เสนอ ${base.toLocaleString('th-TH')} ลดเหลือ ${total.toLocaleString('th-TH')} ให้เจ้าของร้านเป็นคนรับเงิน`);
         }
       }
     }
-    const total = Math.round((price - discount) * 100) / 100;
     const deposit = Number(repair.deposit ?? 0);
     // Money the customer already paid on this job besides the deposit: payments taken before
     // pickup, or debt payments kept after a reversal. Pickup used to ask for total − deposit

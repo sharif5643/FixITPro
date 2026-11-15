@@ -78,6 +78,11 @@ export class DebtPaymentsService {
       where:  activeShiftWhere(userId),
       select: { id: true },
     });
+    // Cash into the drawer needs a shift to count it in (before: shiftId null, the cash went into
+    // no shift and the drawer came out over). A transfer or card does not touch the drawer.
+    if (!activeShift && dto.paymentMethod === 'CASH') {
+      throw new BadRequestException('กรุณาเปิดกะก่อนรับเงินสด');
+    }
 
     // Atomic: create payment record + update repair status + write audit log + record in ledger.
     // All four must commit together — if any step fails, the entire transaction rolls back.
