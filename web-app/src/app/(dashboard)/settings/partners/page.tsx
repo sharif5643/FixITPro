@@ -42,6 +42,9 @@ interface PartnerRelationship {
   partnerTenant:     PartnerTenant
   requestedBy?:      { id: string; name: string } | null
   respondedBy?:      { id: string; name: string } | null
+  suspendedAt?:      string | null
+  /** this shop suspended it (only this shop can open it again) */
+  suspendedByMe?:    boolean
 }
 
 // ── Status chip ───────────────────────────────────────────────────────────────
@@ -107,6 +110,9 @@ function RelationshipCard({
   onAccept,
   onReject,
   onCancel,
+  onSuspend,
+  onResume,
+  canManage = false,
   isLoading,
 }: {
   rel:         PartnerRelationship
@@ -114,6 +120,9 @@ function RelationshipCard({
   onAccept:    (id: string) => void
   onReject:    (id: string) => void
   onCancel:    (id: string) => void
+  onSuspend?:  (id: string) => void
+  onResume?:   (id: string) => void
+  canManage?:  boolean
   isLoading:   boolean
 }) {
   const isInitiator = rel.initiatorTenantId === myTenantId
@@ -137,6 +146,11 @@ function RelationshipCard({
             {isInitiator ? 'คุณส่งคำขอ' : 'ส่งคำขอมาให้คุณ'}{' · '}
             {new Date(rel.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
           </p>
+          {rel.status === 'SUSPENDED' && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+              {rel.suspendedByMe ? 'คุณระงับไว้' : 'ร้านนี้ระงับไว้'} — ส่งงานใหม่และเดินงานต่อไม่ได้ ส่งเครื่องคืนได้ตามปกติ
+            </p>
+          )}
         </div>
       </div>
 
@@ -163,6 +177,18 @@ function RelationshipCard({
               ยอมรับ
             </Button>
           </>
+        )}
+
+        {/* Either shop can suspend an active partnership; only the shop that suspended can resume */}
+        {canManage && rel.status === 'ACCEPTED' && onSuspend && (
+          <Button size="sm" variant="ghost" className="text-red-600" disabled={isLoading} onClick={() => onSuspend(rel.id)}>
+            ระงับ
+          </Button>
+        )}
+        {canManage && rel.status === 'SUSPENDED' && rel.suspendedByMe && onResume && (
+          <Button size="sm" variant="outline" disabled={isLoading} onClick={() => onResume(rel.id)}>
+            เปิดใช้อีกครั้ง
+          </Button>
         )}
 
         {/* Shop A can cancel own PENDING requests */}
@@ -193,7 +219,7 @@ export default function PartnersSettingsPage() {
   const [partnerEmail, setPartnerEmail]     = useState('')
   const [note, setNote]                     = useState('')
   const [confirmAction, setConfirmAction]   = useState<{
-    type:  'accept' | 'reject' | 'cancel'
+    type:  'accept' | 'reject' | 'cancel' | 'suspend' | 'resume'
     id:    string
     shop?: string
   } | null>(null)
@@ -245,7 +271,20 @@ export default function PartnersSettingsPage() {
     onError: () => toast.error('เกิดข้อผิดพลาด'),
   })
 
+  const errMsg = (err: any) => err?.response?.data?.message ?? 'เกิดข้อผิดพลาด'
+  const suspendMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/partner-relationships/${id}/suspend`).then((r) => r.data),
+    onSuccess: () => { toast.success('ระงับการส่งงานกับร้านนี้แล้ว'); invalidate() },
+    onError: (err: any) => toast.error(errMsg(err)),
+  })
+  const resumeMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/partner-relationships/${id}/resume`).then((r) => r.data),
+    onSuccess: () => { toast.success('เปิดส่งงานกับร้านนี้อีกครั้งแล้ว'); invalidate() },
+    onError: (err: any) => toast.error(errMsg(err)),
+  })
+
   const anyLoading = acceptMutation.isPending || rejectMutation.isPending || cancelMutation.isPending
+    || suspendMutation.isPending || resumeMutation.isPending
 
   // ── Confirm handlers ─────────────────────────────────────────────────────
 
@@ -255,6 +294,8 @@ export default function PartnersSettingsPage() {
     if (type === 'accept') acceptMutation.mutate(id)
     else if (type === 'reject') rejectMutation.mutate(id)
     else if (type === 'cancel') cancelMutation.mutate(id)
+    else if (type === 'suspend') suspendMutation.mutate(id)
+    else if (type === 'resume') resumeMutation.mutate(id)
     setConfirmAction(null)
   }
 
@@ -276,11 +317,19 @@ export default function PartnersSettingsPage() {
     setConfirmAction({ type: 'cancel', id, shop })
   }
 
+  const otherShop = (id: string) => {
+    const rel = relationships?.find((r) => r.id === id)
+    return rel ? (rel.initiatorTenantId === user?.tenantId ? rel.partnerTenant : rel.initiatorTenant)?.shopName : undefined
+  }
+  const openSuspend = (id: string) => setConfirmAction({ type: 'suspend', id, shop: otherShop(id) })
+  const openResume  = (id: string) => setConfirmAction({ type: 'resume', id, shop: otherShop(id) })
+
   // ── Segment data ─────────────────────────────────────────────────────────
 
   const pending  = relationships?.filter((r) => r.status === 'PENDING')  ?? []
-  const accepted = relationships?.filter((r) => r.status === 'ACCEPTED') ?? []
-  const past     = relationships?.filter((r) => ['REJECTED', 'CANCELLED', 'SUSPENDED'].includes(r.status)) ?? []
+  // suspended partners stay in the main list: their jobs in hand are still being returned
+  const accepted = relationships?.filter((r) => r.status === 'ACCEPTED' || r.status === 'SUSPENDED') ?? []
+  const past     = relationships?.filter((r) => ['REJECTED', 'CANCELLED'].includes(r.status)) ?? []
 
   const incomingPending = pending.filter((r) => r.partnerTenantId === user?.tenantId)
 
@@ -351,6 +400,9 @@ export default function PartnersSettingsPage() {
                 onAccept={openAccept}
                 onReject={openReject}
                 onCancel={openCancel}
+                onSuspend={openSuspend}
+                onResume={openResume}
+                canManage={isOwner}
                 isLoading={anyLoading}
               />
             ))}
@@ -457,6 +509,8 @@ export default function PartnersSettingsPage() {
           title={
             confirmAction.type === 'accept' ? 'ยืนยันการยอมรับพาร์ทเนอร์' :
             confirmAction.type === 'reject' ? 'ยืนยันการปฏิเสธ' :
+            confirmAction.type === 'suspend' ? 'ระงับการส่งงานกับร้านนี้' :
+            confirmAction.type === 'resume' ? 'เปิดส่งงานอีกครั้ง' :
             'ยืนยันการยกเลิกคำขอ'
           }
           body={
@@ -464,13 +518,19 @@ export default function PartnersSettingsPage() {
               ? `ยืนยันการยอมรับ ${confirmAction.shop ?? 'ร้านนี้'} เป็นพาร์ทเนอร์? หลังจากนี้ร้านดังกล่าวจะสามารถรับงานซ่อมต่อจากคุณได้`
               : confirmAction.type === 'reject'
               ? `ยืนยันการปฏิเสธคำขอจาก ${confirmAction.shop ?? 'ร้านนี้'}?`
+              : confirmAction.type === 'suspend'
+              ? `ระงับการส่งงานกับ ${confirmAction.shop ?? 'ร้านนี้'}? ส่งงานใหม่และเดินงานที่ค้างต่อไม่ได้ แต่ส่งเครื่องที่ค้างคืนกันได้ตามปกติ — เปิดใช้อีกครั้งได้เฉพาะร้านของคุณ`
+              : confirmAction.type === 'resume'
+              ? `เปิดส่งงานกับ ${confirmAction.shop ?? 'ร้านนี้'} อีกครั้ง?`
               : `ยืนยันการยกเลิกคำขอที่ส่งไปให้ ${confirmAction.shop ?? 'ร้านนี้'}?`
           }
           confirmLabel={
             confirmAction.type === 'accept' ? 'ยืนยันยอมรับ' :
-            confirmAction.type === 'reject' ? 'ปฏิเสธ' : 'ยกเลิกคำขอ'
+            confirmAction.type === 'reject' ? 'ปฏิเสธ' :
+            confirmAction.type === 'suspend' ? 'ระงับ' :
+            confirmAction.type === 'resume' ? 'เปิดใช้อีกครั้ง' : 'ยกเลิกคำขอ'
           }
-          confirmVariant={confirmAction.type === 'accept' ? 'default' : 'destructive'}
+          confirmVariant={confirmAction.type === 'accept' || confirmAction.type === 'resume' ? 'default' : 'destructive'}
           onConfirm={handleConfirm}
           onCancel={() => setConfirmAction(null)}
         />

@@ -2109,12 +2109,15 @@ enum PartnerRelationshipStatus {
 }
 
 model PartnerRelationship {
-  id          String                    @id @default(cuid())
-  status      PartnerRelationshipStatus @default(PENDING)
-  note        String?
-  createdAt   DateTime                  @default(now())
-  updatedAt   DateTime                  @updatedAt
-  respondedAt DateTime?
+  id                  String                    @id @default(cuid())
+  status              PartnerRelationshipStatus @default(PENDING)
+  note                String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  respondedAt         DateTime?
+  /// Either shop can suspend an accepted partnership; only the shop that suspended it can resume
+  suspendedAt         DateTime?
+  suspendedByTenantId String?
 
   initiatorTenantId String
   initiatorTenant   Tenant @relation("InitiatorRelationships", fields: [initiatorTenantId], references: [id])

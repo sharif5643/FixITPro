@@ -61,6 +61,21 @@ export class PartnerRelationshipsService {
       return { id: null, status: 'PENDING', message: 'คำขอพาร์ทเนอร์ถูกส่งแล้ว' };
     }
 
+    // A suspended partnership (either direction) is not lifted by sending a new request
+    const suspended = await this.prisma.partnerRelationship.findFirst({
+      where: {
+        status: 'SUSPENDED',
+        OR: [
+          { initiatorTenantId, partnerTenantId: partnerTenant.id },
+          { initiatorTenantId: partnerTenant.id, partnerTenantId: initiatorTenantId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (suspended) {
+      throw new ForbiddenException('การเป็นพาร์ทเนอร์กับร้านนี้ถูกระงับอยู่ — ร้านที่ระงับต้องเป็นคนเปิดใช้อีกครั้ง');
+    }
+
     // Check for existing relationship between this pair
     const existing = await this.prisma.partnerRelationship.findUnique({
       where: {
@@ -111,8 +126,18 @@ export class PartnerRelationshipsService {
     return rel;
   }
 
+  /** The other shop sees which shop asked or answered, never the name of its staff */
+  private hideOtherStaff<T extends Record<string, any>>(rel: T, tenantId: string): T {
+    if (!rel) return rel;
+    const out: Record<string, any> = { ...rel };
+    if (rel.initiatorTenantId !== tenantId) { out.requestedBy = null; out.requestedById = null; }
+    if (rel.partnerTenantId !== tenantId) { out.respondedBy = null; out.respondedById = null; }
+    out.suspendedByMe = !!rel.suspendedByTenantId && rel.suspendedByTenantId === tenantId;
+    return out as T;
+  }
+
   async findAll(tenantId: string) {
-    return this.prisma.partnerRelationship.findMany({
+    const rows = await this.prisma.partnerRelationship.findMany({
       where: {
         OR: [
           { initiatorTenantId: tenantId },
@@ -127,11 +152,12 @@ export class PartnerRelationshipsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    return rows.map((r) => this.hideOtherStaff(r, tenantId));
   }
 
   /** Returns null instead of throwing for the 404-not-found case (controller handles 404). */
   async findOne(id: string, tenantId: string) {
-    return this.prisma.partnerRelationship.findFirst({
+    const rel = await this.prisma.partnerRelationship.findFirst({
       where: {
         id,
         OR: [
@@ -146,6 +172,53 @@ export class PartnerRelationshipsService {
         respondedBy:     { select: USER_SELECT },
       },
     });
+    return rel ? this.hideOtherStaff(rel, tenantId) : null;
+  }
+
+  /**
+   * Either shop suspends an accepted partnership. While suspended no new job can be sent and work
+   * in hand cannot move forward; a device can still be returned, received back, cancelled or recalled.
+   */
+  async suspend(id: string, tenantId: string, actorId: string, actorName: string) {
+    const won = await this.prisma.partnerRelationship.updateMany({
+      where: { id, status: 'ACCEPTED', OR: [{ initiatorTenantId: tenantId }, { partnerTenantId: tenantId }] },
+      data:  { status: 'SUSPENDED', suspendedAt: new Date(), suspendedByTenantId: tenantId },
+    });
+    if (won.count === 0) throw new NotFoundException('ไม่พบการเป็นพาร์ทเนอร์ที่ใช้งานอยู่');
+    const rel = await this.prisma.partnerRelationship.findUniqueOrThrow({ where: { id } });
+    this.auditLog.log({
+      actorId, actorName, action: 'PARTNER_RELATIONSHIP_SUSPENDED', entityType: 'PartnerRelationship', entityId: id,
+      afterData: { status: 'SUSPENDED', by: tenantId },
+    }).catch(() => undefined);
+    const other = rel.initiatorTenantId === tenantId ? rel.partnerTenantId : rel.initiatorTenantId;
+    const me = await this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { shopName: true } });
+    this.notif.notify({
+      type: 'PARTNER_RELATIONSHIP_SUSPENDED', title: 'ร้านพาร์ทเนอร์ระงับการส่งงาน',
+      message: `${me?.shopName ?? 'ร้านพาร์ทเนอร์'} ระงับการส่งงานซ่อมหากันชั่วคราว — งานที่ค้างอยู่ส่งเครื่องคืนได้ตามปกติ`,
+      severity: 'WARNING', entityType: 'PartnerRelationship', entityId: id, tenantId: other,
+    }).catch(() => undefined);
+    return this.hideOtherStaff(rel, tenantId);
+  }
+
+  /** Only the shop that suspended the partnership can open it again */
+  async resume(id: string, tenantId: string, actorId: string, actorName: string) {
+    const won = await this.prisma.partnerRelationship.updateMany({
+      where: { id, status: 'SUSPENDED', suspendedByTenantId: tenantId },
+      data:  { status: 'ACCEPTED', suspendedAt: null, suspendedByTenantId: null },
+    });
+    if (won.count === 0) throw new ForbiddenException('เปิดใช้อีกครั้งได้เฉพาะร้านที่เป็นคนระงับ');
+    const rel = await this.prisma.partnerRelationship.findUniqueOrThrow({ where: { id } });
+    this.auditLog.log({
+      actorId, actorName, action: 'PARTNER_RELATIONSHIP_RESUMED', entityType: 'PartnerRelationship', entityId: id,
+      afterData: { status: 'ACCEPTED', by: tenantId },
+    }).catch(() => undefined);
+    const other = rel.initiatorTenantId === tenantId ? rel.partnerTenantId : rel.initiatorTenantId;
+    this.notif.notify({
+      type: 'PARTNER_RELATIONSHIP_RESUMED', title: 'ร้านพาร์ทเนอร์เปิดส่งงานอีกครั้ง',
+      message: 'ส่งงานซ่อมหากันได้ตามปกติแล้ว',
+      severity: 'INFO', entityType: 'PartnerRelationship', entityId: id, tenantId: other,
+    }).catch(() => undefined);
+    return this.hideOtherStaff(rel, tenantId);
   }
 
   async accept(
@@ -339,9 +412,9 @@ export class PartnerRelationshipsService {
     if (pair.some((r) => r.status === 'ACCEPTED')) {
       throw new ConflictException(`เป็นพาร์ทเนอร์กับ ${target.shopName} อยู่แล้ว`);
     }
-    // A suspension is the system admin's decision: a code does not lift it
+    // A suspension is lifted only by the shop that suspended it, never by a code
     if (pair.some((r) => r.status === 'SUSPENDED')) {
-      throw new ForbiddenException(`การเป็นพาร์ทเนอร์กับ ${target.shopName} ถูกระงับ — ติดต่อผู้ดูแลระบบ`);
+      throw new ForbiddenException(`การเป็นพาร์ทเนอร์กับ ${target.shopName} ถูกระงับอยู่ — ร้านที่ระงับต้องเป็นคนเปิดใช้อีกครั้ง`);
     }
     // A pending request either way is completed; an old rejected / cancelled one is brought back
     // (kept, not deleted: earlier transfers point at it). This shop's own row first.

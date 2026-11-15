@@ -94,4 +94,71 @@ describe('Partner repair flow (e2e)', () => {
     const second = (await send(repairId).expect(201)).body;
     expect(second.id).not.toBe(first.id);
   });
+
+  it('PF-03: the agreed price is locked once the partner accepted; the other shop sees no staff names', async () => {
+    const repairId = await newJob();
+    const t = (await send(repairId).expect(201)).body;
+    const price = (cookie: string, amount: number) =>
+      request(app.getHttpServer()).patch(`/api/v1/partner-transfers/${t.id}/price`).set('Cookie', cookie).send({ agreedPartnerPrice: amount });
+    // before B accepts, A's offer can still change
+    await price(ownerA, 800).expect(200);
+    await step(ownerB, t.id, 'accept').expect((r) => expect([200, 201]).toContain(r.status));
+    // after: not by A alone
+    await price(ownerA, 100).expect(409);
+    expect(Number((await prisma.partnerRepairTransfer.findUniqueOrThrow({ where: { id: t.id } })).agreedPartnerPrice)).toBe(800);
+    // a double click on the same step moves it once
+    const [x, y] = await Promise.all([step(ownerB, t.id, 'device-received'), step(ownerB, t.id, 'device-received')]);
+    expect([x.status, y.status].filter((c) => c === 409)).toHaveLength(1);
+    expect([x.status, y.status].filter((c) => c < 300)).toHaveLength(1);
+    expect(await prisma.partnerRepairTransferEvent.count({ where: { transferId: t.id, event: 'DEVICE_RECEIVED' } })).toBe(1);
+
+    // a new price goes through a quotation the other side accepts
+    const q = (await authPost(app, `/api/v1/partner-transfers/${t.id}/quotations`, ownerB, { amount: 950, note: 'อะไหล่แพงขึ้น' }).expect(201)).body;
+    await authPost(app, `/api/v1/partner-quotations/${q.id}/accept`, ownerA, {}).expect((r) => expect([200, 201]).toContain(r.status));
+    await authPost(app, `/api/v1/partner-quotations/${q.id}/accept`, ownerA, {}).expect((r) => expect(r.status).toBeGreaterThanOrEqual(400));
+    expect(Number((await prisma.partnerRepairTransfer.findUniqueOrThrow({ where: { id: t.id } })).agreedPartnerPrice)).toBe(950);
+
+    // history: each shop sees its own staff, the other shop only as a shop
+    const evB = (await authGet(app, `/api/v1/partner-transfers/${t.id}/events`, ownerB).expect(200)).body;
+    const fromA = evB.filter((e: any) => e.tenantId === IDS.tenantA);
+    expect(fromA.length).toBeGreaterThan(0);
+    expect(fromA.every((e: any) => e.actorName === 'ร้านต้นทาง' && e.actorId === null)).toBe(true);
+    const evA = (await authGet(app, `/api/v1/partner-transfers/${t.id}/events`, ownerA).expect(200)).body;
+    expect(evA.filter((e: any) => e.tenantId === IDS.tenantB).every((e: any) => e.actorName === 'ร้านพาร์ทเนอร์')).toBe(true);
+    expect(evA.find((e: any) => e.tenantId === IDS.tenantA)?.actorName).not.toBe('ร้านต้นทาง');
+    const qevA = (await authGet(app, `/api/v1/partner-quotations/${q.id}/events`, ownerA).expect(200)).body;
+    expect(qevA.filter((e: any) => e.tenantId === IDS.tenantB).every((e: any) => e.actorName === 'ร้านพาร์ทเนอร์')).toBe(true);
+    const relB = (await authGet(app, '/api/v1/partner-relationships', ownerB).expect(200)).body.find((r: any) => r.id === relationshipId);
+    expect(relB.requestedBy).toBeNull();
+  });
+
+  it('PF-04: a suspended partnership stops work moving forward, but the device can still come home', async () => {
+    const repairId = await newJob();
+    const t = (await send(repairId).expect(201)).body;
+    await step(ownerB, t.id, 'accept').expect((r) => expect([200, 201]).toContain(r.status));
+    await step(ownerB, t.id, 'device-received').expect((r) => expect([200, 201]).toContain(r.status));
+
+    // B suspends
+    await authPost(app, `/api/v1/partner-relationships/${relationshipId}/suspend`, ownerB, {}).expect(200);
+    // no new job, no forward step, no new price
+    const other = await newJob();
+    await send(other).expect((r) => expect(r.status).toBeGreaterThanOrEqual(400));
+    await step(ownerB, t.id, 'start').expect(403);
+    await authPost(app, `/api/v1/partner-transfers/${t.id}/quotations`, ownerB, { amount: 500 }).expect(403);
+    // asking again by email does not lift it, and A cannot lift B's suspension
+    const emailB = (await prisma.tenant.findUniqueOrThrow({ where: { id: IDS.tenantB }, select: { email: true } })).email;
+    if (emailB) await authPost(app, '/api/v1/partner-relationships', ownerA, { partnerEmail: emailB }).expect(403);
+    await authPost(app, `/api/v1/partner-relationships/${relationshipId}/resume`, ownerA, {}).expect(403);
+    expect((await prisma.partnerRelationship.findUniqueOrThrow({ where: { id: relationshipId } })).status).toBe('SUSPENDED');
+
+    // the device still comes home: B returns it unrepaired, A confirms; A cannot "recall" a device
+    // that is at B (the job would look closed while the phone is still out)
+    await step(ownerA, t.id, 'recall', { recallNote: 'ขอเครื่องคืน' }).expect(409);
+    await step(ownerB, t.id, 'return-device').expect((r) => expect([200, 201]).toContain(r.status));
+    await step(ownerA, t.id, 'owner-received').expect((r) => expect([200, 201]).toContain(r.status));
+
+    // B opens it again: work goes on as before
+    await authPost(app, `/api/v1/partner-relationships/${relationshipId}/resume`, ownerB, {}).expect(200);
+    await send(other).expect(201);
+  });
 });

@@ -390,8 +390,9 @@ describe('HARDN — Invalid transitions', () => {
     await expect(svc.complete(TRANSFER_ID, undefined, actorB())).rejects.toBeInstanceOf(ConflictException);
   });
 
-  it('HARDN-09: return before complete (IN_PROGRESS→DEVICE_RETURNED) → ConflictException', async () => {
-    const svc = makeTransferSvc('IN_PROGRESS');
+  it('HARDN-09: return before the device arrived (ACCEPTED→DEVICE_RETURNED) → ConflictException', async () => {
+    // (from DEVICE_RECEIVED / IN_PROGRESS the partner may send it back unrepaired)
+    const svc = makeTransferSvc('ACCEPTED');
     await expect(svc.returnDevice(TRANSFER_ID, actorB())).rejects.toBeInstanceOf(ConflictException);
   });
 
