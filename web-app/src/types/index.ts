@@ -756,7 +756,7 @@ export interface PurchaseOrderItem {
   discount: number
   total: number
   productId: string
-  product: Pick<Product, 'id' | 'name' | 'sku' | 'stock'>
+  product: Pick<Product, 'id' | 'name' | 'sku' | 'stock'> & { hasSerial?: boolean }
 }
 
 export interface PurchaseOrder {

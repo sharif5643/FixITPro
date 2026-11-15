@@ -89,6 +89,9 @@ const fmtDate = (s: string) =>
   })
 
 // ═══════════════════════════════════════════════════════════
+/** IMEIs typed or scanned one per line (commas also split) */
+const serialLines = (v?: string) => (v ?? '').split(/[\n,]+/).map((x) => x.trim()).filter(Boolean)
+
 export default function PurchaseOrdersPage() {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
@@ -142,6 +145,8 @@ export default function PurchaseOrdersPage() {
   // ── receive-form state ──
   const [receiveQtys, setReceiveQtys] = useState<Record<string, number>>({})
   const [receiveNote, setReceiveNote] = useState('')
+  // phones sold by IMEI: one IMEI per unit, one per line
+  const [receiveSerials, setReceiveSerials] = useState<Record<string, string>>({})
 
   // ── payment-form state ──
   const [payAmount, setPayAmount] = useState('')
@@ -258,7 +263,10 @@ export default function PurchaseOrdersPage() {
         // Use PO's locked branch if available; fall back to header-context branch for legacy POs
         branchId: receiveDetail?.branchId ?? contextBranchId,
         items: Object.entries(receiveQtys)
-          .map(([purchaseOrderItemId, quantity]) => ({ purchaseOrderItemId, quantity }))
+          .map(([purchaseOrderItemId, quantity]) => ({
+            purchaseOrderItemId, quantity,
+            ...(serialLines(receiveSerials[purchaseOrderItemId]).length ? { serials: serialLines(receiveSerials[purchaseOrderItemId]) } : {}),
+          }))
           .filter((i) => i.quantity > 0),
       })).data,
     onSuccess: () => {
@@ -328,7 +336,7 @@ export default function PurchaseOrdersPage() {
       toast.error('กรุณาเลือกสาขาก่อนรับสินค้า เพื่อบันทึกสต็อกให้ถูกสาขา')
       return
     }
-    setReceiveId(po.id); setReceiveQtys({}); setReceiveNote('')
+    setReceiveId(po.id); setReceiveQtys({}); setReceiveNote(''); setReceiveSerials({})
   }
 
   const openPay = (po: PurchaseOrder) => {
@@ -350,7 +358,10 @@ export default function PurchaseOrdersPage() {
   const vatAmount = (vatBase * vatPercent) / 100
   const grandTotal = vatBase + vatAmount
   const canSubmit = supplierId && items.length > 0 && (!isOwner || !!createBranchId)
-  const canReceiveSubmit = !!receiveId && Object.values(receiveQtys).some((q) => q > 0)
+  // a phone line cannot be received without one IMEI per unit
+  const imeiMissing = (receiveDetail?.items ?? []).some((item) =>
+    item.product.hasSerial && (receiveQtys[item.id] ?? 0) > 0 && serialLines(receiveSerials[item.id]).length !== (receiveQtys[item.id] ?? 0))
+  const canReceiveSubmit = !!receiveId && Object.values(receiveQtys).some((q) => q > 0) && !imeiMissing
 
   const payRemaining = payDetail
     ? Math.max(0, Number(payDetail.total) - Number(payDetail.paidTotal))
@@ -882,6 +893,18 @@ export default function PurchaseOrdersPage() {
                                 <div>
                                   <Input type="number" min={0} max={remaining} className={`h-8 text-center text-sm ${isOver ? 'border-red-400' : ''}`} value={thisQty || ''} placeholder="0" onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setReceiveQtys((prev) => ({ ...prev, [item.id]: v })) }} />
                                   {isOver && <p className="text-red-500 text-[10px] mt-0.5 text-center">เกิน {remaining}</p>}
+                                  {item.product.hasSerial && thisQty > 0 && (() => {
+                                    const got = serialLines(receiveSerials[item.id]).length
+                                    return (
+                                      <div className="mt-1.5">
+                                        <Textarea rows={Math.min(4, thisQty)} aria-label={`IMEI ${item.product.name}`}
+                                          placeholder="IMEI เครื่องละบรรทัด" className="text-xs font-mono resize-none"
+                                          value={receiveSerials[item.id] ?? ''}
+                                          onChange={(e) => setReceiveSerials((prev) => ({ ...prev, [item.id]: e.target.value }))} />
+                                        <p className={`text-[10px] mt-0.5 text-center ${got === thisQty ? 'text-green-600' : 'text-amber-600'}`}>IMEI {got}/{thisQty}</p>
+                                      </div>
+                                    )
+                                  })()}
                                 </div>
                               ) : <div className="text-center text-green-600 text-xs font-medium">✓ ครบ</div>}
                             </td>

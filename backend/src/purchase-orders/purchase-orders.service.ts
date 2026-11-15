@@ -1,3 +1,4 @@
+import { cleanSerials, addSerialsInStock } from '../stock/serial-stock';
 import {
   Injectable,
   Optional,
@@ -22,7 +23,7 @@ const PO_INCLUDE = {
   branch:    { select: { id: true, name: true } },
   items: {
     include: {
-      product: { select: { id: true, name: true, sku: true, stock: true, type: true } },
+      product: { select: { id: true, name: true, sku: true, stock: true, type: true, hasSerial: true } },
     },
   },
   payments: { orderBy: { paidAt: 'desc' as const } },
@@ -264,6 +265,14 @@ export class PurchaseOrdersService {
           `สินค้า "${poItem.product.name}" รับได้อีกสูงสุด ${remaining} ชิ้น`,
         );
       }
+      // A phone sold by IMEI comes in with its IMEI: otherwise it is counted in stock and can
+      // never be sold (the sale asks to pick the IMEI)
+      if ((poItem.product as { hasSerial?: boolean }).hasSerial) {
+        const serials = cleanSerials(recv.serials);
+        if (serials.length !== recv.quantity) {
+          throw new BadRequestException(`"${poItem.product.name}" ใช้ IMEI — ใส่ IMEI ให้ครบ ${recv.quantity} เครื่อง (ใส่มา ${serials.length})`);
+        }
+      }
     }
 
     // Effective branch: explicit dto override → PO's locked branch → undefined (single-branch legacy)
@@ -273,6 +282,12 @@ export class PurchaseOrdersService {
     const costChanges: (CostChange & { name: string })[] = [];
 
     await this.prisma.$transaction(async (tx) => {
+      // One receipt at a time per PO: a double click (or two people) waits here and then sees
+      // what the first one received, so goods are never counted in twice
+      const locked = await tx.$queryRaw<{ status: string }[]>`SELECT status::text AS status FROM "PurchaseOrder" WHERE id = ${poId} FOR UPDATE`;
+      if (!locked.length || !['ORDERED', 'PARTIAL_RECEIVED'].includes(locked[0].status)) {
+        throw new BadRequestException('ใบสั่งซื้อนี้รับของครบหรือถูกยกเลิกไปแล้ว — รีเฟรชหน้าแล้วลองใหม่');
+      }
       for (const recv of itemsToReceive) {
         const poItem = po.items.find((i) => i.id === recv.purchaseOrderItemId)!;
 
@@ -296,6 +311,9 @@ export class PurchaseOrdersService {
           where: { id: recv.purchaseOrderItemId },
           data: { receivedQty: { increment: recv.quantity } },
         });
+        if ((poItem.product as { hasSerial?: boolean }).hasSerial) {
+          await addSerialsInStock(tx, poItem.productId, cleanSerials(recv.serials), recv.quantity, `รับจาก PO: ${po.poNumber}`);
+        }
 
         // Cost per unit after the line discount; averaged into the product's cost before the
         // stock goes up, so sales and repair parts use what the shop now pays.

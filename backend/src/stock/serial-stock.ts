@@ -70,10 +70,12 @@ export async function takeSerialsOutOfStock(
     select: { id: true, serial: true },
   });
   if (rows.length !== ids.length) throw new BadRequestException('มี IMEI ที่ไม่ได้อยู่ในสต๊อกของสินค้านี้');
-  await tx.serialNumber.updateMany({
-    where: { id: { in: ids } },
+  const moved = await tx.serialNumber.updateMany({
+    where: { id: { in: ids }, productId, status: 'IN_STOCK' },
     data: { status, ...(note ? { note } : {}) },
   });
+  // taken out by someone else in between: refuse rather than count it twice
+  if (moved.count !== ids.length) throw new BadRequestException('มี IMEI ที่เพิ่งถูกตัดออกจากอีกเครื่อง — ลองใหม่');
   return rows.map((r: { serial: string }) => r.serial);
 }
 

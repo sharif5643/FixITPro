@@ -461,8 +461,10 @@ export class SalesService {
             ? new Date(soldAt.getTime() + product.warrantyDays * 24 * 60 * 60 * 1000)
             : null;
 
-          await tx.serialNumber.updateMany({
-            where: { id: { in: item.serialIds } },
+          // Only units still in stock: two counters selling the same phone at once cannot both
+          // mark it sold (the second sale is refused and rolls back)
+          const marked = await tx.serialNumber.updateMany({
+            where: { id: { in: item.serialIds }, productId: item.productId, status: 'IN_STOCK' },
             data: {
               status: 'SOLD',
               saleItemId: saleItem.id,
@@ -470,6 +472,9 @@ export class SalesService {
               warrantyExpiresAt,
             },
           });
+          if (marked.count !== item.serialIds.length) {
+            throw new BadRequestException(`"${product.name}" — มี IMEI ที่เพิ่งขายไปจากอีกเครื่อง เลือก IMEI ใหม่`);
+          }
         }
       }
 

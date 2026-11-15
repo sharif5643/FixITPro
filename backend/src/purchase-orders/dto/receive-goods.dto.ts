@@ -17,6 +17,12 @@ export class ReceiveItemDto {
   @Min(0)
   @Type(() => Number)
   quantity: number;
+
+  /** Phones sold by IMEI: one IMEI per unit received */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  serials?: string[];
 }
 
 export class ReceiveGoodsDto {

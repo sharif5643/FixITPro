@@ -30,6 +30,17 @@ export class AdjustStockDto {
   @IsString()
   branchId?: string;
 
+  /**
+   * ADJUST by count: the number actually counted on the shelf. The server works out the change
+   * from the stock it holds at that moment (the screen's figure may be stale or still loading).
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100_000)
+  countedQuantity?: number;
+
   /** IMEI / serial of each unit coming in (IN, products sold by serial) */
   @IsOptional()
   @IsArray()

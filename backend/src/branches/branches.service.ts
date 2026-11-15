@@ -510,6 +510,25 @@ export class BranchesService implements OnModuleInit {
 
   // ── Stock Transfers ─────────────────────────────────────────────────────────
 
+  /**
+   * One step at a time per transfer: the row is locked and its status read again inside the
+   * transaction, so a double click, or receive and cancel at once, cannot move stock twice
+   */
+  /** A status update that found the transfer already moved on (P2025): say so, not a 500 */
+  private staleTransfer(e: unknown): never {
+    if ((e as { code?: string })?.code === 'P2025') {
+      throw new BadRequestException('รายการโอนนี้เปลี่ยนสถานะไปแล้ว — รีเฟรชหน้าแล้วลองใหม่');
+    }
+    throw e;
+  }
+
+  private async lockTransfer(tx: Prisma.TransactionClient, id: string, allowed: string[]) {
+    const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status::text AS status FROM "StockTransfer" WHERE id = ${id} FOR UPDATE`;
+    if (!rows.length || !allowed.includes(rows[0].status)) {
+      throw new BadRequestException(`รายการโอนนี้เปลี่ยนสถานะไปแล้ว (${rows[0]?.status ?? '—'}) — รีเฟรชหน้าแล้วลองใหม่`);
+    }
+  }
+
   async listTransfers(
     query: {
       branchId?: string;
@@ -678,6 +697,7 @@ export class BranchesService implements OnModuleInit {
     });
 
     await this.prisma.$transaction(async (tx) => {
+      await this.lockTransfer(tx, id, ['PENDING']);
       const deducted = await tx.branchStock.updateMany({
         where: {
           branchId:  transfer.fromBranchId,
@@ -782,7 +802,7 @@ export class BranchesService implements OnModuleInit {
     }
 
     const updated = await this.prisma.stockTransfer.update({
-      where: { id },
+      where: { id, status: 'PENDING' },
       data: {
         status:          'APPROVED',
         approvedById:    actorId,
@@ -794,7 +814,7 @@ export class BranchesService implements OnModuleInit {
         toBranch:   { select: { id: true, name: true } },
         product:    { select: { id: true, name: true, sku: true } },
       },
-    });
+    }).catch((e) => this.staleTransfer(e));
 
     this.auditLog.log({
       actorId, actorName, action: 'STOCK_TRANSFER_APPROVED',
@@ -846,7 +866,7 @@ export class BranchesService implements OnModuleInit {
     }
 
     const updated = await this.prisma.stockTransfer.update({
-      where: { id },
+      where: { id, status: 'PENDING' },
       data: {
         status:          'REJECTED',
         rejectedById:    actorId,
@@ -859,7 +879,7 @@ export class BranchesService implements OnModuleInit {
         toBranch:   { select: { id: true, name: true } },
         product:    { select: { id: true, name: true, sku: true } },
       },
-    });
+    }).catch((e) => this.staleTransfer(e));
 
     this.auditLog.log({
       actorId, actorName, action: 'STOCK_TRANSFER_REJECTED',
@@ -920,6 +940,7 @@ export class BranchesService implements OnModuleInit {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockTransfer(tx, id, ['APPROVED']);
       // Atomic debit — prevents negative stock under concurrent sales/transfers
       const deducted = await tx.branchStock.updateMany({
         where: {
@@ -1021,6 +1042,7 @@ export class BranchesService implements OnModuleInit {
     });
 
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockTransfer(tx, id, ['IN_TRANSIT']);
       const toStockCode = !toStockExisting
         ? await this.generateStockCode(transfer.toBranchId, tx)
         : null;
@@ -1128,6 +1150,7 @@ export class BranchesService implements OnModuleInit {
       }
 
       await this.prisma.$transaction(async (tx) => {
+        await this.lockTransfer(tx, id, ['IN_TRANSIT']);
         // Return stock to source
         await tx.branchStock.upsert({
           where: { branchId_productId: { branchId: transfer.fromBranchId, productId: transfer.productId } },
@@ -1187,14 +1210,14 @@ export class BranchesService implements OnModuleInit {
     }
 
     const updated = await this.prisma.stockTransfer.update({
-      where: { id },
+      where: { id, status: { in: ['PENDING', 'APPROVED'] } },
       data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason },
       include: {
         fromBranch: { select: { id: true, name: true } },
         toBranch:   { select: { id: true, name: true } },
         product:    { select: { id: true, name: true, sku: true } },
       },
-    });
+    }).catch((e) => this.staleTransfer(e));
 
     this.auditLog.log({
       actorId, actorName, action: 'STOCK_TRANSFER_CANCELLED',
