@@ -1,6 +1,7 @@
 'use client'
 
 import { AppBranchBar } from '@/components/app/app-branch-bar'
+import { useIntentKey } from '@/lib/intent-key'
 import { useAppBranch } from '@/hooks/useAppBranch'
 import { useAppShell } from '@/lib/app-shell'
 import { useState, useMemo } from 'react'
@@ -101,15 +102,17 @@ export default function SunmiExpensesPage() {
 
   // ── Mutations ────────────────────────────────────────────────────────────────
 
+  const createKey = useIntentKey()
   const createMutation = useMutation({
     mutationFn: async (data: object) => {
       if (!online) {
         await offlineQueue.enqueue('EXPENSE_CREATE', data, useAuthStore.getState().user)
         return { _queued: true as const }
       }
-      return api.post('/expenses', data)
+      return api.post('/expenses', data, { headers: createKey.headers() })
     },
     onSuccess: (res: any) => {
+      createKey.renew()
       if (res?._queued) {
         toast.success('บันทึกในเครื่องแล้ว จะซิงค์อัตโนมัติเมื่อเชื่อมต่ออินเทอร์เน็ต')
         setAmount('')

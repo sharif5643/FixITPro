@@ -1,6 +1,7 @@
 'use client'
 
 import { BranchQuickPick } from '@/components/layout/branch-context-bar'
+import { useIntentKey } from '@/lib/intent-key'
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
@@ -66,6 +67,8 @@ export default function SalesPage() {
   const [cashOutOpen,   setCashOutOpen]   = useState(false)
   const [drawerOpened,  setDrawerOpened]  = useState(false)
   const quickSaleBusy = useRef(false)
+  // one key per sale until it succeeds: a second tap after a lost answer is not a second bill
+  const quickSaleKey = useIntentKey()
   const queryClient = useQueryClient()
 
   // Hold bills
@@ -306,7 +309,8 @@ export default function SalesPage() {
         })).concat(freebieLines(freebies) as never[]),
         paymentMethod: opts.paymentMethod,
         amountPaid:    opts.amountPaid,
-      })
+      }, { headers: quickSaleKey.headers() })
+      quickSaleKey.renew()
       for (const key of [['products'], ['low-stock'], ['daily-report'], ['shifts', 'current'], ['serials']]) {
         queryClient.invalidateQueries({ queryKey: key })
       }
@@ -316,7 +320,7 @@ export default function SalesPage() {
     } finally {
       quickSaleBusy.current = false
     }
-  }, [items, freebies, hasZeroPriceItem, total, discount, selectedCustomer, currentShift?.id, effectiveBranch, queryClient, handleSuccess, handlePaymentPanelCheckout])
+  }, [items, freebies, hasZeroPriceItem, total, discount, selectedCustomer, currentShift?.id, effectiveBranch, queryClient, handleSuccess, handlePaymentPanelCheckout, quickSaleKey])
 
   // F1: new bill — close the receipt and scan again
   const handleNewSale = useCallback(() => {

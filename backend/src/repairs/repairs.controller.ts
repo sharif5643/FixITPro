@@ -1,3 +1,4 @@
+import { Idempotent } from '../common/interceptors/idempotency.interceptor';
 import {
   Controller,
   Get,
@@ -86,6 +87,7 @@ export class RepairsController {
     private planLimits: PlanLimitsService,
   ) {}
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post()
   @UseGuards(PermissionGuard)
   @RequirePermission('repair.create')
@@ -390,6 +392,7 @@ export class RepairsController {
     return this.repairsService.addImages(id, images);
   }
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post(':id/payment')
   @UseGuards(PermissionGuard)
   @RequirePermission('repair.close')
@@ -429,6 +432,7 @@ export class RepairsController {
     return this.repairsService.refundAndCancel(id, dto, userId, tenantId);
   }
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post(':id/additional-payment')
   @UseGuards(PermissionGuard)
   @RequirePermission('repair.close')

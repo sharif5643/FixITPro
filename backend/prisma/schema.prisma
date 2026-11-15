@@ -462,6 +462,23 @@ model TaxInvoice {
 // Withholding tax (ภาษีหัก ณ ที่จ่าย) a customer (agency / company) kept back from a repair bill and
 // certified (50 ทวิ). It settles that part of the job without cash: never in the drawer; it is
 // the shop's tax credit (account 1150) and counts as paid on the job. Kept, never deleted.
+/// One money request per intent: a retried request (same key from the same person) gets the
+/// first answer back instead of being recorded again. Kept for a few days.
+model IdempotencyKey {
+  id          String    @id @default(cuid())
+  userId      String
+  key         String
+  method      String
+  path        String
+  statusCode  Int?
+  response    Json?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@unique([userId, key])
+  @@index([createdAt])
+}
+
 model WithholdingTax {
   id              String    @id @default(cuid())
   tenantId        String

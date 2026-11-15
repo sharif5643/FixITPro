@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -376,6 +377,7 @@ export function CheckoutDialog({
     }
   }, [leg1Method, leg2Method])
 
+  const saleKey = useIntentKey()
   const createSaleMutation = useMutation({
     mutationFn: async (data: CheckoutFormData) => {
       const baseBody = {
@@ -407,7 +409,7 @@ export function CheckoutDialog({
           { paymentMethod: leg1Method, amount: leg1Amount },
           ...(leg2Amount > 0 ? [{ paymentMethod: leg2Method, amount: leg2Amount }] : []),
         ]
-        const res = await api.post<Sale>('/sales', { ...baseBody, payments })
+        const res = await api.post<Sale>('/sales', { ...baseBody, payments }, { headers: saleKey.headers() })
         return res.data
       } else {
         if (data.paymentMethod === 'CASH' && data.amountPaid < total) {
@@ -420,11 +422,12 @@ export function CheckoutDialog({
           ...baseBody,
           paymentMethod: data.paymentMethod,
           amountPaid:    data.amountPaid,
-        })
+        }, { headers: saleKey.headers() })
         return res.data
       }
     },
     onSuccess: (sale) => {
+      saleKey.renew()
       queryClient.invalidateQueries({ queryKey: ['products'] })
       queryClient.invalidateQueries({ queryKey: ['low-stock'] })
       queryClient.invalidateQueries({ queryKey: ['daily-report'] })

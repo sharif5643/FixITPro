@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -348,10 +349,11 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
     },
   })
 
+  const paymentMutationKey = useIntentKey()
   const paymentMutation = useMutation({
     mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays?: number; allowPartial?: boolean; finalCost?: number; discount?: number }) =>
-      api.post(`/repairs/${repairId}/payment`, data),
-    onSuccess: (res) => {
+      api.post(`/repairs/${repairId}/payment`, data, { headers: paymentMutationKey.headers() }),
+    onSuccess: (res) => { paymentMutationKey.renew();
       queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
       queryClient.invalidateQueries({ queryKey: ['repairs'] })
       queryClient.invalidateQueries({ queryKey: ['daily-report'] })
@@ -383,14 +385,15 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
     },
   })
 
+  const addPaymentMutationKey = useIntentKey()
   const addPaymentMutation = useMutation({
     mutationFn: () =>
       api.post(`/repairs/${repairId}/additional-payment`, {
         amount: Number(addPayAmount),
         paymentMethod: addPayMethod,
         note: addPayNote || undefined,
-      }),
-    onSuccess: () => {
+      }, { headers: addPaymentMutationKey.headers() }),
+    onSuccess: () => { addPaymentMutationKey.renew();
       queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
       queryClient.invalidateQueries({ queryKey: ['shifts', 'current'] })
       setAddPayOpen(false)

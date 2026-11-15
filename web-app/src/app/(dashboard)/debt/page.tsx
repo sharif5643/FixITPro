@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -290,10 +291,11 @@ function DebtPaymentModal({
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [note,          setNote]          = useState('')
 
+  const mutationKey = useIntentKey()
   const mutation = useMutation({
     mutationFn: (body: { repairId: string; amount: number; paymentMethod: string; note?: string }) =>
-      api.post('/debt-payments', body).then((r) => r.data as PaymentResult),
-    onSuccess: (result) => onSuccess(result),
+      api.post('/debt-payments', body, { headers: mutationKey.headers() }).then((r) => r.data as PaymentResult),
+    onSuccess: (result) => { mutationKey.renew(); return onSuccess(result) },
   })
 
   const numAmount  = parseFloat(amount) || 0

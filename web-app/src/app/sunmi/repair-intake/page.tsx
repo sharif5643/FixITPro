@@ -1,6 +1,7 @@
 'use client'
 
 import { DEVICE_TYPE_OPTIONS, SPECIAL_ISSUE_TAGS, issueTagsFor, conditionsFor, accessoriesFor, withPicked } from '@/lib/repair-tags'
+import { useIntentKey } from '@/lib/intent-key'
 import { AppBranchBar } from '@/components/app/app-branch-bar'
 import { useAppBranch } from '@/hooks/useAppBranch'
 import { useState, useEffect, useRef } from 'react'
@@ -942,6 +943,7 @@ export default function RepairIntakePage() {
     if (ok) setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1))
   }
 
+  const intakeKey = useIntentKey()
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
       if (branch.needsPick) throw new Error('กรุณาเลือกสาขาก่อนรับงาน')
@@ -975,10 +977,11 @@ export default function RepairIntakePage() {
         return { _queued: true as const }
       }
 
-      return api.post('/repairs', payload)
+      return api.post('/repairs', payload, { headers: intakeKey.headers() })
     },
 
     onSuccess: async (res: any, variables) => {
+      intakeKey.renew()
       if (res?._queued) {
         toast.success('บันทึกในเครื่องแล้ว จะซิงค์อัตโนมัติเมื่อเชื่อมต่ออินเทอร์เน็ต')
         if (draftKey) clearDraft(draftKey)

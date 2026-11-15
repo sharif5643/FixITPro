@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -62,10 +63,11 @@ function CreateExpenseDialog({ categories, branchId, onClose, onSuccess }: Creat
   })
   const [error, setError] = useState('')
 
+  const mutationKey = useIntentKey()
   const mutation = useMutation({
     mutationFn: (data: typeof form) =>
-      api.post('/expenses', { ...data, amount: parseFloat(data.amount), branchId }).then((r) => r.data),
-    onSuccess: () => { onSuccess(); onClose() },
+      api.post('/expenses', { ...data, amount: parseFloat(data.amount), branchId }, { headers: mutationKey.headers() }).then((r) => r.data),
+    onSuccess: () => { mutationKey.renew(); onSuccess(); onClose() },
     onError: (e: any) => setError(apiErrorMessage(e)),
   })
 

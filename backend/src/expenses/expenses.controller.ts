@@ -1,3 +1,4 @@
+import { Idempotent } from '../common/interceptors/idempotency.interceptor';
 import {
   Body,
   Controller,
@@ -88,6 +89,7 @@ export class ExpensesController {
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post()
   @UseGuards(PermissionGuard)
   @RequirePermission('expenses.manage')

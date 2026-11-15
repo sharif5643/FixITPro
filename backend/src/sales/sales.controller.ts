@@ -1,3 +1,4 @@
+import { Idempotent } from '../common/interceptors/idempotency.interceptor';
 import { UseInterceptors,
   Controller,
   Get,
@@ -29,6 +30,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 export class SalesController {
   constructor(private salesService: SalesService) {}
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post()
   @UseGuards(PermissionGuard)
   @RequirePermission('sales.create')
@@ -114,6 +116,7 @@ export class SalesController {
     return this.salesService.voidSale(id, dto.reason, userId, tenantId);
   }
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post(':id/refund')
   @UseGuards(PermissionGuard)
   @RequirePermission('sales.refund')
@@ -126,6 +129,7 @@ export class SalesController {
     return this.salesService.refundSaleItems(id, dto, userId, tenantId);
   }
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post(':id/exchange')
   @UseGuards(PermissionGuard)
   @RequirePermission('sales.refund')

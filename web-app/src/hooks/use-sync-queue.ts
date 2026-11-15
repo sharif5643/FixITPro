@@ -11,12 +11,12 @@ import { useAuthStore } from '@/store/auth.store'
 async function processItem(item: QueueItem, qc: ReturnType<typeof useQueryClient>): Promise<void> {
   switch (item.type) {
     case 'REPAIR_CREATE':
-      await api.post('/repairs', item.payload)
+      await api.post('/repairs', item.payload, { headers: { 'Idempotency-Key': item.id } })
       qc.invalidateQueries({ queryKey: ['repairs'] })
       break
 
     case 'EXPENSE_CREATE':
-      await api.post('/expenses', item.payload)
+      await api.post('/expenses', item.payload, { headers: { 'Idempotency-Key': item.id } })
       qc.invalidateQueries({ queryKey: ['expenses-summary-daily'] })
       qc.invalidateQueries({ queryKey: ['expenses-today-list'] })
       break

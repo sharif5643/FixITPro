@@ -1,6 +1,7 @@
 'use client'
 
 import { TechnicianPicker } from '@/components/repairs/repair-work-tools'
+import { useIntentKey } from '@/lib/intent-key'
 import { TechOwnershipBar, useTechOwnership } from '@/components/repairs/tech-ownership'
 import { QcDialog } from '@/components/repairs/qc-dialog'
 import { statusChoices } from '@/lib/repair-status-flow'
@@ -302,10 +303,11 @@ export default function RepairDetailPage() {
     onError: (err: unknown) => toast.error(errMsg(err)),
   })
 
+  const paymentMutationKey = useIntentKey()
   const paymentMutation = useMutation({
     mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays: number; allowPartial?: boolean; finalCost?: number; discount?: number }) =>
-      api.post(`/repairs/${id}/payment`, data),
-    onSuccess: () => {
+      api.post(`/repairs/${id}/payment`, data, { headers: paymentMutationKey.headers() }),
+    onSuccess: () => { paymentMutationKey.renew();
       queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })
       queryClient.invalidateQueries({ queryKey: ['shifts', 'current'] })
       toast.success('รับเงินสำเร็จ — งานซ่อมส่งคืนแล้ว')
@@ -325,14 +327,15 @@ export default function RepairDetailPage() {
     onError: (err: unknown) => toast.error(errMsg(err)),
   })
 
+  const additionalPaymentMutationKey = useIntentKey()
   const additionalPaymentMutation = useMutation({
     mutationFn: () =>
       api.post(`/repairs/${id}/additional-payment`, {
         amount: Number(addPayAmount),
         paymentMethod: addPayMethod,
         note: addPayNote || undefined,
-      }),
-    onSuccess: () => {
+      }, { headers: additionalPaymentMutationKey.headers() }),
+    onSuccess: () => { additionalPaymentMutationKey.renew();
       queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })
       queryClient.invalidateQueries({ queryKey: ['shifts', 'current'] })
       toast.success('บันทึกการรับเงินเพิ่มเติมสำเร็จ')

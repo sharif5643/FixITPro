@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
@@ -139,6 +140,7 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
 
   const canSubmit = selectedItems.length > 0 && reason.trim().length >= 3
 
+  const mutationKey = useIntentKey()
   const mutation = useMutation({
     mutationFn: () => api.post(`/sales/${sale.id}/refund`, {
       reason: reason.trim(),
@@ -150,8 +152,8 @@ function RefundDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () =>
         refundPrice: refundUnitPrice(sale, i),
         ...(imeisOf(i).length ? { serials: lines[i.id].imeis } : {}),
       })),
-    }),
-    onSuccess: () => {
+    }, { headers: mutationKey.headers() }),
+    onSuccess: () => { mutationKey.renew();
       toast.success(`คืนสินค้า ${sale.receiptNumber} สำเร็จ`)
       onSuccess()
       onClose()
@@ -425,6 +427,7 @@ function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () 
 
   const canSubmit = selectedReturnItems.length > 0 && newItems.length > 0 && reason.trim().length >= 3
 
+  const mutationKey = useIntentKey()
   const mutation = useMutation({
     mutationFn: () => api.post(`/sales/${sale.id}/exchange`, {
       reason: reason.trim(),
@@ -441,8 +444,8 @@ function ExchangeDialog({ sale, onClose, onSuccess }: { sale: Sale; onClose: () 
         quantity: ni.qty,
         price: ni.price,
       })),
-    }),
-    onSuccess: (res) => {
+    }, { headers: mutationKey.headers() }),
+    onSuccess: (res) => { mutationKey.renew();
       const data = res.data
       const net = Number(data?.netAmount ?? 0)
       const sign = net > 0 ? `ลูกค้าชำระเพิ่ม ${formatThaiMoney(net)}` : net < 0 ? `คืนเงินลูกค้า ${formatThaiMoney(Math.abs(net))}` : 'เท่ากัน'

@@ -1,3 +1,4 @@
+import { Idempotent } from '../common/interceptors/idempotency.interceptor';
 import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
 import { DebtPaymentsService } from './debt-payments.service';
 import { CreateDebtPaymentDto } from './dto/create-debt-payment.dto';
@@ -13,6 +14,7 @@ export class DebtPaymentsController {
   constructor(private readonly service: DebtPaymentsService) {}
 
   @RequirePermission('repair.close')
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post()
   create(
     @Body()                  dto: CreateDebtPaymentDto,

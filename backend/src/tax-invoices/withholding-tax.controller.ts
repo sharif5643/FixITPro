@@ -1,3 +1,4 @@
+import { Idempotent } from '../common/interceptors/idempotency.interceptor';
 import { Body, Controller, ForbiddenException, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { IsDateString, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -45,6 +46,7 @@ export class WithholdingTaxController {
     return this.service.forRepair(repairId, shop(tenantId));
   }
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post('repair/:repairId')
   record(
     @Param('repairId') repairId: string,
