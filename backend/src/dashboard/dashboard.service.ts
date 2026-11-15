@@ -1,3 +1,4 @@
+import { whtByRepair } from '../tax-invoices/withholding-tax.service';
 import { Injectable } from '@nestjs/common';
 import { unreadSince } from '../notifications/notifications.service';
 import { loadPeriodMoney, summarizeMoney, bangkokDay, MoneyRow } from '../common/money/period-money';
@@ -106,7 +107,7 @@ export class DashboardService {
       this.prisma.repair.findMany({
         where: { status: 'DELIVERED', paymentStatus: { in: ['PENDING', 'PARTIAL'] }, ...bFilter },
         select: {
-          finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
+          id: true, finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
           additionalPayments: { select: { amount: true } },
         },
       }),
@@ -233,10 +234,11 @@ export class DashboardService {
     const transferIn     = money.byMethod['TRANSFER'] ?? 0;
 
     // ── Unpaid debt ────────────────────────────────────────────────────────────
+    const debtWht = await whtByRepair(this.prisma, unpaidDebtRepairs.map((r) => r.id));
     const debtRemaining = unpaidDebtRepairs.map((r) => {
       const cost = Number(r.finalCost ?? r.estimateCost ?? 0);
       const paid = Number(r.deposit ?? 0) + Number(r.paidAmount ?? 0)
-        + r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0);
+        + r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0) + (debtWht.get(r.id) ?? 0);
       return Math.max(0, cost - paid);
     }).filter((owed) => owed > 0);
     const unpaidDebtTotal = debtRemaining.reduce((sum, owed) => sum + owed, 0);
@@ -444,7 +446,7 @@ export class DashboardService {
       this.prisma.repair.findMany({
         where: { status: 'DELIVERED', paymentStatus: { in: ['PENDING', 'PARTIAL'] }, ...bScope },
         select: {
-          finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
+          id: true, finalCost: true, estimateCost: true, deposit: true, paidAmount: true,
           additionalPayments: { select: { amount: true } },
         },
       }),
@@ -484,9 +486,10 @@ export class DashboardService {
     const todayExpenses      = Number(todayExpensesAgg._sum.amount ?? 0);
     const monthlyExpenses    = Number(monthlyExpensesAgg._sum.amount ?? 0);
 
+    const debtWht = await whtByRepair(this.prisma, unpaidDebtRepairs.map((r) => r.id));
     const unpaidDebtCount = unpaidDebtRepairs.filter((r) =>
       Number(r.finalCost ?? r.estimateCost ?? 0) - Number(r.deposit ?? 0) - Number(r.paidAmount ?? 0)
-        - r.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0) > 0,
+        - r.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0) - (debtWht.get(r.id) ?? 0) > 0,
     ).length;
     const lowStockCount   = Number((lowStockResult as [{ count: bigint }])[0]?.count ?? 0);
 

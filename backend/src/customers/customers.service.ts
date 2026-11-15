@@ -1,3 +1,4 @@
+import { whtByRepair } from '../tax-invoices/withholding-tax.service';
 import {
   Injectable,
   NotFoundException,
@@ -138,10 +139,12 @@ export class CustomersService {
 
     if (!customer) throw new NotFoundException('Customer not found');
 
+    const unpaidWht = await whtByRepair(this.prisma, unpaidRepairs.map((r) => r.id));
     const unpaidBalance = unpaidRepairs.reduce((sum, r) => {
-      const paid = r.additionalPayments.reduce(
+      // Paid so far: at pickup, later payments, and any withholding tax certificate
+      const paid = Number(r.paidAmount ?? 0) + r.additionalPayments.reduce(
         (s, p) => s + Number(p.amount), 0,
-      );
+      ) + (unpaidWht.get(r.id) ?? 0);
       return sum + Math.max(
         0,
         Number(r.finalCost ?? 0) - Number((r as any).deposit ?? 0) - paid,
@@ -265,11 +268,13 @@ export class CustomersService {
       }
     >();
 
+    const outWht = await whtByRepair(this.prisma, outstandingRepairs.map((r) => r.id));
     for (const repair of outstandingRepairs) {
       if (!repair.customerId || !repair.customer) continue;
-      const paid = repair.additionalPayments.reduce(
+      // Paid so far: at pickup (a PARTIAL job's first payment), later payments, withholding tax
+      const paid = Number(repair.paidAmount ?? 0) + repair.additionalPayments.reduce(
         (sum, p) => sum + Number(p.amount), 0,
-      );
+      ) + (outWht.get(repair.id) ?? 0);
       const debt = Math.max(
         0,
         Number(repair.finalCost ?? 0) - Number((repair as any).deposit ?? 0) - paid,

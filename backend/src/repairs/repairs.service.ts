@@ -1,3 +1,4 @@
+import { whtByRepair } from '../tax-invoices/withholding-tax.service';
 import { randomBytes } from 'crypto';
 import {
   Optional,
@@ -1737,7 +1738,9 @@ export class RepairsService {
       if (repair.paymentStatus === 'PAID') throw new BadRequestException('งานนี้ชำระครบแล้ว ไม่มียอดให้รับเพิ่ม');
       // Never more than what is still owed: the debt after pickup (PARTIAL), or before pickup the
       // quoted price less the deposit and what was already paid (pickup now deducts these)
-      const already = repair.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      // A withholding tax certificate settles part of the bill without cash
+      const wht = (await whtByRepair(tx, [repairId])).get(repairId) ?? 0;
+      const already = repair.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0) + wht;
       const price = repair.paymentStatus === 'PARTIAL' && repair.finalCost
         ? Number(repair.finalCost)
         : Number(repair.estimatedTotal ?? repair.finalCost ?? repair.estimateCost ?? 0);
@@ -1764,7 +1767,7 @@ export class RepairsService {
         );
         const totalCollected =
           Number(repair.paidAmount ?? 0) +
-          previousAdditional +
+          previousAdditional + wht +
           dto.amount;
         const balance = Math.max(
           0,
@@ -2254,15 +2257,18 @@ export class RepairsService {
       },
       orderBy: { deliveredAt: 'asc' },
     });
+    const wht = await whtByRepair(this.prisma, repairs.map((r) => r.id));
 
     return repairs.map((r) => ({
       ...r,
+      withholdingTax: wht.get(r.id) ?? 0,
       outstandingAmount: Math.max(
         0,
         Number(r.finalCost ?? 0) -
         Number(r.deposit   ?? 0) -
         Number(r.paidAmount ?? 0) -
-        r.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0),
+        r.additionalPayments.reduce((sum, p) => sum + Number(p.amount), 0) -
+        (wht.get(r.id) ?? 0),
       ),
     }));
   }
@@ -2294,13 +2300,15 @@ export class RepairsService {
     });
 
     const now = Date.now();
+    const wht = await whtByRepair(this.prisma, repairs.map((r) => r.id));
     const aged = repairs.map((r) => {
       const outstanding = Math.max(
         0,
         Number(r.finalCost  ?? 0) -
         Number(r.deposit    ?? 0) -
         Number(r.paidAmount ?? 0) -
-        r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0),
+        r.additionalPayments.reduce((s, p) => s + Number(p.amount), 0) -
+        (wht.get(r.id) ?? 0),
       );
       const daysOverdue = r.deliveredAt
         ? Math.floor((now - r.deliveredAt.getTime()) / 86_400_000)
@@ -2416,7 +2424,9 @@ export class RepairsService {
     const finalPayment     = Number(repair.paidAmount ?? 0);
     const additionalTotal  = repair.additionalPayments.reduce((s, p) => s + Number(p.amount), 0);
     const reversalTotal    = repair.paymentReversals.reduce((s, r) => s + Number(r.amount), 0);
-    const revenue          = deposit + finalPayment + additionalTotal - reversalTotal;
+    // Tax the customer withheld is still the shop's income (claimed back on its yearly tax)
+    const withholdingTax   = (await whtByRepair(this.prisma, [repair.id])).get(repair.id) ?? 0;
+    const revenue          = deposit + finalPayment + additionalTotal + withholdingTax - reversalTotal;
 
     const partsCost = repair.parts.reduce((s, p) => {
       const unit = Number(p.costPrice ?? p.price);
@@ -2439,6 +2449,7 @@ export class RepairsService {
         deposit,
         finalPayment,
         additionalPayments: additionalTotal,
+        withholdingTax,
         reversals:          reversalTotal,
         total:              revenue,
       },

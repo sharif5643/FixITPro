@@ -924,4 +924,11 @@ FROM "ShopSettings" s WHERE s."tenantId" IS NOT NULL AND (s."vatPercent" > 0 OR 
 SELECT sp."tenantId", count(*) AS pos_with_vat, sum(po."vatAmount") AS input_vat
 FROM "PurchaseOrder" po JOIN "Supplier" sp ON sp.id = po."supplierId" WHERE po."vatAmount" > 0 GROUP BY 1 ORDER BY 1;
 
+\echo '--- 35. Withholding tax certificates on repair jobs (counts only; table may not exist before the migration) ---'
+SELECT to_regclass('"WithholdingTax"') IS NOT NULL AS wht_table_exists,
+  CASE WHEN to_regclass('"WithholdingTax"') IS NOT NULL THEN
+    (xpath('/row/c/text()', query_to_xml('SELECT count(*) AS c FROM "WithholdingTax"', false, true, '')))[1]::text::int END AS wht_rows,
+  CASE WHEN to_regclass('"WithholdingTax"') IS NOT NULL THEN
+    (xpath('/row/c/text()', query_to_xml('SELECT count(*) AS c FROM "WithholdingTax" WHERE "cancelledAt" IS NULL', false, true, '')))[1]::text::int END AS wht_active;
+
 ROLLBACK;

@@ -1060,6 +1060,9 @@ export interface ProfitReport {
   repair: {
     revenue: number; partsCost: number; laborCost: number; profit: number; count: number; margin: number
     deposits?: number; atPickup?: number; debtPayments?: number
+    /** Tax a customer withheld (certificate, no cash) — still the shop's income */
+    withholdingTax?: number; withholdingTaxCount?: number
+    withholdingTaxItems?: { time: string; repairId: string; ticketNumber: string | null; payerName: string; amount: number }[]
     /** hidden costs of the jobs: parts given free, delivery fees of their parts */
     freebieCost?: number; deliveryCost?: number; deliveryCount?: number
     items: ProfitReportRepairItem[]

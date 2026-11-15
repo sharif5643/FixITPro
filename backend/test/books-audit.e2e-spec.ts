@@ -184,10 +184,13 @@ describe('Books audit: drawer, cash ledger, books and reports agree (e2e)', () =
     const p = (await authGet(app, `/api/v1/reports/profit?${q}`, owner).expect(200)).body;
     const t = p.trail;
     // income = bills − refunds + repair money + SIM commission + money with no bill
+    //          + tax customers withheld on repair bills (a certificate, not cash; listed on its own)
+    const wht = sum(p.repair.withholdingTaxItems ?? []);
+    expect(wht).toBe(p.repair.withholdingTax ?? 0);
     const income = sum(t.sales) - sum(t.refunds) + sum(t.deposits) + sum(t.pickups) + sum(t.debts)
-      + t.packages.reduce((s: number, x: any) => s + x.profit, 0) + sum(t.otherIncome);
+      + t.packages.reduce((s: number, x: any) => s + x.profit, 0) + sum(t.otherIncome) + wht;
     expect(Math.round(income * 100) / 100).toBe(p.summary.totalRevenue);
-    expect(sum(t.deposits) + sum(t.pickups) + sum(t.debts)).toBe(p.repair.revenue);
+    expect(Math.round((sum(t.deposits) + sum(t.pickups) + sum(t.debts) + wht) * 100) / 100).toBe(p.repair.revenue);
     expect(sum(p.expenses.items)).toBe(p.expenses.total);
     const parts = p.repair.items.reduce((s: number, j: any) => s + j.partsCost - (j.freebieCost ?? 0), 0);
     expect(parts).toBe(p.repair.partsCost);

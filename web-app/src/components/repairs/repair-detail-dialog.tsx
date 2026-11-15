@@ -45,6 +45,7 @@ import { useAuthStore } from '@/store/auth.store'
 import type { Repair, RepairStatus, Product, ShopSettings } from '@/types'
 import { RepairBatchButton } from '@/components/repairs/repair-batch-print'
 import { FormalDocButton } from '@/components/formal/formal-doc-sheet'
+import { WithholdingTaxBox, useWithholdingTax } from '@/components/repairs/withholding-tax-box'
 import { RepairSignatures } from '@/components/repairs/repair-signatures'
 import { TechOwnershipBar } from '@/components/repairs/tech-ownership'
 import { localDay } from '@/lib/repair-batch'
@@ -207,6 +208,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const { hasPermission, user: authUser } = useAuthStore()
+  const canManageWht = authUser?.role === 'OWNER' || authUser?.role === 'MANAGER'
+  const { total: whtTotal } = useWithholdingTax(repairId ?? '', canManageWht && repair?.status === 'DELIVERED')
   const repairBranchId = (repair?.branchId as string | null | undefined) ?? undefined
   const canViewCost = hasPermission('products.view_cost')
   const canViewProfit = authUser?.role === 'OWNER' || authUser?.role === 'MANAGER'
@@ -1183,7 +1186,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
               {repair.paymentStatus === 'PARTIAL' && repair.status === 'DELIVERED' && (() => {
                 const additionalSum = (repair.additionalPayments ?? []).reduce((s: number, p: any) => s + Number(p.amount), 0)
                 const totalCollected = Number(repair.paidAmount ?? 0) + additionalSum
-                const outstanding = Math.max(0, Number(repair.finalCost ?? 0) - Number(repair.deposit ?? 0) - totalCollected)
+                // a withholding tax certificate settles part of the bill without cash
+                const outstanding = Math.max(0, Math.round((Number(repair.finalCost ?? 0) - Number(repair.deposit ?? 0) - totalCollected - whtTotal) * 100) / 100)
                 return (
                   <div className="rounded-xl border border-amber-200 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/10 p-4 space-y-2 text-sm">
                     <div className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400">
@@ -1229,6 +1233,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                     {!currentShift && (
                       <p className="text-center text-xs text-amber-600">กรุณาเปิดกะก่อนรับเงิน</p>
                     )}
+                    <WithholdingTaxBox repairId={repair.id} outstanding={outstanding} canRecord canManage={canManageWht} />
                   </div>
                 )
               })()}
@@ -1283,6 +1288,10 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                         </div>
                       ))}
                     </div>
+                  )}
+                  {/* Withholding tax certificates that settled part of this job (cancel lives here) */}
+                  {repair.status === 'DELIVERED' && (
+                    <WithholdingTaxBox repairId={repair.id} outstanding={0} canRecord={false} canManage={canManageWht} />
                   )}
                   {/* Add additional payment button */}
                   <Button

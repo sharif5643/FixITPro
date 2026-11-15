@@ -6,12 +6,14 @@ import { PermissionGuard } from '../common/guards/permission.guard';
 import { TaxInvoicesService } from './tax-invoices.service';
 import { TaxReportsService } from './tax-reports.service';
 import { TaxReportsController } from './tax-reports.controller';
+import { WithholdingTaxService } from './withholding-tax.service';
+import { WithholdingTaxController } from './withholding-tax.controller';
 
 @Global()
 @Module({
   imports:     [JournalModule, ModulesModule],
-  controllers: [TaxReportsController],
-  providers:   [TaxInvoicesService, TaxReportsService, TenantActiveGuard, PermissionGuard],
-  exports:     [TaxInvoicesService],
+  controllers: [TaxReportsController, WithholdingTaxController],
+  providers:   [TaxInvoicesService, TaxReportsService, WithholdingTaxService, TenantActiveGuard, PermissionGuard],
+  exports:     [TaxInvoicesService, WithholdingTaxService],
 })
 export class TaxInvoicesModule {}

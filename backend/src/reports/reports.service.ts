@@ -1033,7 +1033,21 @@ export class ReportsService {
     // --- Repair profit ---
     // costPrice = COGS (product cost snapshot at time of adding the part)
     // fallback to price for legacy parts created before the migration
-    const repairRevenue   = money.repairRevenue;
+    // Tax a customer withheld (agency 1% / company 3%): no cash came in, but it is the shop's
+    // income all the same — the certificate is claimed back on the shop's yearly tax
+    const whtRows = await this.prisma.withholdingTax.findMany({
+      where: {
+        cancelledAt: null, certificateDate: { gte: start, lt: end },
+        ...(branchId ? { branchId } : {}), ...(tenantId ? { tenantId } : {}),
+      },
+      select: { id: true, repairId: true, amount: true, certificateDate: true, payerName: true },
+      orderBy: { certificateDate: 'asc' },
+    });
+    const whtTickets = whtRows.length
+      ? new Map((await this.prisma.repair.findMany({ where: { id: { in: whtRows.map((w) => w.repairId) } }, select: { id: true, ticketNumber: true } })).map((r) => [r.id, r.ticketNumber]))
+      : new Map<string, string>();
+    const repairWht       = Math.round(whtRows.reduce((s, w) => s + Number(w.amount), 0) * 100) / 100;
+    const repairRevenue   = money.repairRevenue + repairWht;
     const partCost = (p: { costPrice?: unknown; price: unknown; quantity: number }) => Number(p.costPrice ?? p.price) * p.quantity;
     const repairPartsCost = repaids.reduce((s, r) => s + r.parts.filter((p) => !p.isFreebie).reduce((ps, p) => ps + partCost(p), 0), 0);
     // Hidden costs of the jobs: parts given free, and the delivery fee of the parts ordered for them
@@ -1089,6 +1103,7 @@ export class ReportsService {
     // Money taken at the counter without a bill has no cost on record: all of it is profit
     const grossProfit = posProfit + repairProfit + packageProfit + money.otherIncome;
     const netProfit   = grossProfit - totalExpenses;
+    const totalRevenue = Math.round((money.totalRevenue + repairWht) * 100) / 100;
 
     return {
       period: { startDate, endDate },
@@ -1122,6 +1137,12 @@ export class ReportsService {
         deposits:     money.repairDeposits,
         atPickup:     money.repairPickup,
         debtPayments: money.repairDebtPayments,
+        withholdingTax: repairWht,
+        withholdingTaxCount: whtRows.length,
+        withholdingTaxItems: whtRows.map((w) => ({
+          time: w.certificateDate.toISOString(), repairId: w.repairId, ticketNumber: whtTickets.get(w.repairId) ?? null,
+          payerName: w.payerName, amount: Number(w.amount),
+        })),
         partsCost: repairPartsCost,
         freebieCost: r2(repairFreebieCost),
         deliveryCost: r2(repairDeliveryCost),
@@ -1187,9 +1208,9 @@ export class ReportsService {
       summary: {
         grossProfit,
         netProfit,
-        totalRevenue: money.totalRevenue,
-        grossMargin:  money.totalRevenue > 0 ? (grossProfit / money.totalRevenue) * 100 : 0,
-        netMargin:    money.totalRevenue > 0 ? (netProfit / money.totalRevenue) * 100 : 0,
+        totalRevenue,
+        grossMargin:  totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0,
+        netMargin:    totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0,
       },
     };
   }
