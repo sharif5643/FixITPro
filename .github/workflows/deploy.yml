@@ -36,6 +36,23 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 root@91.98.151.10 'sh -s' < scripts/deploy/recover-app.sh
 
+      # A fresh database backup before every deploy: if the new version (or a migration) goes wrong,
+      # the data from just before it is on the server. If the backup fails, the deploy stops and the
+      # site stays on the version it is running.
+      - name: Back up the database before deploying
+        run: |
+          scp -i ~/.ssh/deploy_key -o ConnectTimeout=30 \
+            scripts/backup/pg_backup_coolify.sh scripts/backup/pg_restore_verify.sh \
+            root@91.98.151.10:/opt/fixitpro-backups/
+          ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 root@91.98.151.10 \
+            'set -e
+             bash /opt/fixitpro-backups/pg_backup_coolify.sh
+             f=$(ls -1t /opt/fixitpro-backups/db/fixitpro_*.sql.gz | head -1)
+             age=$(( $(date +%s) - $(stat -c %Y "$f") ))
+             [ "$age" -lt 900 ] || { echo "newest backup is ${age}s old — not made now"; exit 1; }
+             gzip -t "$f"
+             echo "backup before deploy: $(basename "$f") ($(du -h "$f" | cut -f1))"'
+
       - name: Deploy via SSH
         run: |
           ssh -i ~/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=20 root@91.98.151.10 \

@@ -328,3 +328,47 @@ jobs:
           path: offsite/
           retention-days: 7
           if-no-files-found: error
+
+      - name: Off-site copy of uploaded files (repair photos, slips, logos), encrypted
+        # Same approval and key as the database copy above. The database backup has no files in it:
+        # repair photos, payment slips, shop logos live in the backend's uploads volume (and older
+        # uploads volumes from earlier deployments, kept in case they still hold files). They are
+        # packed read-only, the file count is checked against the server, encrypted, checked again
+        # by decrypting, and kept 7 days. Nothing unencrypted is kept.
+        id: offsite_files
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          PASSPHRASE: ${{ secrets.OFFSITE_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          SSH="ssh -i $HOME/.ssh/deploy_key -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=40 root@91.98.151.10"
+          vols=$($SSH 'docker volume ls -q | grep -E "uploads" | tr "\n" " "')
+          [ -n "$vols" ] || { echo "::warning::no uploads volume found"; exit 0; }
+          dirs=""; for v in $vols; do dirs="$dirs $v/_data"; done
+          info=$($SSH "cd /var/lib/docker/volumes && echo \$(find $dirs -type f | wc -l) \$(du -sb $dirs | awk '{s+=\$1} END {print s}')")
+          count=${info%% *}; bytes=${info##* }
+          echo "uploads volumes: $vols — $count files, $bytes bytes"
+          if [ "$bytes" -gt 4000000000 ]; then echo "::warning::uploads larger than 4 GB — not copied this run"; exit 0; fi
+          name="uploads_$(date -u +%Y%m%d_%H%M%S).tar.gz"
+          mkdir -p offsite-files
+          $SSH "cd /var/lib/docker/volumes && tar czf - $dirs" > "offsite-files/$name"
+          got=$(tar tzf "offsite-files/$name" | grep -vc '/$' || true)
+          [ "$got" = "$count" ] || { echo "::error::file count differs: server $count, copy $got"; exit 1; }
+          sum=$(sha256sum "offsite-files/$name" | cut -d' ' -f1)
+          if [ -n "$PASSPHRASE" ]; then KEY="$PASSPHRASE"; else KEY=$(printf '%s' "$DEPLOY_KEY" | sha256sum | cut -d' ' -f1); fi
+          export KEY
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:KEY -in "offsite-files/$name" -out "offsite-files/$name.enc"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:KEY -in "offsite-files/$name.enc" | sha256sum | cut -d' ' -f1 | grep -qx "$sum"
+          printf '%s  %s\n' "$sum" "$name" > "offsite-files/$name.sha256"
+          rm -f "offsite-files/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "Encrypted copy of $count uploaded files ($(du -h "offsite-files/$name.enc" | cut -f1)) checked: decrypts to the same archive."
+
+      - name: Keep the encrypted file copy (7 days)
+        if: ${{ steps.offsite_files.outputs.name != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: files-${{ steps.offsite_files.outputs.name }}
+          path: offsite-files/
+          retention-days: 7
+          if-no-files-found: error
