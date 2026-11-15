@@ -125,6 +125,11 @@ export class TenantRestoreService {
     if (Number(taxDocs ?? 0) > 0) {
       throw new BadRequestException(`ร้านนี้ออกใบกำกับภาษีไปแล้ว ${taxDocs} ฉบับ — กู้คืนข้อมูลทับไม่ได้ (กฎหมายให้เก็บบิลจริงไว้) — ติดต่อผู้ดูแลระบบ`);
     }
+    // Withholding tax certificates are not in a shop backup: a restore would wipe their jobs
+    const whtDocs = await (this.prisma as any).withholdingTax?.count?.({ where: { tenantId: destinationTenantId } });
+    if (Number(whtDocs ?? 0) > 0) {
+      throw new BadRequestException(`ร้านนี้มีหนังสือรับรองการหักภาษี ณ ที่จ่าย ${whtDocs} ใบ — กู้คืนข้อมูลทับไม่ได้ — ติดต่อผู้ดูแลระบบ`);
+    }
 
     // Source tenant must be in the backup
     if (!backupJob.tenantIds.includes(destinationTenantId)) {

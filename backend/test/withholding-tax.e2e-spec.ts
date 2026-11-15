@@ -128,4 +128,11 @@ describe('Withholding tax (e2e)', () => {
     await authPost(app, `/api/v1/withholding-tax/repair/${job.id}`, cashier, cert(5)).expect(403);
     expect(await prisma.withholdingTax.count({ where: { repairId: job.id } })).toBe(0);
   });
+
+  it('WHT-04: a shop that holds certificates cannot reset its data (they are tax documents)', async () => {
+    const before = await prisma.repair.count({ where: { branch: { tenantId: IDS.tenantA } } });
+    await authPost(app, '/api/v1/settings/reset-data', owner, { password: CREDS.ownerA.password })
+      .expect((r) => expect(r.status).toBeGreaterThanOrEqual(400));
+    expect(await prisma.repair.count({ where: { branch: { tenantId: IDS.tenantA } } })).toBe(before);
+  });
 });
