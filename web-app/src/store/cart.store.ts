@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { registerOnUserChange } from '@/lib/sign-out-hooks'
 import { persist } from 'zustand/middleware'
 import type { Product } from '@/types'
 
@@ -145,3 +146,6 @@ export const useCartStore = create<CartStore>()(
 export function freebieLines(freebies: CartFreebie[] | undefined) {
   return (freebies ?? []).map((f) => ({ productId: f.product.id, quantity: f.quantity, price: 0, isFreebie: true }))
 }
+
+// another person signing in on this device does not get the last person's cart
+registerOnUserChange(() => useCartStore.getState().clearCart())

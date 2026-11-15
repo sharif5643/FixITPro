@@ -75,9 +75,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; email: string; role: string; branchId?: string | null; tenantId?: string | null }) {
+  async validate(payload: { sub: string; email: string; role: string; branchId?: string | null; tenantId?: string | null; iat?: number }) {
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user || !user.isActive) throw new UnauthorizedException('Token invalid or user inactive');
+    // The owner (or system admin) reset this person's password: every sign-in from before the
+    // reset ends now, not when its token expires (iat is in seconds)
+    if (user.passwordResetAt && payload.iat != null && payload.iat * 1000 + 999 < user.passwordResetAt.getTime()) {
+      throw new UnauthorizedException('รหัสผ่านถูกรีเซ็ต — กรุณาเข้าสู่ระบบใหม่');
+    }
 
     let permissions: string[];
     if (user.role === 'OWNER' || user.role === 'SUPER_ADMIN') {

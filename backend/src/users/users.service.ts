@@ -372,6 +372,8 @@ export class UsersService {
         passwordResetById:   requesterId,
       },
     });
+    // Signed out everywhere: a stolen or shared sign-in cannot keep renewing itself
+    await this.prisma.refreshToken.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
     await this.auditLog.log({
       actorId:   requesterId,
       action:    'USER_PASSWORD_RESET',

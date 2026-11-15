@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { noteSignedIn, runSignOut } from '@/lib/sign-out-hooks'
 import axios from 'axios'
 
 export interface AuthUser {
@@ -41,8 +42,14 @@ export const useAuthStore = create<AuthState>()(
         permissions: [],
         enabledModules: [],
         _hasHydrated: false,
-        setAuth: (user, permissions, enabledModules = []) => set({ user, permissions, enabledModules }),
-        clearAuth: () => set({ user: null, permissions: [], enabledModules: [] }),
+        setAuth: (user, permissions, enabledModules = []) => {
+          if (user?.id) noteSignedIn(user.id)
+          set({ user, permissions, enabledModules })
+        },
+        clearAuth: () => {
+          set({ user: null, permissions: [], enabledModules: [] })
+          runSignOut()
+        },
         updateUser: (updates) =>
           set((state) => ({ user: state.user ? { ...state.user, ...updates } : null })),
         hasPermission: (permission: string) => {
