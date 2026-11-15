@@ -18,9 +18,10 @@ import { DataRepairService } from './data-repair/data-repair.service';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { PlanLimitsModule } from '../plan-limits/plan-limits.module';
 import { SuperAdminAuditInterceptor } from './super-admin-audit.interceptor';
+import { ShopActivityModule } from '../shop-activity/shop-activity.module';
 
 @Module({
-  imports: [AuditLogModule, PlanLimitsModule],
+  imports: [AuditLogModule, PlanLimitsModule, ShopActivityModule],
   controllers: [
     TenantsController,
     PaymentsController,

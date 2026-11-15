@@ -1,5 +1,6 @@
 import { randomInt } from 'crypto';
 import {
+  Optional,
   Injectable,
   NotFoundException,
   ConflictException,
@@ -13,6 +14,7 @@ import { ActivateTenantDto } from './dto/activate-tenant.dto';
 import { RenewTenantDto } from './dto/renew-tenant.dto';
 import { TenantPlan } from '@prisma/client';
 import { ModulesService } from '../../modules/modules.service';
+import { ShopActivityService } from '../../shop-activity/shop-activity.service';
 
 const DAY_MS = 86_400_000;
 
@@ -22,6 +24,7 @@ export class TenantsService {
     private prisma: PrismaService,
     private planLimits: PlanLimitsService,
     private modules: ModulesService,
+    @Optional() private activity?: ShopActivityService,
   ) {}
 
   async findAll(filter?: string) {
@@ -76,7 +79,9 @@ export class TenantsService {
       });
     }
 
-    return { data: tenants, total };
+    // When each shop last sold / took a repair / opened a shift: a shop that stopped shows at once
+    const last = this.activity ? await this.activity.lastActivity(tenants.map((t) => t.id)) : new Map();
+    return { data: tenants.map((t) => ({ ...t, lastActivityAt: last.get(t.id) ?? null })), total };
   }
 
   async findOne(id: string) {
