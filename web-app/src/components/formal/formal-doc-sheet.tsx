@@ -14,6 +14,7 @@ import { REPAIR_LABEL } from '@/components/ui/status-badge'
 import { useCustomerRepairs } from '@/components/repairs/repair-batch-print'
 import { thaiLongDate, type FormalContent } from '@/components/formal/formal-document'
 import type { ShopSettings } from '@/types'
+import { useAuthStore } from '@/store/auth.store'
 
 /**
  * Issue a formal A4 document for an agency or company: quotation, delivery note / invoice, or
@@ -31,7 +32,10 @@ const TYPE_LABEL: Record<string, string> = { QUOTATION: 'ใบเสนอร�
 
 interface Buyer { name: string; address: string; taxId: string; taxBranch: string; phone: string }
 interface Draft { content: FormalContent; docDate: string }
-interface DocRow { id: string; type: string; number: string; docDate: string; hideDate: boolean; total: string | number; createdBy?: string | null; createdAt: string }
+interface DocRow {
+  id: string; type: string; number: string; docDate: string; hideDate: boolean; total: string | number; createdBy?: string | null; createdAt: string
+  vatPercent?: string | number; cancelledAt?: string | null; cancelReason?: string | null
+}
 
 const INPUT = 'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 const LABEL = 'mb-1 block text-xs font-semibold text-slate-500'
@@ -55,6 +59,22 @@ export function FormalDocSheet({ repairId, customerId, onClose }: { repairId?: s
   const [docDate, setDocDate]   = useState<string>('')
   const [hideDate, setHideDate] = useState(false)
   const [note, setNote]         = useState('')
+  // Cancel a paper already handed out (owner / manager): it is kept, marked cancelled
+  const role = useAuthStore((st) => st.user?.role)
+  const canCancel = role === 'OWNER' || role === 'MANAGER'
+  const [cancelId, setCancelId] = useState<string | null>(null)
+  const [cancelWhy, setCancelWhy] = useState('')
+  const cancelDoc = useMutation({
+    mutationFn: async () => (await api.post(`/formal-documents/${cancelId}/cancel`, { reason: cancelWhy })).data,
+    onSuccess: (d: DocRow) => {
+      toast.success(Number(d.vatPercent) > 0 && d.type === 'RECEIPT'
+        ? `ยกเลิก ${d.number} แล้ว — ออกใบกำกับภาษีใบใหม่แทนได้เลย ใบใหม่จะระบุว่าออกแทนเลขที่นี้`
+        : `ยกเลิก ${d.number} แล้ว`)
+      setCancelId(null); setCancelWhy('')
+      qc.invalidateQueries({ queryKey: ['formal-documents'] })
+    },
+    onError: (e) => toast.error(apiErrorMessage(e)),
+  })
 
   const { data: settings } = useQuery<ShopSettings>({
     queryKey: ['settings'],
@@ -276,14 +296,33 @@ export function FormalDocSheet({ repairId, customerId, onClose }: { repairId?: s
             <Section title={repairId ? 'เอกสารที่เคยออกให้งานนี้' : 'เอกสารที่เคยออกให้ลูกค้านี้'}>
               <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
                 {issued.map((d) => (
-                  <button key={d.id} onClick={() => openFormalDocument(d.id, router.push)} className="flex w-full items-center gap-3 p-3 text-left active:bg-slate-50">
-                    <FileText className="h-5 w-5 shrink-0 text-blue-600" />
-                    <div className="min-w-0 flex-1 text-sm">
-                      <p className="font-semibold text-slate-900">{TYPE_LABEL[d.type] ?? d.type} {d.number}</p>
-                      <p className="text-xs text-slate-500">{d.hideDate ? 'ไม่ลงวันที่' : thaiLongDate(d.docDate)} · {money(Number(d.total))}{d.createdBy ? ` · ${d.createdBy}` : ''}</p>
+                  <div key={d.id} className="p-3">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => openFormalDocument(d.id, router.push)} className="flex min-w-0 flex-1 items-center gap-3 text-left active:opacity-70">
+                        <FileText className={`h-5 w-5 shrink-0 ${d.cancelledAt ? 'text-slate-300' : 'text-blue-600'}`} />
+                        <div className="min-w-0 flex-1 text-sm">
+                          <p className={`font-semibold ${d.cancelledAt ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{TYPE_LABEL[d.type] ?? d.type} {d.number}</p>
+                          <p className="text-xs text-slate-500">{d.hideDate ? 'ไม่ลงวันที่' : thaiLongDate(d.docDate)} · {money(Number(d.total))}{d.createdBy ? ` · ${d.createdBy}` : ''}</p>
+                          {d.cancelledAt && <p className="text-xs font-semibold text-red-600">ยกเลิกแล้ว{d.cancelReason ? ` — ${d.cancelReason}` : ''}</p>}
+                        </div>
+                        <span className="text-xs font-semibold text-blue-600">เปิด</span>
+                      </button>
+                      {canCancel && !d.cancelledAt && cancelId !== d.id && (
+                        <button onClick={() => { setCancelId(d.id); setCancelWhy('') }} className="rounded-lg px-2 py-1 text-xs font-semibold text-red-600 active:bg-red-50">ยกเลิก</button>
+                      )}
                     </div>
-                    <span className="text-xs font-semibold text-blue-600">เปิด</span>
-                  </button>
+                    {cancelId === d.id && (
+                      <div className="mt-2 space-y-2 rounded-xl bg-red-50 p-3">
+                        <p className="text-xs text-red-800">ยกเลิก {d.number}: ใบนี้จะยังเก็บไว้ในระบบแต่ขึ้นว่ายกเลิก{Number(d.vatPercent) > 0 && d.type === 'RECEIPT' ? ' — ภาษีของใบนี้จะออกจากรายงานภาษี แล้วออกใบใหม่แทนได้' : ''}</p>
+                        <input value={cancelWhy} onChange={(e) => setCancelWhy(e.target.value)} maxLength={300} placeholder="เหตุผล เช่น ชื่อผู้ซื้อผิด" className={INPUT} aria-label="เหตุผลที่ยกเลิก" />
+                        <div className="flex gap-2">
+                          <button onClick={() => cancelDoc.mutate()} disabled={cancelDoc.isPending || cancelWhy.trim().length < 3}
+                            className="h-10 flex-1 rounded-xl bg-red-600 text-sm font-bold text-white disabled:opacity-50">{cancelDoc.isPending ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}</button>
+                          <button onClick={() => setCancelId(null)} className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm">ไม่ยกเลิก</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </Section>

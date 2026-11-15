@@ -25,6 +25,11 @@ export class SettingsService {
       throw new UnauthorizedException('รหัสผ่านไม่ถูกต้อง — ยังไม่ได้ลบข้อมูลใดๆ');
     }
     if (!this.backups) throw new BadRequestException('ระบบสำรองข้อมูลไม่พร้อม — ยังไม่ได้ลบข้อมูลใดๆ');
+    // A shop that issued tax invoices must keep its bills (Revenue Code: at least 5 years)
+    const taxDocs = await this.prisma.taxInvoice.count({ where: { tenantId: user.tenantId } });
+    if (taxDocs > 0) {
+      throw new BadRequestException(`ร้านนี้ออกใบกำกับภาษีไปแล้ว ${taxDocs} ฉบับ — กฎหมายให้เก็บบิลและเอกสารไว้อย่างน้อย 5 ปี จึงรีเซ็ตข้อมูลไม่ได้ — ยังไม่ได้ลบข้อมูลใดๆ`);
+    }
     const backup = await this.backups.backupTenantNow(user.tenantId, user.id, user.name ?? '');
     await this.resetTenantData(user.tenantId, { actorId: user.id, actorName: user.name, backupId: backup.id });
     return backup;

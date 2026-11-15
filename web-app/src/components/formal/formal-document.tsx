@@ -22,6 +22,8 @@ export interface FormalContent {
   note?: string | null
   warrantyText?: string | null
   quoteValidDays?: number
+  /** Issued in place of a cancelled tax invoice */
+  replaces?: string | null
 }
 
 export interface FormalDoc {
@@ -31,6 +33,8 @@ export interface FormalDoc {
   docDate: string
   hideDate: boolean
   content: FormalContent
+  cancelledAt?: string | null
+  cancelReason?: string | null
 }
 
 const money = (n: number) => Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -72,7 +76,13 @@ export const FormalDocumentPage = forwardRef<HTMLDivElement, { doc: FormalDoc; c
     const pm = c.paymentMethod
 
     return (
-      <div ref={ref} className="formal-page" style={C.page}>
+      <div ref={ref} className="formal-page" style={{ ...C.page, position: 'relative' }}>
+        {doc.cancelledAt && (
+          // A cancelled paper is kept and reprinted only with this mark across it
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <div style={{ transform: 'rotate(-28deg)', border: '6px solid rgba(200,0,0,0.55)', color: 'rgba(200,0,0,0.55)', fontSize: 80, fontWeight: 800, padding: '4px 36px', letterSpacing: 8 }}>ยกเลิก</div>
+          </div>
+        )}
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, borderBottom: '2px solid #111', paddingBottom: 12 }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -93,6 +103,8 @@ export const FormalDocumentPage = forwardRef<HTMLDivElement, { doc: FormalDoc; c
             <div style={{ fontSize: 21, fontWeight: 700 }}>{c.title}</div>
             <div style={{ fontSize: 12, color: '#444', letterSpacing: 1 }}>{c.titleEn}</div>
             <div style={{ display: 'inline-block', marginTop: 6, border: '1px solid #111', padding: '1px 10px', fontSize: 12 }}>{copy}</div>
+            {c.replaces && <div style={{ fontSize: 12, marginTop: 4 }}>ออกแทนฉบับเลขที่ {c.replaces}</div>}
+            {doc.cancelledAt && <div style={{ fontSize: 12, marginTop: 4, color: '#b00', fontWeight: 700 }}>ยกเลิกแล้ว{doc.cancelReason ? `: ${doc.cancelReason}` : ''}</div>}
           </div>
         </div>
 

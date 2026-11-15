@@ -38,6 +38,22 @@ export class FormalDocumentsController {
     return this.service.issue(dto, actorId, actorName, shop(tenantId));
   }
 
+  @Post(':id/cancel')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.edit')
+  cancel(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+    @CurrentUser('role') role: string,
+  ) {
+    // Cancelling a paper handed to a customer (a tax invoice) is the owner's or a manager's call
+    if (role !== 'OWNER' && role !== 'MANAGER') throw new ForbiddenException('ยกเลิกเอกสารได้เฉพาะเจ้าของร้านหรือผู้จัดการ');
+    return this.service.cancel(id, reason, actorId, actorName, shop(tenantId));
+  }
+
   @Get()
   list(
     @Query('repairId') repairId: string | undefined,

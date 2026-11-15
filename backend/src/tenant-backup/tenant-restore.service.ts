@@ -119,6 +119,13 @@ export class TenantRestoreService {
       throw new NotFoundException(`Destination tenant ${destinationTenantId} not found`);
     }
 
+    // A shop that issued tax invoices keeps its bills as they are (Revenue Code: 5 years); a
+    // restore would put back an older copy over them
+    const taxDocs = await (this.prisma as any).taxInvoice?.count?.({ where: { tenantId: destinationTenantId } });
+    if (Number(taxDocs ?? 0) > 0) {
+      throw new BadRequestException(`ร้านนี้ออกใบกำกับภาษีไปแล้ว ${taxDocs} ฉบับ — กู้คืนข้อมูลทับไม่ได้ (กฎหมายให้เก็บบิลจริงไว้) — ติดต่อผู้ดูแลระบบ`);
+    }
+
     // Source tenant must be in the backup
     if (!backupJob.tenantIds.includes(destinationTenantId)) {
       throw new BadRequestException(
