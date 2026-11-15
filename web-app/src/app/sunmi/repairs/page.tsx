@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -269,6 +270,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
     }
   }
 
+  const deliverMutationKey = useIntentKey()
   const deliverMutation = useMutation({
     mutationFn: () =>
       api.post(`/repairs/${repair.id}/payment`, {
@@ -278,8 +280,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
         amountPaid: effectivePaid,
         warrantyDays: warrantyDaysValue(warrantyDays),
         ...(payLater && owed > 0 ? { allowPartial: true } : {}),
-      }),
-    onSuccess: () => {
+      }, { headers: deliverMutationKey.headers() }),
+    onSuccess: () => { deliverMutationKey.renew();
       toast.success('ส่งมอบและรับชำระสำเร็จ')
       onDelivered(repair.id)
     },
@@ -291,14 +293,15 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
 
 
 
+  const addPayMutationKey = useIntentKey()
   const addPayMutation = useMutation({
     mutationFn: () =>
       api.post(`/repairs/${repair.id}/additional-payment`, {
         amount: Number(addPayAmount),
         paymentMethod: addPayMethod,
         note: addPayNote || undefined,
-      }),
-    onSuccess: () => {
+      }, { headers: addPayMutationKey.headers() }),
+    onSuccess: () => { addPayMutationKey.renew();
       toast.success(`รับชำระเพิ่มเติมสำเร็จ ${formatThaiMoney(Number(addPayAmount))}`)
       setAddPayAmount('')
       setAddPayNote('')

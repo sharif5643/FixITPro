@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { intakeWarnings, confirmIntake, issueTextOf } from '@/lib/intake-checks'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -327,6 +328,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
     setArr(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val])
   }
 
+  const createKey = useIntentKey()
   const createMutation = useMutation({
     mutationFn: async (data: RepairFormData) => {
       const res = await api.post('/repairs', {
@@ -351,7 +353,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
         discount:          data.discount || undefined,
         dueDate:           data.dueDate || undefined,
         technicianId:      selectedTechId || undefined,
-      })
+      }, { headers: createKey.headers() })
       const repair = res.data
       if (photos.length > 0) {
         const fd = new FormData()
@@ -362,6 +364,7 @@ export function RepairFormDialog({ open, onOpenChange, onSuccess, branchId }: Re
       return repair
     },
     onSuccess: (repair) => {
+      createKey.renew()
       if (draftKey) clearDraft(draftKey)
       setRestored(false)
       toast.success(`สร้างงานซ่อม ${repair.ticketNumber} สำเร็จ`)

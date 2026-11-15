@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -130,6 +131,7 @@ function CheckoutSheet({
     return Array.from(new Set(raw)).filter((v) => v >= price).slice(0, 4)
   }, [price])
 
+  const mutationKey = useIntentKey()
   const mutation = useMutation({
     mutationFn: () =>
       api.post(isSim ? '/carrier-wallet/sim-sale' : '/carrier-wallet/package-sale', {
@@ -145,8 +147,8 @@ function CheckoutSheet({
         note:          note.trim() || undefined,
         shiftId,
         cashierName,
-      }),
-    onSuccess: (res) => {
+      }, { headers: mutationKey.headers() }),
+    onSuccess: (res) => { mutationKey.renew();
       const result = res.data as PackageSaleResult
       const opts: PrintPackageSaleOptions = {
         shopName:        settings?.shopName ?? 'FixITPro',

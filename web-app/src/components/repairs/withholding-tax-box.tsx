@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { formatThaiMoney, apiErrorMessage } from '@/lib/utils'
 import api from '@/lib/api'
+import { useIntentKey } from '@/lib/intent-key'
 
 export interface WithholdingTaxRow {
   id: string
@@ -166,13 +167,15 @@ function RecordDialog({ repairId, outstanding, onClose, onDone }: { repairId: st
   const tooMuch = amt > outstanding + 0.005
   const valid = amt > 0 && !tooMuch && payerName.trim().length > 0 && !!date
 
+  const saveKey = useIntentKey()
   const save = useMutation({
     mutationFn: () => api.post(`/withholding-tax/repair/${repairId}`, {
       amount: amt, ratePercent: rate, baseAmount: r2(Number(base) || 0),
       payerName: payerName.trim(), payerTaxId: payerTaxId.trim() || undefined,
       certificateNo: certNo.trim() || undefined, certificateDate: date,
-    }),
+    }, { headers: saveKey.headers() }),
     onSuccess: () => {
+      saveKey.renew()
       toast.success(amt >= outstanding - 0.005 ? 'บันทึกแล้ว — งานนี้ชำระครบ' : 'บันทึกแล้ว')
       onDone()
     },

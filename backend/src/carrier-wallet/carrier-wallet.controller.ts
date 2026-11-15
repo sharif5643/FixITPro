@@ -1,3 +1,4 @@
+import { Idempotent } from '../common/interceptors/idempotency.interceptor';
 import {
   Controller,
   Get,
@@ -124,6 +125,7 @@ export class CarrierWalletController {
     return this.service.getBalances(tenantId);
   }
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post('package-sale')
   @RequirePermission('sales.create')
   createPackageSale(
@@ -166,6 +168,7 @@ export class CarrierWalletController {
     return this.service.getPackageSales(tenantId, date, carrier).then((r) => hideSimProfit(r, user));
   }
 
+  @Idempotent()   // a repeated tap / offline resend is recorded once
   @Post('sim-sale')
   @RequirePermission('sales.create')
   createSimSale(

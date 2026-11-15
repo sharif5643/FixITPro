@@ -1,6 +1,7 @@
 'use client'
 
 import { AddFreebieButton, FreebieList, useAutoFreebies } from '@/components/pos/freebies'
+import { useIntentKey } from '@/lib/intent-key'
 import { effectiveLineDiscounts } from '@/lib/line-discounts'
 import Link from 'next/link'
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
@@ -413,6 +414,7 @@ function CheckoutSheet({
     setCustomerPhone('')
   }
 
+  const mutationKey = useIntentKey()
   const mutation = useMutation({
     mutationFn: () =>
       api.post('/sales', {
@@ -433,8 +435,8 @@ function CheckoutSheet({
           discount:  itemDiscounts.get(i.product.id) ?? 0,
           serialIds: i.product.hasSerial ? serialIds[i.product.id] ?? [] : undefined,
         })).concat(freebieLines(useCartStore.getState().freebies) as never[]),
-      }),
-    onSuccess: (res) => onSuccess(res.data as Sale),
+      }, { headers: mutationKey.headers() }),
+    onSuccess: (res) => { mutationKey.renew(); return onSuccess(res.data as Sale) },
     onError: (err: any) => {
       toast.error(apiErrorMessage(err))
     },

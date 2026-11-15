@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -146,14 +147,15 @@ export function RefundSheet({
   const selected = items.filter((i) => i.qty > 0)
   const totalRefund = selected.reduce((sum, i) => sum + i.qty * i.refundPrice, 0)
 
+  const mutationKey = useIntentKey()
   const mutation = useMutation({
     mutationFn: () =>
       api.post(`/sales/${sale.id}/refund`, {
         reason,
         paymentMethod: method,
         items: selected.map((i) => ({ saleItemId: i.saleItemId, quantity: i.qty, refundPrice: i.refundPrice, ...(i.serials.length ? { serials: i.picked } : {}) })),
-      }),
-    onSuccess: () => {
+      }, { headers: mutationKey.headers() }),
+    onSuccess: () => { mutationKey.renew();
       toast.success(`คืนเงินสำเร็จ ${formatThaiMoney(totalRefund)}`)
       onSuccess()
       onClose()

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -105,10 +106,11 @@ function PaymentSheet({
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [note, setNote]                   = useState('')
 
+  const mutationKey = useIntentKey()
   const mutation = useMutation({
     mutationFn: (body: { repairId: string; amount: number; paymentMethod: string; note?: string }) =>
-      api.post('/debt-payments', body).then((r) => r.data as PaymentResult),
-    onSuccess: (result) => onSuccess(result),
+      api.post('/debt-payments', body, { headers: mutationKey.headers() }).then((r) => r.data as PaymentResult),
+    onSuccess: (result) => { mutationKey.renew(); return onSuccess(result) },
   })
 
   const numAmount = parseFloat(amount) || 0
