@@ -1,6 +1,6 @@
 'use client'
 
-import { BranchQuickPick } from '@/components/layout/branch-context-bar'
+import { BranchQuickPick, useLastBranch } from '@/components/layout/branch-context-bar'
 import { useIntentKey } from '@/lib/intent-key'
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -89,6 +89,12 @@ export default function SalesPage() {
   const setDiscount    = useCartStore((s) => s.setDiscount)
 
   const { branchId: effectiveBranch, isGlobalMode, isSunmi } = useBranchContext()
+  // From "all branches" the POS opens in the branch the owner last sold in (one-time pick otherwise)
+  const { last: lastBranch, pickLast } = useLastBranch()
+  useEffect(() => {
+    if (isGlobalMode && lastBranch) pickLast()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGlobalMode, lastBranch?.id])
   // Products sold with give-aways set on them bring those onto the bill
   useAutoFreebies(effectiveBranch)
 

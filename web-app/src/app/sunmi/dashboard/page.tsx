@@ -144,8 +144,10 @@ export default function SunmiDashboardPage() {
                 accent="slate"
               />
               <StatCard
-                label="งานซ่อมค้างอยู่"
-                value={`${dash.repairOps.inProgress} งาน`}
+                label="งานซ่อมเปิดอยู่"
+                // Same count as the web dashboard: every job not yet handed back (counting only
+                // IN_PROGRESS showed "0 งาน" while jobs sat at รับงาน / รออะไหล่)
+                value={`${dash.repairOps.totalActive} งาน`}
                 sub={dash.repairOps.completedNotDelivered > 0 ? `รอรับ ${dash.repairOps.completedNotDelivered} งาน` : undefined}
                 accent={dash.repairOps.completedNotDelivered > 0 ? 'amber' : 'slate'}
               />

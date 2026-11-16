@@ -180,9 +180,9 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
     onError: (e: any) => toast.error(e.response?.data?.message ?? 'เกิดข้อผิดพลาด'),
   })
 
-  // On the SUNMI a card covers the top of the screen. "ย่อ" is remembered for the session, and
-  // screens where staff are typing (repair intake, checkout) start small
-  const typingScreen = variant === 'sunmi' && /^\/sunmi\/(repair-intake|sales)(\/|$)/.test(pathname ?? '')
+  // A card covered the numbers and lists on every screen (dashboard, repair list, SUNMI summary),
+  // so reminders start as a small button with the count; a tap opens them. A view the user picks
+  // is remembered for the session.
   const [chosenView, setChosenView] = useState<'one' | 'all' | 'pill' | null>(null)
   useEffect(() => {
     try {
@@ -190,7 +190,7 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
       if (v === 'one' || v === 'all' || v === 'pill') setChosenView(v)
     } catch { /* storage blocked: keep the default */ }
   }, [])
-  const view = chosenView ?? (typingScreen ? 'pill' : 'one')
+  const view = chosenView ?? 'pill'
   const setView = useCallback((v: 'one' | 'all' | 'pill') => {
     setChosenView(v)
     try { sessionStorage.setItem('reminder-view', v) } catch { /* storage blocked */ }
@@ -307,6 +307,8 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
   const alertsShown = visibleAlerts.slice(0, perList)
   const remindersShown = view === 'one' && alertsShown.length > 0 ? [] : visibleReminderItems.slice(0, perList)
   const hiddenCount = total - alertsShown.length - remindersShown.length
+  const urgentCount = visibleAlerts.filter(a => a.severity === 'CRITICAL').length
+    + visibleReminderItems.filter(i => i.severity === 'CRITICAL').length
 
   const snoozableItems = visibleReminderItems.filter(i => i.severity !== 'CRITICAL')
   const showSnoozeAll  = snoozableItems.length >= 2 && view === 'all'
@@ -403,7 +405,7 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
           'fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-4 z-50 flex flex-col gap-2 max-h-[70vh] overflow-y-auto',
           pathname === '/sales' ? 'right-3 items-end md:right-auto md:left-20 md:items-start' : 'right-3 md:right-4 items-end',
         )}>
-          {total > 0 && <ReminderViewControls view={view} setView={setView} total={total} hidden={hiddenCount} />}
+          {total > 0 && <ReminderViewControls view={view} setView={setView} total={total} hidden={hiddenCount} urgent={urgentCount} />}
           <AnimatePresence initial={false}>
             {/* ── Existing operational alert cards ── */}
             {alertsShown.map((a) => {
@@ -561,7 +563,7 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
       <div className="fixed top-[56px] left-0 right-0 z-50 px-3 pt-2 space-y-2 pointer-events-none">
         {total > 0 && (
           <div className="pointer-events-auto flex justify-end">
-            <ReminderViewControls view={view} setView={setView} total={total} hidden={hiddenCount} />
+            <ReminderViewControls view={view} setView={setView} total={total} hidden={hiddenCount} urgent={urgentCount} />
           </div>
         )}
         <AnimatePresence initial={false}>
@@ -694,20 +696,25 @@ export function ReminderPopup({ variant = 'desktop' }: ReminderPopupProps) {
 }
 
 /** Show one reminder, all of them, or just a small button with the count. */
-function ReminderViewControls({ view, setView, total, hidden }: {
+function ReminderViewControls({ view, setView, total, hidden, urgent }: {
   view: 'one' | 'all' | 'pill'
   setView: (v: 'one' | 'all' | 'pill') => void
   total: number
   hidden: number
+  urgent: number
 }) {
   if (view === 'pill') {
     return (
       <button
         onClick={() => setView('one')}
-        className="flex items-center gap-1.5 rounded-full bg-slate-800/90 px-3 py-1.5 text-xs font-semibold text-white shadow-lg"
+        aria-label={`มี ${total} เรื่องรอ${urgent > 0 ? ` ด่วน ${urgent}` : ''} กดเพื่อดู`}
+        className={cn(
+          'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white shadow-lg',
+          urgent > 0 ? 'bg-red-600' : 'bg-slate-800/90',
+        )}
       >
         <Clock className="h-3.5 w-3.5" />
-        {total} เรื่องรอ
+        {total} เรื่องรอ{urgent > 0 ? ` · ด่วน ${urgent}` : ''}
       </button>
     )
   }
