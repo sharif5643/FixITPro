@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { RefreshCw, Clock } from 'lucide-react'
+import { RefreshCw, Clock, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
@@ -12,11 +12,15 @@ import type { DashboardOverview } from './types'
 interface Props {
   userName: string | null | undefined
   currentShift: DashboardOverview['currentShift'] | undefined
+  alerts?: DashboardOverview['alerts'] | undefined
   loading: boolean
   onRefresh: () => void
 }
 
-export function OwnerCommandHeader({ userName, currentShift, loading, onRefresh }: Props) {
+export function OwnerCommandHeader({ userName, currentShift, alerts, loading, onRefresh }: Props) {
+  const urgent = alerts
+    ? (alerts.overdueRepairs > 0 ? 1 : 0) + (alerts.outOfStock > 0 ? 1 : 0) + (currentShift && !currentShift.isOpen ? 1 : 0)
+    : 0
   // thaiToday() is shifted to Bangkok time, so read it with UTC getters; local getters add the
   // browser's offset again (a Thai browser showed "evening" in the morning).
   const bkk  = thaiToday()
@@ -52,6 +56,16 @@ export function OwnerCommandHeader({ userName, currentShift, loading, onRefresh 
             <Clock className="h-3.5 w-3.5" aria-hidden />
             เปิดกะ
           </Link>
+        )}
+
+        {urgent > 0 && (
+          <span
+            aria-label={`${urgent} เรื่องด่วนที่ต้องดูแล`}
+            className="flex items-center gap-1.5 text-xs font-bold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700/60 px-2.5 py-1.5 rounded-xl min-h-[36px]"
+          >
+            <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+            {urgent} เรื่องด่วน
+          </span>
         )}
 
         <button

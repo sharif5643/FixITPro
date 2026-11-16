@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { Bell, CheckCheck, ExternalLink, AlertTriangle, Info, AlertCircle, Zap } from 'lucide-react'
+import { Bell, CheckCheck, ExternalLink, AlertTriangle, Info, AlertCircle, Zap, ChevronDown, ChevronRight } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { th } from 'date-fns/locale'
 import Link from 'next/link'
@@ -56,6 +57,28 @@ const SEV_BG: Record<string, string> = {
   CRITICAL: 'bg-red-100',
 }
 
+/** Where a notification leads (tapping it marks it read and opens the record) */
+function linkOf(n: Notification): string | null {
+  if (!n.entityType || !n.entityId) return null
+  switch (n.entityType) {
+    case 'Repair':        return `/repairs/${n.entityId}`
+    case 'Customer':      return `/customers/${n.entityId}`
+    case 'Product':       return '/products'
+    case 'PurchaseOrder': return '/purchase-orders'
+    default:              return null
+  }
+}
+
+/** Same kind of notice together (e.g. 20 "สินค้าใกล้หมด"), newest kind first */
+function groupByType(items: Notification[]): Notification[][] {
+  const groups = new Map<string, Notification[]>()
+  for (const n of items) {
+    const g = groups.get(n.type)
+    if (g) g.push(n); else groups.set(n.type, [n])
+  }
+  return Array.from(groups.values())
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function NotificationBell() {
@@ -63,6 +86,8 @@ export function NotificationBell() {
   const user        = useAuthStore((s) => s.user)
   const qc          = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const router = useRouter()
 
   const enabled = hasPerm('notification.view')
   const { online } = useNetworkStatus()
@@ -89,7 +114,7 @@ export function NotificationBell() {
 
   const { data: listData } = useQuery<{ items: Notification[] }>({
     queryKey: ['notifications', 'recent'],
-    queryFn:  async () => (await api.get('/notifications?limit=8&isRead=false')).data,
+    queryFn:  async () => (await api.get('/notifications?limit=50&isRead=false')).data,
     enabled:  enabled && open,
     staleTime: 10_000,
   })
@@ -114,8 +139,20 @@ export function NotificationBell() {
     },
   })
 
+  const markMany = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map((id) => api.patch(`/notifications/${id}/read`))),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+  })
+
   const unread = countData?.count ?? 0
   const items  = listData?.items ?? []
+  const groups = useMemo(() => groupByType(items), [items])
+
+  const openItem = (n: Notification) => {
+    markRead.mutate(n.id)
+    const href = linkOf(n)
+    if (href) { setOpen(false); router.push(href) }
+  }
 
   if (!enabled) {
     return (
@@ -181,23 +218,57 @@ export function NotificationBell() {
               ไม่มีการแจ้งเตือนใหม่
             </div>
           ) : (
-            items.map((n) => {
+            groups.map((group) => {
+              const n = group[0]
               const Icon = SEV_ICON[n.severity] ?? Info
+              const many = group.length > 1
+              const isOpen = expanded === n.type
               return (
-                <button
-                  key={n.id}
-                  onClick={() => markRead.mutate(n.id)}
-                  className={`w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0 ${SEV_BG[n.severity]}`}
-                >
-                  <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${SEV_COLOR[n.severity]}`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-800 truncate">{n.title}</p>
-                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: th })}
-                    </p>
+                <div key={n.type} className={`border-b border-slate-100 last:border-b-0 ${SEV_BG[n.severity]}`}>
+                  <div className="flex items-start">
+                    <button
+                      onClick={() => (many ? setExpanded(isOpen ? null : n.type) : openItem(n))}
+                      className="flex-1 min-w-0 flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50/60 transition-colors"
+                      aria-expanded={many ? isOpen : undefined}
+                    >
+                      <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${SEV_COLOR[n.severity]}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-800 truncate">
+                          {n.title}
+                          {many && <span className="ml-1.5 rounded-full bg-white/80 px-1.5 text-[10px] font-bold text-slate-600">+{group.length - 1}</span>}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: th })}
+                        </p>
+                      </div>
+                      {many && (isOpen
+                        ? <ChevronDown className="h-4 w-4 mt-0.5 shrink-0 text-slate-400" aria-hidden />
+                        : <ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-slate-400" aria-hidden />)}
+                    </button>
+                    {many && (
+                      <button
+                        onClick={() => markMany.mutate(group.map((g) => g.id))}
+                        disabled={markMany.isPending}
+                        className="shrink-0 m-2 rounded-lg px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-white/80"
+                      >
+                        อ่านแล้ว {group.length}
+                      </button>
+                    )}
                   </div>
-                </button>
+                  {many && isOpen && group.slice(1).map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => openItem(m)}
+                      className="w-full flex items-start gap-3 pl-11 pr-4 py-2 text-left hover:bg-slate-50/60 border-t border-white/70"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-700 truncate">{m.title}</p>
+                        <p className="text-[11px] text-slate-500 line-clamp-1">{m.message}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               )
             })
           )}

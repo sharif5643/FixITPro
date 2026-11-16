@@ -64,6 +64,12 @@ function KpiCard({
   return inner
 }
 
+/** Plain words when yesterday was tiny: "+3350%" reads as an error, "34 เท่าของเมื่อวาน" does not */
+export function revenueDeltaText(delta: number): string {
+  if (delta >= 200) return `${Math.round(1 + delta / 100)} เท่าของเมื่อวาน`
+  return `${delta > 0 ? '+' : ''}${delta}% จากเมื่อวาน`
+}
+
 // ── Grid of 4 KPI cards ───────────────────────────────────────────────────────
 
 interface Props {
@@ -92,9 +98,7 @@ export function OwnerKpiGrid({ today, ops, weeklyRevenue, health, loading }: Pro
           label="รายรับวันนี้"
           value={loading ? '...' : formatThaiMoney(today?.totalRevenue ?? 0)}
           sub={today ? `ขาย ${formatThaiMoney(today.salesRevenue)} · ซ่อม ${formatThaiMoney(today.repairRevenue)}` : undefined}
-          deltaText={revDelta !== null
-            ? `${revDelta > 0 ? '+' : ''}${revDelta}% จากเมื่อวาน`
-            : null}
+          deltaText={revDelta !== null ? revenueDeltaText(revDelta) : null}
           trend={revDelta !== null ? (revDelta >= 0 ? 'up' : 'down') : null}
           icon={Banknote}
           accentColor="text-emerald-600 dark:text-emerald-400"
