@@ -208,6 +208,8 @@ interface SideNavInnerProps {
   roleLabel: string
   onToggleCollapsed: () => void
   mobile: boolean
+  /** the page's group has a single page: the panel would only repeat it, so only the rail shows */
+  onSinglePage: (single: boolean) => void
 }
 
 /**
@@ -286,6 +288,10 @@ function SideNavInner(p: SideNavInnerProps) {
   useEffect(() => { setPicked(null) }, [pathname])
   const current = picked ?? pageGroup ?? (pinnedItems.length ? PINS : groups[0]?.key)
   const currentGroup = groups.find((g) => g.key === current)
+
+  const singlePage = !p.mobile && picked === null && current !== PINS && (currentGroup?.visible.length ?? 0) <= 1
+  const onSinglePage = p.onSinglePage
+  useEffect(() => { onSinglePage(singlePage) }, [singlePage, onSinglePage])
 
   function pick(key: string) {
     setPicked(key)
@@ -467,8 +473,13 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
   const [posOverride, setPosOverride] = useState<boolean | null>(null)
   useEffect(() => { setCollapsedPref(readJson('fi-nav-collapsed', false)) }, [])
   useEffect(() => { setPosOverride(null) }, [pathname])
-  const collapsed = !open && (posOverride ?? (isPos || collapsedPref))
+  // A page whose group holds only that page (หน้าแรก) shows the rail alone: the panel repeated it
+  const [singlePage, setSinglePage] = useState(false)
+  const [showPanelAnyway, setShowPanelAnyway] = useState(false)
+  useEffect(() => { setShowPanelAnyway(false) }, [pathname])
+  const collapsed = !open && (posOverride ?? (isPos || collapsedPref || (singlePage && !showPanelAnyway)))
   function setCollapsed(v: boolean) {
+    if (!v) setShowPanelAnyway(true)
     if (isPos) { setPosOverride(v); return }
     setCollapsedPref(v)
     writeJson('fi-nav-collapsed', v)
@@ -510,6 +521,7 @@ export function SideNav({ open, onClose }: { open: boolean; onClose: () => void 
             userName={user?.name ?? ''}
             roleLabel={roleLabel}
             mobile={open}
+            onSinglePage={setSinglePage}
           />
         </Suspense>
       </aside>

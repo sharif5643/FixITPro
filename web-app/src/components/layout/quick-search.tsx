@@ -169,11 +169,11 @@ export function QuickSearch() {
       {/* Trigger button (shown in header) */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 h-8 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:bg-white dark:hover:bg-slate-700/40 hover:text-slate-700 dark:hover:text-slate-300 transition-colors min-w-[120px] sm:min-w-[220px]"
-        aria-label="ค้นหา (Cmd+K)"
+        className="flex items-center justify-center sm:justify-start gap-2 h-9 w-9 sm:h-8 sm:w-auto rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 sm:px-3 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:bg-white dark:hover:bg-slate-700/40 hover:text-slate-700 dark:hover:text-slate-300 transition-colors sm:min-w-[220px]"
+        aria-label="ค้นหาลูกค้า งานซ่อม บิล (Ctrl+K)"
       >
-        <Search className="h-3.5 w-3.5 shrink-0" />
-        <span className="flex-1 text-left truncate">ค้นหาลูกค้า งานซ่อม บิล...</span>
+        <Search className="h-4 w-4 sm:h-3.5 sm:w-3.5 shrink-0" />
+        <span className="hidden sm:inline flex-1 text-left truncate">ค้นหาลูกค้า งานซ่อม บิล...</span>
         <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 text-[10px] font-mono leading-none">
           <Command className="h-2.5 w-2.5" />K
         </kbd>

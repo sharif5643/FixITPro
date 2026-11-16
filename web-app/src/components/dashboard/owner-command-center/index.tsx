@@ -17,7 +17,6 @@ import { AIInsightCard }       from './ai-insight-card'
 import { BranchHealthRow }     from './branch-health-row'
 
 // Sprint 2 widgets — Operational Intelligence
-import { MorningBrief }           from './morning-brief'
 import { TodaysPriorities }       from './todays-priorities'
 import { FinancialHealth }         from './financial-health'
 import { TechnicianPerformance }   from './technician-performance'
@@ -69,13 +68,12 @@ export function OwnerCommandCenter() {
   return (
     <div className="space-y-4 pb-10 max-w-7xl">
 
-      {/* Sprint 2: Morning Brief — contextual day-start card */}
-      <MorningBrief overview={overview} summary={summary} loading={loading} />
-
-      {/* Header: greeting, date, branch selector, shift badge, refresh */}
+      {/* Header: greeting, date, branch, shift, urgent count, refresh. (The "สรุปวันนี้" card above it
+          repeated the profit, the shift and the greeting already shown here and in the cards below.) */}
       <OwnerCommandHeader
         userName={user?.name}
         currentShift={overview?.currentShift}
+        alerts={overview?.alerts}
         loading={loading}
         onRefresh={handleRefresh}
       />

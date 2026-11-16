@@ -103,7 +103,8 @@ function Divider() {
 
 // ── Step bar ─────────────────────────────────────────────────────────────────
 
-const STEP_LABELS = ['ลูกค้า', 'อุปกรณ์', 'อาการ', 'รายละเอียด', 'ยืนยัน']
+// Customer and device share the first page (both short): 4 steps instead of 5
+const STEP_LABELS = ['ลูกค้าและเครื่อง', 'อาการ', 'รายละเอียด', 'ยืนยัน']
 
 function StepBar({ current }: { current: number }) {
   return (
@@ -306,7 +307,7 @@ function StepDevice({
 
   return (
     <div className="space-y-5">
-      <SectionTitle>ขั้นตอนที่ 2 — ข้อมูลอุปกรณ์</SectionTitle>
+      <SectionTitle>ข้อมูลเครื่อง</SectionTitle>
 
       {/* Device type — the web form's types */}
       <Field label="ประเภทเครื่อง">
@@ -446,7 +447,7 @@ function StepIssue({ register, errors, watch, setValue, pricedJobs, onPickPrice 
         picked={pricedJobs}
         onPick={onPickPrice}
       />
-      <SectionTitle>ขั้นตอนที่ 3 — อาการเสีย</SectionTitle>
+      <SectionTitle>ขั้นตอนที่ 2 — อาการเสีย</SectionTitle>
 
       {/* Job type tags — the web's, also used for technician commission */}
       <Field label="หมวดหมู่ปัญหา">
@@ -542,7 +543,7 @@ function StepDetails({
 
   return (
     <div className="space-y-5">
-      <SectionTitle>ขั้นตอนที่ 4 — อุปกรณ์ที่รับมา & ค่าใช้จ่าย</SectionTitle>
+      <SectionTitle>ขั้นตอนที่ 3 — อุปกรณ์ที่รับมา & ค่าใช้จ่าย</SectionTitle>
 
       {/* Accessories checklist */}
       <div className="space-y-3">
@@ -749,7 +750,7 @@ function StepConfirm({ watch, technicians, photoCount }: { watch: any; technicia
 
   return (
     <div className="space-y-4">
-      <SectionTitle>ขั้นตอนที่ 5 — ตรวจสอบก่อนบันทึก</SectionTitle>
+      <SectionTitle>ขั้นตอนที่ 4 — ตรวจสอบก่อนบันทึก</SectionTitle>
 
       {/* Customer */}
       <Section>
@@ -798,7 +799,7 @@ function StepConfirm({ watch, technicians, photoCount }: { watch: any; technicia
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-const TOTAL_STEPS = 5
+const TOTAL_STEPS = 4
 
 export default function RepairIntakePage() {
   const router  = useRouter()
@@ -871,7 +872,7 @@ export default function RepairIntakePage() {
     setValue('customerId', c.id)
     setValue('customerName', c.name)
     setValue('customerPhone', c.phone ?? '')
-    setStep(1)
+    setStep(0)  // the device fields are on the same page, under the customer
   }
 
   // What was typed stays on this device until the job is saved (leaving the page loses nothing)
@@ -912,10 +913,12 @@ export default function RepairIntakePage() {
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('customerId')
     if (!id) {
-      const d = draftKey ? loadDraft<{ form: Partial<FormData>; step: number; pricedJobs?: RepairPrice[] }>(draftKey) : null
+      const d = draftKey ? loadDraft<{ form: Partial<FormData>; step: number; v?: number; pricedJobs?: RepairPrice[] }>(draftKey) : null
       if (d) {
         reset({ deposit: defaultDeposit, conditionIssues: [], accessories: [], issueTags: [], ...d.form } as any)
-        setStep(Math.min(Math.max(0, d.step ?? 0), TOTAL_STEPS - 1))
+        // a draft saved by the 5-step version: its steps after "ลูกค้า" are one lower now
+        const savedStep = d.v === 2 ? (d.step ?? 0) : Math.max(0, (d.step ?? 0) - 1)
+        setStep(Math.min(Math.max(0, savedStep), TOTAL_STEPS - 1))
         setPricedJobs(d.pricedJobs ?? [])
         setRestored(true)
         setDraftSeq((n) => n + 1)
@@ -933,9 +936,8 @@ export default function RepairIntakePage() {
 
   async function goNext() {
     let fields: (keyof FormData)[] = []
-    if (step === 0) fields = ['customerName']
-    if (step === 1) fields = ['deviceBrand', 'deviceModel']
-    if (step === 2 && !issueTextOf(watch('issue'), watch('issueTags') ?? [])) {
+    if (step === 0) fields = ['customerName', 'deviceBrand', 'deviceModel']
+    if (step === 1 && !issueTextOf(watch('issue'), watch('issueTags') ?? [])) {
       setError('issue', { message: 'เลือกอาการด้านบน หรือพิมพ์อาการเสีย' })
       return
     }
@@ -1060,7 +1062,7 @@ export default function RepairIntakePage() {
     },
   })
 
-  useDraftAutosave(draftKey, { form: formValues, step, pricedJobs }, draftReady && !mutation.isPending, hasContent)
+  useDraftAutosave(draftKey, { form: formValues, step, v: 2, pricedJobs }, draftReady && !mutation.isPending, hasContent)
 
   const isLastStep = step === TOTAL_STEPS - 1
 
@@ -1124,19 +1126,21 @@ export default function RepairIntakePage() {
             </div>
           )}
           {step === 0 && (
-            <StepCustomer key={draftSeq} register={register} errors={errors} setValue={setValue} watch={watch} />
+            <>
+              <StepCustomer key={draftSeq} register={register} errors={errors} setValue={setValue} watch={watch} />
+              <div className="border-t border-slate-200 pt-4">
+                <StepDevice
+                  register={register} errors={errors} setValue={setValue} watch={watch}
+                  technicians={technicians}
+                />
+              </div>
+            </>
           )}
           {step === 1 && (
-            <StepDevice
-              register={register} errors={errors} setValue={setValue} watch={watch}
-              technicians={technicians}
-            />
-          )}
-          {step === 2 && (
             <StepIssue register={register} errors={errors} watch={watch} setValue={setValue}
               pricedJobs={pricedJobs} onPickPrice={pickPrice} />
           )}
-          {step === 3 && (
+          {step === 2 && (
             <StepDetails
               register={register} errors={errors} watch={watch} setValue={setValue}
               defaultDeposit={defaultDeposit}
@@ -1145,7 +1149,7 @@ export default function RepairIntakePage() {
               onRemovePhoto={handleRemovePhoto}
             />
           )}
-          {step === 4 && (
+          {step === 3 && (
             <>
               <StepConfirm watch={watch} technicians={technicians} photoCount={photos.length} />
               {online

@@ -83,7 +83,8 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
 
       {/* Right: actions */}
       <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
-        <div className="hidden sm:flex">
+        {/* Phones get the same search (an icon that opens it) */}
+        <div className="flex">
           <QuickSearch />
         </div>
 
@@ -91,13 +92,14 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
         {handlesCash && !shiftLoading && !currentShift && (
           <Link href="/shifts">
             <span className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold',
+              'inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold',
               'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400',
               'border border-amber-200 dark:border-amber-800',
               'hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors cursor-pointer',
             )}>
-              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="hidden sm:inline">ยังไม่เปิดกะ</span>
+              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+              {/* the words on phones too: an icon alone did not say what was wrong */}
+              <span className="whitespace-nowrap">ยังไม่เปิดกะ</span>
             </span>
           </Link>
         )}
