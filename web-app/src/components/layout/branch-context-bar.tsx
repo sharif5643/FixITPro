@@ -1,7 +1,10 @@
 'use client'
 
+import { useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Building2, Globe } from 'lucide-react'
+import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
 import { useBranchStore } from '@/store/branch.store'
 import { useAuthStore } from '@/store/auth.store'
@@ -42,31 +45,64 @@ export function BranchContextBar({ className = '' }: Props) {
  * One button per active branch, so a page that says "pick a branch first" lets the owner
  * pick it right there instead of hunting for the selector in the top bar.
  */
-export function BranchQuickPick({ className = '' }: { className?: string }) {
+function useActiveBranches() {
   const user = useAuthStore((s) => s.user)
-  const setSelectedBranch = useBranchStore((s) => s.setSelectedBranch)
   const { data: branches = [] } = useQuery<Branch[]>({
     queryKey: ['branches'],
     queryFn: async () => (await api.get('/branches')).data,
     staleTime: 5 * 60 * 1000,
     enabled: !!user,
   })
-  const active = branches.filter((b) => b.isActive !== false)
+  return branches.filter((b) => b.isActive !== false)
+}
+
+/**
+ * The branch the owner last worked in (still open). `pickLast()` switches to it and says so, so
+ * selling or taking a repair from "all branches" does not stop to ask for a branch every time.
+ */
+export function useLastBranch() {
+  const lastBranchId = useBranchStore((s) => s.lastBranchId)
+  const setSelectedBranch = useBranchStore((s) => s.setSelectedBranch)
+  const last = useActiveBranches().find((b) => b.id === lastBranchId) ?? null
+  const pickLast = useCallback(() => {
+    if (!last) return false
+    setSelectedBranch(last.id)
+    toast.info(`ใช้สาขา ${last.name} (ที่ใช้ล่าสุด) — เปลี่ยนสาขาได้ที่ปุ่มสาขาด้านบน`)
+    return true
+  }, [last, setSelectedBranch])
+  return { last, pickLast }
+}
+
+export function BranchQuickPick({ className = '' }: { className?: string }) {
+  const setSelectedBranch = useBranchStore((s) => s.setSelectedBranch)
+  const lastBranchId = useBranchStore((s) => s.lastBranchId)
+  const active = useActiveBranches()
   if (active.length === 0) return null
+  // the branch used last comes first, marked
+  const ordered = [...active].sort((a, b) => Number(b.id === lastBranchId) - Number(a.id === lastBranchId))
 
   return (
     <div className={`flex flex-wrap gap-2 ${className}`}>
-      {active.map((b) => (
-        <button
-          key={b.id}
-          type="button"
-          onClick={() => setSelectedBranch(b.id)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:bg-slate-900 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/30 transition-colors"
-        >
-          <Building2 className="h-3.5 w-3.5 shrink-0" />
-          {b.name}
-        </button>
-      ))}
+      {ordered.map((b) => {
+        const isLast = b.id === lastBranchId
+        return (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => setSelectedBranch(b.id)}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
+              isLast
+                ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700'
+                : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-50 dark:bg-slate-900 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/30',
+            )}
+          >
+            <Building2 className="h-3.5 w-3.5 shrink-0" />
+            {b.name}
+            {isLast && <span className="text-xs font-normal opacity-90">(ใช้ล่าสุด)</span>}
+          </button>
+        )
+      })}
     </div>
   )
 }

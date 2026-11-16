@@ -17,11 +17,11 @@ function KpiCard({
   href?: string; trend?: 'up' | 'down' | null; deltaText?: string | null
 }) {
   const inner = (
-    <PCard urgent={urgent} className={cn('p-5 group cursor-pointer', hoverCard)}>
+    <PCard urgent={urgent} className={cn('p-4 sm:p-5 group cursor-pointer', hoverCard)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className={cn(
-            'text-[11px] font-bold uppercase tracking-widest',
+            'text-[11px] font-bold uppercase tracking-wide sm:tracking-widest',
             urgent ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500',
           )}>
             {label}
@@ -30,7 +30,8 @@ function KpiCard({
             ? <Skel className="h-8 w-28 mt-2" />
             : (
               <p className={cn(
-                'text-[26px] font-black mt-1.5 tabular-nums leading-tight',
+                // Phones: two cards per row are ~170px wide, so the amount gets the whole width
+                'text-[22px] sm:text-[26px] font-black mt-1.5 tabular-nums leading-tight break-all',
                 urgent ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white',
               )}>
                 {value}
@@ -52,7 +53,7 @@ function KpiCard({
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
           ) : null)}
         </div>
-        <div className={cn('flex-shrink-0 rounded-2xl p-3 group-hover:scale-110 transition-transform motion-safe:transition-transform', iconBg)}>
+        <div className={cn('hidden sm:block flex-shrink-0 rounded-2xl p-3 group-hover:scale-110 transition-transform motion-safe:transition-transform', iconBg)}>
           <Icon className={cn('h-5 w-5', accentColor)} aria-hidden />
         </div>
       </div>

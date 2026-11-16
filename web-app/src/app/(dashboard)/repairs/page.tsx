@@ -19,7 +19,7 @@ import { RepairStatusBadge, REPAIR_LABEL } from '@/components/ui/status-badge'
 import { QcDialog } from '@/components/repairs/qc-dialog'
 import { cn, formatThaiMoney } from '@/lib/utils'
 import { useBranchContext } from '@/hooks/useBranchContext'
-import { BranchContextBar, GlobalModeBanner } from '@/components/layout/branch-context-bar'
+import { BranchContextBar, GlobalModeBanner, useLastBranch } from '@/components/layout/branch-context-bar'
 import { useAuthStore } from '@/store/auth.store'
 import { ModuleGate } from '@/components/auth/module-gate'
 import api from '@/lib/api'
@@ -84,6 +84,12 @@ function RepairsContent() {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const { branchId, isGlobalMode } = useBranchContext()
+  // "สร้างงานซ่อม" from "all branches" opens in the branch used last instead of being greyed out
+  const { last: lastBranch, pickLast } = useLastBranch()
+  const openCreate = () => {
+    if (isGlobalMode && !pickLast()) return
+    setCreateOpen(true)
+  }
   const hasModule = useAuthStore((s) => s.hasModule)
 
   // Restore view-mode preference once on mount
@@ -234,8 +240,8 @@ function RepairsContent() {
             <BranchContextBar className="hidden sm:flex" />
             <ViewToggle viewMode={viewMode} onSwitch={switchView} />
             <button
-              onClick={() => { if (!isGlobalMode) setCreateOpen(true) }}
-              disabled={isGlobalMode}
+              onClick={openCreate}
+              disabled={isGlobalMode && !lastBranch}
               className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))] disabled:opacity-50 shadow-[0_4px_12px_rgb(var(--brand-accent)/0.3)] whitespace-nowrap"
             >
               <Plus className="h-4 w-4" />
@@ -243,7 +249,7 @@ function RepairsContent() {
             </button>
           </div>
         </div>
-        {isGlobalMode && <GlobalModeBanner action="ไม่สามารถสร้างงานซ่อมในโหมดทุกสาขา" />}
+        {isGlobalMode && !lastBranch && <GlobalModeBanner action="ไม่สามารถสร้างงานซ่อมในโหมดทุกสาขา" />}
         <div className="flex-1 min-h-0">
           <RepairKanbanBoard
             repairs={repairs}
@@ -297,8 +303,8 @@ function RepairsContent() {
           </button>
           <ViewToggle viewMode={viewMode} onSwitch={switchView} />
           <button
-            onClick={() => { if (!isGlobalMode) setCreateOpen(true) }}
-            disabled={isGlobalMode}
+            onClick={openCreate}
+            disabled={isGlobalMode && !lastBranch}
             className="flex items-center gap-1.5 h-10 px-4 rounded-2xl bg-[rgb(var(--brand-accent))] text-sm font-bold text-[rgb(var(--brand-accent-fg))] disabled:opacity-50 shadow-[0_4px_12px_rgb(var(--brand-accent)/0.3)] whitespace-nowrap shrink-0"
           >
             <Plus className="h-4 w-4" />
@@ -356,7 +362,7 @@ function RepairsContent() {
       </div>
 
       <div className="h-4" />
-      {isGlobalMode && (
+      {isGlobalMode && !lastBranch && (
         <div className="px-5 mb-2">
           <GlobalModeBanner action="ไม่สามารถสร้างงานซ่อมในโหมดทุกสาขา" />
         </div>
