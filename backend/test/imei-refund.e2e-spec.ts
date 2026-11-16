@@ -7,7 +7,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import * as request from 'supertest';
 import { createTestApp } from './helpers/app.helper';
-import { loginAs, authPost } from './helpers/auth.helper';
+import { loginAs, authPost, authGet } from './helpers/auth.helper';
 import { ensureInShift } from './helpers/shift.helper';
 import { CREDS, IDS, seedTestData, testPrisma } from './helpers/seed.helper';
 
@@ -60,6 +60,14 @@ describe('IMEI stock stays in step on refunds (e2e)', () => {
     expect(await inStock(productId)).toBe(1);
     expect((await prisma.serialNumber.findUniqueOrThrow({ where: { serial: b } })).status).toBe('IN_STOCK');
     expect((await prisma.serialNumber.findUniqueOrThrow({ where: { serial: a } })).status).not.toBe('IN_STOCK');
+
+    // The top search finds the bill by its number and by a phone's IMEI; another shop does not
+    const receipt = (await prisma.sale.findUniqueOrThrow({ where: { id: saleId } })).receiptNumber;
+    const ids = (body: any) => (Array.isArray(body) ? body : body.items ?? []).map((x: any) => x.id);
+    expect(ids((await authGet(app, `/api/v1/sales?search=${encodeURIComponent(receipt)}&limit=5`, owner).expect(200)).body)).toEqual([saleId]);
+    expect(ids((await authGet(app, `/api/v1/sales?search=${a}&limit=5`, owner).expect(200)).body)).toEqual([saleId]);
+    const otherShop = (await loginAs(app, CREDS.ownerA.email, CREDS.ownerA.password)).cookies;
+    expect(ids((await authGet(app, `/api/v1/sales?search=${a}&limit=5`, otherShop).expect(200)).body)).toEqual([]);
 
     // the last phone of the line: no need to say which
     await authPost(app, `/api/v1/sales/${saleId}/refund`, owner, {

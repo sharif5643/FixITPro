@@ -702,7 +702,6 @@ export default function SunmiSalesPage() {
   const addFreebie    = useCartStore((s) => s.addFreebie)
 
   // Search state
-  const [searchMode, setSearchMode]       = useState<'barcode' | 'name'>('barcode')
   const [barcodeInput, setBarcodeInput]   = useState('')
   const [nameQuery, setNameQuery]         = useState('')
   const [nameResults, setNameResults]     = useState<Product[]>([])
@@ -819,7 +818,13 @@ export default function SunmiSalesPage() {
     try {
       const res = await api.get('/products', { params: { search: trimmed, limit: 10, ...(branch.canPick && branch.branchId ? { branchId: branch.branchId } : {}) } })
       const list: Product[] = Array.isArray(res.data) ? res.data : res.data?.items ?? []
-      const exact = list.find((p) => p.barcode === trimmed || p.sku === trimmed) ?? list[0]
+      // One box for scanning and typing: an exact barcode / SKU (or the only match) goes in the
+      // cart; a typed name with several matches stays on screen as product cards to pick from
+      const exact = list.find((p) => p.barcode === trimmed || p.sku === trimmed) ?? (list.length === 1 ? list[0] : undefined)
+      if (!exact && list.length > 1) {
+        setNameQuery(trimmed)
+        return
+      }
       if (exact?.giveawayOnly) {
         if ((exact.branchQuantity ?? 0) < 1) toast.error(`${exact.name} — หมดสต็อก`)
         else { addFreebie(exact); toast.success(`🎁 แถม ${exact.name}`, { duration: 1500 }) }
@@ -839,6 +844,8 @@ export default function SunmiSalesPage() {
       toast.error('ค้นหาสินค้าไม่สำเร็จ')
     }
     setBarcodeInput('')
+    setNameQuery('')
+    setNameResults([])
     setTimeout(() => inputRef.current?.focus(), 50)
   // the branch: after switching branch, stock must come from the new one
   }, [addItem, addFreebie, branch.canPick, branch.branchId])
@@ -851,8 +858,10 @@ export default function SunmiSalesPage() {
     addItem(product)
     rememberRecent(product.id)
     toast.success(`+ ${product.name}`, { duration: 1500 })
+    setBarcodeInput('')
     setNameQuery('')
     setNameResults([])
+    setTimeout(() => inputRef.current?.focus(), 50)
   }
 
   async function handleCameraClick() {
@@ -937,7 +946,7 @@ export default function SunmiSalesPage() {
   }
 
   // What to show in the scrollable content area
-  const showProductCards = searchMode === 'name' && nameQuery.trim().length > 0
+  const showProductCards = nameQuery.trim().length > 0
 
   return (
     <>
@@ -964,85 +973,44 @@ export default function SunmiSalesPage() {
               </div>
             )}
 
-            {/* Mode toggle */}
-            <div className="flex gap-1 bg-white rounded-xl p-1 border border-slate-200">
-              <button
-                onClick={() => {
-                  setSearchMode('barcode')
-                  setNameQuery('')
-                  setNameResults([])
-                  setTimeout(() => inputRef.current?.focus(), 50)
-                }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  searchMode === 'barcode' ? 'bg-slate-900 text-white' : 'text-slate-500 active:bg-slate-50'
-                }`}
-              >
-                <ScanBarcode className="h-4 w-4" />
-                บาร์โค้ด
-              </button>
-              <button
-                onClick={() => setSearchMode('name')}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  searchMode === 'name' ? 'bg-slate-900 text-white' : 'text-slate-500 active:bg-slate-50'
-                }`}
-              >
-                <Search className="h-4 w-4" />
-                ชื่อ / SKU
-              </button>
-            </div>
-
-            {/* Input row */}
+            {/* One box: scan, or type a name / SKU (cards show as you type) */}
             <div className="flex gap-2">
-              {searchMode === 'barcode' ? (
-                <>
-                  <div className="relative flex-1">
-                    <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
-                    <input
-                      ref={inputRef}
-                      value={barcodeInput}
-                      onChange={(e) => setBarcodeInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') { handleScan(barcodeInput); e.preventDefault() }
-                      }}
-                      placeholder="สแกน หรือพิมพ์บาร์โค้ด / SKU..."
-                      className="w-full h-12 pl-10 pr-4 border border-slate-200 rounded-xl bg-white text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      autoComplete="off"
-                    />
-                  </div>
+              <div className="relative flex-1">
+                <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+                <input
+                  ref={inputRef}
+                  value={barcodeInput}
+                  onChange={(e) => { setBarcodeInput(e.target.value); setNameQuery(e.target.value); setNotFoundCode(null) }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { handleScan(barcodeInput); e.preventDefault() }
+                  }}
+                  placeholder="สแกน หรือพิมพ์ชื่อสินค้า / SKU"
+                  aria-label="สแกนบาร์โค้ด หรือพิมพ์ชื่อสินค้า"
+                  className="w-full h-12 pl-10 pr-10 border border-slate-200 rounded-xl bg-white text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoComplete="off"
+                />
+                {nameLoading ? (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                ) : barcodeInput && (
                   <button
-                    onClick={handleCameraClick}
-                    disabled={nativeScanning}
-                    className="h-12 w-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 active:bg-slate-100 disabled:opacity-60 shrink-0"
+                    onClick={() => { setBarcodeInput(''); setNameQuery(''); setNameResults([]); inputRef.current?.focus() }}
+                    aria-label="ล้างคำค้น"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center text-slate-400 active:text-slate-700"
                   >
-                    {nativeScanning
-                      ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
-                      : <Camera className="h-5 w-5" />}
+                    <X className="h-4 w-4" />
                   </button>
-                </>
-              ) : (
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
-                  <input
-                    value={nameQuery}
-                    onChange={(e) => setNameQuery(e.target.value)}
-                    placeholder="พิมพ์ชื่อสินค้า / SKU / บาร์โค้ด..."
-                    className="w-full h-12 pl-10 pr-4 border border-slate-200 rounded-xl bg-white text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    autoComplete="off"
-                    autoFocus
-                  />
-                  {nameLoading && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-                  )}
-                  {nameQuery && (
-                    <button
-                      onClick={() => { setNameQuery(''); setNameResults([]) }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 active:text-slate-700"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
+              <button
+                onClick={handleCameraClick}
+                disabled={nativeScanning}
+                aria-label="สแกนด้วยกล้อง"
+                className="h-12 w-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 active:bg-slate-100 disabled:opacity-60 shrink-0"
+              >
+                {nativeScanning
+                  ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                  : <Camera className="h-5 w-5" />}
+              </button>
             </div>
 
             {/* Not found banner */}

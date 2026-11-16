@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
@@ -898,6 +898,15 @@ export default function SalesHistoryPage() {
 
   const canVoid = hasPermission('sales.refund')
 
+  // Opened from the top search: ?date=YYYY-MM-DD&q=<receipt> shows that day and opens the bill
+  const [fromLink, setFromLink] = useState<string | null>(null)
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const d = p.get('date'); const q = p.get('q')
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setDateStr(d)
+    if (q) { setSearch(q); setFromLink(q) }
+  }, [])
+
   const { data: sales = [], isLoading, refetch, isRefetching } = useQuery<Sale[]>({
     queryKey: ['sales-history-web', dateStr],
     queryFn: async () => {
@@ -921,6 +930,12 @@ export default function SalesHistoryPage() {
         s.customer?.phone?.includes(q),
     )
   }, [sorted, search])
+
+  useEffect(() => {
+    if (!fromLink) return
+    const hit = sales.find((x) => x.receiptNumber === fromLink)
+    if (hit) { setSelected(hit); setFromLink(null) }
+  }, [fromLink, sales])
 
   const totalRevenue = useMemo(
     () => sorted.filter((s) => s.status !== 'VOIDED').reduce((sum, s) => sum + Number(s.total), 0),

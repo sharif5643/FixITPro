@@ -369,7 +369,8 @@ function RepairsContent() {
       )}
 
       {/* ── Repair cards ─────────────────────────────────────────────────────── */}
-      <div className="px-5 flex flex-col gap-3">
+      {/* Phones: cards; wider screens: one compact row per job, so 8-10 jobs fit instead of 3-4 */}
+      <div className="px-5 flex flex-col gap-3 md:gap-2">
         {isLoading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-2xl bg-white dark:bg-[#1E293B] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] animate-pulse">
@@ -409,16 +410,16 @@ function RepairsContent() {
               <button
                 key={repair.id}
                 onClick={() => setSelectedRepairId(repair.id)}
-                className="flex items-center gap-3 rounded-2xl bg-white dark:bg-[#1E293B] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] border border-transparent dark:border-slate-700/60 active:scale-[0.98] transition-all text-left w-full hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.40)]"
+                className="flex items-center gap-3 rounded-2xl bg-white dark:bg-[#1E293B] p-4 md:py-2.5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30)] border border-transparent dark:border-slate-700/60 active:scale-[0.98] transition-all text-left w-full hover:shadow-[0_4px_16px_rgba(0,0,0,0.10)] dark:hover:shadow-[0_4px_16px_rgba(0,0,0,0.40)]"
               >
                 {/* Icon avatar */}
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--brand-accent)/0.1)]">
+                <div className="flex h-11 w-11 md:h-9 md:w-9 shrink-0 items-center justify-center rounded-2xl md:rounded-xl bg-[rgb(var(--brand-accent)/0.1)]">
                   <Wrench className="h-5 w-5 text-[rgb(var(--brand-accent))]" strokeWidth={2.5} />
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap md:hidden">
                     <span className="text-[11px] font-bold text-slate-400 font-mono tracking-wide">
                       {repair.ticketNumber}
                     </span>
@@ -431,22 +432,29 @@ function RepairsContent() {
                       <Camera className="h-3 w-3 text-slate-300 shrink-0" />
                     )}
                   </div>
-                  <p className="text-sm font-bold text-[#111] truncate mt-0.5">
+                  <p className="text-sm font-bold text-[#111] truncate mt-0.5 md:mt-0">
+                    <span className="hidden md:inline text-[11px] font-bold text-slate-400 font-mono tracking-wide mr-2">{repair.ticketNumber}</span>
                     {repair.deviceBrand} {repair.deviceModel}
+                    {isNew && (
+                      <span className="hidden md:inline ml-1.5 align-middle text-[9px] font-extrabold bg-[rgb(var(--brand-accent))] text-[rgb(var(--brand-accent-fg))] px-1.5 py-0.5 rounded-full leading-none">
+                        ใหม่
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-slate-500 truncate">
                     {repair.customer?.name ?? 'ไม่ระบุลูกค้า'}
                     {repair.customer?.phone && (
                       <span className="text-slate-400"> · {repair.customer.phone}</span>
                     )}
+                    {repair.issue && <span className="hidden md:inline text-slate-400"> · {repair.issue}</span>}
                   </p>
                   {repair.issue && (
-                    <p className="text-xs text-slate-400 truncate mt-0.5">{repair.issue}</p>
+                    <p className="text-xs text-slate-400 truncate mt-0.5 md:hidden">{repair.issue}</p>
                   )}
                 </div>
 
                 {/* Right side */}
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                <div className="flex flex-col items-end gap-1.5 shrink-0 md:flex-row md:items-center md:gap-3">
                   <RepairStatusBadge status={repair.status} />
                   {price > 0 && (
                     <span className="text-sm font-bold tabular-nums text-slate-800 dark:text-slate-100">

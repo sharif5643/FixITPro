@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, ArrowRight, Command } from 'lucide-react'
+import { Search, ArrowRight, Command, User, Wrench, Receipt, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import api from '@/lib/api'
 
 // ── Nav catalogue (mirrors sidebar structure, labels only) ────────────────────
 
@@ -41,6 +42,44 @@ const NAV_ITEMS = [
   { href: '/subscription',           label: 'แพ็กเกจ / ต่ออายุ',      section: 'จัดการ' },
 ]
 
+// ── Records search ───────────────────────────────────────────────────────────
+
+type Hit = { key: string; kind: 'customer' | 'repair' | 'sale' | 'page'; href: string; title: string; sub?: string }
+
+const KIND_LABEL: Record<Hit['kind'], string> = { customer: 'ลูกค้า', repair: 'งานซ่อม', sale: 'บิลขาย', page: 'หน้า' }
+const KIND_ICON: Record<Hit['kind'], React.ElementType | null> = { customer: User, repair: Wrench, sale: Receipt, page: null }
+
+const money = (n: unknown) => `฿${Number(n ?? 0).toLocaleString('th-TH')}`
+const listOf = (d: any): any[] => (Array.isArray(d) ? d : Array.isArray(d?.items) ? d.items : [])
+const bkkDate = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
+
+export async function searchRecords(q: string): Promise<Hit[]> {
+  const get = (url: string, params: Record<string, string>) =>
+    api.get(url, { params }).then((r) => listOf(r.data)).catch(() => [] as any[])
+  const [customers, repairs, sales] = await Promise.all([
+    get('/customers', { search: q }),
+    get('/repairs', { search: q, limit: '5' }),
+    get('/sales', { search: q, limit: '5' }),
+  ])
+  return [
+    ...repairs.slice(0, 5).map((r): Hit => ({
+      key: `repair:${r.id}`, kind: 'repair', href: `/repairs/${r.id}`,
+      title: `${r.ticketNumber} · ${[r.deviceBrand, r.deviceModel].filter(Boolean).join(' ')}`,
+      sub: [r.customer?.name, r.customer?.phone, r.deviceImei].filter(Boolean).join(' · '),
+    })),
+    ...customers.slice(0, 5).map((c): Hit => ({
+      key: `customer:${c.id}`, kind: 'customer', href: `/customers/${c.id}`,
+      title: c.name, sub: c.phone ?? undefined,
+    })),
+    ...sales.slice(0, 5).map((s): Hit => ({
+      key: `sale:${s.id}`, kind: 'sale',
+      href: `/sales/history?date=${bkkDate(s.createdAt)}&q=${encodeURIComponent(s.receiptNumber)}`,
+      title: `${s.receiptNumber} · ${money(s.total)}`,
+      sub: [new Date(s.createdAt).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' }), s.customer?.name].filter(Boolean).join(' · '),
+    })),
+  ]
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function QuickSearch() {
@@ -50,12 +89,33 @@ export function QuickSearch() {
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef  = useRef<HTMLInputElement>(null)
 
-  const filtered = query.trim()
+  const pages = query.trim()
     ? NAV_ITEMS.filter(item =>
         item.label.toLowerCase().includes(query.toLowerCase()) ||
         item.section.toLowerCase().includes(query.toLowerCase())
       )
     : NAV_ITEMS.slice(0, 9)
+
+  // Records: customers, repair jobs (number, IMEI, model, phone) and bills, searched as you type.
+  // Each kind the user may not see (no permission) just comes back empty.
+  const [records, setRecords] = useState<Hit[]>([])
+  const [searching, setSearching] = useState(false)
+  useEffect(() => {
+    const q = query.trim()
+    if (!open || q.length < 2) { setRecords([]); setSearching(false); return }
+    let stale = false
+    setSearching(true)
+    const t = setTimeout(async () => {
+      const hits = await searchRecords(q)
+      if (!stale) { setRecords(hits); setSearching(false) }
+    }, 300)
+    return () => { stale = true; clearTimeout(t) }
+  }, [query, open])
+
+  const filtered: Hit[] = [
+    ...records,
+    ...pages.map((p) => ({ key: `page:${p.href}`, kind: 'page' as const, href: p.href, title: p.label, sub: p.section })),
+  ]
 
   const navigate = useCallback((href: string) => {
     setOpen(false)
@@ -109,11 +169,11 @@ export function QuickSearch() {
       {/* Trigger button (shown in header) */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 h-8 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:bg-white dark:hover:bg-slate-700/40 hover:text-slate-700 dark:hover:text-slate-300 transition-colors min-w-[120px] sm:min-w-[180px]"
+        className="flex items-center gap-2 h-8 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-800/60 px-3 text-xs text-slate-500 dark:text-slate-400 hover:border-blue-300 hover:bg-white dark:hover:bg-slate-700/40 hover:text-slate-700 dark:hover:text-slate-300 transition-colors min-w-[120px] sm:min-w-[220px]"
         aria-label="ค้นหา (Cmd+K)"
       >
         <Search className="h-3.5 w-3.5 shrink-0" />
-        <span className="flex-1 text-left">ค้นหาหน้า...</span>
+        <span className="flex-1 text-left truncate">ค้นหาลูกค้า งานซ่อม บิล...</span>
         <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-1.5 py-0.5 text-[10px] font-mono leading-none">
           <Command className="h-2.5 w-2.5" />K
         </kbd>
@@ -132,7 +192,7 @@ export function QuickSearch() {
               ref={inputRef}
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="ค้นหาหน้า..."
+              placeholder="ชื่อลูกค้า เบอร์โทร IMEI เลขงาน เลขบิล หรือชื่อหน้า"
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-slate-400 dark:text-white dark:placeholder:text-slate-500"
             />
             {query && (
@@ -150,7 +210,12 @@ export function QuickSearch() {
 
           {/* Results list */}
           <div className="max-h-80 overflow-y-auto py-2">
-            {filtered.length === 0 ? (
+            {searching && (
+              <p className="flex items-center gap-2 px-4 pb-1.5 text-xs text-slate-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> กำลังค้นหา...
+              </p>
+            )}
+            {filtered.length === 0 && !searching ? (
               <div className="flex flex-col items-center py-10 text-center gap-2">
                 <Search className="h-8 w-8 text-slate-200 dark:text-slate-600" />
                 <p className="text-sm text-slate-500">ไม่พบ &ldquo;{query}&rdquo;</p>
@@ -162,9 +227,15 @@ export function QuickSearch() {
                     เมนูหลัก
                   </p>
                 )}
-                {filtered.map((item, i) => (
+                {filtered.map((item, i) => {
+                  const Icon = KIND_ICON[item.kind]
+                  const heading = i === 0 || filtered[i - 1].kind !== item.kind ? KIND_LABEL[item.kind] : null
+                  return (
+                  <div key={item.key}>
+                  {query.trim() && heading && (
+                    <p className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">{heading}</p>
+                  )}
                   <button
-                    key={item.href}
                     onClick={() => navigate(item.href)}
                     className={cn(
                       'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors',
@@ -173,15 +244,18 @@ export function QuickSearch() {
                         : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/40',
                     )}
                   >
+                    {Icon && <Icon className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />}
                     <div className="min-w-0 flex-1">
-                      <span className="text-sm font-medium">{item.label}</span>
-                      {item.section && (
-                        <span className="ml-2 text-[11px] text-slate-400">{item.section}</span>
+                      <span className="text-sm font-medium">{item.title}</span>
+                      {item.sub && (
+                        <span className={cn('text-[11px] text-slate-500', item.kind === 'page' ? 'ml-2' : 'block truncate')}>{item.sub}</span>
                       )}
                     </div>
                     <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-slate-600" />
                   </button>
-                ))}
+                  </div>
+                  )
+                })}
               </>
             )}
           </div>

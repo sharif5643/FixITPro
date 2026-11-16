@@ -561,8 +561,20 @@ export class SalesService {
     branchId?: string;
     limit?: number;
     cursor?: string;
+    search?: string;
   }, tenantId?: string | null) {
     const where: any = {};
+
+    // Find a bill by its number, the customer, or a phone's IMEI sold on it (the top search box)
+    const q = query.search?.trim().slice(0, 60);
+    if (q) {
+      where.OR = [
+        { receiptNumber: { contains: q, mode: 'insensitive' } },
+        { customer: { name: { contains: q, mode: 'insensitive' } } },
+        { customer: { phone: { contains: q } } },
+        { items: { some: { serialNumbers: { some: { serial: { contains: q, mode: 'insensitive' } } } } } },
+      ];
+    }
 
     if (query.date) {
       const start = new Date(`${query.date}T00:00:00+07:00`);
