@@ -56,7 +56,7 @@ export class SalesController {
   @UseGuards(PermissionGuard)
   @RequirePermission('sales.create', 'sales.refund', 'reports.view')
   findAll(
-    @Query() query: { date?: string; customerId?: string; shiftId?: string; branchId?: string; limit?: string; cursor?: string },
+    @Query() query: { date?: string; customerId?: string; shiftId?: string; branchId?: string; limit?: string; cursor?: string; search?: string },
     @CurrentUser('role') role: string,
     @CurrentUser('branchId') userBranchId: string | null,
     @CurrentUser('tenantId') tenantId: string | null,
