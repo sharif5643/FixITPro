@@ -293,12 +293,15 @@ export class OpsAccountingAdapter {
   async recordRepairExtraCost(p: {
     tenantId: string | null | undefined; branchId?: string | null; costId: string; ticketNumber: string;
     amount: number | Prisma.Decimal; fromDrawer: boolean; actorId?: string | null;
+    /** 'DELIVERY' (default) or 'PART' (a part bought outside stock, used on the job) */
+    kind?: string | null;
   }) {
     const amount = this.dec(p.amount);
     if (!amount.gt(0)) return;
+    const what = p.kind === 'PART' ? 'อะไหล่ (ไม่ได้เบิกจากสต็อก)' : 'ค่ารถส่งอะไหล่';
     await this.post(p.tenantId, 'recordRepairExtraCost', {
       branchId: p.branchId, actorId: p.actorId,
-      description: `ค่ารถส่งอะไหล่ — งาน ${p.ticketNumber}${p.fromDrawer ? '' : ' (เจ้าของจ่าย)'}`,
+      description: `${what} — งาน ${p.ticketNumber}${p.fromDrawer ? '' : ' (เจ้าของจ่าย)'}`,
       sourceType: JOURNAL_SOURCE.REPAIR_EXTRA_COST, sourceId: p.costId, sourceRef: p.ticketNumber,
       lines: [
         { accountCode: ACCOUNT_CODES.REPAIR_COGS, debit: amount.toString() },

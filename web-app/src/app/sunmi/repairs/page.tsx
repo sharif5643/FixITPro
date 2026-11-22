@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { PartsLaterField, emptyPartsLater, partsLaterError, savePartsLater, type PartsLaterValue } from '@/components/repairs/parts-later'
 import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -135,6 +136,7 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
   const [amountPaid, setAmountPaid]       = useState('')
   const [warrantyDays, setWarrantyDays]   = useState(DEFAULT_WARRANTY_DAYS)
   const [payLater, setPayLater]           = useState(false)
+  const [partsLater, setPartsLater]       = useState<PartsLaterValue>(emptyPartsLater)
   // Reprints use the same slips as the web and the staff app (shared print flows)
   const [reprintDelivery, setReprintDelivery] = useState(false)
   const [reprintIntake, setReprintIntake]     = useState(false)
@@ -281,8 +283,10 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
         warrantyDays: warrantyDaysValue(warrantyDays),
         ...(payLater && owed > 0 ? { allowPartial: true } : {}),
       }, { headers: deliverMutationKey.headers() }),
-    onSuccess: () => { deliverMutationKey.renew();
+    onSuccess: async () => { deliverMutationKey.renew();
       toast.success('ส่งมอบและรับชำระสำเร็จ')
+      // closed in a hurry: the parts' cost typed now, the parts taken from stock later
+      if (partsLater.on) await savePartsLater(repair.id, partsLater)
       onDelivered(repair.id)
     },
     onError: (err: any) => {
@@ -588,6 +592,8 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
 
                 <PayLaterToggle checked={payLater} onChange={setPayLater} owed={owed} />
 
+                <PartsLaterField value={partsLater} onChange={setPartsLater} />
+
                 {(paymentMethod === 'CASH' || payLater) && (
                   <div className="space-y-1">
                     <label className="text-sm text-slate-600">{payLater ? 'จ่ายวันนี้ (บาท)' : 'รับเงินมา (บาท)'}</label>
@@ -609,7 +615,11 @@ function ActionPanel({ repair, settings, onClose, onMutated, onDelivered }: Acti
 
                 {/* UX-2: open confirm dialog instead of mutating directly */}
                 <button
-                  onClick={() => setConfirmDeliverOpen(true)}
+                  onClick={() => {
+                    const plErr = partsLaterError(partsLater)
+                    if (plErr) { toast.error(plErr); return }
+                    setConfirmDeliverOpen(true)
+                  }}
                   disabled={isPending || currentShift === null || (!payLater && paymentMethod === 'CASH' && paidNum < remaining)}
                   className="w-full h-16 rounded-2xl bg-green-600 text-white text-xl font-bold active:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-2"
                 >

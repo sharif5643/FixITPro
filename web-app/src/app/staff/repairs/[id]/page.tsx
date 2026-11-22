@@ -7,6 +7,7 @@ import { QcDialog } from '@/components/repairs/qc-dialog'
 import { statusChoices } from '@/lib/repair-status-flow'
 import { RepairNextStep } from '@/components/repairs/repair-next-step'
 import { WarrantyDaysPicker, PayLaterToggle, DEFAULT_WARRANTY_DAYS, warrantyDaysValue } from '@/components/repairs/handover-options'
+import { PartsLaterField, PartsPendingBanner, emptyPartsLater, partsLaterError, savePartsLater, type PartsLaterValue } from '@/components/repairs/parts-later'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import {
@@ -170,6 +171,7 @@ export default function RepairDetailPage() {
   const [payAmount, setPayAmount]                   = useState('')
   const [payWarrantyDays, setPayWarrantyDays]       = useState(DEFAULT_WARRANTY_DAYS)
   const [payLater, setPayLater]                     = useState(false)
+  const [partsLater, setPartsLater]                 = useState<PartsLaterValue>(emptyPartsLater)
   const [qcOpen, setQcOpen]                         = useState(false)
   // Final price at handover ('' = the quoted total), as the web's payment dialog allows
   const [payFinal, setPayFinal]                     = useState('')
@@ -307,10 +309,12 @@ export default function RepairDetailPage() {
   const paymentMutation = useMutation({
     mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays: number; allowPartial?: boolean; finalCost?: number; discount?: number }) =>
       api.post(`/repairs/${id}/payment`, data, { headers: paymentMutationKey.headers() }),
-    onSuccess: () => { paymentMutationKey.renew();
+    onSuccess: async () => { paymentMutationKey.renew();
+      toast.success('รับเงินสำเร็จ — งานซ่อมส่งคืนแล้ว')
+      // closed in a hurry: the parts' cost typed now, the parts taken from stock later
+      if (partsLater.on) { await savePartsLater(id, partsLater); setPartsLater(emptyPartsLater) }
       queryClient.invalidateQueries({ queryKey: ['staff-repair', id] })
       queryClient.invalidateQueries({ queryKey: ['shifts', 'current'] })
-      toast.success('รับเงินสำเร็จ — งานซ่อมส่งคืนแล้ว')
       setPayOpen(false)
     },
     onError: (err: unknown) => toast.error(errMsg(err)),
@@ -432,6 +436,8 @@ export default function RepairDetailPage() {
       ...(payFinal !== '' && Number(payFinal) !== quotedTotal ? { finalCost: Number(payFinal) || 0 } : {}),
       ...(payDiscountNum > 0 ? { discount: payDiscountNum } : {}),
     }
+    const plErr = partsLaterError(partsLater)
+    if (plErr) { toast.error(plErr); return }
     const amount = Number(payAmount)
     if (payLater) {
       // Pay later: today's amount may be 0; the rest is owed (same as the web's ค้างชำระ)
@@ -1210,6 +1216,7 @@ export default function RepairDetailPage() {
                     <PayLaterToggle checked={payLater} owed={Math.max(0, repairBalance - payAmountNum)}
                       onChange={(v) => { setPayLater(v); setPayAmount(v ? '0' : String(repairBalance)) }} />
                     <WarrantyDaysPicker value={payWarrantyDays} onChange={setPayWarrantyDays} />
+                    <PartsLaterField value={partsLater} onChange={setPartsLater} />
 
                     {/* Cash change */}
                     {payMethod === 'CASH' && !payLater && (
@@ -1295,6 +1302,8 @@ export default function RepairDetailPage() {
                     ))}
                   </div>
                 )}
+
+                <div className="mt-3"><PartsPendingBanner repair={repair as any} /></div>
 
                 {/* Withholding tax certificates (owner / manager record or cancel them) */}
                 {repair.status === 'DELIVERED' && (

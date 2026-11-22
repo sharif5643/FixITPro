@@ -169,9 +169,10 @@ export class BooksCatchUpService {
     }
 
     // ── Delivery fees on repair jobs
+    // (a cost typed while the parts are not yet taken is provisional: it is booked only when kept)
     const costs = await this.prisma.repairExtraCost.findMany({
-      where: { repair: { branch: { tenantId } } },
-      select: { id: true, amount: true, fromDrawer: true, repair: { select: { ticketNumber: true, branchId: true } } },
+      where: { repair: { branch: { tenantId } }, kind: { not: 'PART_ESTIMATE' } },
+      select: { id: true, kind: true, amount: true, fromDrawer: true, repair: { select: { ticketNumber: true, branchId: true } } },
     });
     const postedCosts = await this.posted(tenantId, JOURNAL_SOURCE.REPAIR_EXTRA_COST, costs.map((c) => c.id));
     for (const c of costs) {
@@ -179,7 +180,7 @@ export class BooksCatchUpService {
       result.extraCosts!++;
       if (write) await this.ops.recordRepairExtraCost({
         tenantId, branchId: c.repair.branchId, costId: c.id, ticketNumber: c.repair.ticketNumber,
-        amount: c.amount, fromDrawer: c.fromDrawer, actorId,
+        amount: c.amount, fromDrawer: c.fromDrawer, actorId, kind: c.kind,
       });
     }
 
