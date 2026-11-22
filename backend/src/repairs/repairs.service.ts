@@ -25,6 +25,7 @@ import { ReversePaymentDto } from './dto/reverse-payment.dto';
 import { AdditionalPaymentDto } from './dto/additional-payment.dto';
 import { RepairQcDto } from './dto/repair-qc.dto';
 import { RepairAccountingAdapter } from './repair-accounting.adapter';
+import { OpsAccountingAdapter } from '../journal/ops-accounting.adapter';
 import { RefundAndCancelDto } from './dto/refund-and-cancel.dto';
 import { QuickRepairDto } from './dto/quick-repair.dto';
 import { bangkokYmd } from '../common/bangkok-date';
@@ -79,6 +80,7 @@ export class RepairsService {
     private repairAccounting: RepairAccountingAdapter,
     private notifications: NotificationsService,
     @Optional() private taxInvoices?: TaxInvoicesService,
+    @Optional() private books?: OpsAccountingAdapter,
   ) {}
 
   /**
@@ -1307,6 +1309,43 @@ export class RepairsService {
     }
   }
 
+  /**
+   * The job is closed before its parts are taken from stock (the customer is in a hurry), but the
+   * cost is known: it is kept as a provisional cost (PART_ESTIMATE) so the job's profit is right
+   * now, and the job waits in "รอเบิกอะไหล่". When the parts are taken, their real cost replaces
+   * it (markPartsDone); a part bought outside, never in stock, keeps it as the job's cost (PART).
+   * Nothing leaves the drawer: the parts are the shop's own stock.
+   */
+  async setPartsLater(
+    id: string, dto: { estimate: number; note?: string },
+    actor: { id: string; name?: string }, tenantId?: string | null,
+  ) {
+    const estimate = Math.round(Number(dto.estimate) * 100) / 100;
+    if (!Number.isFinite(estimate) || estimate <= 0 || estimate > 10_000_000) {
+      throw new BadRequestException('กรุณาใส่ต้นทุนอะไหล่ (มากกว่า 0)');
+    }
+    const where: any = { id };
+    if (tenantId) where.branch = { tenantId };
+    const repair = await this.prisma.repair.findFirst({ where, select: { id: true, ticketNumber: true, status: true } });
+    if (!repair) throw new NotFoundException('ไม่พบงานซ่อม');
+    if (repair.status === 'CANCELLED') throw new BadRequestException('งานนี้ถูกยกเลิกแล้ว');
+    const note = dto.note?.trim().slice(0, 300) || null;
+    const cost = await this.prisma.$transaction(async (tx) => {
+      // one provisional cost per job: a second entry corrects the first
+      await tx.repairExtraCost.deleteMany({ where: { repairId: id, kind: 'PART_ESTIMATE' } });
+      const created = await tx.repairExtraCost.create({
+        data: { repairId: id, kind: 'PART_ESTIMATE', amount: estimate, note, fromDrawer: false, createdById: actor.id },
+      });
+      await tx.repair.update({ where: { id }, data: { partsPending: true } });
+      return created;
+    });
+    await this.auditLog.log({
+      actorId: actor.id, actorName: actor.name, action: 'REPAIR_PARTS_LATER', entityType: 'Repair', entityId: id,
+      afterData: { ticketNumber: repair.ticketNumber, estimate, note },
+    });
+    return { id, partsPending: true, estimate: Number(cost.amount), extraCostId: cost.id };
+  }
+
   /** Quick jobs whose parts are still to be taken from stock, newest first. */
   async partsPending(branchId: string | undefined, tenantId?: string | null) {
     const rows = await this.prisma.repair.findMany({
@@ -1323,26 +1362,65 @@ export class RepairsService {
         finalCost: true, deliveredAt: true, branchId: true,
         customer: { select: { name: true, phone: true } },
         parts: { where: { isVoided: false }, select: { id: true, productName: true, quantity: true, isFreebie: true } },
+        extraCosts: { where: { kind: 'PART_ESTIMATE' }, select: { amount: true, note: true } },
       },
     });
-    return rows.map((r) => ({ ...r, finalCost: r.finalCost != null ? Number(r.finalCost) : null }));
+    return rows.map(({ extraCosts, ...r }) => ({
+      ...r,
+      finalCost: r.finalCost != null ? Number(r.finalCost) : null,
+      // the cost typed when the job was closed, until the real parts replace it
+      partsEstimate: extraCosts[0] ? Number(extraCosts[0].amount) : null,
+      partsEstimateNote: extraCosts[0]?.note ?? null,
+    }));
   }
 
-  /** Parts for a quick job are done (or none were used): it leaves the "ยังไม่เบิกอะไหล่" list. */
-  async markPartsDone(id: string, actor: { id: string; name?: string }, tenantId?: string | null) {
+  /**
+   * Parts for the job are done (or none were used): it leaves the "ยังไม่เบิกอะไหล่" list.
+   * A cost typed at closing is replaced by the parts taken (`keepEstimate` false, the default),
+   * or kept as the job's cost when the part was bought outside and never in stock (`keepEstimate`).
+   */
+  async markPartsDone(
+    id: string, actor: { id: string; name?: string }, tenantId?: string | null,
+    opts: { keepEstimate?: boolean } = {},
+  ) {
     const where: any = { id, partsPending: true };
     if (tenantId) where.branch = { tenantId };
-    const repair = await this.prisma.repair.findFirst({ where, select: { id: true, ticketNumber: true, parts: { where: { isVoided: false }, select: { id: true } } } });
+    const repair = await this.prisma.repair.findFirst({
+      where,
+      select: {
+        id: true, ticketNumber: true, branchId: true,
+        parts: { where: { isVoided: false }, select: { id: true } },
+        extraCosts: { where: { kind: 'PART_ESTIMATE' }, select: { id: true, amount: true } },
+      },
+    });
     if (!repair) throw new NotFoundException('ไม่พบงานที่รอเบิกอะไหล่');
-    await this.prisma.repair.update({ where: { id }, data: { partsPending: false } });
+    const estimate = repair.extraCosts[0] ?? null;
+    const keep = !!opts.keepEstimate && !!estimate;
+    // Claim the job first: two taps at once settle it once
+    const won = await this.prisma.repair.updateMany({ where: { id, partsPending: true }, data: { partsPending: false } });
+    if (won.count === 0) throw new NotFoundException('ไม่พบงานที่รอเบิกอะไหล่');
+    if (estimate) {
+      if (keep) await this.prisma.repairExtraCost.update({ where: { id: estimate.id }, data: { kind: 'PART' } });
+      else await this.prisma.repairExtraCost.delete({ where: { id: estimate.id } });
+    }
+    if (keep && this.books) {
+      const tenant = tenantId ?? (await this.prisma.branch.findUnique({ where: { id: repair.branchId ?? '' }, select: { tenantId: true } }).catch(() => null))?.tenantId ?? null;
+      await this.books.recordRepairExtraCost({
+        tenantId: tenant, branchId: repair.branchId, costId: estimate!.id, ticketNumber: repair.ticketNumber,
+        amount: estimate!.amount, fromDrawer: false, actorId: actor.id, kind: 'PART',
+      }).catch(() => undefined);
+    }
     await this.auditLog.log({
       actorId: actor.id, actorName: actor.name,
       action: 'REPAIR_PARTS_DONE',
       entityType: 'Repair',
       entityId: id,
-      afterData: { ticketNumber: repair.ticketNumber, parts: repair.parts.length },
+      afterData: {
+        ticketNumber: repair.ticketNumber, parts: repair.parts.length,
+        estimate: estimate ? Number(estimate.amount) : null, estimateKept: keep,
+      },
     });
-    return { id, partsPending: false };
+    return { id, partsPending: false, estimateKept: keep };
   }
 
   async processPayment(repairId: string, dto: RepairPaymentDto, userId: string, tenantId?: string | null, role?: string) {
@@ -2437,14 +2515,17 @@ export class RepairsService {
     const withholdingTax   = (await whtByRepair(this.prisma, [repair.id])).get(repair.id) ?? 0;
     const revenue          = deposit + finalPayment + additionalTotal + withholdingTax - reversalTotal;
 
+    // Parts not taken from stock count as parts: a cost typed at closing (until the parts are
+    // taken) or a part bought outside
+    const isPartCost = (k: string) => k === 'PART' || k === 'PART_ESTIMATE';
     const partsCost = repair.parts.reduce((s, p) => {
       const unit = Number(p.costPrice ?? p.price);
       return s + unit * p.quantity;
-    }, 0);
+    }, 0) + repair.extraCosts.filter((c) => isPartCost(c.kind)).reduce((s, c) => s + Number(c.amount), 0);
 
     // Everything this job cost, as in the profit report: parts (free ones too), the delivery fee
     // for its parts, the technician's labour
-    const deliveryCost = repair.extraCosts.reduce((s, c) => s + Number(c.amount), 0);
+    const deliveryCost = repair.extraCosts.filter((c) => !isPartCost(c.kind)).reduce((s, c) => s + Number(c.amount), 0);
     const laborCost    = Number(repair.actualLaborCost ?? 0);
     const grossProfit  = revenue - partsCost - deliveryCost - laborCost;
     const marginPercent = revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0;
@@ -2467,6 +2548,7 @@ export class RepairsService {
         delivery: deliveryCost,
         labor:    laborCost,
         total:    partsCost + deliveryCost + laborCost,
+        partsEstimated: repair.extraCosts.some((c) => c.kind === 'PART_ESTIMATE'),
         partList: repair.parts.map((p) => ({
           name: p.productName, qty: p.quantity, cost: Number(p.costPrice ?? p.price) * p.quantity, isFreebie: p.isFreebie,
         })),

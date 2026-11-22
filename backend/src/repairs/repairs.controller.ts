@@ -169,11 +169,26 @@ export class RepairsController {
   @RequirePermission('repair.edit')
   markPartsDone(
     @Param('id') id: string,
+    @Body() body: { keepEstimate?: boolean } | undefined,
     @CurrentUser('id') actorId: string,
     @CurrentUser('name') actorName: string,
     @CurrentUser('tenantId') tenantId: string | null,
   ) {
-    return this.repairsService.markPartsDone(id, { id: actorId, name: actorName }, tenantId);
+    return this.repairsService.markPartsDone(id, { id: actorId, name: actorName }, tenantId, { keepEstimate: body?.keepEstimate === true });
+  }
+
+  /** Closing in a hurry: parts are taken from stock later, their cost is typed now */
+  @Post(':id/parts-later')
+  @UseGuards(PermissionGuard)
+  @RequirePermission('repair.close', 'repair.edit')
+  setPartsLater(
+    @Param('id') id: string,
+    @Body() body: { estimate: number; note?: string },
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('name') actorName: string,
+    @CurrentUser('tenantId') tenantId: string | null,
+  ) {
+    return this.repairsService.setPartsLater(id, { estimate: Number(body?.estimate), note: typeof body?.note === 'string' ? body.note : undefined }, { id: actorId, name: actorName }, tenantId);
   }
 
   @Get('outstanding')

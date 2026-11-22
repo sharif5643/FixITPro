@@ -25,6 +25,9 @@ export type PartsPendingJob = {
   branchId: string | null
   customer: { name: string; phone: string | null } | null
   parts: { id: string; productName: string | null; quantity: number; isFreebie: boolean }[]
+  /** cost typed when the job was closed (the real parts replace it) */
+  partsEstimate?: number | null
+  partsEstimateNote?: string | null
 }
 
 export const partsPendingKey = (branchId?: string) => ['repairs', 'parts-pending', branchId ?? 'all']
@@ -82,8 +85,11 @@ function PendingJob({ job, onChanged }: { job: PartsPendingJob; onChanged: () =>
     onError: (err) => toast.error(errText(err, 'คืนไม่สำเร็จ')),
   })
   const done = useMutation({
-    mutationFn: () => api.patch(`/repairs/${job.id}/parts-done`, {}),
-    onSuccess: () => { toast.success(`${job.ticketNumber} เบิกอะไหล่ครบแล้ว`); onChanged() },
+    mutationFn: (keepEstimate: boolean) => api.patch(`/repairs/${job.id}/parts-done`, keepEstimate ? { keepEstimate: true } : {}),
+    onSuccess: (_r, keepEstimate) => {
+      toast.success(keepEstimate ? `${job.ticketNumber} ใช้ต้นทุนที่กรอกไว้แล้ว` : `${job.ticketNumber} เบิกอะไหล่ครบแล้ว`)
+      onChanged()
+    },
     onError: (err) => toast.error(errText(err, 'บันทึกไม่สำเร็จ')),
   })
 
@@ -100,6 +106,14 @@ function PendingJob({ job, onChanged }: { job: PartsPendingJob; onChanged: () =>
         </div>
         <span className="shrink-0 text-sm font-bold tabular-nums">{formatThaiMoney(job.finalCost ?? 0)}</span>
       </div>
+
+      {job.partsEstimate != null && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+          ต้นทุนที่กรอกตอนปิดงาน <strong className="tabular-nums">{formatThaiMoney(job.partsEstimate)}</strong>
+          {job.partsEstimateNote ? ` · ${job.partsEstimateNote}` : ''}
+          <span className="block opacity-80">เบิกของจริงแล้วกด “เบิกครบแล้ว” — ต้นทุนจริงจะแทนยอดนี้ (ไม่นับซ้ำ)</span>
+        </p>
+      )}
 
       {job.parts.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -146,11 +160,20 @@ function PendingJob({ job, onChanged }: { job: PartsPendingJob; onChanged: () =>
         <Button size="sm" variant="outline" className="flex-1" onClick={() => setSearching((v) => !v)}>
           <PackageMinus className="mr-1 h-4 w-4" />{searching ? 'ปิดการค้นหา' : 'เบิกอะไหล่'}
         </Button>
-        <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={done.isPending} onClick={() => done.mutate()}>
-          {done.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
-          {job.parts.length > 0 ? 'เบิกครบแล้ว' : 'ไม่ได้ใช้อะไหล่'}
-        </Button>
+        {/* With a typed cost and nothing taken yet, "ไม่ได้ใช้อะไหล่" would wipe the cost: the choices are
+            to take the parts, or keep the typed cost (bought outside) */}
+        {!(job.partsEstimate != null && job.parts.length === 0) && (
+          <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={done.isPending} onClick={() => done.mutate(false)}>
+            {done.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
+            {job.parts.length > 0 ? 'เบิกครบแล้ว' : 'ไม่ได้ใช้อะไหล่'}
+          </Button>
+        )}
       </div>
+      {job.partsEstimate != null && job.parts.length === 0 && (
+        <Button size="sm" variant="outline" className="mt-2 w-full" disabled={done.isPending} onClick={() => done.mutate(true)}>
+          ไม่ต้องเบิก — อะไหล่ซื้อจากข้างนอก ใช้ต้นทุน {formatThaiMoney(job.partsEstimate)}
+        </Button>
+      )}
     </div>
   )
 }

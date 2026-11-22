@@ -1052,10 +1052,14 @@ export class ReportsService {
     const repairPartsCost = repaids.reduce((s, r) => s + r.parts.filter((p) => !p.isFreebie).reduce((ps, p) => ps + partCost(p), 0), 0);
     // Hidden costs of the jobs: parts given free, and the delivery fee of the parts ordered for them
     const repairFreebieCost = repaids.reduce((s, r) => s + r.parts.filter((p) => p.isFreebie).reduce((ps, p) => ps + partCost(p), 0), 0);
-    const repairDeliveryCost = repaids.reduce((s, r) => s + r.extraCosts.reduce((cs, c) => cs + Number(c.amount), 0), 0);
-    const repairDeliveryCount = repaids.reduce((n, r) => n + r.extraCosts.length, 0);
+    // Extra costs of a job: the parts delivery fee, and parts not taken from stock (a cost typed at
+    // closing while the parts are still to be taken, or a part bought outside) — the latter is parts cost
+    const isPartCost = (c: { kind: string }) => c.kind === 'PART' || c.kind === 'PART_ESTIMATE';
+    const repairOutsidePartsCost = repaids.reduce((s, r) => s + r.extraCosts.filter(isPartCost).reduce((cs, c) => cs + Number(c.amount), 0), 0);
+    const repairDeliveryCost = repaids.reduce((s, r) => s + r.extraCosts.filter((c) => !isPartCost(c)).reduce((cs, c) => cs + Number(c.amount), 0), 0);
+    const repairDeliveryCount = repaids.reduce((n, r) => n + r.extraCosts.filter((c) => !isPartCost(c)).length, 0);
     const repairLaborCost = repaids.reduce((s, r) => s + Number(r.actualLaborCost ?? 0), 0);
-    const repairProfit    = repairRevenue - repairPartsCost - repairFreebieCost - repairDeliveryCost - repairLaborCost;
+    const repairProfit    = repairRevenue - repairPartsCost - repairOutsidePartsCost - repairFreebieCost - repairDeliveryCost - repairLaborCost;
 
     // --- Package profit ---
     const packageProfit  = packageSales.reduce((s, p) => s + Number(p.profit), 0);
@@ -1143,7 +1147,9 @@ export class ReportsService {
           time: w.certificateDate.toISOString(), repairId: w.repairId, ticketNumber: whtTickets.get(w.repairId) ?? null,
           payerName: w.payerName, amount: Number(w.amount),
         })),
-        partsCost: repairPartsCost,
+        partsCost: r2(repairPartsCost + repairOutsidePartsCost),
+        // of which: parts not taken from stock (typed at closing, or bought outside)
+        outsidePartsCost: r2(repairOutsidePartsCost),
         freebieCost: r2(repairFreebieCost),
         deliveryCost: r2(repairDeliveryCost),
         deliveryCount: repairDeliveryCount,
@@ -1152,8 +1158,9 @@ export class ReportsService {
         count:     repaids.length,
         margin:    repairRevenue > 0 ? (repairProfit / repairRevenue) * 100 : 0,
         items:     repaids.map((r) => {
-          const pc = r.parts.reduce((s, p) => s + partCost(p), 0);
-          const dc = r.extraCosts.reduce((s, c) => s + Number(c.amount), 0);
+          const pc = r.parts.reduce((s, p) => s + partCost(p), 0) + r.extraCosts.filter(isPartCost).reduce((s, c) => s + Number(c.amount), 0);
+          const dc = r.extraCosts.filter((c) => !isPartCost(c)).reduce((s, c) => s + Number(c.amount), 0);
+          const pending = r.extraCosts.some((c) => c.kind === 'PART_ESTIMATE');
           const lc = Number(r.actualLaborCost ?? 0);
           return {
             time:         (r.paidAt as Date).toISOString(),
@@ -1166,6 +1173,8 @@ export class ReportsService {
             // of which: parts given free (ต้นทุนแฝง)
             freebieCost:  r.parts.filter((p) => p.isFreebie).reduce((t, p) => t + partCost(p), 0),
             deliveryCost: dc,
+            // parts cost is the figure typed at closing until the parts are taken from stock
+            partsCostEstimated: pending,
             laborCost:    lc,
             profit:       Number(r.paidAmount ?? 0) - pc - dc - lc,
           };

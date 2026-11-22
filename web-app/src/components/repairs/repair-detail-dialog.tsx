@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { PartsLaterField, PartsPendingBanner, emptyPartsLater, partsLaterError, savePartsLater, type PartsLaterValue } from '@/components/repairs/parts-later'
 import { useIntentKey } from '@/lib/intent-key'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -194,6 +195,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const [payOpen, setPayOpen]                 = useState(false)
   const [showDeliveryPrint, setShowDeliveryPrint] = useState(false)
   const [payMethod, setPayMethod] = useState<'CASH' | 'TRANSFER' | 'CARD'>('CASH')
+  const [partsLater, setPartsLater] = useState<PartsLaterValue>(emptyPartsLater)
   const [payAmount, setPayAmount] = useState('')
   const [payWarrantyDays, setPayWarrantyDays] = useState('30')
   const [payFinalCost, setPayFinalCost] = useState('')
@@ -240,6 +242,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       const promised = Math.min(Number(repair.discount ?? 0), total)
       const balance = Math.max(0, total - promised - deposit)
       setPayMethod('CASH')
+      setPartsLater(emptyPartsLater)
       setPayFinalCost(total > 0 ? String(total) : '')
       setPayDiscount(promised > 0 ? String(promised) : '')
       setPayAmount(String(balance))
@@ -353,7 +356,12 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
   const paymentMutation = useMutation({
     mutationFn: (data: { paymentMethod: string; amountPaid: number; warrantyDays?: number; allowPartial?: boolean; finalCost?: number; discount?: number }) =>
       api.post(`/repairs/${repairId}/payment`, data, { headers: paymentMutationKey.headers() }),
-    onSuccess: (res) => { paymentMutationKey.renew();
+    onSuccess: async (res) => { paymentMutationKey.renew();
+      // closed in a hurry: the parts' cost typed now, the parts taken from stock later
+      if (partsLater.on && repairId) {
+        await savePartsLater(repairId, partsLater)
+        queryClient.invalidateQueries({ queryKey: ['repairs', 'parts-pending'] })
+      }
       queryClient.invalidateQueries({ queryKey: ['repairs', repairId] })
       queryClient.invalidateQueries({ queryKey: ['repairs'] })
       queryClient.invalidateQueries({ queryKey: ['daily-report'] })
@@ -506,6 +514,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
       toast.error('กรุณาระบุจำนวนเงิน')
       return
     }
+    const plErr = partsLaterError(partsLater)
+    if (plErr) { toast.error(plErr); return }
     const wDays = parseInt(payWarrantyDays)
     paymentMutation.mutate({
       paymentMethod: payMethod,
@@ -1296,6 +1306,7 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                   {repair.status === 'DELIVERED' && (
                     <WithholdingTaxBox repairId={repair.id} outstanding={0} canRecord={false} canManage={canManageWht} />
                   )}
+                  <PartsPendingBanner repair={repair as any} />
                   {/* Add additional payment button */}
                   <Button
                     size="sm"
@@ -1604,6 +1615,8 @@ export function RepairDetailDialog({ repairId, onClose, onStatusChange }: Repair
                 </p>
               )}
             </div>
+
+            <PartsLaterField value={partsLater} onChange={setPartsLater} />
           </div>
 
           {/* Partial payment warning */}

@@ -25,18 +25,30 @@ export function QuickCashBar({ className, disabled }: { className?: string; disa
   })
   const enabled = settings?.quickCashEnabled === true
   const { branchId } = useAppBranch()
-  const { data: pending = [] } = usePartsPending(branchId, enabled)
+  // Every shop can close a job before taking its parts, so the list is there with or without the module
+  const { data: pending = [] } = usePartsPending(branchId)
   const [cash, setCash] = useState<CashDirection | null>(null)
   const [repairOpen, setRepairOpen] = useState(false)
   const [pendingOpen, setPendingOpen] = useState(false)
 
-  // The parts' delivery fee is a cost every shop has: its button shows even without the module
+  // The parts' delivery fee is a cost every shop has: its button shows even without the module,
+  // and so do the jobs closed before their parts were taken
   if (!enabled) {
     return (
-      <div className={cn('flex justify-end', className)}>
-        <DeliveryFeeButton disabled={disabled}
-          className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300" />
-      </div>
+      <>
+        <div className={cn('flex justify-end gap-1.5', className)}>
+          {pending.length > 0 && (
+            <button type="button" onClick={() => setPendingOpen(true)}
+              aria-label={`รอเบิกอะไหล่ ${pending.length} งาน`}
+              className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+              📦 รอเบิกอะไหล่ {pending.length}
+            </button>
+          )}
+          <DeliveryFeeButton disabled={disabled}
+            className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300" />
+        </div>
+        <PartsPendingDialog open={pendingOpen} onOpenChange={setPendingOpen} branchId={branchId} />
+      </>
     )
   }
 
